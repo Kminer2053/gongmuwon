@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from .db import Database, now_iso
 from .documents import DocumentManager
 from .knowledge import KnowledgeManager
-from .settings import SidecarSettings
+from .settings import SidecarSettings, WorkspaceSettingsResponse
 from .workspace import WorkspacePaths, ensure_workspace
 
 
@@ -285,22 +285,22 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             "database": str(services.paths.db_file),
         }
 
-    @app.get("/api/settings")
-    def get_settings() -> dict[str, Any]:
-        return {
-            "defaults": {
+    @app.get("/api/settings", response_model=WorkspaceSettingsResponse)
+    def get_settings() -> WorkspaceSettingsResponse:
+        return WorkspaceSettingsResponse(
+            defaults={
                 "llm_mode": services.settings.llm_mode,
                 "anything_launch_mode": services.settings.anything_launch_mode,
                 "default_template_key": services.settings.default_template_key,
                 "internal_api_base_url": services.settings.internal_api_base_url,
             },
-            "paths": {
+            paths={
                 "workspace_root": str(services.paths.root),
                 "database": str(services.paths.db_file),
                 "knowledge_root": str(services.paths.knowledge_root),
                 "documents_root": str(services.paths.documents_root),
             },
-        }
+        )
 
     @app.get("/api/templates")
     def templates() -> dict[str, Any]:

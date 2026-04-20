@@ -2,7 +2,27 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class WorkspaceSettingsDefaults(BaseModel):
+    llm_mode: Literal["local_first", "internal_server"]
+    anything_launch_mode: Literal["external_link_only"]
+    default_template_key: Literal["report", "meeting", "review"]
+    internal_api_base_url: str | None
+
+
+class WorkspaceSettingsPaths(BaseModel):
+    workspace_root: str
+    database: str
+    knowledge_root: str
+    documents_root: str
+
+
+class WorkspaceSettingsResponse(BaseModel):
+    defaults: WorkspaceSettingsDefaults
+    paths: WorkspaceSettingsPaths
 
 
 class SidecarSettings(BaseSettings):

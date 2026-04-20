@@ -107,6 +107,12 @@ export type WorkspaceSettings = {
   };
 };
 
+const WORKSPACE_SETTINGS_VALUES = {
+  llm_mode: ["local_first", "internal_server"],
+  anything_launch_mode: ["external_link_only"],
+  default_template_key: ["report", "meeting", "review"],
+} as const;
+
 export type ContentBaseResult = {
   id: string;
   title: string;
@@ -147,6 +153,55 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isAllowedValue<T extends string>(
+  value: unknown,
+  allowedValues: readonly T[],
+): value is T {
+  return typeof value === "string" && allowedValues.includes(value as T);
+}
+
+function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
+  if (!isRecord(value) || !isRecord(value.defaults) || !isRecord(value.paths)) {
+    throw new Error("invalid workspace settings payload");
+  }
+
+  const { defaults, paths } = value;
+  if (
+    !isAllowedValue(defaults.llm_mode, WORKSPACE_SETTINGS_VALUES.llm_mode) ||
+    !isAllowedValue(defaults.anything_launch_mode, WORKSPACE_SETTINGS_VALUES.anything_launch_mode) ||
+    !isAllowedValue(defaults.default_template_key, WORKSPACE_SETTINGS_VALUES.default_template_key) ||
+    !(
+      typeof defaults.internal_api_base_url === "string" ||
+      defaults.internal_api_base_url === null
+    ) ||
+    typeof paths.workspace_root !== "string" ||
+    typeof paths.database !== "string" ||
+    typeof paths.knowledge_root !== "string" ||
+    typeof paths.documents_root !== "string"
+  ) {
+    throw new Error("invalid workspace settings payload");
+  }
+
+  return {
+    defaults: {
+      llm_mode: defaults.llm_mode,
+      anything_launch_mode: defaults.anything_launch_mode,
+      default_template_key: defaults.default_template_key,
+      internal_api_base_url: defaults.internal_api_base_url,
+    },
+    paths: {
+      workspace_root: paths.workspace_root,
+      database: paths.database,
+      knowledge_root: paths.knowledge_root,
+      documents_root: paths.documents_root,
+    },
+  };
+}
+
 export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
   const [
     health,
@@ -162,7 +217,7 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
     logs,
   ] = await Promise.allSettled([
     requestJson<WorkspaceHealth>("/health"),
-    requestJson<WorkspaceSettings>("/api/settings"),
+    requestJson<unknown>("/api/settings"),
     requestJson<{ items: ScheduleItem[] }>("/api/schedules"),
     requestJson<{ items: WorkSessionItem[] }>("/api/work-sessions"),
     requestJson<{ items: ReferenceSetItem[] }>("/api/reference-sets"),
@@ -176,7 +231,7 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
 
   return {
     health: health.status === "fulfilled" ? health.value : null,
-    settings: settings.status === "fulfilled" ? settings.value : null,
+    settings: settings.status === "fulfilled" ? parseWorkspaceSettings(settings.value) : null,
     schedules: schedules.status === "fulfilled" ? schedules.value.items : [],
     workSessions: workSessions.status === "fulfilled" ? workSessions.value.items : [],
     referenceSets: referenceSets.status === "fulfilled" ? referenceSets.value.items : [],

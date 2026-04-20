@@ -8,7 +8,9 @@
 - `services/sidecar`: `FastAPI + SQLite + LanceDB + NetworkX` 기반 사이드카 생성
 - `runtime-workspace` 기본 구조 자동 생성
 - `services/sidecar`: `/api/settings` runtime settings contract 추가
+- `services/sidecar`: `/api/settings` typed response model + env override verification 추가
 - `apps/desktop`: live settings snapshot 로딩 및 settings panel 표시 연결
+- `apps/desktop`: runtime parser/guard for `WorkspaceSettings` 추가
 - 일정 / 업무세션 / 참고자료 묶음 / 지식 반영 후보 / 콘텐츠 베이스 / 승인 요청 / 파일정리 제안 API 골격 구현
 - 지식 반영 시 `Markdown page + graph.json + graph.html + GRAPH_REPORT.md` 생성
 - 문서작성 시 `ContentBase.md + preview.html` 생성
@@ -18,8 +20,9 @@
 
 | 영역 | 명령 | 결과 |
 | --- | --- | --- |
-| Sidecar API | `.venv/bin/pytest services/sidecar/tests -q` | `7 passed` |
+| Sidecar API | `npm run sidecar:test` | `8 passed` |
 | Sidecar settings contract | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | `PASS` |
+| Sidecar env override | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | `PASS` |
 | Desktop UI | `npm --workspace apps/desktop run test` | `3 passed` |
 | Desktop build | `npm --workspace apps/desktop run build` | 성공 |
 | Verify bundle | `npm run verify:all` | PASS |
@@ -103,8 +106,9 @@
 
 | 날짜 | 범위 | 명령 | 결과 | 메모 |
 | --- | --- | --- | --- | --- |
-| 2026-04-20 | baseline | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `7 passed` |
+| 2026-04-20 | baseline | `npm run sidecar:test` | PASS | `8 passed` |
 | 2026-04-20 | task1 | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | PASS | `/api/settings` runtime contract verified |
+| 2026-04-20 | task1 | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | PASS | `GONGMU_*` overrides verified |
 | 2026-04-20 | baseline | `npm --workspace apps/desktop run test` | PASS | `3 passed` |
 | 2026-04-20 | baseline | `npm --workspace apps/desktop run build` | PASS | Vite build 성공 |
 | 2026-04-20 | task1 | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 통과 |
@@ -118,6 +122,7 @@
 | 2026-04-20 | 결정 | 검색은 `Anything` 외부 실행 연계만 유지 | ETP/깊은 통합은 후속 단계로 보류 |
 | 2026-04-20 | 이슈 | Tauri 빌드가 기본 아이콘 부재로 실패 | `src-tauri/icons/icon.png` 보강 완료 |
 | 2026-04-20 | 결정 | 런타임 설정은 sidecar `/api/settings` 단일 계약으로 제공 | desktop snapshot과 settings panel이 이 계약을 소비 |
+| 2026-04-20 | 결정 | `/api/settings`는 typed response model + desktop runtime guard + env override test로 hardening | contract drift를 낮추고 verification bundle에서 반복 검증 |
 
 ---
 
