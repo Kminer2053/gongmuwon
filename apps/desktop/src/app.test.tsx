@@ -207,6 +207,25 @@ beforeEach(() => {
         });
       }
 
+      if (url.endsWith("/api/tools")) {
+        return jsonResponse({
+          items: [
+            {
+              key: "metadata-cleanup",
+              label: "메타데이터 정리",
+              description: "참고자료의 제목, 날짜, 주제 태그를 보강합니다.",
+              status: "mvp",
+            },
+            {
+              key: "ocr",
+              label: "OCR",
+              description: "스캔 문서를 참고자료 텍스트로 변환합니다.",
+              status: "later",
+            },
+          ],
+        });
+      }
+
       if (url.endsWith("/api/knowledge/candidates/from-note")) {
         return jsonResponse({
           id: "candidate-1",
@@ -396,6 +415,18 @@ describe("App shell", () => {
     await waitFor(() => expect(screen.getAllByText("예산편성").length).toBeGreaterThan(0));
     expect(screen.getByText("예산, 일정")).toBeInTheDocument();
     expect(screen.getByText("knowledge/graph/graph.json")).toBeInTheDocument();
+  });
+
+  it("loads the tool manifest into the tools workspace", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
+
+    await user.click(within(navigation).getByText("도구"));
+
+    expect(await screen.findByText("메타데이터 정리")).toBeInTheDocument();
+    expect(screen.getByText("참고자료의 제목, 날짜, 주제 태그를 보강합니다.")).toBeInTheDocument();
+    expect(screen.getByText("later")).toBeInTheDocument();
   });
 
   it("requests final document save and applies it after approval", async () => {

@@ -71,6 +71,13 @@ export type KnowledgeGraphSummary = {
   nodes: Array<{ id: string; label?: string; node_type?: string; neighbors?: string[] }>;
 };
 
+export type ToolManifestItem = {
+  key: string;
+  label: string;
+  description: string;
+  status: "mvp" | "later";
+};
+
 export type ApprovalTicketItem = {
   id: string;
   action: string;
@@ -354,6 +361,10 @@ export async function searchKnowledge(query: string) {
 
 export async function loadKnowledgeGraph() {
   return requestJson<KnowledgeGraphSummary>("/api/knowledge/graph");
+}
+
+export async function loadTools() {
+  return requestJson<{ items: ToolManifestItem[] }>("/api/tools");
 }
 
 export async function createContentBase(payload: {

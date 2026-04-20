@@ -19,16 +19,18 @@
 - 문서작성 최종 저장 UI의 `요청 -> 승인 -> 적용` 흐름 테스트 보강 완료
 - Windows 대상 최종 산출물 파일명 안전화 및 회귀 테스트 추가
 - 파일정리 제안의 승인 요청, 적용, rollback API와 데스크톱 액션 연결 완료
+- `services/sidecar`: `/api/tools` Tool Manifest와 `services/sidecar/README.md` 운영 런북 추가
+- `apps/desktop`: 도구 화면이 하드코딩 카드 대신 Tool Manifest 응답을 표시하도록 전환
 - 데스크톱 셸에서 주요 메뉴 순서와 기본 입력/조회 흐름 구현
 
 ### 2026-04-20 기준 검증 완료 증거
 
 | 영역 | 명령 | 결과 |
 | --- | --- | --- |
-| Sidecar API | `npm run sidecar:test` | `12 passed` |
+| Sidecar API | `npm run sidecar:test` | `13 passed` |
 | Sidecar settings contract | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | `PASS` |
 | Sidecar env override | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | `PASS` |
-| Desktop UI | `npm --workspace apps/desktop run test` | `5 passed` |
+| Desktop UI | `npm --workspace apps/desktop run test` | `6 passed` |
 | Desktop build | `npm --workspace apps/desktop run build` | 성공 |
 | Verify bundle | `npm run verify:all` | PASS |
 | Tauri shell | `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` | 성공 |
@@ -36,7 +38,7 @@
 ### 아직 비어 있는 핵심 구간
 
 - Tauri 앱이 사이드카를 직접 띄우고 상태를 감시하는 런타임 연결
-- 정적 카드가 아닌 `Tool Manifest`, 설정 정책, 운영 런북
+- 오프라인 설치 패키징과 운영 정책 문서화
 
 ---
 
@@ -63,7 +65,7 @@
 | W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
 | W5 | 파일정리 + 지식화 루프 | 완료 | 제안 생성/조회/적용/rollback 가능 | sidecar workflow test + desktop action 연결 완료 |
 | W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
-| W7 | 설치/운영 안정화 | 미착수 | dev/runbook/offline 정책/패키징 | 없음 |
+| W7 | 설치/운영 안정화 | 부분 완료 | dev/runbook/tool manifest 정리 | README + /api/tools |
 
 ---
 
@@ -137,6 +139,9 @@
 | 2026-04-20 | task3-review | `.venv/bin/pytest services/sidecar/tests/test_knowledge_search.py -q` | PASS | graph summary edge/artifact contract tightened |
 | 2026-04-20 | task3-review | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `12 passed` after graph summary fix |
 | 2026-04-20 | verification | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 재검증 완료 |
+| 2026-04-20 | task5 | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_tools_manifest_endpoint_is_exposed -q` | PASS | `/api/tools` Tool Manifest contract verified |
+| 2026-04-20 | task5 | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | 도구 메뉴가 manifest 기반 데이터를 렌더링함 |
+| 2026-04-20 | task5 | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `6 passed`, build + cargo check 포함 |
 
 ### 이슈 / 결정 로그
 
@@ -153,6 +158,7 @@
 | 2026-04-20 | 이슈 | `KnowledgeManager._table()`가 LanceDB `list_tables()` 응답 객체를 plain list처럼 검사해 기존 테이블을 다시 생성하려고 함 | `.tables` 기준으로 확인하도록 수정하고 Task 3 search/graph 테스트로 회귀 방지 |
 | 2026-04-20 | 이슈 | `graph.json`은 `edges`를 쓰는데 graph summary는 `links`만 읽어 `edge_count`를 0으로 보고함 | `edges` 우선, `links` fallback으로 수정하고 artifact contract assertion으로 회귀 방지 |
 | 2026-04-20 | 결정 | 파일정리는 자동 실행이 아니라 `적용 요청 -> 승인 -> 적용 -> rollback`의 보수적 흐름으로 유지 | 삭제 대신 copy 기반 operation 로그를 남기고 되돌리기를 허용 |
+| 2026-04-20 | 결정 | 도구 화면은 하드코딩 카드 대신 sidecar Tool Manifest를 단일 진실원천으로 사용 | README 런북과 `/api/tools`를 함께 갱신하는 방식으로 운영 |
 
 ---
 
@@ -173,5 +179,5 @@
 
 ### 다음 우선순위
 
-1. Tool Manifest + 운영 런북
-2. Tauri-사이드카 런타임 연결 안정화
+1. Tauri-사이드카 런타임 연결 안정화
+2. 오프라인 패키징/운영 정책 정리

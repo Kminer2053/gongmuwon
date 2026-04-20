@@ -30,6 +30,7 @@ import {
   createWorkSession,
   decideApproval,
   loadKnowledgeGraph,
+  loadTools,
   loadWorkspaceSnapshot,
   requestFileProposalApply,
   requestAnythingLaunch,
@@ -48,6 +49,7 @@ import {
   type ReferenceSetItem,
   type ScheduleItem,
   type TemplateItem,
+  type ToolManifestItem,
   type WorkspaceSnapshot,
   type WorkSessionItem,
 } from "./api";
@@ -100,13 +102,6 @@ const FALLBACK_TEMPLATES: TemplateItem[] = [
   { key: "report", label: "보고서형" },
   { key: "meeting", label: "회의자료형" },
   { key: "review", label: "검토메모형" },
-];
-
-const TOOL_CARDS = [
-  { title: "OCR", body: "스캔 문서를 텍스트로 바꿔 참고자료에 붙입니다.", status: "후속 구현" },
-  { title: "문서 요약", body: "긴 문서를 핵심 쟁점과 후속 조치 중심으로 요약합니다.", status: "MVP 연동 가능" },
-  { title: "엔티티 추출", body: "인물, 부서, 사업명, 일정을 구조화된 지식 후보로 분리합니다.", status: "MVP 연동 가능" },
-  { title: "템플릿 점검", body: "보고서형/회의자료형/검토메모형의 섹션 누락 여부를 확인합니다.", status: "MVP 포함" },
 ];
 
 function formatDateTime(value?: string | null) {
@@ -217,6 +212,8 @@ export function App() {
   const [knowledgeSearchResult, setKnowledgeSearchResult] = useState<KnowledgeSearchResult | null>(null);
   const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraphSummary | null>(null);
   const [knowledgeInspectorLoading, setKnowledgeInspectorLoading] = useState(false);
+  const [toolManifest, setToolManifest] = useState<ToolManifestItem[]>([]);
+  const [toolsLoading, setToolsLoading] = useState(false);
   const [documentForm, setDocumentForm] = useState({
     title: "",
     purpose: "보고서형",
@@ -304,6 +301,37 @@ export function App() {
       alive = false;
     };
   }, [activeMenu, snapshot.knowledgePages.length]);
+
+  useEffect(() => {
+    if (activeMenu !== "tools") {
+      return;
+    }
+
+    let alive = true;
+    setToolsLoading(true);
+    void loadTools()
+      .then((payload) => {
+        if (alive) {
+          setToolManifest(payload.items);
+        }
+      })
+      .catch((loadError) => {
+        if (alive) {
+          setError(
+            loadError instanceof Error ? loadError.message : "도구 목록을 불러오지 못했습니다.",
+          );
+        }
+      })
+      .finally(() => {
+        if (alive) {
+          setToolsLoading(false);
+        }
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [activeMenu]);
 
   async function handleAction<T>(action: () => Promise<T>, successMessage: string) {
     setSubmitting(true);
@@ -1284,15 +1312,23 @@ export function App() {
   function renderToolsSection() {
     return (
       <SectionCard eyebrow="보강형 도구" title="도구 레지스트리">
-        <div className="template-grid">
-          {TOOL_CARDS.map((tool) => (
-            <article key={tool.title} className="template-card">
-              <p className="template-card__key">{tool.status}</p>
-              <h3>{tool.title}</h3>
-              <p>{tool.body}</p>
-            </article>
-          ))}
-        </div>
+        {toolsLoading ? <p>도구 레지스트리를 불러오는 중입니다.</p> : null}
+        {!toolsLoading && toolManifest.length === 0 ? (
+          <EmptyState
+            title="도구 레지스트리가 아직 비어 있습니다."
+            body="사이드카의 Tool Manifest가 준비되면 OCR, 요약, 엔티티 추출, 템플릿 점검을 여기서 제어합니다."
+          />
+        ) : (
+          <div className="template-grid">
+            {toolManifest.map((tool) => (
+              <article key={tool.key} className="template-card">
+                <p className="template-card__key">{tool.status}</p>
+                <h3>{tool.label}</h3>
+                <p>{tool.description}</p>
+              </article>
+            ))}
+          </div>
+        )}
       </SectionCard>
     );
   }

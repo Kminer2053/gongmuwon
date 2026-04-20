@@ -18,7 +18,7 @@
 | Task 2 | 완료 | 문서 최종 저장 request/apply, desktop apply UI, full UI flow test, Windows-safe output filename | `321eb20`, `f4dbe84`, `f682654` |
 | Task 3 | 완료 | knowledge search endpoint 검증, graph summary API, desktop inspector panel, LanceDB table detection fix, graph artifact contract 회귀 방지 | 이번 배치 검증 완료 |
 | Task 4 | 완료 | file organizer request/apply/rollback API, desktop action buttons, copy-based operation log | 이번 배치 검증 완료 |
-| Task 5 | 미착수 | Tool Manifest + 운영 런북 | - |
+| Task 5 | 완료 | Tool Manifest endpoint, manifest-driven tools UI, sidecar runbook 정리 | 이번 배치 검증 완료 |
 
 ---
 
@@ -27,23 +27,25 @@
 ### Verified Today
 
 - `services/sidecar`: 일정, 업무세션, 참고자료, 지식 반영 후보, Content Base, 문서 최종 저장 승인/적용, 지식 검색/그래프 요약, 파일정리 적용/rollback API가 동작한다.
-- `apps/desktop`: 메뉴 순서, 입력 폼, 우측 승인/실행기록 패널, 주요 화면 전환, 문서 최종 저장 request/apply UI, 지식 검색/그래프 inspector, 파일정리 액션 버튼이 동작한다.
+- `apps/desktop`: 메뉴 순서, 입력 폼, 우측 승인/실행기록 패널, 주요 화면 전환, 문서 최종 저장 request/apply UI, 지식 검색/그래프 inspector, 파일정리 액션 버튼, manifest 기반 도구 화면이 동작한다.
 - `runtime-workspace`: `db/`, `knowledge/`, `documents/`, `logs/`, `cache/` 구조가 자동 생성된다.
+- `services/sidecar/README.md`: 개발 명령, 런타임 경로, 서비스 표면, 운영 원칙이 정리되어 있다.
 - 검증 결과:
   - `.venv/bin/pytest services/sidecar/tests/test_knowledge_search.py -q` -> `1 passed`
   - `.venv/bin/pytest services/sidecar/tests/test_file_organizer_apply.py -q` -> `1 passed`
-  - `.venv/bin/pytest services/sidecar/tests -q` -> `12 passed`
-  - `npm --workspace apps/desktop run test` -> `5 passed`
+  - `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_tools_manifest_endpoint_is_exposed -q` -> `1 passed`
+  - `.venv/bin/pytest services/sidecar/tests -q` -> `13 passed`
+  - `npm --workspace apps/desktop run test` -> `6 passed`
   - `.venv/bin/pytest services/sidecar/tests/test_api_flows.py::test_document_finalize_sanitizes_windows_invalid_output_name -q` -> `1 passed`
-  - `npm --workspace apps/desktop run test -- src/app.test.tsx` -> `5 passed`
+  - `npm --workspace apps/desktop run test -- src/app.test.tsx` -> `6 passed`
   - `npm --workspace apps/desktop run build` -> 성공
   - `npm run verify:all` -> PASS
   - `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` -> 성공
 
 ### Gaps To Close
 
-1. 도구 목록, 운영 문서, 진행 체크 보드가 코드와 함께 순환하지 않는다.
-2. 데스크톱과 사이드카 사이의 런타임 실행 연결은 아직 개발용 수동 실행에 의존한다.
+1. 데스크톱과 사이드카 사이의 런타임 실행 연결은 아직 개발용 수동 실행에 의존한다.
+2. 오프라인 설치 패키징과 운영 정책 문서화는 더 남아 있다.
 
 ---
 
@@ -52,7 +54,7 @@
 Git 초기화와 baseline snapshot은 이미 완료되었다.
 
 - baseline commit: `a45d724` `chore: snapshot current gongmu mvp baseline`
-- 이후 Task 1, Task 2는 task 단위 커밋으로 누적되었고, Task 3/4는 이번 배치에서 재검증까지 완료되었다.
+- 이후 Task 1, Task 2는 task 단위 커밋으로 누적되었고, Task 3/4/5는 이번 배치에서 재검증까지 완료되었다.
 
 ---
 

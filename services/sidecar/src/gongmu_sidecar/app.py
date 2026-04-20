@@ -13,6 +13,7 @@ from .documents import DocumentManager
 from .file_organizer import FileOrganizer
 from .knowledge import KnowledgeManager
 from .settings import SidecarSettings, WorkspaceSettingsResponse
+from .tools import TOOLS
 from .workspace import WorkspacePaths, ensure_workspace
 
 
@@ -318,6 +319,10 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
                 {"key": "review", "label": "검토메모형"},
             ]
         }
+
+    @app.get("/api/tools")
+    def list_tools() -> dict[str, Any]:
+        return {"items": TOOLS}
 
     @app.post("/api/schedules", status_code=201)
     def create_schedule(payload: ScheduleCreate) -> dict[str, Any]:

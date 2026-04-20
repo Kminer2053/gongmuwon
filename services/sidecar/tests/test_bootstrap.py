@@ -51,3 +51,15 @@ def test_settings_endpoint_honors_env_overrides(
     assert payload["defaults"]["llm_mode"] == "internal_server"
     assert payload["defaults"]["default_template_key"] == "review"
     assert payload["defaults"]["internal_api_base_url"] == "http://internal.example"
+
+
+def test_tools_manifest_endpoint_is_exposed(tmp_path: Path) -> None:
+    app = create_app(tmp_path)
+    client = app.state.test_client_factory()
+
+    response = client.get("/api/tools")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"][0]["key"] == "ocr"
+    assert payload["items"][0]["status"] in {"mvp", "later"}
