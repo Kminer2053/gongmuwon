@@ -49,3 +49,11 @@ export async function startDesktopSidecar(): Promise<DesktopRuntimeStatus> {
 
   return invoke<DesktopRuntimeStatus>("start_desktop_sidecar");
 }
+
+export async function stopDesktopSidecar(): Promise<DesktopRuntimeStatus> {
+  if (!isTauriRuntimeAvailable()) {
+    return browserFallback();
+  }
+
+  return invoke<DesktopRuntimeStatus>("stop_desktop_sidecar");
+}

@@ -22,7 +22,7 @@
 - `services/sidecar`: `/api/tools` Tool Manifest와 `services/sidecar/README.md` 운영 런북 추가
 - `apps/desktop`: 도구 화면이 하드코딩 카드 대신 Tool Manifest 응답을 표시하도록 전환
 - `apps/desktop/src-tauri`: sidecar runtime status 조회 + 수동 시작 command 추가
-- `apps/desktop`: 헤더 runtime badge, `사이드카 시작` 버튼, log path hint 추가
+- `apps/desktop`: 헤더 runtime badge, `사이드카 시작/종료` 버튼, log path hint 추가
 - 데스크톱 셸에서 주요 메뉴 순서와 기본 입력/조회 흐름 구현
 
 ### 2026-04-20 기준 검증 완료 증거
@@ -32,14 +32,14 @@
 | Sidecar API | `npm run sidecar:test` | `13 passed` |
 | Sidecar settings contract | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | `PASS` |
 | Sidecar env override | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | `PASS` |
-| Desktop UI | `npm --workspace apps/desktop run test` | `7 passed` |
+| Desktop UI | `npm --workspace apps/desktop run test` | `8 passed` |
 | Desktop build | `npm --workspace apps/desktop run build` | 성공 |
 | Verify bundle | `npm run verify:all` | PASS |
 | Tauri shell | `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` | 성공 |
 
 ### 아직 비어 있는 핵심 구간
 
-- sidecar 종료/재시작을 포함한 lifecycle 관리
+- sidecar 재시작 정책과 앱 종료 시 lifecycle 정리
 - 오프라인 설치 패키징과 운영 정책 문서화
 
 ---
@@ -67,7 +67,7 @@
 | W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
 | W5 | 파일정리 + 지식화 루프 | 완료 | 제안 생성/조회/적용/rollback 가능 | sidecar workflow test + desktop action 연결 완료 |
 | W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
-| W7 | 설치/운영 안정화 | 부분 완료 | runtime badge/manual start, dev/runbook/tool manifest 정리 | README + /api/tools + Tauri command |
+| W7 | 설치/운영 안정화 | 부분 완료 | runtime badge/manual start-stop, dev/runbook/tool manifest 정리 | README + /api/tools + Tauri command |
 
 ---
 
@@ -146,6 +146,8 @@
 | 2026-04-20 | task5 | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `6 passed`, build + cargo check 포함 |
 | 2026-04-20 | runtime-bridge | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | runtime badge + manual sidecar start UI flow verified |
 | 2026-04-20 | runtime-bridge | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `7 passed`, build + cargo check 포함 |
+| 2026-04-20 | runtime-lifecycle | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | managed sidecar stop UI flow verified |
+| 2026-04-20 | runtime-lifecycle | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `8 passed`, build + cargo check 포함 |
 
 ### 이슈 / 결정 로그
 
@@ -163,7 +165,7 @@
 | 2026-04-20 | 이슈 | `graph.json`은 `edges`를 쓰는데 graph summary는 `links`만 읽어 `edge_count`를 0으로 보고함 | `edges` 우선, `links` fallback으로 수정하고 artifact contract assertion으로 회귀 방지 |
 | 2026-04-20 | 결정 | 파일정리는 자동 실행이 아니라 `적용 요청 -> 승인 -> 적용 -> rollback`의 보수적 흐름으로 유지 | 삭제 대신 copy 기반 operation 로그를 남기고 되돌리기를 허용 |
 | 2026-04-20 | 결정 | 도구 화면은 하드코딩 카드 대신 sidecar Tool Manifest를 단일 진실원천으로 사용 | README 런북과 `/api/tools`를 함께 갱신하는 방식으로 운영 |
-| 2026-04-20 | 결정 | Tauri-sidecar 1차 연결은 `상태 감지 + 수동 시작 + 로그 경로 노출`까지만 구현 | 자동 시작보다 디버깅과 내부망 운영 추적을 우선하고 lifecycle 관리는 다음 단계로 분리 |
+| 2026-04-20 | 결정 | Tauri-sidecar 1차 연결은 `상태 감지 + 수동 시작/종료 + 로그 경로 노출`까지 구현 | 자동 시작보다 디버깅과 내부망 운영 추적을 우선하고 재시작/종료 시 cleanup 정책은 다음 단계로 분리 |
 
 ---
 
@@ -184,5 +186,5 @@
 
 ### 다음 우선순위
 
-1. sidecar lifecycle 정리와 재시작 정책
+1. sidecar 재시작 정책과 앱 종료 cleanup
 2. 오프라인 패키징/운영 정책 정리

@@ -19,7 +19,7 @@
 | Task 3 | 완료 | knowledge search endpoint 검증, graph summary API, desktop inspector panel, LanceDB table detection fix, graph artifact contract 회귀 방지 | 이번 배치 검증 완료 |
 | Task 4 | 완료 | file organizer request/apply/rollback API, desktop action buttons, copy-based operation log | 이번 배치 검증 완료 |
 | Task 5 | 완료 | Tool Manifest endpoint, manifest-driven tools UI, sidecar runbook 정리 | 이번 배치 검증 완료 |
-| Runtime Bridge | 완료 | Tauri runtime status command, manual sidecar start command, desktop runtime badge/log path 노출 | 이번 배치 검증 완료 |
+| Runtime Bridge | 완료 | Tauri runtime status/start/stop command, desktop runtime badge/log path 노출 | 이번 배치 검증 완료 |
 
 ---
 
@@ -28,8 +28,8 @@
 ### Verified Today
 
 - `services/sidecar`: 일정, 업무세션, 참고자료, 지식 반영 후보, Content Base, 문서 최종 저장 승인/적용, 지식 검색/그래프 요약, 파일정리 적용/rollback API가 동작한다.
-- `apps/desktop`: 메뉴 순서, 입력 폼, 우측 승인/실행기록 패널, 주요 화면 전환, 문서 최종 저장 request/apply UI, 지식 검색/그래프 inspector, 파일정리 액션 버튼, manifest 기반 도구 화면, runtime badge/manual start 흐름이 동작한다.
-- `apps/desktop/src-tauri`: sidecar runtime status 조회와 수동 시작 command가 동작한다.
+- `apps/desktop`: 메뉴 순서, 입력 폼, 우측 승인/실행기록 패널, 주요 화면 전환, 문서 최종 저장 request/apply UI, 지식 검색/그래프 inspector, 파일정리 액션 버튼, manifest 기반 도구 화면, runtime badge/manual start-stop 흐름이 동작한다.
+- `apps/desktop/src-tauri`: sidecar runtime status 조회와 수동 시작/종료 command가 동작한다.
 - `runtime-workspace`: `db/`, `knowledge/`, `documents/`, `logs/`, `cache/` 구조가 자동 생성된다.
 - `services/sidecar/README.md`: 개발 명령, 런타임 경로, 서비스 표면, 운영 원칙이 정리되어 있다.
 - 검증 결과:
@@ -37,16 +37,16 @@
   - `.venv/bin/pytest services/sidecar/tests/test_file_organizer_apply.py -q` -> `1 passed`
   - `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_tools_manifest_endpoint_is_exposed -q` -> `1 passed`
   - `.venv/bin/pytest services/sidecar/tests -q` -> `13 passed`
-  - `npm --workspace apps/desktop run test` -> `7 passed`
+  - `npm --workspace apps/desktop run test` -> `8 passed`
   - `.venv/bin/pytest services/sidecar/tests/test_api_flows.py::test_document_finalize_sanitizes_windows_invalid_output_name -q` -> `1 passed`
-  - `npm --workspace apps/desktop run test -- src/app.test.tsx` -> `7 passed`
+  - `npm --workspace apps/desktop run test -- src/app.test.tsx` -> `8 passed`
   - `npm --workspace apps/desktop run build` -> 성공
   - `npm run verify:all` -> PASS
   - `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` -> 성공
 
 ### Gaps To Close
 
-1. sidecar 종료/재시작을 포함한 lifecycle 관리는 아직 남아 있다.
+1. sidecar 재시작 정책과 앱 종료 cleanup은 아직 남아 있다.
 2. 오프라인 설치 패키징과 운영 정책 문서화는 더 남아 있다.
 
 ---

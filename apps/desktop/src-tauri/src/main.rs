@@ -220,12 +220,37 @@ fn start_desktop_sidecar(
     ))
 }
 
+#[tauri::command]
+fn stop_desktop_sidecar(
+    state: tauri::State<'_, SidecarManager>,
+) -> Result<DesktopRuntimeStatus, String> {
+    {
+        let mut guard = state
+            .child
+            .lock()
+            .map_err(|_| "sidecar state lock poisoned".to_string())?;
+
+        let Some(child) = guard.as_mut() else {
+            return Ok(desktop_runtime_status_inner(state.inner()));
+        };
+
+        child
+            .kill()
+            .map_err(|error| format!("sidecar stop failed: {error}"))?;
+        let _ = child.wait();
+        *guard = None;
+    }
+
+    Ok(desktop_runtime_status_inner(state.inner()))
+}
+
 fn main() {
     tauri::Builder::default()
         .manage(SidecarManager::default())
         .invoke_handler(tauri::generate_handler![
             desktop_runtime_status,
-            start_desktop_sidecar
+            start_desktop_sidecar,
+            stop_desktop_sidecar
         ])
         .run(tauri::generate_context!())
         .expect("failed to run gongmu desktop");
