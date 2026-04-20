@@ -108,6 +108,19 @@ CREATE TABLE IF NOT EXISTS content_bases (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS final_document_outputs (
+    id TEXT PRIMARY KEY,
+    content_base_id TEXT NOT NULL,
+    approval_ticket_id TEXT NOT NULL UNIQUE,
+    output_name TEXT NOT NULL,
+    artifact_path TEXT,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    applied_at TEXT,
+    FOREIGN KEY(content_base_id) REFERENCES content_bases(id),
+    FOREIGN KEY(approval_ticket_id) REFERENCES approval_tickets(id)
+);
+
 CREATE TABLE IF NOT EXISTS file_org_proposals (
     id TEXT PRIMARY KEY,
     target_path TEXT NOT NULL,
@@ -226,4 +239,3 @@ class Database:
         }
         self.insert("approval_tickets", payload)
         return payload
-

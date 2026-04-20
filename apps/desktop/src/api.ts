@@ -123,6 +123,26 @@ export type ContentBaseResult = {
   preview: { path: string };
 };
 
+export type FinalDocumentOutputItem = {
+  id: string;
+  content_base_id: string;
+  approval_ticket_id: string;
+  output_name: string;
+  artifact_path?: string | null;
+  status: "pending" | "applied";
+  created_at: string;
+  applied_at?: string | null;
+};
+
+export type FinalDocumentRequestResult = {
+  approval_ticket: ApprovalTicketItem;
+  final_document_output: FinalDocumentOutputItem;
+};
+
+export type FinalDocumentApplyResult = FinalDocumentRequestResult & {
+  artifact: { path: string };
+};
+
 export type WorkspaceSnapshot = {
   health: WorkspaceHealth | null;
   settings: WorkspaceSettings | null;
@@ -305,6 +325,22 @@ export async function createContentBase(payload: {
   return requestJson<ContentBaseResult>("/api/documents/content-bases", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function requestDocumentFinalize(payload: {
+  content_base_id: string;
+  output_name: string;
+}) {
+  return requestJson<FinalDocumentRequestResult>("/api/documents/finalize", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function applyDocumentFinalize(ticketId: string) {
+  return requestJson<FinalDocumentApplyResult>(`/api/documents/finalize/${ticketId}/apply`, {
+    method: "POST",
   });
 }
 

@@ -56,6 +56,11 @@ class ContentBaseCreate(BaseModel):
     template_key: Literal["report", "meeting", "review"] = "report"
 
 
+class FinalDocumentFinalizeRequest(BaseModel):
+    content_base_id: str
+    output_name: str
+
+
 class AnythingLaunchRequest(BaseModel):
     query: str | None = None
 
@@ -379,6 +384,25 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             reference_set_id=payload.reference_set_id,
             template_key=payload.template_key,
         )
+
+    @app.post("/api/documents/finalize", status_code=202)
+    def request_document_finalize(payload: FinalDocumentFinalizeRequest) -> dict[str, Any]:
+        try:
+            return services.documents.request_final_document_output(
+                content_base_id=payload.content_base_id,
+                output_name=payload.output_name,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="content base not found") from exc
+
+    @app.post("/api/documents/finalize/{ticket_id}/apply", status_code=201)
+    def apply_document_finalize(ticket_id: str) -> dict[str, Any]:
+        try:
+            return services.documents.apply_final_document_output(ticket_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="final document request not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=409, detail="approval ticket must be approved") from exc
 
     @app.post("/api/integrations/anything/launch", status_code=202)
     def request_anything_launch(payload: AnythingLaunchRequest) -> dict[str, Any]:

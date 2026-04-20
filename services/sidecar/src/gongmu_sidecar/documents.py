@@ -75,6 +75,111 @@ class DocumentManager:
             "content": body,
         }
 
+    def request_final_document_output(self, *, content_base_id: str, output_name: str) -> dict[str, Any]:
+        content_base = self.db.fetch_one(
+            "SELECT * FROM content_bases WHERE id = ?",
+            (content_base_id,),
+        )
+        if content_base is None:
+            raise KeyError(content_base_id)
+
+        ticket = self.db.create_approval_ticket(
+            target_type="document_output",
+            target_id=content_base_id,
+            action="documents.finalize",
+        )
+        request = {
+            "id": str(uuid4()),
+            "content_base_id": content_base_id,
+            "approval_ticket_id": ticket["id"],
+            "output_name": output_name,
+            "artifact_path": None,
+            "status": "pending",
+            "created_at": now_iso(),
+            "applied_at": None,
+        }
+        self.db.insert("final_document_outputs", request)
+        self.db.log(
+            feature="documents",
+            action="documents.finalize.requested",
+            status="pending_approval",
+            inputs={"content_base_id": content_base_id, "output_name": output_name},
+            outputs={
+                "approval_ticket_id": ticket["id"],
+                "final_document_output_id": request["id"],
+            },
+            approval_ticket_id=ticket["id"],
+        )
+        return {
+            "approval_ticket": ticket,
+            "final_document_output": request,
+        }
+
+    def apply_final_document_output(self, ticket_id: str) -> dict[str, Any]:
+        ticket = self.db.fetch_one(
+            "SELECT * FROM approval_tickets WHERE id = ?",
+            (ticket_id,),
+        )
+        if ticket is None:
+            raise KeyError(ticket_id)
+        if ticket["status"] != "approved":
+            raise PermissionError(ticket_id)
+
+        request = self.db.fetch_one(
+            "SELECT * FROM final_document_outputs WHERE approval_ticket_id = ?",
+            (ticket_id,),
+        )
+        if request is None:
+            raise KeyError(ticket_id)
+
+        if request["status"] == "applied" and request["artifact_path"]:
+            return {
+                "approval_ticket": ticket,
+                "final_document_output": request,
+                "artifact": {"path": request["artifact_path"]},
+            }
+
+        content_base = self.db.fetch_one(
+            "SELECT * FROM content_bases WHERE id = ?",
+            (request["content_base_id"],),
+        )
+        if content_base is None:
+            raise KeyError(request["content_base_id"])
+
+        source_path = Path(content_base["artifact_path"])
+        body = source_path.read_text(encoding="utf-8")
+        output_path = self.paths.outputs / self._final_output_filename(request["output_name"])
+        output_path.write_text(body, encoding="utf-8")
+
+        applied_at = now_iso()
+        updated_request = {
+            **request,
+            "artifact_path": str(output_path),
+            "status": "applied",
+            "applied_at": applied_at,
+        }
+        self.db.execute(
+            "UPDATE final_document_outputs SET artifact_path = ?, status = ?, applied_at = ? WHERE approval_ticket_id = ?",
+            (str(output_path), "applied", applied_at, ticket_id),
+        )
+        self.db.log(
+            feature="documents",
+            action="documents.finalize.applied",
+            status="success",
+            inputs={"ticket_id": ticket_id},
+            outputs={
+                "content_base_id": request["content_base_id"],
+                "final_document_output_id": request["id"],
+                "artifact_path": str(output_path),
+            },
+            approval_ticket_id=ticket_id,
+        )
+        return {
+            "approval_ticket": ticket,
+            "final_document_output": updated_request,
+            "artifact": {"path": str(output_path)},
+        }
+
     def _reference_lines(self, reference_set_id: str | None) -> list[str]:
         if not reference_set_id:
             return ["- 참고자료가 아직 연결되지 않았습니다."]
@@ -119,3 +224,8 @@ class DocumentManager:
             f"</head><body>{''.join(paragraphs)}</body></html>"
         )
 
+    def _final_output_filename(self, output_name: str) -> str:
+        filename = output_name.strip().replace("/", "_").replace("\\", "_") or "final-document"
+        if not filename.endswith(".md"):
+            filename = f"{filename}.md"
+        return filename

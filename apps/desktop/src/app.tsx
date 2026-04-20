@@ -30,9 +30,12 @@ import {
   decideApproval,
   loadWorkspaceSnapshot,
   requestAnythingLaunch,
+  applyDocumentFinalize,
+  requestDocumentFinalize,
   type ApprovalTicketItem,
   type ContentBaseResult,
   type FileProposalItem,
+  type FinalDocumentRequestResult,
   type KnowledgeCandidateItem,
   type KnowledgePageItem,
   type ReferenceSetItem,
@@ -205,12 +208,23 @@ export function App() {
     purpose: "보고서형",
     template_key: "" as "" | "report" | "meeting" | "review",
   });
+  const [finalizeForm, setFinalizeForm] = useState({
+    output_name: "",
+  });
+  const [lastFinalizeRequest, setLastFinalizeRequest] = useState<FinalDocumentRequestResult | null>(null);
 
   const deferredLogs = useDeferredValue(snapshot.logs);
   const templates = snapshot.templates.length > 0 ? snapshot.templates : FALLBACK_TEMPLATES;
   const defaultTemplateKey = snapshot.settings?.defaults.default_template_key ?? "report";
   const activeTemplateKey = documentForm.template_key || defaultTemplateKey;
   const pendingApprovals = snapshot.approvalTickets.filter((ticket) => ticket.status === "pending");
+  const currentFinalizeTicket = lastFinalizeRequest
+    ? snapshot.approvalTickets.find(
+        (ticket) => ticket.id === lastFinalizeRequest.approval_ticket.id,
+      ) ?? lastFinalizeRequest.approval_ticket
+    : null;
+  const canApplyFinalize = currentFinalizeTicket?.status === "approved";
+  const finalizeAlreadyApplied = lastFinalizeRequest?.final_document_output.status === "applied";
   const activeMenuMeta = MENU_ITEMS.find((item) => item.key === activeMenu) ?? MENU_ITEMS[0];
 
   async function refreshSnapshot() {
@@ -347,6 +361,40 @@ export function App() {
     if (created) {
       setLastContentBase(created);
       setDocumentForm({ title: "", purpose: "보고서형", template_key: "" });
+      setFinalizeForm({ output_name: created.title });
+      setLastFinalizeRequest(null);
+    }
+  }
+
+  async function submitDocumentFinalizeRequest() {
+    if (!lastContentBase) {
+      return;
+    }
+
+    const created = await handleAction(
+      () =>
+        requestDocumentFinalize({
+          content_base_id: lastContentBase.id,
+          output_name: finalizeForm.output_name.trim() || `${lastContentBase.title}-final`,
+        }),
+      "최종 저장 승인 요청을 보냈습니다.",
+    );
+    if (created) {
+      setLastFinalizeRequest(created);
+    }
+  }
+
+  async function submitDocumentFinalizeApply() {
+    if (!lastFinalizeRequest) {
+      return;
+    }
+
+    const applied = await handleAction(
+      () => applyDocumentFinalize(lastFinalizeRequest.approval_ticket.id),
+      "최종 저장이 적용되었습니다.",
+    );
+    if (applied) {
+      setLastFinalizeRequest(applied);
     }
   }
 
@@ -757,6 +805,71 @@ export function App() {
             <EmptyState
               title="아직 생성된 콘텐츠 베이스가 없습니다."
               body="참고자료를 고른 뒤 콘텐츠 베이스를 만들면 이 영역에서 초안 내용을 검토할 수 있습니다."
+            />
+          )}
+        </SectionCard>
+
+        <SectionCard eyebrow="최종 저장" title="승인 요청 및 적용">
+          {lastContentBase ? (
+            <div className="stack-form">
+              <label>
+                출력 이름
+                <input
+                  value={finalizeForm.output_name}
+                  onChange={(event) =>
+                    setFinalizeForm((current) => ({ ...current, output_name: event.target.value }))
+                  }
+                  placeholder={`${lastContentBase.title}-final`}
+                />
+              </label>
+              <div className="toolbar">
+                <p className="subtle-text">
+                  ContentBase.md를 승인 큐로 넘겨 `runtime-workspace/documents/outputs`에 저장합니다.
+                </p>
+                <button type="button" onClick={submitDocumentFinalizeRequest} disabled={submitting || !lastContentBase}>
+                  최종 저장 요청
+                </button>
+              </div>
+              {lastFinalizeRequest ? (
+                <div className="document-preview">
+                  <div className="document-preview__meta">
+                    <span className="pill">{currentFinalizeTicket?.status ?? lastFinalizeRequest.approval_ticket.status}</span>
+                    <span className="subtle-text">{lastFinalizeRequest.final_document_output.output_name}</span>
+                  </div>
+                  <p>승인 티켓: {lastFinalizeRequest.approval_ticket.id}</p>
+                  <p>
+                    {finalizeAlreadyApplied
+                      ? "최종 저장이 이미 적용되었습니다."
+                      : canApplyFinalize
+                        ? "승인되어 바로 적용할 수 있습니다."
+                        : "승인 후 적용할 수 있습니다."}
+                  </p>
+                  <div className="inline-actions">
+                    <button
+                      type="button"
+                      onClick={submitDocumentFinalizeApply}
+                      disabled={submitting || !canApplyFinalize || finalizeAlreadyApplied}
+                    >
+                      최종 저장 적용
+                    </button>
+                  </div>
+                  {lastFinalizeRequest.final_document_output.artifact_path ? (
+                    <p className="subtle-text">
+                      {relativePath(lastFinalizeRequest.final_document_output.artifact_path)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <EmptyState
+                  title="아직 최종 저장 요청이 없습니다."
+                  body="콘텐츠 베이스를 만든 뒤 승인 요청을 보내면 여기서 승인 상태와 적용 버튼을 볼 수 있습니다."
+                />
+              )}
+            </div>
+          ) : (
+            <EmptyState
+              title="콘텐츠 베이스가 먼저 필요합니다."
+              body="문서 초안을 만든 뒤 최종 저장 승인 요청을 보낼 수 있습니다."
             />
           )}
         </SectionCard>

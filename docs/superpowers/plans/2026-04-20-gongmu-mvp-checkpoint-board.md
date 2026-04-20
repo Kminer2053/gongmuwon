@@ -14,16 +14,17 @@
 - 일정 / 업무세션 / 참고자료 묶음 / 지식 반영 후보 / 콘텐츠 베이스 / 승인 요청 / 파일정리 제안 API 골격 구현
 - 지식 반영 시 `Markdown page + graph.json + graph.html + GRAPH_REPORT.md` 생성
 - 문서작성 시 `ContentBase.md + preview.html` 생성
+- 문서작성 최종 저장 승인 요청/적용 시 `outputs/` Markdown 산출물 생성 및 execution log / DB persist 연결
 - 데스크톱 셸에서 주요 메뉴 순서와 기본 입력/조회 흐름 구현
 
 ### 2026-04-20 기준 검증 완료 증거
 
 | 영역 | 명령 | 결과 |
 | --- | --- | --- |
-| Sidecar API | `npm run sidecar:test` | `8 passed` |
+| Sidecar API | `npm run sidecar:test` | `9 passed` |
 | Sidecar settings contract | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | `PASS` |
 | Sidecar env override | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | `PASS` |
-| Desktop UI | `npm --workspace apps/desktop run test` | `3 passed` |
+| Desktop UI | `npm --workspace apps/desktop run test` | `4 passed` |
 | Desktop build | `npm --workspace apps/desktop run build` | 성공 |
 | Verify bundle | `npm run verify:all` | PASS |
 | Tauri shell | `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` | 성공 |
@@ -31,7 +32,6 @@
 ### 아직 비어 있는 핵심 구간
 
 - Tauri 앱이 사이드카를 직접 띄우고 상태를 감시하는 런타임 연결
-- `콘텐츠 베이스 -> 최종 산출물 저장 승인 -> 출력물 생성`의 마지막 단계
 - 지식 검색 결과와 그래프 요약을 데스크톱 UI에서 직접 탐색하는 패널
 - 파일정리 제안의 실제 적용 / 거절 / rollback 흐름
 - 정적 카드가 아닌 `Tool Manifest`, 설정 정책, 운영 런북
@@ -58,7 +58,7 @@
 | W1 | 일정 + 업무대화 + 참고자료 | 완료 | 일정, 세션, ReferenceSet 생성/조회 가능 | API 테스트 통과 |
 | W2 | 지식폴더 MVP | 부분 완료 | 후보 생성/승인/페이지 생성/그래프 산출 | API 테스트 통과, UI 일부 구현 |
 | W3 | 검색 연계 | 부분 완료 | Anything 실행 요청과 승인 큐 등록 | API/UI 구현, 실제 외부 실행 미적용 |
-| W4 | 문서작성 MVP | 부분 완료 | ContentBase 생성/미리보기 가능 | API 테스트 통과, 최종 저장 미구현 |
+| W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + build + verify:all 통과 |
 | W5 | 파일정리 + 지식화 루프 | 부분 완료 | 제안 생성/조회 가능 | API 구현, apply/rollback 미구현 |
 | W6 | 그래프 보조 탐색 | 부분 완료 | graph 산출물 생성 | UI 탐색 미구현 |
 | W7 | 설치/운영 안정화 | 미착수 | dev/runbook/offline 정책/패키징 | 없음 |
@@ -83,6 +83,7 @@
   - 최종 출력물 저장 승인
   - 출력물 metadata/log 기록
   - 문서작성 UI의 최종 저장 액션
+  - 완료: sidecar request/apply route, DB persist, desktop request/apply UI, verify bundle 통과
 
 ### Gate C — 지식/파일 정리 실사용화
 
@@ -113,6 +114,11 @@
 | 2026-04-20 | baseline | `npm --workspace apps/desktop run build` | PASS | Vite build 성공 |
 | 2026-04-20 | task1 | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 통과 |
 | 2026-04-20 | baseline | `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` | PASS | 아이콘 자산 보정 후 통과 |
+| 2026-04-20 | task2 | `.venv/bin/pytest services/sidecar/tests/test_api_flows.py::test_document_finalize_requires_approval_and_creates_output -v` | PASS | finalize/apply sidecar flow verified |
+| 2026-04-20 | task2 | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `9 passed` |
+| 2026-04-20 | task2 | `npm --workspace apps/desktop run test` | PASS | `4 passed` |
+| 2026-04-20 | task2 | `npm --workspace apps/desktop run build` | PASS | desktop bundle rebuilt successfully |
+| 2026-04-20 | task2 | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 통과 |
 
 ### 이슈 / 결정 로그
 
@@ -123,6 +129,7 @@
 | 2026-04-20 | 이슈 | Tauri 빌드가 기본 아이콘 부재로 실패 | `src-tauri/icons/icon.png` 보강 완료 |
 | 2026-04-20 | 결정 | 런타임 설정은 sidecar `/api/settings` 단일 계약으로 제공 | desktop snapshot과 settings panel이 이 계약을 소비 |
 | 2026-04-20 | 결정 | `/api/settings`는 typed response model + desktop runtime guard + env override test로 hardening | contract drift를 낮추고 verification bundle에서 반복 검증 |
+| 2026-04-20 | 결정 | 문서 최종 저장은 approval-ticket 기반 request/apply + outputs/ Markdown artifact로 처리 | sidecar/desktop/UI 검증 범위를 이 경로로 고정 |
 
 ---
 

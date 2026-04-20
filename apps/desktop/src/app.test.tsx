@@ -1,21 +1,42 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { App } from "./app";
 
-const jsonResponse = (payload: unknown) =>
+const jsonResponse = (payload: unknown, status = 200) =>
   Promise.resolve(
     new Response(JSON.stringify(payload), {
-      status: 200,
+      status,
       headers: { "Content-Type": "application/json" },
     }),
   );
 
 beforeEach(() => {
+  let approvalTickets: Array<{
+    id: string;
+    action: string;
+    status: "pending" | "approved" | "rejected";
+    target_type: string;
+    requested_at: string;
+    decided_at?: string | null;
+    decision_note?: string | null;
+    target_id?: string;
+  }> = [
+    {
+      id: "approval-1",
+      action: "anything.launch",
+      status: "pending",
+      target_type: "external_launch",
+      requested_at: "2026-04-20T00:00:00+09:00",
+    },
+  ];
+
   vi.stubGlobal(
     "fetch",
-    vi.fn((input: string | URL | Request) => {
+    vi.fn((input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
 
       if (url.endsWith("/health")) {
         return jsonResponse({
@@ -42,7 +63,98 @@ beforeEach(() => {
         });
       }
 
-      if (url.includes("/api/schedules")) {
+      if (url.endsWith("/api/documents/content-bases") && method === "POST") {
+        return jsonResponse(
+          {
+            id: "content-base-1",
+            title: body?.title ?? "주간 보고 초안",
+            purpose: body?.purpose ?? "보고서형",
+            template_key: body?.template_key ?? "report",
+            artifact: { path: "/tmp/gongmu-workspace/documents/content-bases/content-base-1.md" },
+            preview: { path: "/tmp/gongmu-workspace/documents/drafts/content-base-1.html" },
+            content: "# 주간 보고 초안\n\n## 개요\n- 개요 내용을 여기에 정리합니다.\n",
+          },
+          201,
+        );
+      }
+
+      if (url.endsWith("/api/documents/finalize") && method === "POST") {
+        const ticketId = "approval-final-1";
+        const ticket = {
+          id: ticketId,
+          action: "documents.finalize",
+          status: "pending" as const,
+          target_type: "document_output",
+          target_id: body?.content_base_id ?? "content-base-1",
+          requested_at: "2026-04-20T00:00:00+09:00",
+          decided_at: null,
+          decision_note: null,
+        };
+        approvalTickets = [...approvalTickets, ticket];
+        return jsonResponse(
+          {
+            approval_ticket: ticket,
+            final_document_output: {
+              id: "final-output-1",
+              content_base_id: body?.content_base_id ?? "content-base-1",
+              approval_ticket_id: ticketId,
+              output_name: body?.output_name ?? "주간보고-2026-04-20",
+              artifact_path: null,
+              status: "pending",
+              created_at: "2026-04-20T00:00:00+09:00",
+              applied_at: null,
+            },
+          },
+          202,
+        );
+      }
+
+      const finalizeApplyMatch = url.match(/\/api\/documents\/finalize\/([^/]+)\/apply$/);
+      if (finalizeApplyMatch && method === "POST") {
+        const ticketId = finalizeApplyMatch[1];
+        const ticket = approvalTickets.find((item) => item.id === ticketId);
+        if (!ticket || ticket.status !== "approved") {
+          return jsonResponse({ detail: "approval ticket must be approved" }, 409);
+        }
+
+        return jsonResponse(
+          {
+            approval_ticket: ticket,
+            final_document_output: {
+              id: "final-output-1",
+              content_base_id: "content-base-1",
+              approval_ticket_id: ticketId,
+              output_name: "주간보고-2026-04-20",
+              artifact_path:
+                "/tmp/gongmu-workspace/documents/outputs/주간보고-2026-04-20.md",
+              status: "applied",
+              created_at: "2026-04-20T00:00:00+09:00",
+              applied_at: "2026-04-20T00:00:00+09:00",
+            },
+            artifact: { path: "/tmp/gongmu-workspace/documents/outputs/주간보고-2026-04-20.md" },
+          },
+          201,
+        );
+      }
+
+      const approvalDecisionMatch = url.match(/\/api\/approval-tickets\/([^/]+)\/decision$/);
+      if (approvalDecisionMatch && method === "POST") {
+        const ticketId = approvalDecisionMatch[1];
+        approvalTickets = approvalTickets.map((ticket) =>
+          ticket.id === ticketId
+            ? {
+                ...ticket,
+                status: body?.status ?? "approved",
+                decision_note: body?.decision_note ?? null,
+                decided_at: "2026-04-20T00:00:00+09:00",
+              }
+            : ticket,
+        );
+        const updated = approvalTickets.find((ticket) => ticket.id === ticketId);
+        return jsonResponse(updated ?? null);
+      }
+
+      if (url.endsWith("/api/schedules")) {
         return jsonResponse({
           items: [
             {
@@ -57,7 +169,7 @@ beforeEach(() => {
         });
       }
 
-      if (url.includes("/api/work-sessions")) {
+      if (url.endsWith("/api/work-sessions")) {
         return jsonResponse({
           items: [
             {
@@ -71,7 +183,7 @@ beforeEach(() => {
         });
       }
 
-      if (url.includes("/api/reference-sets")) {
+      if (url.endsWith("/api/reference-sets")) {
         return jsonResponse({
           items: [
             {
@@ -85,7 +197,7 @@ beforeEach(() => {
         });
       }
 
-      if (url.includes("/api/templates")) {
+      if (url.endsWith("/api/templates")) {
         return jsonResponse({
           items: [
             { key: "report", label: "보고서형" },
@@ -95,7 +207,18 @@ beforeEach(() => {
         });
       }
 
-      if (url.includes("/api/knowledge/candidates")) {
+      if (url.endsWith("/api/knowledge/candidates/from-note")) {
+        return jsonResponse({
+          id: "candidate-1",
+          title: body?.title ?? "2026 예산편성 메모",
+          body: body?.body ?? "예산편성과 관련된 핵심 일정과 검토 포인트를 정리한 메모",
+          candidate_type: body?.candidate_type ?? "topic",
+          status: "pending",
+          created_at: "2026-04-20T00:00:00+09:00",
+        });
+      }
+
+      if (url.endsWith("/api/knowledge/candidates")) {
         return jsonResponse({
           items: [
             {
@@ -109,7 +232,7 @@ beforeEach(() => {
         });
       }
 
-      if (url.includes("/api/knowledge/pages")) {
+      if (url.endsWith("/api/knowledge/pages")) {
         return jsonResponse({
           items: [
             {
@@ -123,21 +246,13 @@ beforeEach(() => {
         });
       }
 
-      if (url.includes("/api/approval-tickets")) {
+      if (url.endsWith("/api/approval-tickets")) {
         return jsonResponse({
-          items: [
-            {
-              id: "approval-1",
-              action: "anything.launch",
-              status: "pending",
-              target_type: "external_launch",
-              requested_at: "2026-04-20T00:00:00+09:00",
-            },
-          ],
+          items: approvalTickets,
         });
       }
 
-      if (url.includes("/api/file-organizer/proposals")) {
+      if (url.endsWith("/api/file-organizer/proposals")) {
         return jsonResponse({
           items: [
             {
@@ -153,7 +268,7 @@ beforeEach(() => {
         });
       }
 
-      if (url.includes("/api/execution-logs")) {
+      if (url.endsWith("/api/execution-logs")) {
         return jsonResponse({
           items: [
             {
@@ -217,5 +332,36 @@ describe("App shell", () => {
 
     expect(await screen.findByText("2026 예산편성 메모")).toBeInTheDocument();
     expect(screen.getByText("반영 승인")).toBeInTheDocument();
+  });
+
+  it("requests final document save and applies it after approval", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
+    const fetchMock = vi.mocked(global.fetch);
+
+    await user.click(within(navigation).getByText("문서작성"));
+
+    await user.type(screen.getByLabelText("문서 제목"), "주간 보고 초안");
+    await user.click(screen.getByRole("button", { name: "ContentBase.md 생성" }));
+    const outputNameInput = await screen.findByLabelText("출력 이름");
+    await user.clear(outputNameInput);
+    await user.type(outputNameInput, "주간보고-2026-04-20");
+
+    await user.click(await screen.findByRole("button", { name: "최종 저장 요청" }));
+
+    const finalizeCard = screen.getByText("documents.finalize").closest("article");
+    expect(finalizeCard).not.toBeNull();
+    await user.click(within(finalizeCard as HTMLElement).getByRole("button", { name: "승인" }));
+
+    expect(await screen.findByText("승인되어 바로 적용할 수 있습니다.")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "최종 저장 적용" })).toBeEnabled(),
+    );
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/api/approval-tickets/approval-final-1/decision"),
+      ),
+    ).toBe(true);
   });
 });
