@@ -26,6 +26,8 @@
 - `apps/desktop/src-tauri`: 관리 중인 sidecar 비정상 종료 감지 + 자동 재시작 권고 상태 추가
 - `apps/desktop`: 헤더 runtime badge, `사이드카 시작/종료/재시작` 버튼, log path hint 추가
 - `apps/desktop`: 5초 주기 runtime poll + 비정상 종료 시 1회 자동 재시작 연결
+- `package.json`: `desktop:bundle`, `desktop:bundle:debug` 오프라인 배포 스크립트 추가
+- `docs/operations`: Alpha 오프라인 패키징 런북 추가
 - 데스크톱 셸에서 주요 메뉴 순서와 기본 입력/조회 흐름 구현
 
 ### 2026-04-20 기준 검증 완료 증거
@@ -42,7 +44,8 @@
 
 ### 아직 비어 있는 핵심 구간
 
-- 오프라인 설치 패키징과 운영 정책 문서화
+- Windows 실환경 기준 설치 검증
+- Python sidecar 독립 배포 전략 확정
 
 ---
 
@@ -69,7 +72,7 @@
 | W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
 | W5 | 파일정리 + 지식화 루프 | 완료 | 제안 생성/조회/적용/rollback 가능 | sidecar workflow test + desktop action 연결 완료 |
 | W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
-| W7 | 설치/운영 안정화 | 부분 완료 | runtime badge/lifecycle/auto-restart, dev/runbook/tool manifest 정리 | README + /api/tools + Tauri command |
+| W7 | 설치/운영 안정화 | 부분 완료 | runtime badge/lifecycle/auto-restart, bundle script, dev/runbook/tool manifest 정리 | README + /api/tools + Tauri command + offline runbook |
 
 ---
 
@@ -154,6 +157,7 @@
 | 2026-04-20 | runtime-restart | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `9 passed`, build + cargo check 포함 |
 | 2026-04-20 | runtime-auto-restart | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | managed sidecar crash detection + auto restart UI flow verified |
 | 2026-04-20 | runtime-auto-restart | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `10 passed`, build + cargo check 포함 |
+| 2026-04-20 | offline-runbook | `npm run verify:all` | PASS | bundle script 추가 이후 전체 검증 재통과 |
 
 ### 이슈 / 결정 로그
 
@@ -173,6 +177,7 @@
 | 2026-04-20 | 결정 | 도구 화면은 하드코딩 카드 대신 sidecar Tool Manifest를 단일 진실원천으로 사용 | README 런북과 `/api/tools`를 함께 갱신하는 방식으로 운영 |
 | 2026-04-20 | 결정 | Tauri-sidecar 1차 연결은 `상태 감지 + 수동 시작/종료/재시작 + 로그 경로 노출`까지 구현 | 자동 시작보다 디버깅과 내부망 운영 추적을 우선하고 crash 감지/자동 재시작은 다음 단계로 분리 |
 | 2026-04-20 | 결정 | 관리 중인 sidecar가 비정상 종료되면 desktop이 poll 결과를 보고 1회 자동 재시작을 시도 | 수동 시작 정책은 유지하고, 무한 재시작 루프는 incident 단위 1회로 제한 |
+| 2026-04-20 | 결정 | 오프라인 배포는 우선 `desktop:bundle` 스크립트와 Alpha 런북으로 운영 기준을 고정 | Windows 실환경 설치 검증과 Python 독립 배포는 다음 단계에서 확정 |
 
 ---
 
@@ -193,4 +198,5 @@
 
 ### 다음 우선순위
 
-1. 오프라인 패키징/운영 정책 정리
+1. Windows 실환경 설치 검증
+2. Python sidecar 독립 배포 전략 확정
