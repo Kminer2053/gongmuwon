@@ -13,18 +13,21 @@
 - `apps/desktop`: runtime parser/guard for `WorkspaceSettings` 추가
 - 일정 / 업무세션 / 참고자료 묶음 / 지식 반영 후보 / 콘텐츠 베이스 / 승인 요청 / 파일정리 제안 API 골격 구현
 - 지식 반영 시 `Markdown page + graph.json + graph.html + GRAPH_REPORT.md` 생성
+- 지식 검색과 그래프 요약을 sidecar API + desktop 패널에서 직접 탐색 가능
 - 문서작성 시 `ContentBase.md + preview.html` 생성
 - 문서작성 최종 저장 승인 요청/적용 시 `outputs/` Markdown 산출물 생성 및 execution log / DB persist 연결
+- 문서작성 최종 저장 UI의 `요청 -> 승인 -> 적용` 흐름 테스트 보강 완료
+- Windows 대상 최종 산출물 파일명 안전화 및 회귀 테스트 추가
 - 데스크톱 셸에서 주요 메뉴 순서와 기본 입력/조회 흐름 구현
 
 ### 2026-04-20 기준 검증 완료 증거
 
 | 영역 | 명령 | 결과 |
 | --- | --- | --- |
-| Sidecar API | `npm run sidecar:test` | `9 passed` |
+| Sidecar API | `npm run sidecar:test` | `11 passed` |
 | Sidecar settings contract | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | `PASS` |
 | Sidecar env override | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | `PASS` |
-| Desktop UI | `npm --workspace apps/desktop run test` | `4 passed` |
+| Desktop UI | `npm --workspace apps/desktop run test` | `5 passed` |
 | Desktop build | `npm --workspace apps/desktop run build` | 성공 |
 | Verify bundle | `npm run verify:all` | PASS |
 | Tauri shell | `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` | 성공 |
@@ -32,7 +35,6 @@
 ### 아직 비어 있는 핵심 구간
 
 - Tauri 앱이 사이드카를 직접 띄우고 상태를 감시하는 런타임 연결
-- 지식 검색 결과와 그래프 요약을 데스크톱 UI에서 직접 탐색하는 패널
 - 파일정리 제안의 실제 적용 / 거절 / rollback 흐름
 - 정적 카드가 아닌 `Tool Manifest`, 설정 정책, 운영 런북
 
@@ -56,11 +58,11 @@
 | --- | --- | --- | --- | --- |
 | W0 | 플랫폼 골격 | 완료 | 셸/DB/로그/승인 구조가 뜬다 | 테스트 + 빌드 통과 |
 | W1 | 일정 + 업무대화 + 참고자료 | 완료 | 일정, 세션, ReferenceSet 생성/조회 가능 | API 테스트 통과 |
-| W2 | 지식폴더 MVP | 부분 완료 | 후보 생성/승인/페이지 생성/그래프 산출 | API 테스트 통과, UI 일부 구현 |
+| W2 | 지식폴더 MVP | 완료 | 후보 생성/승인/페이지 생성/그래프 산출 | API + UI + search/graph inspector 검증 통과 |
 | W3 | 검색 연계 | 부분 완료 | Anything 실행 요청과 승인 큐 등록 | API/UI 구현, 실제 외부 실행 미적용 |
-| W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + build + verify:all 통과 |
+| W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
 | W5 | 파일정리 + 지식화 루프 | 부분 완료 | 제안 생성/조회 가능 | API 구현, apply/rollback 미구현 |
-| W6 | 그래프 보조 탐색 | 부분 완료 | graph 산출물 생성 | UI 탐색 미구현 |
+| W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
 | W7 | 설치/운영 안정화 | 미착수 | dev/runbook/offline 정책/패키징 | 없음 |
 
 ---
@@ -119,6 +121,15 @@
 | 2026-04-20 | task2 | `npm --workspace apps/desktop run test` | PASS | `4 passed` |
 | 2026-04-20 | task2 | `npm --workspace apps/desktop run build` | PASS | desktop bundle rebuilt successfully |
 | 2026-04-20 | task2 | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 통과 |
+| 2026-04-20 | task2-review | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | finalize request/approval/apply UI flow exercised |
+| 2026-04-20 | task2-review | `.venv/bin/pytest services/sidecar/tests/test_api_flows.py::test_document_finalize_sanitizes_windows_invalid_output_name -q` | PASS | Windows invalid filename regression fixed |
+| 2026-04-20 | task2-review | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `10 passed` |
+| 2026-04-20 | task2-review | `git diff --check 321eb20..f682654` | PASS | whitespace / conflict marker issues 없음 |
+| 2026-04-20 | task3 | `.venv/bin/pytest services/sidecar/tests/test_knowledge_search.py -q` | PASS | knowledge search + graph summary endpoint verified |
+| 2026-04-20 | task3 | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `11 passed` |
+| 2026-04-20 | task3 | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | knowledge inspector UI + existing shell flows verified |
+| 2026-04-20 | task3 | `npm --workspace apps/desktop run test` | PASS | `5 passed` |
+| 2026-04-20 | task3 | `npm --workspace apps/desktop run build` | PASS | desktop bundle rebuilt with graph inspector panel |
 
 ### 이슈 / 결정 로그
 
@@ -130,6 +141,9 @@
 | 2026-04-20 | 결정 | 런타임 설정은 sidecar `/api/settings` 단일 계약으로 제공 | desktop snapshot과 settings panel이 이 계약을 소비 |
 | 2026-04-20 | 결정 | `/api/settings`는 typed response model + desktop runtime guard + env override test로 hardening | contract drift를 낮추고 verification bundle에서 반복 검증 |
 | 2026-04-20 | 결정 | 문서 최종 저장은 approval-ticket 기반 request/apply + outputs/ Markdown artifact로 처리 | sidecar/desktop/UI 검증 범위를 이 경로로 고정 |
+| 2026-04-20 | 이슈 | 문서 최종 저장 UI 테스트가 승인 이후 apply 호출까지 닿지 않음 | `f4dbe84`에서 apply 버튼 클릭/endpoint/assertion으로 보강 완료 |
+| 2026-04-20 | 이슈 | Windows에서 금지 문자가 포함된 출력 이름은 최종 저장 실패 가능 | `f682654`에서 파일명 안전화 + 회귀 테스트 추가 완료 |
+| 2026-04-20 | 이슈 | `KnowledgeManager._table()`가 LanceDB `list_tables()` 응답 객체를 plain list처럼 검사해 기존 테이블을 다시 생성하려고 함 | `.tables` 기준으로 확인하도록 수정하고 Task 3 search/graph 테스트로 회귀 방지 |
 
 ---
 
@@ -150,8 +164,6 @@
 
 ### 다음 우선순위
 
-1. 설정/런타임 계약
-2. 문서 최종 저장 승인
-3. 지식 검색/그래프 패널
-4. 파일정리 apply/rollback
-5. Tool Manifest + 운영 런북
+1. 파일정리 apply/rollback
+2. Tool Manifest + 운영 런북
+3. Tauri-사이드카 런타임 연결 안정화

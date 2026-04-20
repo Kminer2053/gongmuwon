@@ -246,6 +246,52 @@ beforeEach(() => {
         });
       }
 
+      if (url.includes("/api/knowledge/search")) {
+        return jsonResponse({
+          query: body?.query ?? "예산",
+          vector_hits: [
+            {
+              page: {
+                id: "page-1",
+                title: "예산편성",
+                page_type: "topic",
+                path: "/tmp/knowledge/예산편성.md",
+                created_at: "2026-04-20T00:00:00+09:00",
+              },
+              score: 0.12,
+              keyword_overlap: 1,
+            },
+          ],
+          graph_neighbors: ["예산", "일정"],
+        });
+      }
+
+      if (url.endsWith("/api/knowledge/graph")) {
+        return jsonResponse({
+          node_count: 2,
+          edge_count: 1,
+          artifacts: {
+            graph_json_path: "/tmp/gongmu-workspace/knowledge/graph/graph.json",
+            graph_html_path: "/tmp/gongmu-workspace/knowledge/graph/graph.html",
+            graph_report_path: "/tmp/gongmu-workspace/knowledge/graph/GRAPH_REPORT.md",
+          },
+          nodes: [
+            {
+              id: "page-1",
+              label: "예산편성",
+              node_type: "topic",
+              neighbors: ["예산"],
+            },
+            {
+              id: "concept:예산",
+              label: "예산",
+              node_type: "concept",
+              neighbors: ["예산편성"],
+            },
+          ],
+        });
+      }
+
       if (url.endsWith("/api/approval-tickets")) {
         return jsonResponse({
           items: approvalTickets,
@@ -332,6 +378,24 @@ describe("App shell", () => {
 
     expect(await screen.findByText("2026 예산편성 메모")).toBeInTheDocument();
     expect(screen.getByText("반영 승인")).toBeInTheDocument();
+  });
+
+  it("runs knowledge search and shows graph inspector details", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
+
+    await user.click(within(navigation).getByText("내 지식폴더"));
+
+    expect(await screen.findByText("graph nodes: 2")).toBeInTheDocument();
+    expect(screen.getByText("graph edges: 1")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("지식 검색"), "예산");
+    await user.click(screen.getByRole("button", { name: "검색 실행" }));
+
+    await waitFor(() => expect(screen.getAllByText("예산편성").length).toBeGreaterThan(0));
+    expect(screen.getByText("예산, 일정")).toBeInTheDocument();
+    expect(screen.getByText("knowledge/graph/graph.json")).toBeInTheDocument();
   });
 
   it("requests final document save and applies it after approval", async () => {

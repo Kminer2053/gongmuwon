@@ -54,6 +54,23 @@ export type KnowledgePageItem = {
   created_at: string;
 };
 
+export type KnowledgeSearchResult = {
+  query: string;
+  vector_hits: Array<{ page: KnowledgePageItem; score: number; keyword_overlap: number }>;
+  graph_neighbors: string[];
+};
+
+export type KnowledgeGraphSummary = {
+  node_count: number;
+  edge_count: number;
+  artifacts: {
+    graph_json_path: string;
+    graph_html_path: string;
+    graph_report_path: string;
+  };
+  nodes: Array<{ id: string; label?: string; node_type?: string; neighbors?: string[] }>;
+};
+
 export type ApprovalTicketItem = {
   id: string;
   action: string;
@@ -314,6 +331,16 @@ export async function approveKnowledgeCandidate(candidateId: string, payload: { 
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function searchKnowledge(query: string) {
+  return requestJson<KnowledgeSearchResult>(
+    `/api/knowledge/search?query=${encodeURIComponent(query)}`,
+  );
+}
+
+export async function loadKnowledgeGraph() {
+  return requestJson<KnowledgeGraphSummary>("/api/knowledge/graph");
 }
 
 export async function createContentBase(payload: {

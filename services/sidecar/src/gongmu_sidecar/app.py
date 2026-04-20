@@ -376,6 +376,10 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     def search_knowledge(query: str) -> dict[str, Any]:
         return services.knowledge.search(query)
 
+    @app.get("/api/knowledge/graph")
+    def knowledge_graph() -> dict[str, Any]:
+        return services.knowledge.graph_summary()
+
     @app.post("/api/documents/content-bases", status_code=201)
     def create_content_base(payload: ContentBaseCreate) -> dict[str, Any]:
         return services.documents.create_content_base(

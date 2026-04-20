@@ -10,44 +10,48 @@
 
 ---
 
+## Execution Status Snapshot
+
+| Task | 상태 | 핵심 결과 | 근거 커밋 |
+| --- | --- | --- | --- |
+| Task 1 | 완료 | `/api/settings` 계약, desktop runtime guard, env override 검증, portable scripts | `e46310c`, `9f99af7` |
+| Task 2 | 완료 | 문서 최종 저장 request/apply, desktop apply UI, full UI flow test, Windows-safe output filename | `321eb20`, `f4dbe84`, `f682654` |
+| Task 3 | 완료 | knowledge search endpoint 검증, graph summary API, desktop inspector panel, LanceDB table detection fix | working tree |
+| Task 4 | 미착수 | 파일정리 apply/rollback | - |
+| Task 5 | 미착수 | Tool Manifest + 운영 런북 | - |
+
+---
+
 ## Current Status Audit
 
 ### Verified Today
 
-- `services/sidecar`: 일정, 업무세션, 참고자료, 지식 반영 후보, Content Base, 승인 요청, 파일정리 제안 API가 동작한다.
-- `apps/desktop`: 메뉴 순서, 입력 폼, 우측 승인/실행기록 패널, 주요 화면 전환이 동작한다.
+- `services/sidecar`: 일정, 업무세션, 참고자료, 지식 반영 후보, Content Base, 문서 최종 저장 승인/적용, 지식 검색/그래프 요약, 파일정리 제안 API가 동작한다.
+- `apps/desktop`: 메뉴 순서, 입력 폼, 우측 승인/실행기록 패널, 주요 화면 전환, 문서 최종 저장 request/apply UI, 지식 검색/그래프 inspector가 동작한다.
 - `runtime-workspace`: `db/`, `knowledge/`, `documents/`, `logs/`, `cache/` 구조가 자동 생성된다.
 - 검증 결과:
-  - `.venv/bin/pytest services/sidecar/tests -q` -> `6 passed`
-  - `npm --workspace apps/desktop run test` -> `2 passed`
+  - `.venv/bin/pytest services/sidecar/tests/test_knowledge_search.py -q` -> `1 passed`
+  - `.venv/bin/pytest services/sidecar/tests -q` -> `11 passed`
+  - `npm --workspace apps/desktop run test` -> `5 passed`
+  - `.venv/bin/pytest services/sidecar/tests/test_api_flows.py::test_document_finalize_sanitizes_windows_invalid_output_name -q` -> `1 passed`
+  - `npm --workspace apps/desktop run test -- src/app.test.tsx` -> `5 passed`
   - `npm --workspace apps/desktop run build` -> 성공
   - `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` -> 성공
 
 ### Gaps To Close
 
-1. 데스크톱과 사이드카 사이의 런타임 설정 계약이 없다.
-2. 문서작성이 `ContentBase`에서 멈추고 최종 산출 승인/저장까지 닫히지 않는다.
-3. 지식 검색과 그래프 산출물이 UI에서 탐색되지 않는다.
-4. 파일정리 제안은 생성만 되고 적용/되돌리기가 없다.
-5. 도구 목록, 운영 문서, 진행 체크 보드가 코드와 함께 순환하지 않는다.
+1. 파일정리 제안은 생성만 되고 적용/되돌리기가 없다.
+2. 도구 목록, 운영 문서, 진행 체크 보드가 코드와 함께 순환하지 않는다.
+3. 데스크톱과 사이드카 사이의 런타임 실행 연결은 아직 개발용 수동 실행에 의존한다.
 
 ---
 
 ## Execution Prerequisites
 
-이 저장소는 아직 Git 저장소가 아니므로, 체크포인트 추적과 task 단위 커밋을 위해 아래를 한 번만 먼저 실행한다.
+Git 초기화와 baseline snapshot은 이미 완료되었다.
 
-```bash
-cd /Users/hoonsbook/Agent_Gongmu_Codex
-git init
-git add .
-git commit -m "chore: snapshot current gongmu mvp baseline"
-```
-
-예상 결과:
-
-- `.git/` 생성
-- `git log --oneline -1` 에 baseline commit 1건 표시
+- baseline commit: `a45d724` `chore: snapshot current gongmu mvp baseline`
+- 이후 Task 1, Task 2는 task 단위 커밋으로 누적되었고, Task 3은 현재 working tree 기준으로 검증 중이다.
 
 ---
 
@@ -82,7 +86,7 @@ git commit -m "chore: snapshot current gongmu mvp baseline"
 
 ---
 
-### Task 1: Runtime Settings Contract And Verification Bundle
+### Task 1 [Done]: Runtime Settings Contract And Verification Bundle
 
 **Files:**
 - Create: `/Users/hoonsbook/Agent_Gongmu_Codex/services/sidecar/src/gongmu_sidecar/settings.py`
@@ -280,7 +284,7 @@ git commit -m "feat: add runtime settings contract"
 
 ---
 
-### Task 2: Final Document Save Approval Flow
+### Task 2 [Done]: Final Document Save Approval Flow
 
 **Files:**
 - Modify: `/Users/hoonsbook/Agent_Gongmu_Codex/services/sidecar/src/gongmu_sidecar/db.py`
@@ -519,7 +523,7 @@ git commit -m "feat: add document finalize approval flow"
 
 ---
 
-### Task 3: Knowledge Search And Graph Inspector
+### Task 3 [Done]: Knowledge Search And Graph Inspector
 
 **Files:**
 - Modify: `/Users/hoonsbook/Agent_Gongmu_Codex/services/sidecar/src/gongmu_sidecar/knowledge.py`
@@ -1099,4 +1103,3 @@ git commit -m "docs: add tool manifest and runbook"
 - `ApprovalTicketItem`, `KnowledgeGraphSummary`, `ToolManifestItem`, `WorkspaceSettings` 는 모두 `apps/desktop/src/api.ts`에 정의하고 재사용한다.
 - 문서 최종 저장은 `request -> approval -> apply` 3단계를 유지한다.
 - 파일정리는 `proposal -> apply request -> commit -> rollback` 4단계를 유지한다.
-

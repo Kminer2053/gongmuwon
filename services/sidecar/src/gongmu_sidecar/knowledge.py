@@ -31,7 +31,9 @@ class KnowledgeManager:
         self.graph_report_path = self.paths.knowledge_graph / "GRAPH_REPORT.md"
 
     def _table(self):
-        if "knowledge_chunks" in self.lancedb.list_tables():
+        table_listing = self.lancedb.list_tables()
+        table_names = list(getattr(table_listing, "tables", table_listing))
+        if "knowledge_chunks" in table_names:
             return self.lancedb.open_table("knowledge_chunks")
 
         bootstrap = [{"id": "bootstrap", "text": "", "vector": hash_embed(""), "page_id": ""}]
@@ -155,6 +157,21 @@ class KnowledgeManager:
             "query": query,
             "vector_hits": page_hits,
             "graph_neighbors": sorted(set(neighbors)),
+        }
+
+    def graph_summary(self) -> dict[str, Any]:
+        data = self._read_graph()
+        nodes = data.get("nodes", [])
+        links = data.get("links", [])
+        return {
+            "node_count": len(nodes),
+            "edge_count": len(links),
+            "artifacts": {
+                "graph_json_path": str(self.graph_path),
+                "graph_html_path": str(self.graph_html_path),
+                "graph_report_path": str(self.graph_report_path),
+            },
+            "nodes": nodes[:20],
         }
 
     def _read_graph(self) -> dict[str, Any]:

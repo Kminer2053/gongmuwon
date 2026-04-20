@@ -28,16 +28,20 @@ import {
   createSchedule,
   createWorkSession,
   decideApproval,
+  loadKnowledgeGraph,
   loadWorkspaceSnapshot,
   requestAnythingLaunch,
   applyDocumentFinalize,
   requestDocumentFinalize,
+  searchKnowledge,
   type ApprovalTicketItem,
   type ContentBaseResult,
   type FileProposalItem,
   type FinalDocumentRequestResult,
   type KnowledgeCandidateItem,
+  type KnowledgeGraphSummary,
   type KnowledgePageItem,
+  type KnowledgeSearchResult,
   type ReferenceSetItem,
   type ScheduleItem,
   type TemplateItem,
@@ -203,6 +207,10 @@ export function App() {
     body: "",
     candidate_type: "topic" as "topic" | "project" | "issue" | "entity",
   });
+  const [knowledgeQuery, setKnowledgeQuery] = useState("");
+  const [knowledgeSearchResult, setKnowledgeSearchResult] = useState<KnowledgeSearchResult | null>(null);
+  const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraphSummary | null>(null);
+  const [knowledgeInspectorLoading, setKnowledgeInspectorLoading] = useState(false);
   const [documentForm, setDocumentForm] = useState({
     title: "",
     purpose: "보고서형",
@@ -257,6 +265,39 @@ export function App() {
   useEffect(() => {
     void refreshSnapshot();
   }, []);
+
+  useEffect(() => {
+    if (activeMenu !== "knowledge") {
+      return;
+    }
+
+    let alive = true;
+    setKnowledgeInspectorLoading(true);
+    void loadKnowledgeGraph()
+      .then((graph) => {
+        if (alive) {
+          setKnowledgeGraph(graph);
+        }
+      })
+      .catch((loadError) => {
+        if (alive) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "지식 그래프 요약을 불러오지 못했습니다.",
+          );
+        }
+      })
+      .finally(() => {
+        if (alive) {
+          setKnowledgeInspectorLoading(false);
+        }
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [activeMenu, snapshot.knowledgePages.length]);
 
   async function handleAction<T>(action: () => Promise<T>, successMessage: string) {
     setSubmitting(true);
@@ -426,6 +467,23 @@ export function App() {
       () => approveKnowledgeCandidate(candidate.id, { page_type: candidate.candidate_type }),
       "지식 페이지를 생성했습니다.",
     );
+  }
+
+  async function runKnowledgeSearch() {
+    if (!knowledgeQuery.trim()) {
+      return;
+    }
+
+    setKnowledgeInspectorLoading(true);
+    setError(null);
+    try {
+      const result = await searchKnowledge(knowledgeQuery.trim());
+      setKnowledgeSearchResult(result);
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : "지식 검색을 실행하지 못했습니다.");
+    } finally {
+      setKnowledgeInspectorLoading(false);
+    }
   }
 
   const selectedSchedule = snapshot.schedules.find((item) => item.id === selectedScheduleId) ?? null;
@@ -989,6 +1047,99 @@ export function App() {
                 </div>
               )}
             </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard eyebrow="그래프 보조 탐색" title="지식 검색과 관계 보기">
+          <div className="stack-form">
+            <label>
+              지식 검색
+              <input
+                value={knowledgeQuery}
+                onChange={(event) => setKnowledgeQuery(event.target.value)}
+                placeholder="예: 예산"
+              />
+            </label>
+            <div className="toolbar">
+              <button
+                type="button"
+                onClick={() => void runKnowledgeSearch()}
+                disabled={knowledgeInspectorLoading || !knowledgeQuery.trim()}
+              >
+                검색 실행
+              </button>
+              <div className="hint-box">
+                <span>graph nodes: {knowledgeGraph?.node_count ?? 0}</span>
+                <span>graph edges: {knowledgeGraph?.edge_count ?? 0}</span>
+              </div>
+            </div>
+            {knowledgeGraph ? (
+              <div className="document-preview">
+                <div className="document-preview__meta">
+                  <span className="pill">graph.json</span>
+                  <span className="subtle-text">{relativePath(knowledgeGraph.artifacts.graph_json_path)}</span>
+                </div>
+                <p className="subtle-text">{relativePath(knowledgeGraph.artifacts.graph_html_path)}</p>
+                <p className="subtle-text">{relativePath(knowledgeGraph.artifacts.graph_report_path)}</p>
+                {knowledgeGraph.nodes.length > 0 ? (
+                  <div className="item-list">
+                    {knowledgeGraph.nodes.slice(0, 5).map((node) => (
+                      <article key={node.id} className="list-card">
+                        <div className="list-card__main list-card__main--static">
+                          <div>
+                            <h3>{node.label ?? node.id}</h3>
+                            <p>{node.node_type ?? "unknown"}</p>
+                          </div>
+                          <span className="pill">{(node.neighbors ?? []).length} links</span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="아직 그래프 요약이 없습니다."
+                    body="후보를 승인하면 graph.json, graph.html, GRAPH_REPORT가 갱신됩니다."
+                  />
+                )}
+              </div>
+            ) : (
+              <EmptyState
+                title="그래프를 아직 불러오지 못했습니다."
+                body="지식 페이지가 하나 이상 있으면 관계 요약과 산출물 경로가 여기에 표시됩니다."
+              />
+            )}
+
+            {knowledgeSearchResult ? (
+              <div className="split-grid">
+                <div>
+                  <h3 className="subheading">검색 결과</h3>
+                  {knowledgeSearchResult.vector_hits.length === 0 ? (
+                    <EmptyState
+                      title="검색 결과가 없습니다."
+                      body="다른 키워드로 다시 시도하거나 지식 후보를 먼저 승인해보세요."
+                    />
+                  ) : (
+                    <div className="item-list">
+                      {knowledgeSearchResult.vector_hits.map((hit) => (
+                        <article key={hit.page.id} className="list-card">
+                          <div className="list-card__main list-card__main--static">
+                            <div>
+                              <h3>{hit.page.title}</h3>
+                              <p>{hit.page.page_type} · {relativePath(hit.page.path)}</p>
+                            </div>
+                            <span className="pill">overlap {hit.keyword_overlap}</span>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="subheading">그래프 이웃</h3>
+                  <p>{knowledgeSearchResult.graph_neighbors.join(", ") || "없음"}</p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </SectionCard>
       </>
