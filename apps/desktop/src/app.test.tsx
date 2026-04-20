@@ -35,10 +35,21 @@ const stopDesktopSidecarMock = vi.fn(async () => {
   return runtimeState.status;
 });
 
+const restartDesktopSidecarMock = vi.fn(async () => {
+  runtimeState.status = {
+    ...runtimeState.status,
+    running: true,
+    managed: true,
+    detail: "앱이 sidecar를 다시 시작함",
+  };
+  return runtimeState.status;
+});
+
 vi.mock("./runtime", () => ({
   loadDesktopRuntimeStatus: () => loadDesktopRuntimeStatusMock(),
   startDesktopSidecar: () => startDesktopSidecarMock(),
   stopDesktopSidecar: () => stopDesktopSidecarMock(),
+  restartDesktopSidecar: () => restartDesktopSidecarMock(),
 }));
 
 import { App } from "./app";
@@ -64,6 +75,7 @@ beforeEach(() => {
   loadDesktopRuntimeStatusMock.mockClear();
   startDesktopSidecarMock.mockClear();
   stopDesktopSidecarMock.mockClear();
+  restartDesktopSidecarMock.mockClear();
 
   let approvalTickets: Array<{
     id: string;
@@ -510,6 +522,24 @@ describe("App shell", () => {
 
     expect(stopDesktopSidecarMock).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("sidecar 시작 필요")).toBeInTheDocument();
+  });
+
+  it("can restart a managed sidecar from the runtime controls", async () => {
+    const user = userEvent.setup();
+    runtimeState.status = {
+      ...runtimeState.status,
+      running: true,
+      managed: true,
+      detail: "앱이 sidecar를 관리 중",
+    };
+
+    render(<App />);
+
+    expect(await screen.findByText("앱이 sidecar를 관리 중")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "사이드카 재시작" }));
+
+    expect(restartDesktopSidecarMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("앱이 sidecar를 다시 시작함")).toBeInTheDocument();
   });
 
   it("requests final document save and applies it after approval", async () => {

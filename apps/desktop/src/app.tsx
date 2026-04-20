@@ -55,6 +55,7 @@ import {
 } from "./api";
 import {
   loadDesktopRuntimeStatus,
+  restartDesktopSidecar,
   startDesktopSidecar,
   stopDesktopSidecar,
   type DesktopRuntimeStatus,
@@ -399,6 +400,24 @@ export function App() {
       setNotice("사이드카 종료 상태를 갱신했습니다.");
     } catch (stopError) {
       setError(stopError instanceof Error ? stopError.message : "사이드카를 종료하지 못했습니다.");
+    } finally {
+      setRuntimeStarting(false);
+    }
+  }
+
+  async function handleRestartSidecar() {
+    setRuntimeStarting(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const next = await restartDesktopSidecar();
+      setRuntimeStatus(next);
+      await refreshSnapshot();
+      setNotice("사이드카 재시작 상태를 갱신했습니다.");
+    } catch (restartError) {
+      setError(
+        restartError instanceof Error ? restartError.message : "사이드카를 재시작하지 못했습니다.",
+      );
     } finally {
       setRuntimeStarting(false);
     }
@@ -1554,6 +1573,16 @@ export function App() {
                 disabled={runtimeStarting}
               >
                 {runtimeStarting ? "사이드카 시작 중..." : "사이드카 시작"}
+              </button>
+            ) : null}
+            {runtimeStatus?.available && runtimeStatus.running && runtimeStatus.managed ? (
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => void handleRestartSidecar()}
+                disabled={runtimeStarting}
+              >
+                {runtimeStarting ? "사이드카 재시작 중..." : "사이드카 재시작"}
               </button>
             ) : null}
             {runtimeStatus?.available && runtimeStatus.running && runtimeStatus.managed ? (

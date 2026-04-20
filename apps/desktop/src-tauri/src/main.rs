@@ -8,6 +8,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
+use tauri::Manager;
 
 const DEFAULT_SIDECAR_URL: &str = "http://127.0.0.1:8765";
 
@@ -117,6 +118,24 @@ fn managed_sidecar_is_running(manager: &SidecarManager) -> bool {
     }
 }
 
+fn stop_managed_sidecar(manager: &SidecarManager) -> Result<bool, String> {
+    let mut guard = manager
+        .child
+        .lock()
+        .map_err(|_| "sidecar state lock poisoned".to_string())?;
+
+    let Some(child) = guard.as_mut() else {
+        return Ok(false);
+    };
+
+    child
+        .kill()
+        .map_err(|error| format!("sidecar stop failed: {error}"))?;
+    let _ = child.wait();
+    *guard = None;
+    Ok(true)
+}
+
 fn socket_is_open(addr: &SocketAddr) -> bool {
     TcpStream::connect_timeout(addr, Duration::from_millis(250)).is_ok()
 }
@@ -224,34 +243,35 @@ fn start_desktop_sidecar(
 fn stop_desktop_sidecar(
     state: tauri::State<'_, SidecarManager>,
 ) -> Result<DesktopRuntimeStatus, String> {
-    {
-        let mut guard = state
-            .child
-            .lock()
-            .map_err(|_| "sidecar state lock poisoned".to_string())?;
-
-        let Some(child) = guard.as_mut() else {
-            return Ok(desktop_runtime_status_inner(state.inner()));
-        };
-
-        child
-            .kill()
-            .map_err(|error| format!("sidecar stop failed: {error}"))?;
-        let _ = child.wait();
-        *guard = None;
-    }
+    stop_managed_sidecar(state.inner())?;
 
     Ok(desktop_runtime_status_inner(state.inner()))
 }
 
+#[tauri::command]
+fn restart_desktop_sidecar(
+    state: tauri::State<'_, SidecarManager>,
+) -> Result<DesktopRuntimeStatus, String> {
+    stop_managed_sidecar(state.inner())?;
+    start_desktop_sidecar(state)
+}
+
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(SidecarManager::default())
         .invoke_handler(tauri::generate_handler![
             desktop_runtime_status,
             start_desktop_sidecar,
-            stop_desktop_sidecar
+            stop_desktop_sidecar,
+            restart_desktop_sidecar
         ])
-        .run(tauri::generate_context!())
-        .expect("failed to run gongmu desktop");
+        .build(tauri::generate_context!())
+        .expect("failed to build gongmu desktop");
+
+    app.run(move |_app_handle, event| {
+        if matches!(event, tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }) {
+            let sidecar_manager = _app_handle.state::<SidecarManager>();
+            let _ = stop_managed_sidecar(sidecar_manager.inner());
+        }
+    });
 }
