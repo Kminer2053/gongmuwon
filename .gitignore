@@ -4,7 +4,8 @@ coverage/
 .pytest_cache/
 __pycache__/
 *.pyc
+.DS_Store
+*.swp
 .venv/
 runtime-workspace/
 apps/desktop/src-tauri/target/
-
