@@ -40,6 +40,7 @@ Python FastAPI sidecar for the Gongmu local-first workspace.
 ## Offline Packaging Notes
 
 - 데스크톱 설치형 산출물은 `npm run desktop:bundle`로 생성한다.
+- Alpha 반입용 문서/manifest 스테이징은 `npm run release:alpha`로 생성한다.
 - Tauri 번들 산출물은 `apps/desktop/src-tauri/target/release/bundle/` 아래에 모인다.
 - 내부망 배포 시에는 설치 파일만 넘기지 않고 아래를 함께 준비한다.
   - 배포 대상 버전 정보
@@ -47,3 +48,4 @@ Python FastAPI sidecar for the Gongmu local-first workspace.
   - 로그 위치와 장애 대응 메모
   - `Anything` 외부 연계 경로/실행 정책
 - 상세 절차와 반입 체크리스트는 `docs/operations/2026-04-20-alpha-offline-packaging-runbook.md`를 기준으로 운영한다.
+- Python sidecar 독립 배포 전략은 `docs/operations/2026-04-20-sidecar-packaging-strategy.md`를 기준으로 정리한다.

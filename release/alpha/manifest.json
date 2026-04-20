@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-04-20T07:29:56.593Z",
+  "product": {
+    "name": "공무",
+    "identifier": "kr.gongmu.workspace",
+    "version": "0.1.0"
+  },
+  "scripts": {
+    "verify_all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml",
+    "desktop_bundle": "npm --workspace apps/desktop exec tauri build",
+    "desktop_bundle_debug": "npm --workspace apps/desktop exec tauri build --debug"
+  },
+  "desktop": {
+    "package_name": "@gongmu/desktop",
+    "bundle_root": "apps/desktop/src-tauri/target/release/bundle",
+    "bundle_targets": [],
+    "bundle_ready": false
+  },
+  "sidecar": {
+    "package_name": "gongmu-sidecar",
+    "source_root": "services/sidecar",
+    "strategy_document": "2026-04-20-sidecar-packaging-strategy.md",
+    "recommended_windows_strategy": "PyInstaller one-folder bundle"
+  },
+  "runtime": {
+    "workspace_root": "runtime-workspace",
+    "log_path": "runtime-workspace/logs/sidecar-runtime.log",
+    "sidecar_url": "http://127.0.0.1:8765"
+  },
+  "staged_documents": [
+    "README.md",
+    "2026-04-20-alpha-offline-packaging-runbook.md",
+    "2026-04-20-sidecar-packaging-strategy.md"
+  ],
+  "next_checks": [
+    "Windows host에서 npm run desktop:bundle 실행",
+    "bundle 산출물과 staged 문서를 함께 반입 패키지로 묶기",
+    "PyInstaller 기반 sidecar 독립 실행 파일 산출 검증"
+  ]
+}

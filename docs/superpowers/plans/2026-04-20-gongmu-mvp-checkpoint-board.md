@@ -28,6 +28,8 @@
 - `apps/desktop`: 5초 주기 runtime poll + 비정상 종료 시 1회 자동 재시작 연결
 - `package.json`: `desktop:bundle`, `desktop:bundle:debug` 오프라인 배포 스크립트 추가
 - `docs/operations`: Alpha 오프라인 패키징 런북 추가
+- `scripts`: Alpha release manifest/staging 스크립트 추가
+- `docs/operations`: Python sidecar 독립 배포 전략 문서 추가
 - 데스크톱 셸에서 주요 메뉴 순서와 기본 입력/조회 흐름 구현
 
 ### 2026-04-20 기준 검증 완료 증거
@@ -45,7 +47,7 @@
 ### 아직 비어 있는 핵심 구간
 
 - Windows 실환경 기준 설치 검증
-- Python sidecar 독립 배포 전략 확정
+- Windows PyInstaller 실환경 산출 검증
 
 ---
 
@@ -72,7 +74,7 @@
 | W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
 | W5 | 파일정리 + 지식화 루프 | 완료 | 제안 생성/조회/적용/rollback 가능 | sidecar workflow test + desktop action 연결 완료 |
 | W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
-| W7 | 설치/운영 안정화 | 부분 완료 | runtime badge/lifecycle/auto-restart, bundle script, dev/runbook/tool manifest 정리 | README + /api/tools + Tauri command + offline runbook |
+| W7 | 설치/운영 안정화 | 부분 완료 | runtime badge/lifecycle/auto-restart, bundle script, release staging, dev/runbook/tool manifest 정리 | README + /api/tools + Tauri command + offline runbook |
 
 ---
 
@@ -158,6 +160,7 @@
 | 2026-04-20 | runtime-auto-restart | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | managed sidecar crash detection + auto restart UI flow verified |
 | 2026-04-20 | runtime-auto-restart | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `10 passed`, build + cargo check 포함 |
 | 2026-04-20 | offline-runbook | `npm run verify:all` | PASS | bundle script 추가 이후 전체 검증 재통과 |
+| 2026-04-20 | release-staging | `npm run release:alpha` | PASS | Alpha release manifest와 staged docs 생성 |
 
 ### 이슈 / 결정 로그
 
@@ -178,6 +181,7 @@
 | 2026-04-20 | 결정 | Tauri-sidecar 1차 연결은 `상태 감지 + 수동 시작/종료/재시작 + 로그 경로 노출`까지 구현 | 자동 시작보다 디버깅과 내부망 운영 추적을 우선하고 crash 감지/자동 재시작은 다음 단계로 분리 |
 | 2026-04-20 | 결정 | 관리 중인 sidecar가 비정상 종료되면 desktop이 poll 결과를 보고 1회 자동 재시작을 시도 | 수동 시작 정책은 유지하고, 무한 재시작 루프는 incident 단위 1회로 제한 |
 | 2026-04-20 | 결정 | 오프라인 배포는 우선 `desktop:bundle` 스크립트와 Alpha 런북으로 운영 기준을 고정 | Windows 실환경 설치 검증과 Python 독립 배포는 다음 단계에서 확정 |
+| 2026-04-20 | 결정 | Python sidecar 독립 배포는 Alpha 기준 `PyInstaller one-folder`를 권장안으로 문서화 | 실제 spec 작성과 Windows 산출 검증은 후속 단계에서 확정 |
 
 ---
 
@@ -199,4 +203,4 @@
 ### 다음 우선순위
 
 1. Windows 실환경 설치 검증
-2. Python sidecar 독립 배포 전략 확정
+2. Windows PyInstaller 산출 검증

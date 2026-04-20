@@ -12,6 +12,7 @@
     "desktop:build": "npm --workspace apps/desktop run build",
     "desktop:bundle": "npm --workspace apps/desktop exec tauri build",
     "desktop:bundle:debug": "npm --workspace apps/desktop exec tauri build --debug",
+    "release:alpha": "node scripts/prepare-alpha-release.mjs",
     "verify:all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"
   }
 }

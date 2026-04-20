@@ -47,7 +47,7 @@
 ### Gaps To Close
 
 1. Windows 실환경 기준 번들 설치 검증은 더 남아 있다.
-2. Python sidecar 독립 배포 전략 확정은 더 남아 있다.
+2. Windows PyInstaller 산출 검증은 더 남아 있다.
 
 ---
 
