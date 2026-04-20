@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "identifier": "kr.gongmu.workspace",
   "build": {
-    "beforeDevCommand": "npm --workspace apps/desktop run dev",
-    "beforeBuildCommand": "npm --workspace apps/desktop run build",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173"
   },
@@ -28,4 +28,3 @@
     "icon": []
   }
 }
-
