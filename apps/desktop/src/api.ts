@@ -92,6 +92,21 @@ export type WorkspaceHealth = {
   database: string;
 };
 
+export type WorkspaceSettings = {
+  defaults: {
+    llm_mode: "local_first" | "internal_server";
+    anything_launch_mode: "external_link_only";
+    default_template_key: "report" | "meeting" | "review";
+    internal_api_base_url: string | null;
+  };
+  paths: {
+    workspace_root: string;
+    database: string;
+    knowledge_root: string;
+    documents_root: string;
+  };
+};
+
 export type ContentBaseResult = {
   id: string;
   title: string;
@@ -104,6 +119,7 @@ export type ContentBaseResult = {
 
 export type WorkspaceSnapshot = {
   health: WorkspaceHealth | null;
+  settings: WorkspaceSettings | null;
   schedules: ScheduleItem[];
   workSessions: WorkSessionItem[];
   referenceSets: ReferenceSetItem[];
@@ -134,6 +150,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
 export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
   const [
     health,
+    settings,
     schedules,
     workSessions,
     referenceSets,
@@ -145,6 +162,7 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
     logs,
   ] = await Promise.allSettled([
     requestJson<WorkspaceHealth>("/health"),
+    requestJson<WorkspaceSettings>("/api/settings"),
     requestJson<{ items: ScheduleItem[] }>("/api/schedules"),
     requestJson<{ items: WorkSessionItem[] }>("/api/work-sessions"),
     requestJson<{ items: ReferenceSetItem[] }>("/api/reference-sets"),
@@ -158,6 +176,7 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
 
   return {
     health: health.status === "fulfilled" ? health.value : null,
+    settings: settings.status === "fulfilled" ? settings.value : null,
     schedules: schedules.status === "fulfilled" ? schedules.value.items : [],
     workSessions: workSessions.status === "fulfilled" ? workSessions.value.items : [],
     referenceSets: referenceSets.status === "fulfilled" ? referenceSets.value.items : [],
@@ -257,4 +276,3 @@ export async function decideApproval(
     body: JSON.stringify(payload),
   });
 }
-

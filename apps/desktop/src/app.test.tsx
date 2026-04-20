@@ -25,6 +25,23 @@ beforeEach(() => {
         });
       }
 
+      if (url.endsWith("/api/settings")) {
+        return jsonResponse({
+          defaults: {
+            llm_mode: "internal_server",
+            anything_launch_mode: "external_link_only",
+            default_template_key: "meeting",
+            internal_api_base_url: "http://127.0.0.1:9000",
+          },
+          paths: {
+            workspace_root: "/tmp/gongmu-workspace",
+            database: "/tmp/gongmu-workspace/db/gongmu.db",
+            knowledge_root: "/tmp/gongmu-workspace/knowledge",
+            documents_root: "/tmp/gongmu-workspace/documents",
+          },
+        });
+      }
+
       if (url.includes("/api/schedules")) {
         return jsonResponse({
           items: [
@@ -174,6 +191,21 @@ describe("App shell", () => {
     expect(await screen.findByText("사이드카 연결 정상")).toBeInTheDocument();
     expect(screen.getAllByText("주간 보고").length).toBeGreaterThan(0);
     expect(screen.getByText("업무대화 열기")).toBeInTheDocument();
+  });
+
+  it("shows live settings and uses the runtime default template fallback", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
+
+    await user.click(within(navigation).getByText("기타 환경설정"));
+
+    expect(await screen.findByText("internal_server")).toBeInTheDocument();
+    expect(screen.getByText("http://127.0.0.1:9000")).toBeInTheDocument();
+
+    await user.click(within(navigation).getByText("문서작성"));
+
+    expect(screen.getByRole("combobox", { name: "템플릿" })).toHaveValue("meeting");
   });
 
   it("switches to the knowledge folder view and shows pending candidates", async () => {

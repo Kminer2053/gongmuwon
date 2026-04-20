@@ -6,8 +6,10 @@
   ],
   "scripts": {
     "desktop:dev": "npm --workspace apps/desktop run dev",
+    "sidecar:test": ".venv/bin/pytest services/sidecar/tests -q",
+    "sidecar:serve": ".venv/bin/python -m uvicorn gongmu_sidecar.app:create_app --factory --app-dir services/sidecar/src --host 127.0.0.1 --port 8765",
     "desktop:test": "npm --workspace apps/desktop run test",
-    "desktop:build": "npm --workspace apps/desktop run build"
+    "desktop:build": "npm --workspace apps/desktop run build",
+    "verify:all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && bash -lc 'source \"$HOME/.cargo/env\" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml'"
   }
 }
-

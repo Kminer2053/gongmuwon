@@ -74,6 +74,7 @@ const MENU_ITEMS: MenuItem[] = [
 
 const EMPTY_SNAPSHOT: WorkspaceSnapshot = {
   health: null,
+  settings: null,
   schedules: [],
   workSessions: [],
   referenceSets: [],
@@ -202,11 +203,13 @@ export function App() {
   const [documentForm, setDocumentForm] = useState({
     title: "",
     purpose: "보고서형",
-    template_key: "report" as "report" | "meeting" | "review",
+    template_key: "" as "" | "report" | "meeting" | "review",
   });
 
   const deferredLogs = useDeferredValue(snapshot.logs);
   const templates = snapshot.templates.length > 0 ? snapshot.templates : FALLBACK_TEMPLATES;
+  const defaultTemplateKey = snapshot.settings?.defaults.default_template_key ?? "report";
+  const activeTemplateKey = documentForm.template_key || defaultTemplateKey;
   const pendingApprovals = snapshot.approvalTickets.filter((ticket) => ticket.status === "pending");
   const activeMenuMeta = MENU_ITEMS.find((item) => item.key === activeMenu) ?? MENU_ITEMS[0];
 
@@ -337,13 +340,13 @@ export function App() {
           title: documentForm.title,
           purpose: documentForm.purpose,
           reference_set_id: selectedReferenceSetId || null,
-          template_key: documentForm.template_key,
+          template_key: activeTemplateKey as "report" | "meeting" | "review",
         }),
       "콘텐츠 베이스를 생성했습니다.",
     );
     if (created) {
       setLastContentBase(created);
-      setDocumentForm({ title: "", purpose: "보고서형", template_key: "report" });
+      setDocumentForm({ title: "", purpose: "보고서형", template_key: "" });
     }
   }
 
@@ -690,7 +693,7 @@ export function App() {
               <label className="select-field">
                 템플릿
                 <select
-                  value={documentForm.template_key}
+                  value={activeTemplateKey}
                   onChange={(event) =>
                     setDocumentForm((current) => ({
                       ...current,
@@ -731,7 +734,7 @@ export function App() {
             {templates.map((template) => (
               <article
                 key={template.key}
-                className={`template-card ${documentForm.template_key === template.key ? "is-selected" : ""}`}
+                className={`template-card ${activeTemplateKey === template.key ? "is-selected" : ""}`}
               >
                 <p className="template-card__key">{template.key}</p>
                 <h3>{template.label}</h3>
@@ -981,19 +984,35 @@ export function App() {
         <div className="settings-grid">
           <div>
             <p className="settings-grid__label">워크스페이스 루트</p>
-            <p>{snapshot.health?.workspace_root ?? "사이드카 연결 전"}</p>
+            <p>{snapshot.settings?.paths.workspace_root ?? snapshot.health?.workspace_root ?? "사이드카 연결 전"}</p>
           </div>
           <div>
             <p className="settings-grid__label">SQLite</p>
-            <p>{snapshot.health?.database ?? "-"}</p>
+            <p>{snapshot.settings?.paths.database ?? snapshot.health?.database ?? "-"}</p>
           </div>
           <div>
             <p className="settings-grid__label">지식 정본</p>
-            <p>Obsidian-compatible Markdown Vault</p>
+            <p>{snapshot.settings?.paths.knowledge_root ?? "Obsidian-compatible Markdown Vault"}</p>
+          </div>
+          <div>
+            <p className="settings-grid__label">문서 루트</p>
+            <p>{snapshot.settings?.paths.documents_root ?? "-"}</p>
+          </div>
+          <div>
+            <p className="settings-grid__label">LLM 정책</p>
+            <p>{snapshot.settings?.defaults.llm_mode ?? "local_first"}</p>
           </div>
           <div>
             <p className="settings-grid__label">검색 연계</p>
-            <p>Anything 외부 실행 + 승인 흐름</p>
+            <p>{snapshot.settings?.defaults.anything_launch_mode ?? "external_link_only"}</p>
+          </div>
+          <div>
+            <p className="settings-grid__label">기본 템플릿</p>
+            <p>{snapshot.settings?.defaults.default_template_key ?? "report"}</p>
+          </div>
+          <div>
+            <p className="settings-grid__label">내부 API</p>
+            <p>{snapshot.settings?.defaults.internal_api_base_url ?? "-"}</p>
           </div>
         </div>
       </SectionCard>
