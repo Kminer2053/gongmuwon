@@ -63,3 +63,19 @@ def test_tools_manifest_endpoint_is_exposed(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["items"][0]["key"] == "ocr"
     assert payload["items"][0]["status"] in {"mvp", "later"}
+
+
+def test_cors_preflight_allows_desktop_origin(tmp_path: Path) -> None:
+    app = create_app(tmp_path)
+    client = app.state.test_client_factory()
+
+    response = client.options(
+        "/api/settings",
+        headers={
+            "Origin": "tauri://localhost",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "*"

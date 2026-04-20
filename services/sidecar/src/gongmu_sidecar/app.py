@@ -5,6 +5,7 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
@@ -282,6 +283,13 @@ class AppServices:
 def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     services = AppServices(workspace_root)
     app = FastAPI(title="gongmu-sidecar", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.state.services = services
     app.state.test_client_factory = lambda: TestClient(app)
 
