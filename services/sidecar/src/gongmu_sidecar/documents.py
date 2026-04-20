@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -225,7 +226,20 @@ class DocumentManager:
         )
 
     def _final_output_filename(self, output_name: str) -> str:
-        filename = output_name.strip().replace("/", "_").replace("\\", "_") or "final-document"
-        if not filename.endswith(".md"):
-            filename = f"{filename}.md"
-        return filename
+        filename = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", output_name.strip())
+        filename = filename.rstrip(" .")
+        if filename.lower().endswith(".md"):
+            stem = filename[:-3].rstrip(" .")
+        else:
+            stem = filename
+        stem = stem or "final-document"
+        if stem.upper() in {
+            "CON",
+            "PRN",
+            "AUX",
+            "NUL",
+            *(f"COM{index}" for index in range(1, 10)),
+            *(f"LPT{index}" for index in range(1, 10)),
+        }:
+            stem = f"_{stem}"
+        return f"{stem}.md"

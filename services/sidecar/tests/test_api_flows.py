@@ -170,6 +170,48 @@ def test_document_finalize_requires_approval_and_creates_output(tmp_path: Path) 
     assert "documents.finalize.applied" in actions
 
 
+def test_document_finalize_sanitizes_windows_invalid_output_name(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    ref_set = client.post(
+        "/api/reference-sets",
+        json={"title": "문서 참고", "items": [{"kind": "note", "label": "쟁점", "value": "예산 조정"}]},
+    )
+    reference_set_id = ref_set.json()["id"]
+
+    content_base = client.post(
+        "/api/documents/content-bases",
+        json={
+            "title": "주간 보고 초안",
+            "purpose": "보고서형",
+            "reference_set_id": reference_set_id,
+            "template_key": "report",
+        },
+    )
+    content_base_id = content_base.json()["id"]
+
+    finalize = client.post(
+        "/api/documents/finalize",
+        json={"content_base_id": content_base_id, "output_name": '주간:보고*?"<>|2026'},
+    )
+    assert finalize.status_code == 202
+    ticket_id = finalize.json()["approval_ticket"]["id"]
+
+    decision = client.post(
+        f"/api/approval-tickets/{ticket_id}/decision",
+        json={"status": "approved", "decision_note": "최종 저장 승인"},
+    )
+    assert decision.status_code == 200
+
+    apply = client.post(f"/api/documents/finalize/{ticket_id}/apply")
+    assert apply.status_code == 201
+    artifact_path = Path(apply.json()["artifact"]["path"])
+    assert artifact_path.exists()
+    assert artifact_path.parent.name == "outputs"
+    assert all(ch not in artifact_path.name for ch in ':*?"<>|')
+    assert artifact_path.suffix == ".md"
+
+
 def test_anything_launch_creates_pending_approval_ticket(tmp_path: Path) -> None:
     client = _client(tmp_path)
 
