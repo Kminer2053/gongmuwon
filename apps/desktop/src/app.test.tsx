@@ -358,10 +358,13 @@ describe("App shell", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "최종 저장 적용" })).toBeEnabled(),
     );
+    await user.click(screen.getByRole("button", { name: "최종 저장 적용" }));
+
     expect(
       fetchMock.mock.calls.some(([input]) =>
-        String(input).includes("/api/approval-tickets/approval-final-1/decision"),
+        String(input).includes("/api/documents/finalize/approval-final-1/apply"),
       ),
     ).toBe(true);
+    expect(await screen.findByText("documents/outputs/주간보고-2026-04-20.md")).toBeInTheDocument();
   });
 });
