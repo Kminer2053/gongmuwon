@@ -1,0 +1,393 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Literal
+from uuid import uuid4
+
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
+from pydantic import BaseModel, Field
+
+from .db import Database, now_iso
+from .documents import DocumentManager
+from .knowledge import KnowledgeManager
+from .workspace import WorkspacePaths, ensure_workspace
+
+
+class ScheduleCreate(BaseModel):
+    title: str
+    starts_at: str
+    ends_at: str
+    view: Literal["month", "week", "list"] = "list"
+
+
+class WorkSessionCreate(BaseModel):
+    title: str
+    schedule_id: str | None = None
+
+
+class ReferenceItemInput(BaseModel):
+    kind: str
+    label: str
+    value: str
+
+
+class ReferenceSetCreate(BaseModel):
+    title: str
+    session_id: str | None = None
+    items: list[ReferenceItemInput] = Field(default_factory=list)
+
+
+class CandidateFromNote(BaseModel):
+    title: str
+    body: str
+    candidate_type: Literal["topic", "project", "issue", "entity"] = "topic"
+
+
+class CandidateApproveRequest(BaseModel):
+    page_type: Literal["topic", "project", "issue", "entity"] = "topic"
+
+
+class ContentBaseCreate(BaseModel):
+    title: str
+    purpose: str
+    reference_set_id: str | None = None
+    template_key: Literal["report", "meeting", "review"] = "report"
+
+
+class AnythingLaunchRequest(BaseModel):
+    query: str | None = None
+
+
+class FileProposalRequest(BaseModel):
+    target_path: str
+
+
+class ApprovalDecisionRequest(BaseModel):
+    status: Literal["approved", "rejected"]
+    decision_note: str | None = None
+
+
+class AppServices:
+    def __init__(self, workspace_root: Path | str | None = None) -> None:
+        self.paths: WorkspacePaths = ensure_workspace(workspace_root)
+        self.db = Database(self.paths)
+        self.knowledge = KnowledgeManager(self.paths, self.db)
+        self.documents = DocumentManager(self.paths, self.db)
+
+    def create_schedule(self, payload: ScheduleCreate) -> dict[str, Any]:
+        record = {
+            "id": str(uuid4()),
+            "title": payload.title,
+            "starts_at": payload.starts_at,
+            "ends_at": payload.ends_at,
+            "view": payload.view,
+            "created_at": now_iso(),
+        }
+        self.db.insert("schedules", record)
+        self.db.log(
+            feature="schedule",
+            action="schedule.created",
+            status="success",
+            inputs=payload.model_dump(),
+            outputs={"schedule_id": record["id"]},
+        )
+        return record
+
+    def list_schedules(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all("SELECT * FROM schedules ORDER BY starts_at ASC")
+
+    def create_work_session(self, payload: WorkSessionCreate) -> dict[str, Any]:
+        record = {
+            "id": str(uuid4()),
+            "title": payload.title,
+            "schedule_id": payload.schedule_id,
+            "status": "open",
+            "created_at": now_iso(),
+        }
+        self.db.insert("work_sessions", record)
+        self.db.log(
+            feature="chat",
+            action="work_session.created",
+            status="success",
+            inputs=payload.model_dump(),
+            outputs={"session_id": record["id"]},
+        )
+        return record
+
+    def list_work_sessions(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all("SELECT * FROM work_sessions ORDER BY created_at DESC")
+
+    def create_reference_set(self, payload: ReferenceSetCreate) -> dict[str, Any]:
+        record = {
+            "id": str(uuid4()),
+            "title": payload.title,
+            "session_id": payload.session_id,
+            "created_at": now_iso(),
+        }
+        self.db.insert("reference_sets", record)
+        items = []
+        for item in payload.items:
+            stored = {
+                "id": str(uuid4()),
+                "reference_set_id": record["id"],
+                "kind": item.kind,
+                "label": item.label,
+                "value": item.value,
+                "created_at": now_iso(),
+            }
+            self.db.insert("reference_items", stored)
+            items.append(
+                {
+                    "id": stored["id"],
+                    "kind": item.kind,
+                    "label": item.label,
+                    "value": item.value,
+                }
+            )
+        self.db.log(
+            feature="references",
+            action="reference_set.created",
+            status="success",
+            inputs=payload.model_dump(),
+            outputs={"reference_set_id": record["id"], "item_count": len(items)},
+        )
+        return {
+            "id": record["id"],
+            "title": record["title"],
+            "session_id": record["session_id"],
+            "items": items,
+            "created_at": record["created_at"],
+        }
+
+    def list_reference_sets(self) -> list[dict[str, Any]]:
+        rows = self.db.fetch_all("SELECT * FROM reference_sets ORDER BY created_at DESC")
+        result = []
+        for row in rows:
+            items = self.db.fetch_all(
+                "SELECT id, kind, label, value FROM reference_items WHERE reference_set_id = ? ORDER BY created_at ASC",
+                (row["id"],),
+            )
+            result.append(
+                {
+                    "id": row["id"],
+                    "title": row["title"],
+                    "session_id": row["session_id"],
+                    "items": items,
+                    "created_at": row["created_at"],
+                }
+            )
+        return result
+
+    def create_anything_launch_ticket(self, payload: AnythingLaunchRequest) -> dict[str, Any]:
+        ticket = self.db.create_approval_ticket(
+            target_type="external_launch",
+            target_id=str(uuid4()),
+            action="anything.launch",
+        )
+        self.db.log(
+            feature="search",
+            action="anything.launch.requested",
+            status="pending_approval",
+            inputs=payload.model_dump(),
+            outputs={"approval_ticket_id": ticket["id"]},
+            approval_ticket_id=ticket["id"],
+        )
+        return ticket
+
+    def list_approval_tickets(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            "SELECT * FROM approval_tickets ORDER BY requested_at DESC"
+        )
+
+    def decide_approval_ticket(self, ticket_id: str, payload: ApprovalDecisionRequest) -> dict[str, Any]:
+        existing = self.db.fetch_one(
+            "SELECT * FROM approval_tickets WHERE id = ?",
+            (ticket_id,),
+        )
+        if existing is None:
+            raise KeyError(ticket_id)
+
+        decided_at = now_iso()
+        self.db.execute(
+            "UPDATE approval_tickets SET status = ?, decided_at = ?, decision_note = ? WHERE id = ?",
+            (payload.status, decided_at, payload.decision_note, ticket_id),
+        )
+        updated = self.db.fetch_one(
+            "SELECT * FROM approval_tickets WHERE id = ?",
+            (ticket_id,),
+        )
+        self.db.log(
+            feature="approval",
+            action="approval_ticket.decided",
+            status=payload.status,
+            inputs={"ticket_id": ticket_id, **payload.model_dump()},
+            outputs={
+                "target_type": updated["target_type"],
+                "target_id": updated["target_id"],
+                "action": updated["action"],
+            },
+            approval_ticket_id=ticket_id,
+        )
+        return updated
+
+    def propose_file_organization(self, target_path: str) -> list[dict[str, Any]]:
+        path = Path(target_path)
+        proposals = []
+        if path.exists() and path.is_dir():
+            candidates = sorted(path.iterdir(), key=lambda candidate: candidate.name.lower())[:10]
+            for candidate in candidates:
+                proposal_type = "knowledge_candidate" if candidate.suffix.lower() in {".md", ".txt"} else "archive"
+                destination = (
+                    self.paths.knowledge_raw / candidate.name
+                    if proposal_type == "knowledge_candidate"
+                    else self.paths.root / "archive" / candidate.name
+                )
+                proposal = {
+                    "id": str(uuid4()),
+                    "target_path": str(candidate),
+                    "proposal_type": proposal_type,
+                    "proposed_destination": str(destination),
+                    "reason": "최근 변경분을 지식 반영 또는 보관 후보로 제안합니다.",
+                    "status": "proposed",
+                    "created_at": now_iso(),
+                }
+                self.db.insert("file_org_proposals", proposal)
+                proposals.append(proposal)
+        self.db.log(
+            feature="fileorg",
+            action="file_org.proposals.created",
+            status="success",
+            inputs={"target_path": target_path},
+            outputs={"proposal_count": len(proposals)},
+        )
+        return proposals
+
+    def list_file_organization_proposals(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            "SELECT * FROM file_org_proposals ORDER BY created_at DESC"
+        )
+
+
+def create_app(workspace_root: Path | str | None = None) -> FastAPI:
+    services = AppServices(workspace_root)
+    app = FastAPI(title="gongmu-sidecar", version="0.1.0")
+    app.state.services = services
+    app.state.test_client_factory = lambda: TestClient(app)
+
+    @app.get("/health")
+    def health() -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "workspace_root": str(services.paths.root),
+            "database": str(services.paths.db_file),
+        }
+
+    @app.get("/api/templates")
+    def templates() -> dict[str, Any]:
+        return {
+            "items": [
+                {"key": "report", "label": "보고서형"},
+                {"key": "meeting", "label": "회의자료형"},
+                {"key": "review", "label": "검토메모형"},
+            ]
+        }
+
+    @app.post("/api/schedules", status_code=201)
+    def create_schedule(payload: ScheduleCreate) -> dict[str, Any]:
+        return services.create_schedule(payload)
+
+    @app.get("/api/schedules")
+    def list_schedules() -> dict[str, Any]:
+        return {"items": services.list_schedules()}
+
+    @app.post("/api/work-sessions", status_code=201)
+    def create_work_session(payload: WorkSessionCreate) -> dict[str, Any]:
+        return services.create_work_session(payload)
+
+    @app.get("/api/work-sessions")
+    def list_work_sessions() -> dict[str, Any]:
+        return {"items": services.list_work_sessions()}
+
+    @app.post("/api/reference-sets", status_code=201)
+    def create_reference_set(payload: ReferenceSetCreate) -> dict[str, Any]:
+        return services.create_reference_set(payload)
+
+    @app.get("/api/reference-sets")
+    def list_reference_sets() -> dict[str, Any]:
+        return {"items": services.list_reference_sets()}
+
+    @app.post("/api/knowledge/candidates/from-note", status_code=201)
+    def create_candidate(payload: CandidateFromNote) -> dict[str, Any]:
+        return services.knowledge.create_candidate(
+            title=payload.title,
+            body=payload.body,
+            candidate_type=payload.candidate_type,
+        )
+
+    @app.get("/api/knowledge/candidates")
+    def list_candidates() -> dict[str, Any]:
+        return {
+            "items": services.db.fetch_all(
+                "SELECT * FROM knowledge_candidates ORDER BY created_at DESC"
+            )
+        }
+
+    @app.post("/api/knowledge/candidates/{candidate_id}/approve")
+    def approve_candidate(candidate_id: str, payload: CandidateApproveRequest) -> dict[str, Any]:
+        try:
+            return services.knowledge.approve_candidate(candidate_id, payload.page_type)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="candidate not found") from exc
+
+    @app.get("/api/knowledge/pages")
+    def list_pages() -> dict[str, Any]:
+        return {
+            "items": services.db.fetch_all(
+                "SELECT * FROM knowledge_pages ORDER BY created_at DESC"
+            )
+        }
+
+    @app.get("/api/knowledge/search")
+    def search_knowledge(query: str) -> dict[str, Any]:
+        return services.knowledge.search(query)
+
+    @app.post("/api/documents/content-bases", status_code=201)
+    def create_content_base(payload: ContentBaseCreate) -> dict[str, Any]:
+        return services.documents.create_content_base(
+            title=payload.title,
+            purpose=payload.purpose,
+            reference_set_id=payload.reference_set_id,
+            template_key=payload.template_key,
+        )
+
+    @app.post("/api/integrations/anything/launch", status_code=202)
+    def request_anything_launch(payload: AnythingLaunchRequest) -> dict[str, Any]:
+        return services.create_anything_launch_ticket(payload)
+
+    @app.get("/api/approval-tickets")
+    def list_approval_tickets() -> dict[str, Any]:
+        return {"items": services.list_approval_tickets()}
+
+    @app.post("/api/approval-tickets/{ticket_id}/decision")
+    def decide_approval_ticket(
+        ticket_id: str, payload: ApprovalDecisionRequest
+    ) -> dict[str, Any]:
+        try:
+            return services.decide_approval_ticket(ticket_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="approval ticket not found") from exc
+
+    @app.post("/api/file-organizer/proposals")
+    def create_file_org_proposals(payload: FileProposalRequest) -> dict[str, Any]:
+        return {"items": services.propose_file_organization(payload.target_path)}
+
+    @app.get("/api/file-organizer/proposals")
+    def list_file_org_proposals() -> dict[str, Any]:
+        return {"items": services.list_file_organization_proposals()}
+
+    @app.get("/api/execution-logs")
+    def list_execution_logs() -> dict[str, Any]:
+        return {"items": services.db.list_logs()}
+
+    return app

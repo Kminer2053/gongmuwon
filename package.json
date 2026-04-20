@@ -1,0 +1,13 @@
+{
+  "name": "gongmu-workspace",
+  "private": true,
+  "workspaces": [
+    "apps/desktop"
+  ],
+  "scripts": {
+    "desktop:dev": "npm --workspace apps/desktop run dev",
+    "desktop:test": "npm --workspace apps/desktop run test",
+    "desktop:build": "npm --workspace apps/desktop run build"
+  }
+}
+
