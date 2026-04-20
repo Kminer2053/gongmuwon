@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import {
   approveKnowledgeCandidate,
+  commitFileProposalApply,
   createContentBase,
   createFileProposals,
   createKnowledgeCandidate,
@@ -30,7 +31,9 @@ import {
   decideApproval,
   loadKnowledgeGraph,
   loadWorkspaceSnapshot,
+  requestFileProposalApply,
   requestAnythingLaunch,
+  rollbackFileOperation,
   applyDocumentFinalize,
   requestDocumentFinalize,
   searchKnowledge,
@@ -188,6 +191,9 @@ export function App() {
   const [selectedReferenceSetId, setSelectedReferenceSetId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [fileOrgTargetPath, setFileOrgTargetPath] = useState("");
+  const [fileOrgOperations, setFileOrgOperations] = useState<
+    Record<string, { id: string; destination_path: string }>
+  >({});
   const [lastContentBase, setLastContentBase] = useState<ContentBaseResult | null>(null);
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
@@ -449,6 +455,48 @@ export function App() {
       () => createFileProposals(fileOrgTargetPath),
       "파일정리 제안을 생성했습니다.",
     );
+  }
+
+  async function requestProposalApply(proposal: FileProposalItem) {
+    await handleAction(
+      () => requestFileProposalApply(proposal.id),
+      "파일정리 적용 승인 요청을 보냈습니다.",
+    );
+  }
+
+  async function commitProposalApply(proposal: FileProposalItem) {
+    const applied = await handleAction(
+      () => commitFileProposalApply(proposal.id),
+      "파일정리 적용을 완료했습니다.",
+    );
+    if (applied) {
+      setFileOrgOperations((current) => ({
+        ...current,
+        [proposal.id]: {
+          id: applied.operation.id,
+          destination_path: applied.operation.destination_path,
+        },
+      }));
+    }
+  }
+
+  async function rollbackProposalApply(proposal: FileProposalItem) {
+    const operation = fileOrgOperations[proposal.id];
+    if (!operation) {
+      return;
+    }
+
+    const rolledBack = await handleAction(
+      () => rollbackFileOperation(operation.id),
+      "파일정리 적용을 되돌렸습니다.",
+    );
+    if (rolledBack) {
+      setFileOrgOperations((current) => {
+        const next = { ...current };
+        delete next[proposal.id];
+        return next;
+      });
+    }
   }
 
   async function decideApprovalTicket(ticket: ApprovalTicketItem, status: "approved" | "rejected") {
@@ -1183,12 +1231,46 @@ export function App() {
                     <div>
                       <h3>{relativePath(proposal.target_path)}</h3>
                       <p>{proposal.reason}</p>
+                      <p className="subtle-text">상태: {proposal.status}</p>
                       <p className="subtle-text">
                         {"-> "}
                         {relativePath(proposal.proposed_destination)}
                       </p>
+                      {fileOrgOperations[proposal.id] ? (
+                        <p className="subtle-text">
+                          적용됨: {relativePath(fileOrgOperations[proposal.id].destination_path)}
+                        </p>
+                      ) : null}
                     </div>
                     <span className="pill">{proposal.proposal_type}</span>
+                  </div>
+                  <div className="inline-actions">
+                    {!snapshot.approvalTickets.some(
+                      (ticket) => ticket.action === "file_org.apply" && ticket.target_id === proposal.id,
+                    ) ? (
+                      <button type="button" onClick={() => void requestProposalApply(proposal)}>
+                        적용 요청
+                      </button>
+                    ) : null}
+                    {snapshot.approvalTickets.some(
+                      (ticket) =>
+                        ticket.action === "file_org.apply" &&
+                        ticket.target_id === proposal.id &&
+                        ticket.status === "approved",
+                    ) && !fileOrgOperations[proposal.id] ? (
+                      <button type="button" onClick={() => void commitProposalApply(proposal)}>
+                        승인 후 적용
+                      </button>
+                    ) : null}
+                    {fileOrgOperations[proposal.id] ? (
+                      <button
+                        type="button"
+                        className="button-secondary"
+                        onClick={() => void rollbackProposalApply(proposal)}
+                      >
+                        되돌리기
+                      </button>
+                    ) : null}
                   </div>
                 </article>
               ))}

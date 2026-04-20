@@ -130,6 +130,17 @@ CREATE TABLE IF NOT EXISTS file_org_proposals (
     status TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS file_org_operations (
+    id TEXT PRIMARY KEY,
+    proposal_id TEXT NOT NULL,
+    source_path TEXT NOT NULL,
+    destination_path TEXT NOT NULL,
+    action TEXT NOT NULL,
+    approval_ticket_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    rolled_back_at TEXT
+);
 """
 
 

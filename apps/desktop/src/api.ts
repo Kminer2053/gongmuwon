@@ -92,6 +92,19 @@ export type FileProposalItem = {
   created_at: string;
 };
 
+export type FileOperationResult = {
+  operation: {
+    id: string;
+    proposal_id: string;
+    source_path: string;
+    destination_path: string;
+    action: string;
+    approval_ticket_id: string;
+    created_at: string;
+    rolled_back_at?: string | null;
+  };
+};
+
 export type ExecutionLogItem = {
   id: string;
   feature: string;
@@ -383,6 +396,27 @@ export async function createFileProposals(targetPath: string) {
     method: "POST",
     body: JSON.stringify({ target_path: targetPath }),
   });
+}
+
+export async function requestFileProposalApply(proposalId: string) {
+  return requestJson<{ approval_ticket: ApprovalTicketItem; proposal: FileProposalItem }>(
+    `/api/file-organizer/proposals/${proposalId}/apply`,
+    { method: "POST" },
+  );
+}
+
+export async function commitFileProposalApply(proposalId: string) {
+  return requestJson<FileOperationResult>(
+    `/api/file-organizer/proposals/${proposalId}/apply/commit`,
+    { method: "POST" },
+  );
+}
+
+export async function rollbackFileOperation(operationId: string) {
+  return requestJson<{ restored_path: string; operation_id: string }>(
+    `/api/file-organizer/operations/${operationId}/rollback`,
+    { method: "POST" },
+  );
 }
 
 export async function decideApproval(

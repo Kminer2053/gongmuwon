@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from .db import Database, now_iso
 from .documents import DocumentManager
+from .file_organizer import FileOrganizer
 from .knowledge import KnowledgeManager
 from .settings import SidecarSettings, WorkspaceSettingsResponse
 from .workspace import WorkspacePaths, ensure_workspace
@@ -81,6 +82,7 @@ class AppServices:
         self.db = Database(self.paths)
         self.knowledge = KnowledgeManager(self.paths, self.db)
         self.documents = DocumentManager(self.paths, self.db)
+        self.file_organizer = FileOrganizer(self.paths, self.db)
 
     def create_schedule(self, payload: ScheduleCreate) -> dict[str, Any]:
         record = {
@@ -432,6 +434,29 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     @app.get("/api/file-organizer/proposals")
     def list_file_org_proposals() -> dict[str, Any]:
         return {"items": services.list_file_organization_proposals()}
+
+    @app.post("/api/file-organizer/proposals/{proposal_id}/apply", status_code=202)
+    def request_file_org_apply(proposal_id: str) -> dict[str, Any]:
+        try:
+            return services.file_organizer.request_apply(proposal_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="file organizer proposal not found") from exc
+
+    @app.post("/api/file-organizer/proposals/{proposal_id}/apply/commit", status_code=201)
+    def commit_file_org_apply(proposal_id: str) -> dict[str, Any]:
+        try:
+            return services.file_organizer.commit_apply(proposal_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="file organizer proposal not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=409, detail="approval ticket must be approved") from exc
+
+    @app.post("/api/file-organizer/operations/{operation_id}/rollback")
+    def rollback_file_org(operation_id: str) -> dict[str, Any]:
+        try:
+            return services.file_organizer.rollback(operation_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="file organizer operation not found") from exc
 
     @app.get("/api/execution-logs")
     def list_execution_logs() -> dict[str, Any]:

@@ -414,7 +414,7 @@ describe("App shell", () => {
 
     await user.click(await screen.findByRole("button", { name: "최종 저장 요청" }));
 
-    const finalizeCard = screen.getByText("documents.finalize").closest("article");
+    const finalizeCard = (await screen.findByText("documents.finalize")).closest("article");
     expect(finalizeCard).not.toBeNull();
     await user.click(within(finalizeCard as HTMLElement).getByRole("button", { name: "승인" }));
 

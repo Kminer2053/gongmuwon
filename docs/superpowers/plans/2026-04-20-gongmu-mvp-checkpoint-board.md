@@ -18,13 +18,14 @@
 - 문서작성 최종 저장 승인 요청/적용 시 `outputs/` Markdown 산출물 생성 및 execution log / DB persist 연결
 - 문서작성 최종 저장 UI의 `요청 -> 승인 -> 적용` 흐름 테스트 보강 완료
 - Windows 대상 최종 산출물 파일명 안전화 및 회귀 테스트 추가
+- 파일정리 제안의 승인 요청, 적용, rollback API와 데스크톱 액션 연결 완료
 - 데스크톱 셸에서 주요 메뉴 순서와 기본 입력/조회 흐름 구현
 
 ### 2026-04-20 기준 검증 완료 증거
 
 | 영역 | 명령 | 결과 |
 | --- | --- | --- |
-| Sidecar API | `npm run sidecar:test` | `11 passed` |
+| Sidecar API | `npm run sidecar:test` | `12 passed` |
 | Sidecar settings contract | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | `PASS` |
 | Sidecar env override | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | `PASS` |
 | Desktop UI | `npm --workspace apps/desktop run test` | `5 passed` |
@@ -35,7 +36,6 @@
 ### 아직 비어 있는 핵심 구간
 
 - Tauri 앱이 사이드카를 직접 띄우고 상태를 감시하는 런타임 연결
-- 파일정리 제안의 실제 적용 / 거절 / rollback 흐름
 - 정적 카드가 아닌 `Tool Manifest`, 설정 정책, 운영 런북
 
 ---
@@ -61,7 +61,7 @@
 | W2 | 지식폴더 MVP | 완료 | 후보 생성/승인/페이지 생성/그래프 산출 | API + UI + search/graph inspector 검증 통과 |
 | W3 | 검색 연계 | 부분 완료 | Anything 실행 요청과 승인 큐 등록 | API/UI 구현, 실제 외부 실행 미적용 |
 | W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
-| W5 | 파일정리 + 지식화 루프 | 부분 완료 | 제안 생성/조회 가능 | API 구현, apply/rollback 미구현 |
+| W5 | 파일정리 + 지식화 루프 | 완료 | 제안 생성/조회/적용/rollback 가능 | sidecar workflow test + desktop action 연결 완료 |
 | W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
 | W7 | 설치/운영 안정화 | 미착수 | dev/runbook/offline 정책/패키징 | 없음 |
 
@@ -130,6 +130,13 @@
 | 2026-04-20 | task3 | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | knowledge inspector UI + existing shell flows verified |
 | 2026-04-20 | task3 | `npm --workspace apps/desktop run test` | PASS | `5 passed` |
 | 2026-04-20 | task3 | `npm --workspace apps/desktop run build` | PASS | desktop bundle rebuilt with graph inspector panel |
+| 2026-04-20 | task4 | `.venv/bin/pytest services/sidecar/tests/test_file_organizer_apply.py -q` | PASS | file organizer request/apply/rollback workflow verified |
+| 2026-04-20 | task4 | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `12 passed` |
+| 2026-04-20 | task4 | `npm --workspace apps/desktop run test` | PASS | `5 passed` |
+| 2026-04-20 | task4 | `npm --workspace apps/desktop run build` | PASS | desktop bundle rebuilt with file organizer actions |
+| 2026-04-20 | task3-review | `.venv/bin/pytest services/sidecar/tests/test_knowledge_search.py -q` | PASS | graph summary edge/artifact contract tightened |
+| 2026-04-20 | task3-review | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `12 passed` after graph summary fix |
+| 2026-04-20 | verification | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 재검증 완료 |
 
 ### 이슈 / 결정 로그
 
@@ -144,6 +151,8 @@
 | 2026-04-20 | 이슈 | 문서 최종 저장 UI 테스트가 승인 이후 apply 호출까지 닿지 않음 | `f4dbe84`에서 apply 버튼 클릭/endpoint/assertion으로 보강 완료 |
 | 2026-04-20 | 이슈 | Windows에서 금지 문자가 포함된 출력 이름은 최종 저장 실패 가능 | `f682654`에서 파일명 안전화 + 회귀 테스트 추가 완료 |
 | 2026-04-20 | 이슈 | `KnowledgeManager._table()`가 LanceDB `list_tables()` 응답 객체를 plain list처럼 검사해 기존 테이블을 다시 생성하려고 함 | `.tables` 기준으로 확인하도록 수정하고 Task 3 search/graph 테스트로 회귀 방지 |
+| 2026-04-20 | 이슈 | `graph.json`은 `edges`를 쓰는데 graph summary는 `links`만 읽어 `edge_count`를 0으로 보고함 | `edges` 우선, `links` fallback으로 수정하고 artifact contract assertion으로 회귀 방지 |
+| 2026-04-20 | 결정 | 파일정리는 자동 실행이 아니라 `적용 요청 -> 승인 -> 적용 -> rollback`의 보수적 흐름으로 유지 | 삭제 대신 copy 기반 operation 로그를 남기고 되돌리기를 허용 |
 
 ---
 
@@ -164,6 +173,5 @@
 
 ### 다음 우선순위
 
-1. 파일정리 apply/rollback
-2. Tool Manifest + 운영 런북
-3. Tauri-사이드카 런타임 연결 안정화
+1. Tool Manifest + 운영 런북
+2. Tauri-사이드카 런타임 연결 안정화

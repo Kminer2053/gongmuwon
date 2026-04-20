@@ -16,8 +16,8 @@
 | --- | --- | --- | --- |
 | Task 1 | 완료 | `/api/settings` 계약, desktop runtime guard, env override 검증, portable scripts | `e46310c`, `9f99af7` |
 | Task 2 | 완료 | 문서 최종 저장 request/apply, desktop apply UI, full UI flow test, Windows-safe output filename | `321eb20`, `f4dbe84`, `f682654` |
-| Task 3 | 완료 | knowledge search endpoint 검증, graph summary API, desktop inspector panel, LanceDB table detection fix | working tree |
-| Task 4 | 미착수 | 파일정리 apply/rollback | - |
+| Task 3 | 완료 | knowledge search endpoint 검증, graph summary API, desktop inspector panel, LanceDB table detection fix, graph artifact contract 회귀 방지 | 이번 배치 검증 완료 |
+| Task 4 | 완료 | file organizer request/apply/rollback API, desktop action buttons, copy-based operation log | 이번 배치 검증 완료 |
 | Task 5 | 미착수 | Tool Manifest + 운영 런북 | - |
 
 ---
@@ -26,23 +26,24 @@
 
 ### Verified Today
 
-- `services/sidecar`: 일정, 업무세션, 참고자료, 지식 반영 후보, Content Base, 문서 최종 저장 승인/적용, 지식 검색/그래프 요약, 파일정리 제안 API가 동작한다.
-- `apps/desktop`: 메뉴 순서, 입력 폼, 우측 승인/실행기록 패널, 주요 화면 전환, 문서 최종 저장 request/apply UI, 지식 검색/그래프 inspector가 동작한다.
+- `services/sidecar`: 일정, 업무세션, 참고자료, 지식 반영 후보, Content Base, 문서 최종 저장 승인/적용, 지식 검색/그래프 요약, 파일정리 적용/rollback API가 동작한다.
+- `apps/desktop`: 메뉴 순서, 입력 폼, 우측 승인/실행기록 패널, 주요 화면 전환, 문서 최종 저장 request/apply UI, 지식 검색/그래프 inspector, 파일정리 액션 버튼이 동작한다.
 - `runtime-workspace`: `db/`, `knowledge/`, `documents/`, `logs/`, `cache/` 구조가 자동 생성된다.
 - 검증 결과:
   - `.venv/bin/pytest services/sidecar/tests/test_knowledge_search.py -q` -> `1 passed`
-  - `.venv/bin/pytest services/sidecar/tests -q` -> `11 passed`
+  - `.venv/bin/pytest services/sidecar/tests/test_file_organizer_apply.py -q` -> `1 passed`
+  - `.venv/bin/pytest services/sidecar/tests -q` -> `12 passed`
   - `npm --workspace apps/desktop run test` -> `5 passed`
   - `.venv/bin/pytest services/sidecar/tests/test_api_flows.py::test_document_finalize_sanitizes_windows_invalid_output_name -q` -> `1 passed`
   - `npm --workspace apps/desktop run test -- src/app.test.tsx` -> `5 passed`
   - `npm --workspace apps/desktop run build` -> 성공
+  - `npm run verify:all` -> PASS
   - `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` -> 성공
 
 ### Gaps To Close
 
-1. 파일정리 제안은 생성만 되고 적용/되돌리기가 없다.
-2. 도구 목록, 운영 문서, 진행 체크 보드가 코드와 함께 순환하지 않는다.
-3. 데스크톱과 사이드카 사이의 런타임 실행 연결은 아직 개발용 수동 실행에 의존한다.
+1. 도구 목록, 운영 문서, 진행 체크 보드가 코드와 함께 순환하지 않는다.
+2. 데스크톱과 사이드카 사이의 런타임 실행 연결은 아직 개발용 수동 실행에 의존한다.
 
 ---
 
@@ -51,7 +52,7 @@
 Git 초기화와 baseline snapshot은 이미 완료되었다.
 
 - baseline commit: `a45d724` `chore: snapshot current gongmu mvp baseline`
-- 이후 Task 1, Task 2는 task 단위 커밋으로 누적되었고, Task 3은 현재 working tree 기준으로 검증 중이다.
+- 이후 Task 1, Task 2는 task 단위 커밋으로 누적되었고, Task 3/4는 이번 배치에서 재검증까지 완료되었다.
 
 ---
 
@@ -589,9 +590,10 @@ Modify `/Users/hoonsbook/Agent_Gongmu_Codex/services/sidecar/src/gongmu_sidecar/
 ```python
     def graph_summary(self) -> dict[str, Any]:
         data = self._read_graph()
+        edges = data.get("edges") or data.get("links") or []
         return {
             "node_count": len(data.get("nodes", [])),
-            "edge_count": len(data.get("links", [])),
+            "edge_count": len(edges),
             "artifacts": {
                 "graph_json_path": str(self.graph_path),
                 "graph_html_path": str(self.graph_html_path),
@@ -688,7 +690,7 @@ git commit -m "feat: add knowledge search and graph inspector"
 
 ---
 
-### Task 4: File Organizer Apply And Rollback
+### Task 4 [Done]: File Organizer Apply And Rollback
 
 **Files:**
 - Create: `/Users/hoonsbook/Agent_Gongmu_Codex/services/sidecar/src/gongmu_sidecar/file_organizer.py`

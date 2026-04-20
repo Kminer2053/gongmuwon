@@ -26,4 +26,7 @@ def test_knowledge_search_and_graph_summary_are_exposed(tmp_path: Path) -> None:
     assert graph.status_code == 200
     payload = graph.json()
     assert payload["node_count"] >= 1
+    assert payload["edge_count"] >= 1
     assert payload["artifacts"]["graph_json_path"].endswith("graph.json")
+    assert payload["artifacts"]["graph_html_path"].endswith("graph.html")
+    assert payload["artifacts"]["graph_report_path"].endswith("GRAPH_REPORT.md")

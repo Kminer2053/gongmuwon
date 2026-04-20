@@ -162,10 +162,10 @@ class KnowledgeManager:
     def graph_summary(self) -> dict[str, Any]:
         data = self._read_graph()
         nodes = data.get("nodes", [])
-        links = data.get("links", [])
+        edges = data.get("edges") or data.get("links") or []
         return {
             "node_count": len(nodes),
-            "edge_count": len(links),
+            "edge_count": len(edges),
             "artifacts": {
                 "graph_json_path": str(self.graph_path),
                 "graph_html_path": str(self.graph_html_path),
@@ -176,7 +176,7 @@ class KnowledgeManager:
 
     def _read_graph(self) -> dict[str, Any]:
         if not self.graph_path.exists():
-            return {"nodes": [], "links": []}
+            return {"nodes": [], "edges": []}
         return json.loads(self.graph_path.read_text(encoding="utf-8"))
 
     def _update_graph(self, *, page: dict[str, Any], body: str) -> dict[str, Any]:
