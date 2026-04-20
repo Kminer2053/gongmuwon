@@ -226,6 +226,13 @@ label {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.workspace-header__hint {
+  color: var(--text-subtle);
+  font-size: 0.85rem;
 }
 
 .health-chip {

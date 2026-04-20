@@ -53,6 +53,11 @@ import {
   type WorkspaceSnapshot,
   type WorkSessionItem,
 } from "./api";
+import {
+  loadDesktopRuntimeStatus,
+  startDesktopSidecar,
+  type DesktopRuntimeStatus,
+} from "./runtime";
 
 type MenuKey =
   | "schedule"
@@ -214,6 +219,9 @@ export function App() {
   const [knowledgeInspectorLoading, setKnowledgeInspectorLoading] = useState(false);
   const [toolManifest, setToolManifest] = useState<ToolManifestItem[]>([]);
   const [toolsLoading, setToolsLoading] = useState(false);
+  const [runtimeStatus, setRuntimeStatus] = useState<DesktopRuntimeStatus | null>(null);
+  const [runtimeLoading, setRuntimeLoading] = useState(false);
+  const [runtimeStarting, setRuntimeStarting] = useState(false);
   const [documentForm, setDocumentForm] = useState({
     title: "",
     purpose: "보고서형",
@@ -265,8 +273,21 @@ export function App() {
     }
   }
 
+  async function refreshRuntimeStatus() {
+    setRuntimeLoading(true);
+    try {
+      const next = await loadDesktopRuntimeStatus();
+      setRuntimeStatus(next);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "런타임 상태를 불러오지 못했습니다.");
+    } finally {
+      setRuntimeLoading(false);
+    }
+  }
+
   useEffect(() => {
     void refreshSnapshot();
+    void refreshRuntimeStatus();
   }, []);
 
   useEffect(() => {
@@ -347,6 +368,22 @@ export function App() {
       return null;
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleStartSidecar() {
+    setRuntimeStarting(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const next = await startDesktopSidecar();
+      setRuntimeStatus(next);
+      await refreshSnapshot();
+      setNotice("사이드카 실행 상태를 갱신했습니다.");
+    } catch (startError) {
+      setError(startError instanceof Error ? startError.message : "사이드카를 시작하지 못했습니다.");
+    } finally {
+      setRuntimeStarting(false);
     }
   }
 
@@ -1396,6 +1433,22 @@ export function App() {
             <p className="settings-grid__label">내부 API</p>
             <p>{snapshot.settings?.defaults.internal_api_base_url ?? "-"}</p>
           </div>
+          <div>
+            <p className="settings-grid__label">런타임 모드</p>
+            <p>{runtimeStatus?.mode ?? "-"}</p>
+          </div>
+          <div>
+            <p className="settings-grid__label">사이드카 URL</p>
+            <p>{runtimeStatus?.sidecar_url ?? "http://127.0.0.1:8765"}</p>
+          </div>
+          <div>
+            <p className="settings-grid__label">사이드카 로그</p>
+            <p>{relativePath(runtimeStatus?.log_path)}</p>
+          </div>
+          <div>
+            <p className="settings-grid__label">런타임 관리</p>
+            <p>{runtimeStatus?.managed ? "앱이 관리 중" : "외부 또는 미연결"}</p>
+          </div>
         </div>
       </SectionCard>
     );
@@ -1468,9 +1521,30 @@ export function App() {
               <ShieldCheck size={16} />
               <span>{snapshot.health?.status === "ok" ? "사이드카 연결 정상" : "사이드카 미연결"}</span>
             </div>
+            <div className={`health-chip ${runtimeStatus?.running ? "is-ok" : "is-offline"}`}>
+              <Sparkles size={16} />
+              <span>
+                {runtimeLoading
+                  ? "런타임 상태 확인 중"
+                  : runtimeStatus?.detail ?? "런타임 상태 미확인"}
+              </span>
+            </div>
+            {runtimeStatus?.available && !runtimeStatus.running ? (
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => void handleStartSidecar()}
+                disabled={runtimeStarting}
+              >
+                {runtimeStarting ? "사이드카 시작 중..." : "사이드카 시작"}
+              </button>
+            ) : null}
             <button type="button" className="button-secondary" onClick={() => void refreshSnapshot()}>
               새로고침
             </button>
+            {runtimeStatus?.log_path ? (
+              <span className="workspace-header__hint">{relativePath(runtimeStatus.log_path)}</span>
+            ) : null}
           </div>
         </header>
 

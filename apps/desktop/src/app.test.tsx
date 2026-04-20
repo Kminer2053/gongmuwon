@@ -1,6 +1,35 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
+
+const runtimeState = {
+  status: {
+    available: true,
+    mode: "tauri" as const,
+    sidecar_url: "http://127.0.0.1:8765",
+    running: false,
+    managed: false,
+    log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
+    detail: "sidecar 시작 필요",
+  },
+};
+
+const loadDesktopRuntimeStatusMock = vi.fn(async () => runtimeState.status);
+const startDesktopSidecarMock = vi.fn(async () => {
+  runtimeState.status = {
+    ...runtimeState.status,
+    running: true,
+    managed: true,
+    detail: "앱이 sidecar를 관리 중",
+  };
+  return runtimeState.status;
+});
+
+vi.mock("./runtime", () => ({
+  loadDesktopRuntimeStatus: () => loadDesktopRuntimeStatusMock(),
+  startDesktopSidecar: () => startDesktopSidecarMock(),
+}));
+
 import { App } from "./app";
 
 const jsonResponse = (payload: unknown, status = 200) =>
@@ -12,6 +41,18 @@ const jsonResponse = (payload: unknown, status = 200) =>
   );
 
 beforeEach(() => {
+  runtimeState.status = {
+    available: true,
+    mode: "tauri",
+    sidecar_url: "http://127.0.0.1:8765",
+    running: false,
+    managed: false,
+    log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
+    detail: "sidecar 시작 필요",
+  };
+  loadDesktopRuntimeStatusMock.mockClear();
+  startDesktopSidecarMock.mockClear();
+
   let approvalTickets: Array<{
     id: string;
     action: string;
@@ -427,6 +468,18 @@ describe("App shell", () => {
     expect(await screen.findByText("메타데이터 정리")).toBeInTheDocument();
     expect(screen.getByText("참고자료의 제목, 날짜, 주제 태그를 보강합니다.")).toBeInTheDocument();
     expect(screen.getByText("later")).toBeInTheDocument();
+  });
+
+  it("shows sidecar runtime status and can start the sidecar manually", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByText("sidecar 시작 필요")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "사이드카 시작" }));
+
+    expect(startDesktopSidecarMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("앱이 sidecar를 관리 중")).toBeInTheDocument();
+    expect(screen.getByText("gongmu-workspace/logs/sidecar-runtime.log")).toBeInTheDocument();
   });
 
   it("requests final document save and applies it after approval", async () => {
