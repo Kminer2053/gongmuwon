@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
@@ -9,6 +9,7 @@ const runtimeState = {
     sidecar_url: "http://127.0.0.1:8765",
     running: false,
     managed: false,
+    auto_restart_recommended: false,
     log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
     detail: "sidecar 시작 필요",
   },
@@ -20,6 +21,7 @@ const startDesktopSidecarMock = vi.fn(async () => {
     ...runtimeState.status,
     running: true,
     managed: true,
+    auto_restart_recommended: false,
     detail: "앱이 sidecar를 관리 중",
   };
   return runtimeState.status;
@@ -30,6 +32,7 @@ const stopDesktopSidecarMock = vi.fn(async () => {
     ...runtimeState.status,
     running: false,
     managed: false,
+    auto_restart_recommended: false,
     detail: "sidecar 시작 필요",
   };
   return runtimeState.status;
@@ -40,6 +43,7 @@ const restartDesktopSidecarMock = vi.fn(async () => {
     ...runtimeState.status,
     running: true,
     managed: true,
+    auto_restart_recommended: false,
     detail: "앱이 sidecar를 다시 시작함",
   };
   return runtimeState.status;
@@ -69,6 +73,7 @@ beforeEach(() => {
     sidecar_url: "http://127.0.0.1:8765",
     running: false,
     managed: false,
+    auto_restart_recommended: false,
     log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
     detail: "sidecar 시작 필요",
   };
@@ -540,6 +545,57 @@ describe("App shell", () => {
 
     expect(restartDesktopSidecarMock).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("앱이 sidecar를 다시 시작함")).toBeInTheDocument();
+  });
+
+  it("auto restarts a managed sidecar after crash detection", async () => {
+    runtimeState.status = {
+      ...runtimeState.status,
+      running: true,
+      managed: true,
+      auto_restart_recommended: false,
+      detail: "앱이 sidecar를 관리 중",
+    };
+    let pollRuntimeStatus: (() => void) | null = null;
+    const setIntervalSpy = vi
+      .spyOn(window, "setInterval")
+      .mockImplementation(((handler: TimerHandler) => {
+        pollRuntimeStatus = handler as () => void;
+        return 1;
+      }) as typeof window.setInterval);
+    const clearIntervalSpy = vi
+      .spyOn(window, "clearInterval")
+      .mockImplementation((() => undefined) as typeof window.clearInterval);
+
+    try {
+      render(<App />);
+      await waitFor(() => {
+        expect(screen.getByText("앱이 sidecar를 관리 중")).toBeInTheDocument();
+      });
+
+      runtimeState.status = {
+        ...runtimeState.status,
+        running: false,
+        managed: false,
+        auto_restart_recommended: true,
+        detail: "관리 중인 sidecar가 비정상 종료됨",
+      };
+
+      await act(async () => {
+        pollRuntimeStatus?.();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(restartDesktopSidecarMock).toHaveBeenCalledTimes(1);
+      });
+      await waitFor(() => {
+        expect(screen.getByText("앱이 sidecar를 다시 시작함")).toBeInTheDocument();
+      });
+    } finally {
+      setIntervalSpy.mockRestore();
+      clearIntervalSpy.mockRestore();
+    }
   });
 
   it("requests final document save and applies it after approval", async () => {

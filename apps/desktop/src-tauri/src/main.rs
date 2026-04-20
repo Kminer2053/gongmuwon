@@ -15,6 +15,13 @@ const DEFAULT_SIDECAR_URL: &str = "http://127.0.0.1:8765";
 #[derive(Default)]
 struct SidecarManager {
     child: Mutex<Option<Child>>,
+    last_exit: Mutex<Option<SidecarExitReason>>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SidecarExitReason {
+    ManualStop,
+    Crashed,
 }
 
 #[derive(Clone, Serialize)]
@@ -24,6 +31,7 @@ struct DesktopRuntimeStatus {
     sidecar_url: String,
     running: bool,
     managed: bool,
+    auto_restart_recommended: bool,
     log_path: Option<String>,
     detail: String,
 }
@@ -106,11 +114,17 @@ fn managed_sidecar_is_running(manager: &SidecarManager) -> bool {
         Some(child) => match child.try_wait() {
             Ok(Some(_)) => {
                 *guard = None;
+                if let Ok(mut last_exit) = manager.last_exit.lock() {
+                    *last_exit = Some(SidecarExitReason::Crashed);
+                }
                 false
             }
             Ok(None) => true,
             Err(_) => {
                 *guard = None;
+                if let Ok(mut last_exit) = manager.last_exit.lock() {
+                    *last_exit = Some(SidecarExitReason::Crashed);
+                }
                 false
             }
         },
@@ -118,13 +132,21 @@ fn managed_sidecar_is_running(manager: &SidecarManager) -> bool {
     }
 }
 
-fn stop_managed_sidecar(manager: &SidecarManager) -> Result<bool, String> {
+fn stop_managed_sidecar(
+    manager: &SidecarManager,
+    reason: SidecarExitReason,
+) -> Result<bool, String> {
     let mut guard = manager
         .child
         .lock()
         .map_err(|_| "sidecar state lock poisoned".to_string())?;
 
     let Some(child) = guard.as_mut() else {
+        let mut last_exit = manager
+            .last_exit
+            .lock()
+            .map_err(|_| "sidecar exit state lock poisoned".to_string())?;
+        *last_exit = Some(reason);
         return Ok(false);
     };
 
@@ -133,6 +155,11 @@ fn stop_managed_sidecar(manager: &SidecarManager) -> Result<bool, String> {
         .map_err(|error| format!("sidecar stop failed: {error}"))?;
     let _ = child.wait();
     *guard = None;
+    let mut last_exit = manager
+        .last_exit
+        .lock()
+        .map_err(|_| "sidecar exit state lock poisoned".to_string())?;
+    *last_exit = Some(reason);
     Ok(true)
 }
 
@@ -146,9 +173,17 @@ fn desktop_runtime_status_inner(manager: &SidecarManager) -> DesktopRuntimeStatu
     let running = resolve_sidecar_addr()
         .map(|addr| socket_is_open(&addr))
         .unwrap_or(false);
+    let last_exit = manager
+        .last_exit
+        .lock()
+        .ok()
+        .and_then(|guard| guard.as_ref().copied());
+    let auto_restart_recommended = !running && !managed && last_exit == Some(SidecarExitReason::Crashed);
 
     let detail = if running && managed {
         "앱이 sidecar를 관리 중".to_string()
+    } else if auto_restart_recommended {
+        "관리 중인 sidecar가 비정상 종료됨".to_string()
     } else if running {
         "외부에서 실행 중인 sidecar 감지".to_string()
     } else {
@@ -161,6 +196,7 @@ fn desktop_runtime_status_inner(manager: &SidecarManager) -> DesktopRuntimeStatu
         sidecar_url: DEFAULT_SIDECAR_URL.to_string(),
         running,
         managed,
+        auto_restart_recommended,
         log_path: Some(paths.log_path.display().to_string()),
         detail,
     }
@@ -223,6 +259,13 @@ fn start_desktop_sidecar(
             .map_err(|_| "sidecar state lock poisoned".to_string())?;
         *guard = Some(child);
     }
+    {
+        let mut last_exit = state
+            .last_exit
+            .lock()
+            .map_err(|_| "sidecar exit state lock poisoned".to_string())?;
+        *last_exit = None;
+    }
 
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
@@ -243,7 +286,7 @@ fn start_desktop_sidecar(
 fn stop_desktop_sidecar(
     state: tauri::State<'_, SidecarManager>,
 ) -> Result<DesktopRuntimeStatus, String> {
-    stop_managed_sidecar(state.inner())?;
+    stop_managed_sidecar(state.inner(), SidecarExitReason::ManualStop)?;
 
     Ok(desktop_runtime_status_inner(state.inner()))
 }
@@ -252,7 +295,7 @@ fn stop_desktop_sidecar(
 fn restart_desktop_sidecar(
     state: tauri::State<'_, SidecarManager>,
 ) -> Result<DesktopRuntimeStatus, String> {
-    stop_managed_sidecar(state.inner())?;
+    stop_managed_sidecar(state.inner(), SidecarExitReason::ManualStop)?;
     start_desktop_sidecar(state)
 }
 
@@ -271,7 +314,7 @@ fn main() {
     app.run(move |_app_handle, event| {
         if matches!(event, tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }) {
             let sidecar_manager = _app_handle.state::<SidecarManager>();
-            let _ = stop_managed_sidecar(sidecar_manager.inner());
+            let _ = stop_managed_sidecar(sidecar_manager.inner(), SidecarExitReason::ManualStop);
         }
     });
 }

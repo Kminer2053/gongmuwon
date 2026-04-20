@@ -8,6 +8,7 @@ export type DesktopRuntimeStatus = {
   sidecar_url: string;
   running: boolean;
   managed: boolean;
+  auto_restart_recommended: boolean;
   log_path: string | null;
   detail: string;
 };
@@ -23,6 +24,7 @@ function browserFallback(detail = "브라우저 모드에서는 앱 런타임 �
     sidecar_url: DEFAULT_SIDECAR_URL,
     running: false,
     managed: false,
+    auto_restart_recommended: false,
     log_path: null,
     detail,
   };

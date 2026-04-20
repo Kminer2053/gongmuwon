@@ -2,6 +2,7 @@ import {
   startTransition,
   useDeferredValue,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -224,6 +225,7 @@ export function App() {
   const [runtimeStatus, setRuntimeStatus] = useState<DesktopRuntimeStatus | null>(null);
   const [runtimeLoading, setRuntimeLoading] = useState(false);
   const [runtimeStarting, setRuntimeStarting] = useState(false);
+  const autoRestartHandledRef = useRef<string | null>(null);
   const [documentForm, setDocumentForm] = useState({
     title: "",
     purpose: "보고서형",
@@ -291,6 +293,48 @@ export function App() {
     void refreshSnapshot();
     void refreshRuntimeStatus();
   }, []);
+
+  useEffect(() => {
+    if (!runtimeStatus?.available) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshRuntimeStatus();
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [runtimeStatus?.available]);
+
+  useEffect(() => {
+    if (!runtimeStatus?.auto_restart_recommended) {
+      autoRestartHandledRef.current = null;
+      return;
+    }
+
+    const incidentKey = [
+      runtimeStatus.mode,
+      runtimeStatus.sidecar_url,
+      runtimeStatus.log_path,
+      runtimeStatus.detail,
+    ].join("|");
+
+    if (runtimeStarting || autoRestartHandledRef.current === incidentKey) {
+      return;
+    }
+
+    autoRestartHandledRef.current = incidentKey;
+    void handleRestartSidecar(true);
+  }, [
+    runtimeStarting,
+    runtimeStatus?.auto_restart_recommended,
+    runtimeStatus?.detail,
+    runtimeStatus?.log_path,
+    runtimeStatus?.mode,
+    runtimeStatus?.sidecar_url,
+  ]);
 
   useEffect(() => {
     if (activeMenu !== "knowledge") {
@@ -405,7 +449,7 @@ export function App() {
     }
   }
 
-  async function handleRestartSidecar() {
+  async function handleRestartSidecar(autoTriggered = false) {
     setRuntimeStarting(true);
     setNotice(null);
     setError(null);
@@ -413,7 +457,7 @@ export function App() {
       const next = await restartDesktopSidecar();
       setRuntimeStatus(next);
       await refreshSnapshot();
-      setNotice("사이드카 재시작 상태를 갱신했습니다.");
+      setNotice(autoTriggered ? "사이드카 비정상 종료를 감지해 다시 시작했습니다." : "사이드카 재시작 상태를 갱신했습니다.");
     } catch (restartError) {
       setError(
         restartError instanceof Error ? restartError.message : "사이드카를 재시작하지 못했습니다.",
