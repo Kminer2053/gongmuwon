@@ -8,6 +8,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
+use tauri::path::BaseDirectory;
 use tauri::Manager;
 
 const DEFAULT_SIDECAR_URL: &str = "http://127.0.0.1:8765";
@@ -40,25 +41,46 @@ struct RuntimePaths {
     repo_root: PathBuf,
     workspace_root: PathBuf,
     sidecar_app_dir: PathBuf,
+    bundled_sidecar_exe: Option<PathBuf>,
     log_path: PathBuf,
 }
 
 impl RuntimePaths {
-    fn detect() -> Self {
+    fn detect<R: tauri::Runtime>(app: Option<&tauri::AppHandle<R>>) -> Self {
         let repo_root = resolve_repo_root();
+        let sidecar_app_dir = repo_root.join("services").join("sidecar").join("src");
+        let bundled_sidecar_exe = app.and_then(resolve_bundled_sidecar_executable);
+        let default_workspace_root = if bundled_sidecar_exe.is_some() {
+            app.and_then(resolve_packaged_workspace_root)
+                .unwrap_or_else(|| repo_root.join("runtime-workspace"))
+        } else {
+            repo_root.join("runtime-workspace")
+        };
         let workspace_root = std::env::var("GONGMU_WORKSPACE_ROOT")
             .map(PathBuf::from)
-            .unwrap_or_else(|_| repo_root.join("runtime-workspace"));
-        let sidecar_app_dir = repo_root.join("services").join("sidecar").join("src");
+            .unwrap_or(default_workspace_root);
         let log_path = workspace_root.join("logs").join("sidecar-runtime.log");
 
         Self {
             repo_root,
             workspace_root,
             sidecar_app_dir,
+            bundled_sidecar_exe,
             log_path,
         }
     }
+}
+
+enum SidecarLaunch {
+    Bundled {
+        executable: PathBuf,
+        working_dir: PathBuf,
+    },
+    Development {
+        python: PathBuf,
+        working_dir: PathBuf,
+        sidecar_app_dir: PathBuf,
+    },
 }
 
 fn resolve_repo_root() -> PathBuf {
@@ -69,6 +91,33 @@ fn resolve_repo_root() -> PathBuf {
         }
     }
     current
+}
+
+fn resolve_packaged_workspace_root<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Option<PathBuf> {
+    app.path()
+        .app_local_data_dir()
+        .ok()
+        .map(|path| path.join("runtime-workspace"))
+}
+
+fn resolve_bundled_sidecar_executable<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Option<PathBuf> {
+    let resource_path = app
+        .path()
+        .resolve(
+            PathBuf::from("resources/sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe"),
+            BaseDirectory::Resource,
+        )
+        .ok()?;
+
+    if resource_path.exists() {
+        Some(resource_path)
+    } else {
+        None
+    }
 }
 
 fn resolve_sidecar_addr() -> Result<SocketAddr, String> {
@@ -101,6 +150,25 @@ fn resolve_python_binary(repo_root: &Path) -> PathBuf {
         PathBuf::from("python")
     } else {
         PathBuf::from("python3")
+    }
+}
+
+fn resolve_sidecar_launch(paths: &RuntimePaths) -> SidecarLaunch {
+    if let Some(executable) = paths.bundled_sidecar_exe.clone() {
+        let working_dir = executable
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| paths.repo_root.clone());
+        SidecarLaunch::Bundled {
+            executable,
+            working_dir,
+        }
+    } else {
+        SidecarLaunch::Development {
+            python: resolve_python_binary(&paths.repo_root),
+            working_dir: paths.repo_root.clone(),
+            sidecar_app_dir: paths.sidecar_app_dir.clone(),
+        }
     }
 }
 
@@ -167,8 +235,11 @@ fn socket_is_open(addr: &SocketAddr) -> bool {
     TcpStream::connect_timeout(addr, Duration::from_millis(250)).is_ok()
 }
 
-fn desktop_runtime_status_inner(manager: &SidecarManager) -> DesktopRuntimeStatus {
-    let paths = RuntimePaths::detect();
+fn desktop_runtime_status_inner<R: tauri::Runtime>(
+    app: Option<&tauri::AppHandle<R>>,
+    manager: &SidecarManager,
+) -> DesktopRuntimeStatus {
+    let paths = RuntimePaths::detect(app);
     let managed = managed_sidecar_is_running(manager);
     let running = resolve_sidecar_addr()
         .map(|addr| socket_is_open(&addr))
@@ -178,16 +249,23 @@ fn desktop_runtime_status_inner(manager: &SidecarManager) -> DesktopRuntimeStatu
         .lock()
         .ok()
         .and_then(|guard| guard.as_ref().copied());
-    let auto_restart_recommended = !running && !managed && last_exit == Some(SidecarExitReason::Crashed);
+    let auto_restart_recommended =
+        !running && !managed && last_exit == Some(SidecarExitReason::Crashed);
 
     let detail = if running && managed {
-        "앱이 sidecar를 관리 중".to_string()
+        if paths.bundled_sidecar_exe.is_some() {
+            "bundled sidecar managed by desktop".to_string()
+        } else {
+            "development sidecar managed by desktop".to_string()
+        }
     } else if auto_restart_recommended {
-        "관리 중인 sidecar가 비정상 종료됨".to_string()
+        "managed sidecar exited unexpectedly".to_string()
     } else if running {
-        "외부에서 실행 중인 sidecar 감지".to_string()
+        "sidecar is already reachable".to_string()
+    } else if paths.bundled_sidecar_exe.is_some() {
+        "bundled sidecar start available".to_string()
     } else {
-        "sidecar 시작 필요".to_string()
+        "development sidecar start available".to_string()
     };
 
     DesktopRuntimeStatus {
@@ -203,20 +281,24 @@ fn desktop_runtime_status_inner(manager: &SidecarManager) -> DesktopRuntimeStatu
 }
 
 #[tauri::command]
-fn desktop_runtime_status(state: tauri::State<'_, SidecarManager>) -> DesktopRuntimeStatus {
-    desktop_runtime_status_inner(state.inner())
+fn desktop_runtime_status(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SidecarManager>,
+) -> DesktopRuntimeStatus {
+    desktop_runtime_status_inner(Some(&app), state.inner())
 }
 
 #[tauri::command]
 fn start_desktop_sidecar(
+    app: tauri::AppHandle,
     state: tauri::State<'_, SidecarManager>,
 ) -> Result<DesktopRuntimeStatus, String> {
-    let current = desktop_runtime_status_inner(state.inner());
+    let current = desktop_runtime_status_inner(Some(&app), state.inner());
     if current.running {
         return Ok(current);
     }
 
-    let paths = RuntimePaths::detect();
+    let paths = RuntimePaths::detect(Some(&app));
     fs::create_dir_all(
         paths
             .log_path
@@ -233,24 +315,44 @@ fn start_desktop_sidecar(
         .map_err(|error| error.to_string())?;
     let stderr = stdout.try_clone().map_err(|error| error.to_string())?;
 
-    let python = resolve_python_binary(&paths.repo_root);
-    let child = Command::new(python)
-        .arg("-m")
-        .arg("uvicorn")
-        .arg("gongmu_sidecar.app:create_app")
-        .arg("--factory")
-        .arg("--app-dir")
-        .arg(&paths.sidecar_app_dir)
-        .arg("--host")
-        .arg("127.0.0.1")
-        .arg("--port")
-        .arg("8765")
-        .current_dir(&paths.repo_root)
-        .env("PYTHONUNBUFFERED", "1")
-        .stdout(Stdio::from(stdout))
-        .stderr(Stdio::from(stderr))
-        .spawn()
-        .map_err(|error| format!("sidecar spawn failed: {error}"))?;
+    let launch = resolve_sidecar_launch(&paths);
+    let child = match launch {
+        SidecarLaunch::Bundled {
+            executable,
+            working_dir,
+        } => Command::new(executable)
+            .current_dir(working_dir)
+            .env("PYTHONUNBUFFERED", "1")
+            .env("GONGMU_SIDECAR_HOST", "127.0.0.1")
+            .env("GONGMU_SIDECAR_PORT", "8765")
+            .env("GONGMU_WORKSPACE_ROOT", &paths.workspace_root)
+            .stdout(Stdio::from(stdout))
+            .stderr(Stdio::from(stderr))
+            .spawn()
+            .map_err(|error| format!("bundled sidecar spawn failed: {error}"))?,
+        SidecarLaunch::Development {
+            python,
+            working_dir,
+            sidecar_app_dir,
+        } => Command::new(python)
+            .arg("-m")
+            .arg("uvicorn")
+            .arg("gongmu_sidecar.app:create_app")
+            .arg("--factory")
+            .arg("--app-dir")
+            .arg(sidecar_app_dir)
+            .arg("--host")
+            .arg("127.0.0.1")
+            .arg("--port")
+            .arg("8765")
+            .current_dir(working_dir)
+            .env("PYTHONUNBUFFERED", "1")
+            .env("GONGMU_WORKSPACE_ROOT", &paths.workspace_root)
+            .stdout(Stdio::from(stdout))
+            .stderr(Stdio::from(stderr))
+            .spawn()
+            .map_err(|error| format!("development sidecar spawn failed: {error}"))?,
+    };
 
     {
         let mut guard = state
@@ -269,7 +371,7 @@ fn start_desktop_sidecar(
 
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
-        let status = desktop_runtime_status_inner(state.inner());
+        let status = desktop_runtime_status_inner(Some(&app), state.inner());
         if status.running {
             return Ok(status);
         }
@@ -284,19 +386,20 @@ fn start_desktop_sidecar(
 
 #[tauri::command]
 fn stop_desktop_sidecar(
+    app: tauri::AppHandle,
     state: tauri::State<'_, SidecarManager>,
 ) -> Result<DesktopRuntimeStatus, String> {
     stop_managed_sidecar(state.inner(), SidecarExitReason::ManualStop)?;
-
-    Ok(desktop_runtime_status_inner(state.inner()))
+    Ok(desktop_runtime_status_inner(Some(&app), state.inner()))
 }
 
 #[tauri::command]
 fn restart_desktop_sidecar(
+    app: tauri::AppHandle,
     state: tauri::State<'_, SidecarManager>,
 ) -> Result<DesktopRuntimeStatus, String> {
     stop_managed_sidecar(state.inner(), SidecarExitReason::ManualStop)?;
-    start_desktop_sidecar(state)
+    start_desktop_sidecar(app, state)
 }
 
 fn main() {
@@ -311,9 +414,9 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("failed to build gongmu desktop");
 
-    app.run(move |_app_handle, event| {
+    app.run(move |app_handle, event| {
         if matches!(event, tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }) {
-            let sidecar_manager = _app_handle.state::<SidecarManager>();
+            let sidecar_manager = app_handle.state::<SidecarManager>();
             let _ = stop_managed_sidecar(sidecar_manager.inner(), SidecarExitReason::ManualStop);
         }
     });

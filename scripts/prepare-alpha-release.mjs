@@ -1,9 +1,12 @@
+#!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
 
 const repoRoot = process.cwd();
-const outputRoot = path.join(repoRoot, "release", "alpha");
-const bundleRoot = path.join(
+const releaseRoot = path.join(repoRoot, "release", "alpha");
+const docsRoot = path.join(repoRoot, "docs", "operations");
+const sidecarRoot = path.join(repoRoot, "services", "sidecar");
+const desktopBundleRoot = path.join(
   repoRoot,
   "apps",
   "desktop",
@@ -12,94 +15,145 @@ const bundleRoot = path.join(
   "release",
   "bundle",
 );
-
-const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-const desktopPackageJson = JSON.parse(
-  fs.readFileSync(path.join(repoRoot, "apps", "desktop", "package.json"), "utf8"),
+const sidecarBundleRoot = path.join(
+  repoRoot,
+  "release",
+  "sidecar",
+  "windows-x64",
+  "gongmu-sidecar",
 );
-const tauriConfig = JSON.parse(
-  fs.readFileSync(path.join(repoRoot, "apps", "desktop", "src-tauri", "tauri.conf.json"), "utf8"),
-);
-
-const documentsToStage = [
+const stagedDocuments = [
   "services/sidecar/README.md",
   "docs/operations/2026-04-20-alpha-offline-packaging-runbook.md",
   "docs/operations/2026-04-20-sidecar-packaging-strategy.md",
+  "docs/operations/2026-04-20-windows-install-validation.md",
+  "docs/operations/2026-04-21-windows-sidecar-packaging-validation.md",
+  "docs/operations/2026-04-21-windows-desktop-sidecar-integration-validation.md",
 ];
 
-fs.mkdirSync(outputRoot, { recursive: true });
-
-for (const relativePath of documentsToStage) {
-  const sourcePath = path.join(repoRoot, relativePath);
-  const destinationPath = path.join(outputRoot, path.basename(relativePath));
-  fs.copyFileSync(sourcePath, destinationPath);
+function ensureDir(targetPath) {
+  fs.mkdirSync(targetPath, { recursive: true });
 }
 
-const bundleTargets = fs.existsSync(bundleRoot)
-  ? fs.readdirSync(bundleRoot).filter((entry) =>
-      fs.statSync(path.join(bundleRoot, entry)).isDirectory(),
-    )
-  : [];
+function copyFileIntoRelease(sourceRelativePath) {
+  const sourcePath = path.join(repoRoot, sourceRelativePath);
+  const destinationPath = path.join(releaseRoot, path.basename(sourceRelativePath));
 
-const manifest = {
-  generated_at: new Date().toISOString(),
-  product: {
-    name: tauriConfig.productName,
-    identifier: tauriConfig.identifier,
-    version: tauriConfig.version,
-  },
-  scripts: {
-    verify_all: packageJson.scripts["verify:all"],
-    desktop_bundle: packageJson.scripts["desktop:bundle"],
-    desktop_bundle_debug: packageJson.scripts["desktop:bundle:debug"],
-  },
-  desktop: {
-    package_name: desktopPackageJson.name,
-    bundle_root: path.relative(repoRoot, bundleRoot),
-    bundle_targets: bundleTargets,
-    bundle_ready: bundleTargets.length > 0,
-  },
-  sidecar: {
-    package_name: "gongmu-sidecar",
-    source_root: "services/sidecar",
-    strategy_document: "2026-04-20-sidecar-packaging-strategy.md",
-    recommended_windows_strategy: "PyInstaller one-folder bundle",
-  },
-  runtime: {
-    workspace_root: "runtime-workspace",
-    log_path: "runtime-workspace/logs/sidecar-runtime.log",
-    sidecar_url: "http://127.0.0.1:8765",
-  },
-  staged_documents: documentsToStage.map((relativePath) => path.basename(relativePath)),
-  next_checks: [
-    "Windows host에서 npm run desktop:bundle 실행",
-    "bundle 산출물과 staged 문서를 함께 반입 패키지로 묶기",
-    "PyInstaller 기반 sidecar 독립 실행 파일 산출 검증",
-  ],
-};
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(`missing staged document: ${sourceRelativePath}`);
+  }
 
-fs.writeFileSync(
-  path.join(outputRoot, "manifest.json"),
-  `${JSON.stringify(manifest, null, 2)}\n`,
-  "utf8",
-);
+  fs.copyFileSync(sourcePath, destinationPath);
+  return path.basename(destinationPath);
+}
 
-const summary = [
-  "# Gongmu Alpha Release Staging",
-  "",
-  `- generated_at: ${manifest.generated_at}`,
-  `- product: ${manifest.product.name} ${manifest.product.version}`,
-  `- bundle_ready: ${manifest.desktop.bundle_ready ? "yes" : "no"}`,
-  `- bundle_targets: ${manifest.desktop.bundle_targets.join(", ") || "(none)"}`,
-  "",
-  "## Included Documents",
-  ...manifest.staged_documents.map((item) => `- ${item}`),
-  "",
-  "## Next Checks",
-  ...manifest.next_checks.map((item) => `- ${item}`),
-  "",
-].join("\n");
+function listExistingChildren(targetPath) {
+  if (!fs.existsSync(targetPath)) {
+    return [];
+  }
 
-fs.writeFileSync(path.join(outputRoot, "README.md"), summary, "utf8");
+  return fs.readdirSync(targetPath).sort();
+}
 
-console.log(`prepared alpha release staging at ${path.relative(repoRoot, outputRoot)}`);
+function buildManifest() {
+  const generatedAt = new Date().toISOString();
+  const manifest = {
+    generated_at: generatedAt,
+    product: {
+      name: "Gongmu",
+      identifier: "kr.gongmu.workspace",
+      version: "0.1.0",
+    },
+    scripts: {
+      verify_all: "npm run verify:all",
+      desktop_bundle: "npm run desktop:bundle",
+      desktop_bundle_debug: "npm run desktop:bundle:debug",
+      desktop_smoke_msi: "npm run desktop:smoke:msi",
+      desktop_smoke_nsis: "npm run desktop:smoke:nsis",
+      sidecar_bundle_windows: "npm run sidecar:bundle:windows",
+    },
+    desktop: {
+      package_name: "@gongmu/desktop",
+      bundle_root: path.relative(repoRoot, desktopBundleRoot),
+      bundle_targets: listExistingChildren(desktopBundleRoot),
+      bundle_ready: fs.existsSync(desktopBundleRoot),
+    },
+    sidecar: {
+      package_name: "gongmu-sidecar",
+      source_root: path.relative(repoRoot, sidecarRoot),
+      bundle_root: path.relative(repoRoot, sidecarBundleRoot),
+      bundle_ready: fs.existsSync(path.join(sidecarBundleRoot, "gongmu-sidecar.exe")),
+      strategy_document: "2026-04-20-sidecar-packaging-strategy.md",
+      validation_document: "2026-04-21-windows-sidecar-packaging-validation.md",
+      recommended_windows_strategy: "PyInstaller one-folder bundle",
+    },
+    runtime: {
+      workspace_root: "runtime-workspace",
+      log_path: "runtime-workspace/logs/sidecar-runtime.log",
+      sidecar_url: "http://127.0.0.1:8765",
+    },
+    staged_documents: stagedDocuments.map((sourcePath) => path.basename(sourcePath)),
+    next_checks: [
+      "Run npm run verify:all before final release sign-off.",
+      "Run npm run desktop:bundle when installer artifacts need to be refreshed.",
+      "Run npm run desktop:smoke:msi after MSI-affecting changes on Windows.",
+      "Run npm run desktop:smoke:nsis after NSIS-affecting changes on Windows.",
+      "Confirm NSIS installer smoke test with bundled sidecar on the target Windows host.",
+      "Use MSI install-and-uninstall smoke checks instead of administrative extraction when payload proof is needed.",
+    ],
+  };
+
+  return manifest;
+}
+
+function buildReadme(manifest) {
+  const lines = [
+    "# Gongmu Alpha Release Staging",
+    "",
+    `- generated_at: ${manifest.generated_at}`,
+    `- product: ${manifest.product.name} ${manifest.product.version}`,
+    `- desktop_bundle_ready: ${manifest.desktop.bundle_ready ? "yes" : "no"}`,
+    `- sidecar_bundle_ready: ${manifest.sidecar.bundle_ready ? "yes" : "no"}`,
+    `- desktop_bundle_targets: ${manifest.desktop.bundle_targets.join(", ") || "none"}`,
+    "",
+    "## Included Documents",
+    ...manifest.staged_documents.map((documentName) => `- ${documentName}`),
+    "",
+    "## Commands",
+    `- verify_all: ${manifest.scripts.verify_all}`,
+    `- desktop_bundle: ${manifest.scripts.desktop_bundle}`,
+    `- desktop_bundle_debug: ${manifest.scripts.desktop_bundle_debug}`,
+    `- desktop_smoke_msi: ${manifest.scripts.desktop_smoke_msi}`,
+    `- desktop_smoke_nsis: ${manifest.scripts.desktop_smoke_nsis}`,
+    `- sidecar_bundle_windows: ${manifest.scripts.sidecar_bundle_windows}`,
+    "",
+    "## Bundle Paths",
+    `- desktop: ${manifest.desktop.bundle_root}`,
+    `- sidecar: ${manifest.sidecar.bundle_root}`,
+    "",
+    "## Next Checks",
+    ...manifest.next_checks.map((item) => `- ${item}`),
+    "",
+  ];
+
+  return lines.join("\n");
+}
+
+function main() {
+  ensureDir(releaseRoot);
+
+  for (const sourceRelativePath of stagedDocuments) {
+    copyFileIntoRelease(sourceRelativePath);
+  }
+
+  const manifest = buildManifest();
+  const manifestPath = path.join(releaseRoot, "manifest.json");
+  const readmePath = path.join(releaseRoot, "README.md");
+
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  fs.writeFileSync(readmePath, buildReadme(manifest));
+
+  console.log(`prepared alpha release staging in ${path.relative(repoRoot, releaseRoot)}`);
+}
+
+main();

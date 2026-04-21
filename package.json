@@ -10,8 +10,13 @@
     "sidecar:serve": "node scripts/portable-run.mjs python -m uvicorn gongmu_sidecar.app:create_app --factory --app-dir services/sidecar/src --host 127.0.0.1 --port 8765",
     "desktop:test": "npm --workspace apps/desktop run test",
     "desktop:build": "npm --workspace apps/desktop run build",
-    "desktop:bundle": "npm --workspace apps/desktop exec tauri build",
-    "desktop:bundle:debug": "npm --workspace apps/desktop exec tauri build --debug",
+    "desktop:bundle": "npm run sidecar:bundle:windows && node scripts/sync-sidecar-bundle.mjs && node scripts/tauri-build-with-wix-fallback.mjs",
+    "desktop:bundle:debug": "npm run sidecar:bundle:windows && node scripts/sync-sidecar-bundle.mjs && node scripts/tauri-build-with-wix-fallback.mjs --debug",
+    "desktop:smoke:msi": "node scripts/windows-msi-fallback-smoke.mjs",
+    "desktop:smoke:nsis": "node scripts/windows-nsis-smoke.mjs",
+    "desktop:verify:windows": "node scripts/windows-installer-verify.mjs",
+    "desktop:verify:windows:fast": "node scripts/windows-installer-verify.mjs --skip-bundle",
+    "sidecar:bundle:windows": "node scripts/portable-run.mjs python -m PyInstaller --noconfirm --clean --distpath release/sidecar/windows-x64 --workpath runtime-workspace/cache/pyinstaller services/sidecar/packaging/gongmu-sidecar.spec",
     "release:alpha": "node scripts/prepare-alpha-release.mjs",
     "verify:all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"
   }
