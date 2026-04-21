@@ -12,6 +12,8 @@ use tauri::path::BaseDirectory;
 use tauri::Manager;
 
 const DEFAULT_SIDECAR_URL: &str = "http://127.0.0.1:8765";
+const BUNDLED_SIDECAR_RESOURCE_PATH: &str =
+    "sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe";
 
 #[derive(Default)]
 struct SidecarManager {
@@ -108,7 +110,7 @@ fn resolve_bundled_sidecar_executable<R: tauri::Runtime>(
     let resource_path = app
         .path()
         .resolve(
-            PathBuf::from("resources/sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe"),
+            PathBuf::from(BUNDLED_SIDECAR_RESOURCE_PATH),
             BaseDirectory::Resource,
         )
         .ok()?;
