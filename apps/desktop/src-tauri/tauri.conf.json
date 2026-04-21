@@ -25,6 +25,14 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "windows": {
+      "wix": {
+        "template": "windows/main.wxs"
+      }
+    },
+    "resources": {
+      "resources/sidecar/windows-x64/gongmu-sidecar": "resources/sidecar/windows-x64/gongmu-sidecar"
+    },
     "icon": [
       "icons/icon.ico",
       "icons/icon.png"

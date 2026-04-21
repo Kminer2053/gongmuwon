@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,9 @@ class WorkspacePaths:
 def resolve_workspace_root(explicit_root: Path | str | None) -> Path:
     if explicit_root is not None:
         return Path(explicit_root).expanduser().resolve()
+
+    if getattr(sys, "frozen", False):
+        return (Path(sys.executable).resolve().parent / "runtime-workspace").resolve()
 
     repo_root = Path(__file__).resolve().parents[4]
     return (repo_root / "runtime-workspace").resolve()

@@ -9,3 +9,6 @@ __pycache__/
 .venv/
 runtime-workspace/
 apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/resources/sidecar/windows-x64/
+release/sidecar/
+release/alpha/20*-windows-*.md

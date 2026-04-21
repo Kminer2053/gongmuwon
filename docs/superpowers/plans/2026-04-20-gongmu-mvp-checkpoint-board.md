@@ -46,8 +46,8 @@
 
 ### 아직 비어 있는 핵심 구간
 
-- Windows 실환경 기준 설치 검증
-- Windows PyInstaller 실환경 산출 검증
+- Alpha 기준 핵심 구현 공백 없음
+- Windows 실환경 설치 검증과 PyInstaller 산출 검증은 2026-04-21 기준 반복 가능한 smoke/verify 루프로 닫힘
 
 ---
 
@@ -74,7 +74,7 @@
 | W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
 | W5 | 파일정리 + 지식화 루프 | 완료 | 제안 생성/조회/적용/rollback 가능 | sidecar workflow test + desktop action 연결 완료 |
 | W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
-| W7 | 설치/운영 안정화 | 부분 완료 | runtime badge/lifecycle/auto-restart, bundle script, release staging, dev/runbook/tool manifest 정리 | README + /api/tools + Tauri command + offline runbook |
+| W7 | 설치/운영 안정화 | 완료 | runtime badge/lifecycle/auto-restart, bundle script, release staging, dev/runbook/tool manifest, Windows installer smoke/verify 루프 정리 | README + /api/tools + Tauri command + offline runbook + Windows validation docs/scripts |
 
 ---
 
@@ -161,6 +161,12 @@
 | 2026-04-20 | runtime-auto-restart | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `10 passed`, build + cargo check 포함 |
 | 2026-04-20 | offline-runbook | `npm run verify:all` | PASS | bundle script 추가 이후 전체 검증 재통과 |
 | 2026-04-20 | release-staging | `npm run release:alpha` | PASS | Alpha release manifest와 staged docs 생성 |
+| 2026-04-21 | windows-sidecar-packaging | `npm run sidecar:bundle:windows` | PASS | PyInstaller one-folder sidecar bundle 생성 및 `/health` 응답 검증 |
+| 2026-04-21 | windows-installer-smoke | `npm run desktop:smoke:msi` | PASS | MSI install -> bundled sidecar health -> uninstall cleanup 자동 검증 |
+| 2026-04-21 | windows-installer-smoke | `npm run desktop:smoke:nsis` | PASS | NSIS install -> bundled sidecar health -> uninstall cleanup 자동 검증 |
+| 2026-04-21 | windows-installer-verify-fast | `npm run desktop:verify:windows:fast` | PASS | Windows smoke 검증 루프를 bundle skip 모드로 반복 가능하게 고정 |
+| 2026-04-21 | windows-installer-verify-full | `npm run desktop:verify:windows` | PASS | `desktop:bundle` + MSI/NSIS smoke 검증을 한 번에 재현 |
+| 2026-04-21 | release-staging | `npm run release:alpha` | PASS | Windows 운영 문서와 verify 스크립트가 Alpha staging에 반영됨 |
 
 ### 이슈 / 결정 로그
 
@@ -182,6 +188,8 @@
 | 2026-04-20 | 결정 | 관리 중인 sidecar가 비정상 종료되면 desktop이 poll 결과를 보고 1회 자동 재시작을 시도 | 수동 시작 정책은 유지하고, 무한 재시작 루프는 incident 단위 1회로 제한 |
 | 2026-04-20 | 결정 | 오프라인 배포는 우선 `desktop:bundle` 스크립트와 Alpha 런북으로 운영 기준을 고정 | Windows 실환경 설치 검증과 Python 독립 배포는 다음 단계에서 확정 |
 | 2026-04-20 | 결정 | Python sidecar 독립 배포는 Alpha 기준 `PyInstaller one-folder`를 권장안으로 문서화 | 실제 spec 작성과 Windows 산출 검증은 후속 단계에서 확정 |
+| 2026-04-21 | 결정 | Windows 메인 루프는 `desktop:verify:windows` / `desktop:verify:windows:fast` 중심으로 운영 | 변경 범위에 따라 bundle 포함 여부만 고르고 MSI/NSIS smoke를 공통 증거로 사용 |
+| 2026-04-21 | 결정 | Windows installer payload 증명은 administrative extract 대신 실제 install/run/uninstall smoke로 통일 | sidecar 포함 여부와 cleanup 결과를 같은 루프에서 확인 |
 
 ---
 
@@ -202,5 +210,5 @@
 
 ### 다음 우선순위
 
-1. Windows 실환경 설치 검증
-2. Windows PyInstaller 산출 검증
+1. 깨끗한 Windows 계정 또는 VM에서 interactive install/uninstall 1회 확인
+2. Windows release artifact/문서 범위를 기준으로 안전한 커밋 단위 정리

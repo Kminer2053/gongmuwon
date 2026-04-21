@@ -1,25 +1,34 @@
 {
-  "generated_at": "2026-04-20T07:29:56.593Z",
+  "generated_at": "2026-04-21T04:48:28.392Z",
   "product": {
-    "name": "공무",
+    "name": "Gongmu",
     "identifier": "kr.gongmu.workspace",
     "version": "0.1.0"
   },
   "scripts": {
-    "verify_all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml",
-    "desktop_bundle": "npm --workspace apps/desktop exec tauri build",
-    "desktop_bundle_debug": "npm --workspace apps/desktop exec tauri build --debug"
+    "verify_all": "npm run verify:all",
+    "desktop_bundle": "npm run desktop:bundle",
+    "desktop_bundle_debug": "npm run desktop:bundle:debug",
+    "desktop_smoke_msi": "npm run desktop:smoke:msi",
+    "desktop_smoke_nsis": "npm run desktop:smoke:nsis",
+    "sidecar_bundle_windows": "npm run sidecar:bundle:windows"
   },
   "desktop": {
     "package_name": "@gongmu/desktop",
-    "bundle_root": "apps/desktop/src-tauri/target/release/bundle",
-    "bundle_targets": [],
-    "bundle_ready": false
+    "bundle_root": "apps\\desktop\\src-tauri\\target\\release\\bundle",
+    "bundle_targets": [
+      "msi",
+      "nsis"
+    ],
+    "bundle_ready": true
   },
   "sidecar": {
     "package_name": "gongmu-sidecar",
-    "source_root": "services/sidecar",
+    "source_root": "services\\sidecar",
+    "bundle_root": "release\\sidecar\\windows-x64\\gongmu-sidecar",
+    "bundle_ready": true,
     "strategy_document": "2026-04-20-sidecar-packaging-strategy.md",
+    "validation_document": "2026-04-21-windows-sidecar-packaging-validation.md",
     "recommended_windows_strategy": "PyInstaller one-folder bundle"
   },
   "runtime": {
@@ -30,11 +39,17 @@
   "staged_documents": [
     "README.md",
     "2026-04-20-alpha-offline-packaging-runbook.md",
-    "2026-04-20-sidecar-packaging-strategy.md"
+    "2026-04-20-sidecar-packaging-strategy.md",
+    "2026-04-20-windows-install-validation.md",
+    "2026-04-21-windows-sidecar-packaging-validation.md",
+    "2026-04-21-windows-desktop-sidecar-integration-validation.md"
   ],
   "next_checks": [
-    "Windows host에서 npm run desktop:bundle 실행",
-    "bundle 산출물과 staged 문서를 함께 반입 패키지로 묶기",
-    "PyInstaller 기반 sidecar 독립 실행 파일 산출 검증"
+    "Run npm run verify:all before final release sign-off.",
+    "Run npm run desktop:bundle when installer artifacts need to be refreshed.",
+    "Run npm run desktop:smoke:msi after MSI-affecting changes on Windows.",
+    "Run npm run desktop:smoke:nsis after NSIS-affecting changes on Windows.",
+    "Confirm NSIS installer smoke test with bundled sidecar on the target Windows host.",
+    "Use MSI install-and-uninstall smoke checks instead of administrative extraction when payload proof is needed."
   ]
 }

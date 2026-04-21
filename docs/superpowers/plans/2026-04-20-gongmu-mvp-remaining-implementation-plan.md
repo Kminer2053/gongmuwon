@@ -20,6 +20,7 @@
 | Task 4 | 완료 | file organizer request/apply/rollback API, desktop action buttons, copy-based operation log | 이번 배치 검증 완료 |
 | Task 5 | 완료 | Tool Manifest endpoint, manifest-driven tools UI, sidecar runbook 정리 | 이번 배치 검증 완료 |
 | Runtime Bridge | 완료 | Tauri runtime status/start/stop/restart command, desktop runtime badge/log path 노출, exit cleanup, crash detect/auto-restart policy | 이번 배치 검증 완료 |
+| Windows Release Loop | 완료 | PyInstaller one-folder sidecar bundle, MSI/NSIS smoke scripts, `desktop:verify:windows` fast/full 루프 | 2026-04-21 Windows 검증 완료 |
 
 ---
 
@@ -43,11 +44,16 @@
   - `npm --workspace apps/desktop run build` -> 성공
   - `npm run verify:all` -> PASS
   - `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` -> 성공
+  - `npm run sidecar:bundle:windows` -> PASS
+  - `npm run desktop:smoke:msi` -> PASS
+  - `npm run desktop:smoke:nsis` -> PASS
+  - `npm run desktop:verify:windows:fast` -> PASS
+  - `npm run desktop:verify:windows` -> PASS
 
 ### Gaps To Close
 
-1. Windows 실환경 기준 번들 설치 검증은 더 남아 있다.
-2. Windows PyInstaller 산출 검증은 더 남아 있다.
+1. Alpha 기준 구현/검증 blocker는 닫혔다.
+2. 남은 후속 작업은 clean-account interactive installer 점검과 release commit hygiene 정리다.
 
 ---
 
