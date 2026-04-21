@@ -15,6 +15,10 @@ const DEFAULT_SIDECAR_URL: &str = "http://127.0.0.1:8765";
 const BUNDLED_SIDECAR_RESOURCE_PATH: &str =
     "sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe";
 
+fn bundled_sidecar_resource_path() -> PathBuf {
+    PathBuf::from(BUNDLED_SIDECAR_RESOURCE_PATH)
+}
+
 #[derive(Default)]
 struct SidecarManager {
     child: Mutex<Option<Child>>,
@@ -110,7 +114,7 @@ fn resolve_bundled_sidecar_executable<R: tauri::Runtime>(
     let resource_path = app
         .path()
         .resolve(
-            PathBuf::from(BUNDLED_SIDECAR_RESOURCE_PATH),
+            bundled_sidecar_resource_path(),
             BaseDirectory::Resource,
         )
         .ok()?;
@@ -422,4 +426,20 @@ fn main() {
             let _ = stop_managed_sidecar(sidecar_manager.inner(), SidecarExitReason::ManualStop);
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundled_sidecar_resource_path_does_not_repeat_resources_prefix() {
+        let resource_path = bundled_sidecar_resource_path();
+
+        assert_eq!(
+            resource_path,
+            PathBuf::from("sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe")
+        );
+        assert!(!resource_path.starts_with("resources"));
+    }
 }
