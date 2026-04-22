@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const repoRoot = process.cwd();
 const releaseRoot = path.join(repoRoot, "release", "alpha");
@@ -22,22 +23,32 @@ const sidecarBundleRoot = path.join(
   "windows-x64",
   "gongmu-sidecar",
 );
-const stagedDocuments = [
+export const stagedDocuments = [
   "services/sidecar/README.md",
+  "docs/superpowers/plans/2026-04-20-gongmu-mvp-checkpoint-board.md",
   "docs/operations/2026-04-20-alpha-offline-packaging-runbook.md",
   "docs/operations/2026-04-20-sidecar-packaging-strategy.md",
   "docs/operations/2026-04-20-windows-install-validation.md",
   "docs/operations/2026-04-21-windows-sidecar-packaging-validation.md",
   "docs/operations/2026-04-21-windows-desktop-sidecar-integration-validation.md",
+  "docs/operations/2026-04-22-windows-interactive-install-validation.md",
 ];
 
 function ensureDir(targetPath) {
   fs.mkdirSync(targetPath, { recursive: true });
 }
 
+export function resolveReleaseFileName(sourceRelativePath) {
+  if (sourceRelativePath === "services/sidecar/README.md") {
+    return "sidecar-README.md";
+  }
+
+  return path.basename(sourceRelativePath);
+}
+
 function copyFileIntoRelease(sourceRelativePath) {
   const sourcePath = path.join(repoRoot, sourceRelativePath);
-  const destinationPath = path.join(releaseRoot, path.basename(sourceRelativePath));
+  const destinationPath = path.join(releaseRoot, resolveReleaseFileName(sourceRelativePath));
 
   if (!fs.existsSync(sourcePath)) {
     throw new Error(`missing staged document: ${sourceRelativePath}`);
@@ -55,7 +66,7 @@ function listExistingChildren(targetPath) {
   return fs.readdirSync(targetPath).sort();
 }
 
-function buildManifest() {
+export function buildManifest() {
   const generatedAt = new Date().toISOString();
   const manifest = {
     generated_at: generatedAt,
@@ -92,7 +103,7 @@ function buildManifest() {
       log_path: "runtime-workspace/logs/sidecar-runtime.log",
       sidecar_url: "http://127.0.0.1:8765",
     },
-    staged_documents: stagedDocuments.map((sourcePath) => path.basename(sourcePath)),
+    staged_documents: stagedDocuments.map((sourcePath) => resolveReleaseFileName(sourcePath)),
     next_checks: [
       "Run npm run verify:all before final release sign-off.",
       "Run npm run desktop:bundle when installer artifacts need to be refreshed.",
@@ -100,13 +111,14 @@ function buildManifest() {
       "Run npm run desktop:smoke:nsis after NSIS-affecting changes on Windows.",
       "Confirm NSIS installer smoke test with bundled sidecar on the target Windows host.",
       "Use MSI install-and-uninstall smoke checks instead of administrative extraction when payload proof is needed.",
+      "Review the latest Anything-to-Documents handoff evidence in the checkpoint board.",
     ],
   };
 
   return manifest;
 }
 
-function buildReadme(manifest) {
+export function buildReadme(manifest) {
   const lines = [
     "# Gongmu Alpha Release Staging",
     "",
@@ -139,7 +151,7 @@ function buildReadme(manifest) {
   return lines.join("\n");
 }
 
-function main() {
+export function prepareAlphaRelease() {
   ensureDir(releaseRoot);
 
   for (const sourceRelativePath of stagedDocuments) {
@@ -156,4 +168,8 @@ function main() {
   console.log(`prepared alpha release staging in ${path.relative(repoRoot, releaseRoot)}`);
 }
 
-main();
+const scriptPath = fileURLToPath(import.meta.url);
+
+if (process.argv[1] && path.resolve(process.argv[1]) === scriptPath) {
+  prepareAlphaRelease();
+}
