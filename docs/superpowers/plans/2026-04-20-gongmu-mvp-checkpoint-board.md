@@ -176,6 +176,7 @@
 | 2026-04-22 | anything-reference-import-document-purpose | `npm run desktop:test` | PASS | desktop `13 passed`, `Continue to Documents` 뒤 문서 목적을 `reference set title 기반 정리`로 자동 채우는 handoff UX 검증 |
 | 2026-04-22 | anything-reference-import-document-path-preview | `npm run desktop:test` | PASS | desktop `13 passed`, 문서 초안 화면에서 대표 참고자료 경로 1개를 추가로 보여주는 path preview UX 검증 |
 | 2026-04-21 | release-staging | `npm run release:alpha` | PASS | Windows 운영 문서와 verify 스크립트가 Alpha staging에 반영됨 |
+| 2026-04-22 | windows-interactive-install-followup | `npm run desktop:bundle` + `npm run desktop:smoke:nsis` | PASS | same-account isolated NSIS install/run/uninstall evidence recorded in `docs/operations/2026-04-22-windows-interactive-install-validation.md`; clean-account GUI click-through remains optional follow-up |
 
 ### 이슈 / 결정 로그
 
