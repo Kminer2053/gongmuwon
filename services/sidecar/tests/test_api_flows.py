@@ -212,7 +212,7 @@ def test_document_finalize_sanitizes_windows_invalid_output_name(tmp_path: Path)
     assert artifact_path.suffix == ".md"
 
 
-def test_anything_launch_creates_pending_approval_ticket(tmp_path: Path) -> None:
+def test_anything_launch_requires_approval_and_persists_launch_record(tmp_path: Path) -> None:
     client = _client(tmp_path)
 
     response = client.post(
@@ -220,7 +220,11 @@ def test_anything_launch_creates_pending_approval_ticket(tmp_path: Path) -> None
         json={"query": "예산 검토"},
     )
     assert response.status_code == 202
-    ticket_id = response.json()["id"]
+    payload = response.json()
+    ticket_id = payload["approval_ticket"]["id"]
+    launch_request = payload["launch_request"]
+    assert launch_request["status"] == "pending"
+    assert launch_request["launch_target"].startswith("es:")
 
     tickets = client.get("/api/approval-tickets")
     assert tickets.status_code == 200
@@ -234,10 +238,73 @@ def test_anything_launch_creates_pending_approval_ticket(tmp_path: Path) -> None
     assert approve.status_code == 200
     assert approve.json()["status"] == "approved"
 
+    apply = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
+    assert apply.status_code == 201
+    applied = apply.json()["launch_request"]
+    assert applied["status"] == "applied"
+    assert applied["applied_at"] is not None
+
+    launches = client.get("/api/integrations/anything/launches")
+    assert launches.status_code == 200
+    assert any(
+        item["approval_ticket_id"] == ticket_id and item["status"] == "applied"
+        for item in launches.json()["items"]
+    )
+
     logs = client.get("/api/execution-logs")
     actions = [entry["action"] for entry in logs.json()["items"]]
     assert "anything.launch.requested" in actions
+    assert "anything.launch.applied" in actions
     assert "approval_ticket.decided" in actions
+
+
+def test_anything_launch_imports_paths_into_reference_set(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    session = client.post(
+        "/api/work-sessions",
+        json={"title": "anything import session"},
+    )
+    assert session.status_code == 201
+    session_id = session.json()["id"]
+
+    requested = client.post(
+        "/api/integrations/anything/launch",
+        json={"query": "budget"},
+    )
+    assert requested.status_code == 202
+    ticket_id = requested.json()["approval_ticket"]["id"]
+
+    approved = client.post(
+        f"/api/approval-tickets/{ticket_id}/decision",
+        json={"status": "approved", "decision_note": "approved"},
+    )
+    assert approved.status_code == 200
+
+    applied = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
+    assert applied.status_code == 201
+
+    imported = client.post(
+        f"/api/integrations/anything/launch/{ticket_id}/reference-set",
+        json={
+            "title": "budget import",
+            "session_id": session_id,
+            "paths": [
+                str(tmp_path / "incoming" / "budget.xlsx"),
+                str(tmp_path / "incoming" / "meeting-notes.md"),
+            ],
+        },
+    )
+    assert imported.status_code == 201
+    payload = imported.json()
+    assert payload["reference_set"]["title"] == "budget import"
+    assert payload["reference_set"]["session_id"] == session_id
+    assert len(payload["reference_set"]["items"]) == 2
+    assert payload["reference_set"]["items"][0]["kind"] == "file"
+
+    logs = client.get("/api/execution-logs")
+    actions = [entry["action"] for entry in logs.json()["items"]]
+    assert "anything.launch.imported" in actions
 
 
 def test_file_organization_proposals_are_persisted(tmp_path: Path) -> None:

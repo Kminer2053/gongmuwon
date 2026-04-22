@@ -89,6 +89,26 @@ export type ApprovalTicketItem = {
   decision_note?: string | null;
 };
 
+export type AnythingLaunchItem = {
+  id: string;
+  approval_ticket_id: string;
+  query: string;
+  launch_target: string;
+  status: "pending" | "applied";
+  created_at: string;
+  applied_at?: string | null;
+};
+
+export type AnythingLaunchRequestResult = {
+  approval_ticket: ApprovalTicketItem;
+  launch_request: AnythingLaunchItem;
+};
+
+export type AnythingLaunchImportResult = {
+  launch_request: AnythingLaunchItem;
+  reference_set: ReferenceSetItem;
+};
+
 export type FileProposalItem = {
   id: string;
   target_path: string;
@@ -190,6 +210,7 @@ export type WorkspaceSnapshot = {
   knowledgeCandidates: KnowledgeCandidateItem[];
   knowledgePages: KnowledgePageItem[];
   approvalTickets: ApprovalTicketItem[];
+  anythingLaunches: AnythingLaunchItem[];
   fileProposals: FileProposalItem[];
   logs: ExecutionLogItem[];
 };
@@ -270,6 +291,7 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
     knowledgeCandidates,
     knowledgePages,
     approvalTickets,
+    anythingLaunches,
     fileProposals,
     logs,
   ] = await Promise.allSettled([
@@ -282,6 +304,7 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
     requestJson<{ items: KnowledgeCandidateItem[] }>("/api/knowledge/candidates"),
     requestJson<{ items: KnowledgePageItem[] }>("/api/knowledge/pages"),
     requestJson<{ items: ApprovalTicketItem[] }>("/api/approval-tickets"),
+    requestJson<{ items: AnythingLaunchItem[] }>("/api/integrations/anything/launches"),
     requestJson<{ items: FileProposalItem[] }>("/api/file-organizer/proposals"),
     requestJson<{ items: ExecutionLogItem[] }>("/api/execution-logs"),
   ]);
@@ -297,6 +320,8 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
       knowledgeCandidates.status === "fulfilled" ? knowledgeCandidates.value.items : [],
     knowledgePages: knowledgePages.status === "fulfilled" ? knowledgePages.value.items : [],
     approvalTickets: approvalTickets.status === "fulfilled" ? approvalTickets.value.items : [],
+    anythingLaunches:
+      anythingLaunches.status === "fulfilled" ? anythingLaunches.value.items : [],
     fileProposals: fileProposals.status === "fulfilled" ? fileProposals.value.items : [],
     logs: logs.status === "fulfilled" ? logs.value.items : [],
   };
@@ -396,10 +421,36 @@ export async function applyDocumentFinalize(ticketId: string) {
 }
 
 export async function requestAnythingLaunch(query: string) {
-  return requestJson<ApprovalTicketItem>("/api/integrations/anything/launch", {
+  return requestJson<AnythingLaunchRequestResult>("/api/integrations/anything/launch", {
     method: "POST",
     body: JSON.stringify({ query }),
   });
+}
+
+export async function applyAnythingLaunch(ticketId: string) {
+  return requestJson<AnythingLaunchRequestResult>(
+    `/api/integrations/anything/launch/${ticketId}/apply`,
+    {
+      method: "POST",
+    },
+  );
+}
+
+export async function importAnythingLaunchReferenceSet(
+  ticketId: string,
+  payload: {
+    title: string;
+    session_id?: string | null;
+    paths: string[];
+  },
+) {
+  return requestJson<AnythingLaunchImportResult>(
+    `/api/integrations/anything/launch/${ticketId}/reference-set`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function createFileProposals(targetPath: string) {

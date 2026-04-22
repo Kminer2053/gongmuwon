@@ -121,6 +121,17 @@ CREATE TABLE IF NOT EXISTS final_document_outputs (
     FOREIGN KEY(approval_ticket_id) REFERENCES approval_tickets(id)
 );
 
+CREATE TABLE IF NOT EXISTS anything_launch_requests (
+    id TEXT PRIMARY KEY,
+    approval_ticket_id TEXT NOT NULL UNIQUE,
+    query TEXT NOT NULL,
+    launch_target TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    applied_at TEXT,
+    FOREIGN KEY(approval_ticket_id) REFERENCES approval_tickets(id)
+);
+
 CREATE TABLE IF NOT EXISTS file_org_proposals (
     id TEXT PRIMARY KEY,
     target_path TEXT NOT NULL,

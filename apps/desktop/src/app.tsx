@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   approveKnowledgeCandidate,
+  applyAnythingLaunch,
   commitFileProposalApply,
   createContentBase,
   createFileProposals,
@@ -30,6 +31,7 @@ import {
   createSchedule,
   createWorkSession,
   decideApproval,
+  importAnythingLaunchReferenceSet,
   loadKnowledgeGraph,
   loadTools,
   loadWorkspaceSnapshot,
@@ -40,6 +42,7 @@ import {
   requestDocumentFinalize,
   searchKnowledge,
   type ApprovalTicketItem,
+  type AnythingLaunchItem,
   type ContentBaseResult,
   type FileProposalItem,
   type FinalDocumentRequestResult,
@@ -56,6 +59,7 @@ import {
 } from "./api";
 import {
   loadDesktopRuntimeStatus,
+  openExternalTarget,
   restartDesktopSidecar,
   startDesktopSidecar,
   stopDesktopSidecar,
@@ -102,6 +106,7 @@ const EMPTY_SNAPSHOT: WorkspaceSnapshot = {
   knowledgeCandidates: [],
   knowledgePages: [],
   approvalTickets: [],
+  anythingLaunches: [],
   fileProposals: [],
   logs: [],
 };
@@ -193,6 +198,11 @@ export function App() {
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [selectedReferenceSetId, setSelectedReferenceSetId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [anythingImportForms, setAnythingImportForms] = useState<
+    Record<string, { title: string; paths: string }>
+  >({});
+  const [lastImportedAnythingReferenceSetId, setLastImportedAnythingReferenceSetId] =
+    useState<string>("");
   const [fileOrgTargetPath, setFileOrgTargetPath] = useState("");
   const [fileOrgOperations, setFileOrgOperations] = useState<
     Record<string, { id: string; destination_path: string }>
@@ -594,6 +604,75 @@ export function App() {
     await handleAction(() => requestAnythingLaunch(searchQuery), "Anything 실행 요청이 승인 큐에 등록되었습니다.");
   }
 
+  async function launchAnything(launch: AnythingLaunchItem) {
+    const result =
+      launch.status === "applied"
+        ? { launch_request: launch }
+        : await handleAction(
+            () => applyAnythingLaunch(launch.approval_ticket_id),
+            "Anything 외부 열기 링크를 준비했습니다.",
+          );
+
+    if (!result) {
+      return;
+    }
+
+    await openExternalTarget(result.launch_request.launch_target);
+    setNotice(
+      launch.status === "applied"
+        ? "Anything 외부 링크를 다시 열었습니다."
+        : "Anything 외부 링크를 열었습니다.",
+    );
+  }
+
+  async function submitAnythingReferenceImport(
+    event: FormEvent<HTMLFormElement>,
+    launch: AnythingLaunchItem,
+  ) {
+    event.preventDefault();
+    const form = anythingImportForms[launch.approval_ticket_id] ?? { title: "", paths: "" };
+    const paths = form.paths
+      .split(/\r?\n/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    const imported = await handleAction(
+      () =>
+        importAnythingLaunchReferenceSet(launch.approval_ticket_id, {
+          title: form.title.trim() || `${launch.query} import`,
+          session_id: selectedSessionId || null,
+          paths,
+        }),
+      "Anything 결과를 Reference Set으로 가져왔습니다.",
+    );
+
+    if (imported) {
+      setSelectedReferenceSetId(imported.reference_set.id);
+      setLastImportedAnythingReferenceSetId(imported.reference_set.id);
+      setAnythingImportForms((current) => ({
+        ...current,
+        [launch.approval_ticket_id]: { title: "", paths: "" },
+      }));
+    }
+  }
+
+  function continueImportedAnythingToDocuments() {
+    const importedReferenceSet = snapshot.referenceSets.find(
+      (item) => item.id === lastImportedAnythingReferenceSetId,
+    );
+    if (importedReferenceSet) {
+      setDocumentForm((current) => ({
+        ...current,
+        title: current.title.trim() ? current.title : importedReferenceSet.title,
+        purpose:
+          !current.purpose.trim() || current.purpose === "보고서형"
+            ? `${importedReferenceSet.title} 기반 정리`
+            : current.purpose,
+      }));
+    }
+    setActiveMenu("documents");
+  }
+
   async function submitFileProposals(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await handleAction(
@@ -895,6 +974,98 @@ export function App() {
           </div>
         </SectionCard>
 
+        <SectionCard eyebrow="Anything history" title="승인된 외부 열기">
+          {snapshot.anythingLaunches.length === 0 ? (
+            <EmptyState
+              title="아직 외부 열기 요청이 없습니다."
+              body="Anything 실행 요청을 보내면 승인 상태와 다시 열기 링크가 여기에 쌓입니다."
+            />
+          ) : (
+            <div className="item-list">
+              {snapshot.anythingLaunches.map((launch) => {
+                const relatedTicket = snapshot.approvalTickets.find(
+                  (ticket) => ticket.id === launch.approval_ticket_id,
+                );
+                const canOpen = relatedTicket?.status === "approved";
+
+                return (
+                  <article key={launch.id} className="list-card">
+                    <div className="list-card__main list-card__main--static">
+                      <div>
+                        <h3>{launch.query}</h3>
+                        <p>{launch.status === "applied" ? "applied" : relatedTicket?.status ?? launch.status}</p>
+                        <p className="subtle-text">{launch.launch_target}</p>
+                      </div>
+                      <span className="pill">Anything</span>
+                    </div>
+                    <div className="inline-actions">
+                      {canOpen ? (
+                        <button type="button" onClick={() => void launchAnything(launch)}>
+                          {launch.status === "applied" ? "다시 열기" : "승인 후 열기"}
+                        </button>
+                      ) : null}
+                    </div>
+                    {launch.status === "applied" ? (
+                      <form
+                        className="stack-form"
+                        onSubmit={(event) => void submitAnythingReferenceImport(event, launch)}
+                      >
+                        <label>
+                          Import title
+                          <input
+                            value={anythingImportForms[launch.approval_ticket_id]?.title ?? ""}
+                            onChange={(event) =>
+                              setAnythingImportForms((current) => ({
+                                ...current,
+                                [launch.approval_ticket_id]: {
+                                  title: event.target.value,
+                                  paths: current[launch.approval_ticket_id]?.paths ?? "",
+                                },
+                              }))
+                            }
+                            placeholder="budget import"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Paste selected paths
+                          <textarea
+                            value={anythingImportForms[launch.approval_ticket_id]?.paths ?? ""}
+                            onChange={(event) =>
+                              setAnythingImportForms((current) => ({
+                                ...current,
+                                [launch.approval_ticket_id]: {
+                                  title: current[launch.approval_ticket_id]?.title ?? "",
+                                  paths: event.target.value,
+                                },
+                              }))
+                            }
+                            placeholder={"C:\\docs\\budget.xlsx\nC:\\docs\\meeting-notes.md"}
+                            rows={4}
+                            required
+                          />
+                        </label>
+                        <button type="submit" disabled={submitting}>
+                          Import to Reference Set
+                        </button>
+                        {lastImportedAnythingReferenceSetId === selectedReferenceSetId ? (
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            onClick={continueImportedAnythingToDocuments}
+                          >
+                            Continue to Documents
+                          </button>
+                        ) : null}
+                      </form>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </SectionCard>
+
         <SectionCard eyebrow="ReferenceSet" title="검색 결과를 작업에 묶기">
           <form className="stack-form" onSubmit={submitReferenceSet}>
             <label>
@@ -1026,6 +1197,19 @@ export function App() {
               ContentBase.md 생성
             </button>
           </form>
+          {selectedReferenceSet ? (
+            <div className="hint-box">
+              <strong>선택된 참고자료 묶음</strong>
+              <span>{selectedReferenceSet.title}</span>
+              <span>{selectedReferenceSet.items.length} items</span>
+              {selectedReferenceSet.items.slice(0, 2).map((item) => (
+                <span key={item.id ?? item.value}>{item.label}</span>
+              ))}
+              {selectedReferenceSet.items[0] ? (
+                <span>{selectedReferenceSet.items[0].value}</span>
+              ) : null}
+            </div>
+          ) : null}
         </SectionCard>
 
         <SectionCard eyebrow="내부 템플릿" title="양식 선택 상태">
