@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
@@ -66,6 +67,12 @@ class FinalDocumentFinalizeRequest(BaseModel):
 
 class AnythingLaunchRequest(BaseModel):
     query: str | None = None
+
+
+class AnythingLaunchImportRequest(BaseModel):
+    title: str
+    session_id: str | None = None
+    paths: list[str] = Field(default_factory=list)
 
 
 class FileProposalRequest(BaseModel):
@@ -191,20 +198,137 @@ class AppServices:
         return result
 
     def create_anything_launch_ticket(self, payload: AnythingLaunchRequest) -> dict[str, Any]:
+        query = (payload.query or "").strip() or "Anything"
         ticket = self.db.create_approval_ticket(
             target_type="external_launch",
             target_id=str(uuid4()),
             action="anything.launch",
         )
+        launch_request = {
+            "id": str(uuid4()),
+            "approval_ticket_id": ticket["id"],
+            "query": query,
+            "launch_target": f"es:{quote(query)}",
+            "status": "pending",
+            "created_at": now_iso(),
+            "applied_at": None,
+        }
+        self.db.insert("anything_launch_requests", launch_request)
         self.db.log(
             feature="search",
             action="anything.launch.requested",
             status="pending_approval",
-            inputs=payload.model_dump(),
-            outputs={"approval_ticket_id": ticket["id"]},
+            inputs={"query": query},
+            outputs={
+                "approval_ticket_id": ticket["id"],
+                "launch_request_id": launch_request["id"],
+                "launch_target": launch_request["launch_target"],
+            },
             approval_ticket_id=ticket["id"],
         )
-        return ticket
+        return {
+            "approval_ticket": ticket,
+            "launch_request": launch_request,
+        }
+
+    def list_anything_launches(self) -> list[dict[str, Any]]:
+        return self.db.fetch_all(
+            "SELECT * FROM anything_launch_requests ORDER BY created_at DESC"
+        )
+
+    def apply_anything_launch(self, ticket_id: str) -> dict[str, Any]:
+        launch_request = self.db.fetch_one(
+            "SELECT * FROM anything_launch_requests WHERE approval_ticket_id = ?",
+            (ticket_id,),
+        )
+        if launch_request is None:
+            raise KeyError(ticket_id)
+
+        ticket = self.db.fetch_one(
+            "SELECT * FROM approval_tickets WHERE id = ?",
+            (ticket_id,),
+        )
+        if ticket is None:
+            raise KeyError(ticket_id)
+        if ticket["status"] != "approved":
+            raise PermissionError(ticket_id)
+
+        if launch_request["status"] != "applied":
+            applied_at = now_iso()
+            self.db.execute(
+                "UPDATE anything_launch_requests SET status = ?, applied_at = ? WHERE approval_ticket_id = ?",
+                ("applied", applied_at, ticket_id),
+            )
+            self.db.log(
+                feature="search",
+                action="anything.launch.applied",
+                status="success",
+                inputs={
+                    "approval_ticket_id": ticket_id,
+                    "query": launch_request["query"],
+                },
+                outputs={
+                    "launch_request_id": launch_request["id"],
+                    "launch_target": launch_request["launch_target"],
+                },
+                approval_ticket_id=ticket_id,
+            )
+
+        launch_request = self.db.fetch_one(
+            "SELECT * FROM anything_launch_requests WHERE approval_ticket_id = ?",
+            (ticket_id,),
+        )
+        return {
+            "approval_ticket": ticket,
+            "launch_request": launch_request,
+        }
+
+    def import_anything_launch_reference_set(
+        self, ticket_id: str, payload: AnythingLaunchImportRequest
+    ) -> dict[str, Any]:
+        launch_request = self.db.fetch_one(
+            "SELECT * FROM anything_launch_requests WHERE approval_ticket_id = ?",
+            (ticket_id,),
+        )
+        if launch_request is None:
+            raise KeyError(ticket_id)
+        if launch_request["status"] != "applied":
+            raise PermissionError(ticket_id)
+
+        reference_set = self.create_reference_set(
+            ReferenceSetCreate(
+                title=payload.title,
+                session_id=payload.session_id,
+                items=[
+                    ReferenceItemInput(
+                        kind="file",
+                        label=Path(path).name or path,
+                        value=path,
+                    )
+                    for path in payload.paths
+                ],
+            )
+        )
+        self.db.log(
+            feature="search",
+            action="anything.launch.imported",
+            status="success",
+            inputs={
+                "approval_ticket_id": ticket_id,
+                "title": payload.title,
+                "session_id": payload.session_id,
+                "path_count": len(payload.paths),
+            },
+            outputs={
+                "reference_set_id": reference_set["id"],
+                "launch_request_id": launch_request["id"],
+            },
+            approval_ticket_id=ticket_id,
+        )
+        return {
+            "launch_request": launch_request,
+            "reference_set": reference_set,
+        }
 
     def list_approval_tickets(self) -> list[dict[str, Any]]:
         return self.db.fetch_all(
@@ -426,6 +550,30 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     @app.post("/api/integrations/anything/launch", status_code=202)
     def request_anything_launch(payload: AnythingLaunchRequest) -> dict[str, Any]:
         return services.create_anything_launch_ticket(payload)
+
+    @app.get("/api/integrations/anything/launches")
+    def list_anything_launches() -> dict[str, Any]:
+        return {"items": services.list_anything_launches()}
+
+    @app.post("/api/integrations/anything/launch/{ticket_id}/apply", status_code=201)
+    def apply_anything_launch(ticket_id: str) -> dict[str, Any]:
+        try:
+            return services.apply_anything_launch(ticket_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="anything launch request not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=409, detail="approval ticket must be approved") from exc
+
+    @app.post("/api/integrations/anything/launch/{ticket_id}/reference-set", status_code=201)
+    def import_anything_launch_reference_set(
+        ticket_id: str, payload: AnythingLaunchImportRequest
+    ) -> dict[str, Any]:
+        try:
+            return services.import_anything_launch_reference_set(ticket_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="anything launch request not found") from exc
+        except PermissionError as exc:
+            raise HTTPException(status_code=409, detail="anything launch must be applied first") from exc
 
     @app.get("/api/approval-tickets")
     def list_approval_tickets() -> dict[str, Any]:

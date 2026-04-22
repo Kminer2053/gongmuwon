@@ -70,7 +70,7 @@
 | W0 | 플랫폼 골격 | 완료 | 셸/DB/로그/승인 구조가 뜬다 | 테스트 + 빌드 통과 |
 | W1 | 일정 + 업무대화 + 참고자료 | 완료 | 일정, 세션, ReferenceSet 생성/조회 가능 | API 테스트 통과 |
 | W2 | 지식폴더 MVP | 완료 | 후보 생성/승인/페이지 생성/그래프 산출 | API + UI + search/graph inspector 검증 통과 |
-| W3 | 검색 연계 | 부분 완료 | Anything 실행 요청과 승인 큐 등록 | API/UI 구현, 실제 외부 실행 미적용 |
+| W3 | 검색 연계 | 완료 | Anything 승인 후 외부 링크 열기, 재실행, 선택 경로를 Reference Set으로 수집 가능 | API/UI 구현, 승인 후 `es:` 외부 링크 apply/open 흐름과 수동 경로 import 검증 |
 | W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
 | W5 | 파일정리 + 지식화 루프 | 완료 | 제안 생성/조회/적용/rollback 가능 | sidecar workflow test + desktop action 연결 완료 |
 | W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
@@ -166,6 +166,15 @@
 | 2026-04-21 | windows-installer-smoke | `npm run desktop:smoke:nsis` | PASS | NSIS install -> bundled sidecar health -> uninstall cleanup 자동 검증 |
 | 2026-04-21 | windows-installer-verify-fast | `npm run desktop:verify:windows:fast` | PASS | Windows smoke 검증 루프를 bundle skip 모드로 반복 가능하게 고정 |
 | 2026-04-21 | windows-installer-verify-full | `npm run desktop:verify:windows` | PASS | `desktop:bundle` + MSI/NSIS smoke 검증을 한 번에 재현 |
+| 2026-04-21 | anything-launch | `npm run sidecar:test` | PASS | sidecar `16 passed`, `anything.launch` request/apply/list 흐름과 persisted launch record 검증 |
+| 2026-04-21 | anything-launch | `npm run desktop:test` | PASS | desktop `11 passed`, 승인된 Anything 외부 링크 열기와 다시 열기 UI 검증 |
+| 2026-04-22 | anything-reference-import | `npm run sidecar:test` | PASS | sidecar `17 passed`, applied Anything launch에서 pasted path를 Reference Set으로 가져오고 execution log를 남기는 흐름 검증 |
+| 2026-04-22 | anything-reference-import | `npm run desktop:test` | PASS | desktop `12 passed`, 승인 후 열기 -> pasted path import -> Reference Set 반영 UI 검증 |
+| 2026-04-22 | anything-reference-import-handoff | `npm run desktop:test` | PASS | desktop `13 passed`, imported Reference Set에서 `Continue to Documents`로 문서 초안 화면으로 이동하는 handoff UX 검증 |
+| 2026-04-22 | anything-reference-import-document-context | `npm run desktop:test` | PASS | desktop `13 passed`, 문서 초안 화면에서 선택된 Reference Set 제목과 item 수를 즉시 확인하는 context summary 검증 |
+| 2026-04-22 | anything-reference-import-document-preview | `npm run desktop:test` | PASS | desktop `13 passed`, 문서 초안 화면에서 선택된 Reference Set의 대표 파일명 2개를 즉시 확인하는 preview UX 검증 |
+| 2026-04-22 | anything-reference-import-document-purpose | `npm run desktop:test` | PASS | desktop `13 passed`, `Continue to Documents` 뒤 문서 목적을 `reference set title 기반 정리`로 자동 채우는 handoff UX 검증 |
+| 2026-04-22 | anything-reference-import-document-path-preview | `npm run desktop:test` | PASS | desktop `13 passed`, 문서 초안 화면에서 대표 참고자료 경로 1개를 추가로 보여주는 path preview UX 검증 |
 | 2026-04-21 | release-staging | `npm run release:alpha` | PASS | Windows 운영 문서와 verify 스크립트가 Alpha staging에 반영됨 |
 
 ### 이슈 / 결정 로그

@@ -67,3 +67,12 @@ export async function restartDesktopSidecar(): Promise<DesktopRuntimeStatus> {
 
   return invoke<DesktopRuntimeStatus>("restart_desktop_sidecar");
 }
+
+export async function openExternalTarget(target: string): Promise<void> {
+  if (!isTauriRuntimeAvailable()) {
+    window.open(target, "_blank", "noopener,noreferrer");
+    return;
+  }
+
+  await invoke("open_external_target", { target });
+}

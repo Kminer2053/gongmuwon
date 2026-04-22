@@ -27,6 +27,7 @@ Python FastAPI sidecar for the Gongmu local-first workspace.
 - `/health`: runtime workspace and service health
 - `/api/settings`: runtime settings contract
 - `/api/tools`: tool manifest
+- `/api/integrations/anything/*`: external launch request/apply/list
 - `/api/documents/*`: Content Base creation, final output request/apply
 - `/api/knowledge/*`: knowledge candidate, search, graph summary
 - `/api/file-organizer/*`: proposal creation, apply request, commit, rollback

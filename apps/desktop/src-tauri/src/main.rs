@@ -241,6 +241,34 @@ fn socket_is_open(addr: &SocketAddr) -> bool {
     TcpStream::connect_timeout(addr, Duration::from_millis(250)).is_ok()
 }
 
+fn open_external_target_inner(target: &str) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        let mut command = Command::new("rundll32");
+        command.arg("url.dll,FileProtocolHandler").arg(target);
+        command
+    };
+
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = Command::new("open");
+        command.arg(target);
+        command
+    };
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    let mut command = {
+        let mut command = Command::new("xdg-open");
+        command.arg(target);
+        command
+    };
+
+    command
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("external open failed: {error}"))
+}
+
 fn desktop_runtime_status_inner<R: tauri::Runtime>(
     app: Option<&tauri::AppHandle<R>>,
     manager: &SidecarManager,
@@ -408,6 +436,11 @@ fn restart_desktop_sidecar(
     start_desktop_sidecar(app, state)
 }
 
+#[tauri::command]
+fn open_external_target(target: String) -> Result<(), String> {
+    open_external_target_inner(&target)
+}
+
 fn main() {
     let app = tauri::Builder::default()
         .manage(SidecarManager::default())
@@ -415,7 +448,8 @@ fn main() {
             desktop_runtime_status,
             start_desktop_sidecar,
             stop_desktop_sidecar,
-            restart_desktop_sidecar
+            restart_desktop_sidecar,
+            open_external_target
         ])
         .build(tauri::generate_context!())
         .expect("failed to build gongmu desktop");
