@@ -14,6 +14,7 @@
     "desktop:bundle:debug": "npm run sidecar:bundle:windows && node scripts/sync-sidecar-bundle.mjs && node scripts/tauri-build-with-wix-fallback.mjs --debug",
     "desktop:smoke:msi": "node scripts/windows-msi-fallback-smoke.mjs",
     "desktop:smoke:nsis": "node scripts/windows-nsis-smoke.mjs",
+    "desktop:prepare:gui": "node scripts/windows-gui-validation-helper.mjs",
     "desktop:verify:windows": "node scripts/windows-installer-verify.mjs",
     "desktop:verify:windows:fast": "node scripts/windows-installer-verify.mjs --skip-bundle",
     "sidecar:bundle:windows": "node scripts/portable-run.mjs python -m PyInstaller --noconfirm --clean --distpath release/sidecar/windows-x64 --workpath runtime-workspace/cache/pyinstaller services/sidecar/packaging/gongmu-sidecar.spec",
