@@ -212,6 +212,61 @@ def test_document_finalize_sanitizes_windows_invalid_output_name(tmp_path: Path)
     assert artifact_path.suffix == ".md"
 
 
+def test_document_finalize_versions_duplicate_output_names(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    first_content_base = client.post(
+        "/api/documents/content-bases",
+        json={
+            "title": "First draft",
+            "purpose": "report",
+            "template_key": "report",
+        },
+    )
+    second_content_base = client.post(
+        "/api/documents/content-bases",
+        json={
+            "title": "Second draft",
+            "purpose": "report",
+            "template_key": "report",
+        },
+    )
+
+    first_finalize = client.post(
+        "/api/documents/finalize",
+        json={"content_base_id": first_content_base.json()["id"], "output_name": "shared-output"},
+    )
+    second_finalize = client.post(
+        "/api/documents/finalize",
+        json={"content_base_id": second_content_base.json()["id"], "output_name": "shared-output"},
+    )
+
+    first_ticket_id = first_finalize.json()["approval_ticket"]["id"]
+    second_ticket_id = second_finalize.json()["approval_ticket"]["id"]
+
+    client.post(
+        f"/api/approval-tickets/{first_ticket_id}/decision",
+        json={"status": "approved", "decision_note": "approved"},
+    )
+    client.post(
+        f"/api/approval-tickets/{second_ticket_id}/decision",
+        json={"status": "approved", "decision_note": "approved"},
+    )
+
+    first_apply = client.post(f"/api/documents/finalize/{first_ticket_id}/apply")
+    second_apply = client.post(f"/api/documents/finalize/{second_ticket_id}/apply")
+
+    assert first_apply.status_code == 201
+    assert second_apply.status_code == 201
+
+    first_path = Path(first_apply.json()["artifact"]["path"])
+    second_path = Path(second_apply.json()["artifact"]["path"])
+    assert first_path.exists()
+    assert second_path.exists()
+    assert first_path != second_path
+    assert first_path.read_text(encoding="utf-8") != second_path.read_text(encoding="utf-8")
+
+
 def test_anything_launch_requires_approval_and_persists_launch_record(tmp_path: Path) -> None:
     client = _client(tmp_path)
 
@@ -305,6 +360,75 @@ def test_anything_launch_imports_paths_into_reference_set(tmp_path: Path) -> Non
     logs = client.get("/api/execution-logs")
     actions = [entry["action"] for entry in logs.json()["items"]]
     assert "anything.launch.imported" in actions
+
+
+def test_decided_and_applied_ticket_cannot_be_redecided(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    response = client.post(
+        "/api/integrations/anything/launch",
+        json={"query": "budget"},
+    )
+    ticket_id = response.json()["approval_ticket"]["id"]
+
+    approved = client.post(
+        f"/api/approval-tickets/{ticket_id}/decision",
+        json={"status": "approved", "decision_note": "approved"},
+    )
+    assert approved.status_code == 200
+
+    applied = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
+    assert applied.status_code == 201
+
+    replay = client.post(
+        f"/api/approval-tickets/{ticket_id}/decision",
+        json={"status": "rejected", "decision_note": "too late"},
+    )
+    assert replay.status_code == 409
+    assert replay.json()["detail"] == "approval ticket already decided"
+
+
+def test_rejected_anything_launch_cannot_be_applied(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    response = client.post(
+        "/api/integrations/anything/launch",
+        json={"query": "budget"},
+    )
+    ticket_id = response.json()["approval_ticket"]["id"]
+
+    rejected = client.post(
+        f"/api/approval-tickets/{ticket_id}/decision",
+        json={"status": "rejected", "decision_note": "blocked"},
+    )
+    assert rejected.status_code == 200
+
+    apply = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
+    assert apply.status_code == 409
+    assert apply.json()["detail"] == "approval ticket must be approved"
+
+
+def test_anything_launch_apply_rejects_replay_after_apply(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    response = client.post(
+        "/api/integrations/anything/launch",
+        json={"query": "budget"},
+    )
+    ticket_id = response.json()["approval_ticket"]["id"]
+
+    approved = client.post(
+        f"/api/approval-tickets/{ticket_id}/decision",
+        json={"status": "approved", "decision_note": "approved"},
+    )
+    assert approved.status_code == 200
+
+    first_apply = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
+    assert first_apply.status_code == 201
+
+    second_apply = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
+    assert second_apply.status_code == 409
+    assert second_apply.json()["detail"] == "anything launch already applied"
 
 
 def test_file_organization_proposals_are_persisted(tmp_path: Path) -> None:

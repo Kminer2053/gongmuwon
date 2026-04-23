@@ -208,6 +208,7 @@ export function App() {
     Record<string, { id: string; destination_path: string }>
   >({});
   const [lastContentBase, setLastContentBase] = useState<ContentBaseResult | null>(null);
+  const [lastContentBaseSignature, setLastContentBaseSignature] = useState<string | null>(null);
   const [scheduleForm, setScheduleForm] = useState({
     title: "",
     starts_at: "",
@@ -250,6 +251,12 @@ export function App() {
   const templates = snapshot.templates.length > 0 ? snapshot.templates : FALLBACK_TEMPLATES;
   const defaultTemplateKey = snapshot.settings?.defaults.default_template_key ?? "report";
   const activeTemplateKey = documentForm.template_key || defaultTemplateKey;
+  const currentContentBaseSignature = [
+    documentForm.title,
+    documentForm.purpose,
+    activeTemplateKey,
+    selectedReferenceSetId || "",
+  ].join("\u0001");
   const pendingApprovals = snapshot.approvalTickets.filter((ticket) => ticket.status === "pending");
   const currentFinalizeTicket = lastFinalizeRequest
     ? snapshot.approvalTickets.find(
@@ -259,6 +266,24 @@ export function App() {
   const canApplyFinalize = currentFinalizeTicket?.status === "approved";
   const finalizeAlreadyApplied = lastFinalizeRequest?.final_document_output.status === "applied";
   const activeMenuMeta = MENU_ITEMS.find((item) => item.key === activeMenu) ?? MENU_ITEMS[0];
+  const unmanagedRuntimeReachable =
+    runtimeStatus?.available && runtimeStatus.running && !runtimeStatus.managed;
+
+  useEffect(() => {
+    if (!lastContentBase || !lastContentBaseSignature) {
+      return;
+    }
+
+    if (lastContentBaseSignature === currentContentBaseSignature) {
+      return;
+    }
+
+    setLastContentBase(null);
+    setLastContentBaseSignature(null);
+    setLastFinalizeRequest(null);
+    setFinalizeForm({ output_name: "" });
+    setNotice("Draft changed after ContentBase generation. Regenerate before final save.");
+  }, [currentContentBaseSignature, lastContentBase, lastContentBaseSignature]);
 
   async function refreshSnapshot() {
     setLoading(true);
@@ -294,6 +319,25 @@ export function App() {
       setRuntimeStatus(next);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "런타임 상태를 불러오지 못했습니다.");
+    } finally {
+      setRuntimeLoading(false);
+    }
+  }
+
+  async function handleRecoverSidecar() {
+    setRuntimeLoading(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const next = await loadDesktopRuntimeStatus();
+      setRuntimeStatus(next);
+      setNotice(
+        next.running && !next.managed
+          ? "External sidecar is still active. Close it, then start the managed sidecar again."
+          : "Runtime status refreshed.",
+      );
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "failed to refresh runtime status");
     } finally {
       setRuntimeLoading(false);
     }
@@ -562,7 +606,7 @@ export function App() {
     );
     if (created) {
       setLastContentBase(created);
-      setDocumentForm({ title: "", purpose: "보고서형", template_key: "" });
+      setLastContentBaseSignature(currentContentBaseSignature);
       setFinalizeForm({ output_name: created.title });
       setLastFinalizeRequest(null);
     }
@@ -570,6 +614,7 @@ export function App() {
 
   async function submitDocumentFinalizeRequest() {
     if (!lastContentBase) {
+      setError("Generate a fresh ContentBase before requesting final save.");
       return;
     }
 
@@ -1801,6 +1846,16 @@ export function App() {
                 disabled={runtimeStarting}
               >
                 {runtimeStarting ? "사이드카 시작 중..." : "사이드카 시작"}
+              </button>
+            ) : null}
+            {unmanagedRuntimeReachable ? (
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => void handleRecoverSidecar()}
+                disabled={runtimeLoading}
+              >
+                {runtimeLoading ? "Recovering..." : "Recover sidecar"}
               </button>
             ) : null}
             {runtimeStatus?.available && runtimeStatus.running && runtimeStatus.managed ? (

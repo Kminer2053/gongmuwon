@@ -67,3 +67,16 @@ Record the printed values:
   - installer wizard renders
   - desktop app window appears
   - uninstall behaves normally from a real click-through flow
+
+## Safe GUI Lifecycle
+
+Before uninstalling from a real GUI pass:
+
+1. Close the desktop window first.
+2. Wait a moment for any bundled `gongmu-sidecar.exe` process to exit.
+3. Then run the uninstaller.
+
+If files remain after uninstall, record both:
+
+- the remaining paths
+- whether the desktop app or bundled sidecar was still running at uninstall time

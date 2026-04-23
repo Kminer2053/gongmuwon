@@ -547,55 +547,77 @@ describe("App shell", () => {
     expect(await screen.findByText("앱이 sidecar를 다시 시작함")).toBeInTheDocument();
   });
 
-  it("auto restarts a managed sidecar after crash detection", async () => {
+it("auto restarts a managed sidecar after crash detection", async () => {
+    runtimeState.status = {
+      ...runtimeState.status,
+      running: false,
+      managed: false,
+      auto_restart_recommended: true,
+      detail: "managed sidecar exited unexpectedly",
+    };
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(restartDesktopSidecarMock).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByText("앱이 sidecar를 다시 시작함")).toBeInTheDocument();
+    });
+  });
+
+  it("invalidates a generated content base after draft inputs change", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(global.fetch);
+    render(<App />);
+    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
+
+    await user.click(within(navigation).getByText("문서작성"));
+    await user.type(screen.getByLabelText("문서 제목"), "weekly draft");
+    await user.click(screen.getByRole("button", { name: "ContentBase.md 생성" }));
+
+    const finalizeButton = await screen.findByRole("button", { name: "최종 저장 요청" });
+    expect(finalizeButton).toBeEnabled();
+
+    const titleInput = screen.getByLabelText("문서 제목");
+    await user.clear(titleInput);
+    await user.type(titleInput, "weekly draft v2");
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "최종 저장 요청" })).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("Draft changed after ContentBase generation. Regenerate before final save."),
+    ).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) =>
+          String(input).includes("/api/documents/finalize") &&
+          (init?.method ?? "GET").toUpperCase() === "POST",
+      ),
+    ).toBe(false);
+  });
+
+  it("shows a recovery action when an unmanaged sidecar is already reachable", async () => {
+    const user = userEvent.setup();
     runtimeState.status = {
       ...runtimeState.status,
       running: true,
-      managed: true,
-      auto_restart_recommended: false,
-      detail: "앱이 sidecar를 관리 중",
+      managed: false,
+      detail: "sidecar is already reachable",
     };
-    let pollRuntimeStatus: (() => void) | null = null;
-    const setIntervalSpy = vi
-      .spyOn(window, "setInterval")
-      .mockImplementation(((handler: TimerHandler) => {
-        pollRuntimeStatus = handler as () => void;
-        return 1;
-      }) as typeof window.setInterval);
-    const clearIntervalSpy = vi
-      .spyOn(window, "clearInterval")
-      .mockImplementation((() => undefined) as typeof window.clearInterval);
 
-    try {
-      render(<App />);
-      await waitFor(() => {
-        expect(screen.getByText("앱이 sidecar를 관리 중")).toBeInTheDocument();
-      });
+    render(<App />);
 
-      runtimeState.status = {
-        ...runtimeState.status,
-        running: false,
-        managed: false,
-        auto_restart_recommended: true,
-        detail: "관리 중인 sidecar가 비정상 종료됨",
-      };
+    const recoverButton = await screen.findByRole("button", { name: "Recover sidecar" });
+    await user.click(recoverButton);
 
-      await act(async () => {
-        pollRuntimeStatus?.();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      await waitFor(() => {
-        expect(restartDesktopSidecarMock).toHaveBeenCalledTimes(1);
-      });
-      await waitFor(() => {
-        expect(screen.getByText("앱이 sidecar를 다시 시작함")).toBeInTheDocument();
-      });
-    } finally {
-      setIntervalSpy.mockRestore();
-      clearIntervalSpy.mockRestore();
-    }
+    expect(loadDesktopRuntimeStatusMock).toHaveBeenCalledTimes(2);
+    expect(
+      await screen.findByText(
+        "External sidecar is still active. Close it, then start the managed sidecar again.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("requests final document save and applies it after approval", async () => {

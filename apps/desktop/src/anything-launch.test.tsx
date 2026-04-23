@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AnythingLaunchItem } from "./api";
 
 const runtimeState = {
   status: {
@@ -41,13 +42,13 @@ const jsonResponse = (payload: unknown, status = 200) =>
 
 beforeEach(() => {
   openExternalTargetMock.mockClear();
-  let anythingLaunches = [
+  let anythingLaunches: AnythingLaunchItem[] = [
     {
       id: "launch-1",
       approval_ticket_id: "approval-1",
       query: "예산 검토",
       launch_target: "es:%EC%98%88%EC%82%B0%20%EA%B2%80%ED%86%A0",
-      status: "pending" as const,
+      status: "pending",
       created_at: "2026-04-20T00:00:00+09:00",
       applied_at: null,
     },
