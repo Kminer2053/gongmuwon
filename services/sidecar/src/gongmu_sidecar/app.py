@@ -252,27 +252,28 @@ class AppServices:
             raise KeyError(ticket_id)
         if ticket["status"] != "approved":
             raise PermissionError(ticket_id)
+        if launch_request["status"] == "applied":
+            raise ValueError("anything launch already applied")
 
-        if launch_request["status"] != "applied":
-            applied_at = now_iso()
-            self.db.execute(
-                "UPDATE anything_launch_requests SET status = ?, applied_at = ? WHERE approval_ticket_id = ?",
-                ("applied", applied_at, ticket_id),
-            )
-            self.db.log(
-                feature="search",
-                action="anything.launch.applied",
-                status="success",
-                inputs={
-                    "approval_ticket_id": ticket_id,
-                    "query": launch_request["query"],
-                },
-                outputs={
-                    "launch_request_id": launch_request["id"],
-                    "launch_target": launch_request["launch_target"],
-                },
-                approval_ticket_id=ticket_id,
-            )
+        applied_at = now_iso()
+        self.db.execute(
+            "UPDATE anything_launch_requests SET status = ?, applied_at = ? WHERE approval_ticket_id = ?",
+            ("applied", applied_at, ticket_id),
+        )
+        self.db.log(
+            feature="search",
+            action="anything.launch.applied",
+            status="success",
+            inputs={
+                "approval_ticket_id": ticket_id,
+                "query": launch_request["query"],
+            },
+            outputs={
+                "launch_request_id": launch_request["id"],
+                "launch_target": launch_request["launch_target"],
+            },
+            approval_ticket_id=ticket_id,
+        )
 
         launch_request = self.db.fetch_one(
             "SELECT * FROM anything_launch_requests WHERE approval_ticket_id = ?",
@@ -342,6 +343,8 @@ class AppServices:
         )
         if existing is None:
             raise KeyError(ticket_id)
+        if existing["status"] != "pending":
+            raise ValueError("approval ticket already decided")
 
         decided_at = now_iso()
         self.db.execute(
@@ -563,6 +566,8 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="anything launch request not found") from exc
         except PermissionError as exc:
             raise HTTPException(status_code=409, detail="approval ticket must be approved") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/integrations/anything/launch/{ticket_id}/reference-set", status_code=201)
     def import_anything_launch_reference_set(
@@ -587,6 +592,8 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             return services.decide_approval_ticket(ticket_id, payload)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="approval ticket not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/file-organizer/proposals")
     def create_file_org_proposals(payload: FileProposalRequest) -> dict[str, Any]:
@@ -602,6 +609,8 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             return services.file_organizer.request_apply(proposal_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="file organizer proposal not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/file-organizer/proposals/{proposal_id}/apply/commit", status_code=201)
     def commit_file_org_apply(proposal_id: str) -> dict[str, Any]:
@@ -611,6 +620,8 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="file organizer proposal not found") from exc
         except PermissionError as exc:
             raise HTTPException(status_code=409, detail="approval ticket must be approved") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/file-organizer/operations/{operation_id}/rollback")
     def rollback_file_org(operation_id: str) -> dict[str, Any]:

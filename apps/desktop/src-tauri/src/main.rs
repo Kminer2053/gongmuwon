@@ -237,6 +237,28 @@ fn stop_managed_sidecar(
     Ok(true)
 }
 
+fn cleanup_failed_start_state(manager: &SidecarManager) -> Result<(), String> {
+    let child = {
+        let mut guard = manager
+            .child
+            .lock()
+            .map_err(|_| "sidecar state lock poisoned".to_string())?;
+        guard.take()
+    };
+
+    if let Some(mut child) = child {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    let mut last_exit = manager
+        .last_exit
+        .lock()
+        .map_err(|_| "sidecar exit state lock poisoned".to_string())?;
+    *last_exit = None;
+    Ok(())
+}
+
 fn socket_is_open(addr: &SocketAddr) -> bool {
     TcpStream::connect_timeout(addr, Duration::from_millis(250)).is_ok()
 }
@@ -328,7 +350,7 @@ fn start_desktop_sidecar(
     state: tauri::State<'_, SidecarManager>,
 ) -> Result<DesktopRuntimeStatus, String> {
     let current = desktop_runtime_status_inner(Some(&app), state.inner());
-    if current.running {
+    if current.running || current.managed {
         return Ok(current);
     }
 
@@ -412,6 +434,7 @@ fn start_desktop_sidecar(
         thread::sleep(Duration::from_millis(250));
     }
 
+    cleanup_failed_start_state(state.inner())?;
     Err(format!(
         "sidecar did not become reachable in time. check log: {}",
         paths.log_path.display()
@@ -475,5 +498,29 @@ mod tests {
             PathBuf::from("sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe")
         );
         assert!(!resource_path.starts_with("resources"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn cleanup_failed_start_state_clears_spawned_child_and_exit_state() {
+        let manager = SidecarManager::default();
+        let child = Command::new("cmd")
+            .args(["/C", "ping 127.0.0.1 -n 30 >NUL"])
+            .spawn()
+            .expect("failed to spawn test child");
+
+        {
+            let mut guard = manager.child.lock().expect("child lock");
+            *guard = Some(child);
+        }
+        {
+            let mut last_exit = manager.last_exit.lock().expect("exit lock");
+            *last_exit = Some(SidecarExitReason::Crashed);
+        }
+
+        cleanup_failed_start_state(&manager).expect("cleanup should succeed");
+
+        assert!(manager.child.lock().expect("child lock").is_none());
+        assert!(manager.last_exit.lock().expect("exit lock").is_none());
     }
 }

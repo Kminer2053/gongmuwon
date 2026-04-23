@@ -80,10 +80,9 @@ class KnowledgeManager:
             raise KeyError(candidate_id)
 
         page_id = str(uuid4())
-        slug = candidate["proposed_page_slug"]
         page_dir = self.paths.knowledge_structured / f"{page_type}s"
         page_dir.mkdir(parents=True, exist_ok=True)
-        page_path = page_dir / f"{slug}.md"
+        slug, page_path = self._available_page_path(page_dir, candidate["proposed_page_slug"])
         title = candidate["title"]
         body = candidate["body"].strip()
         note = (
@@ -234,3 +233,13 @@ class KnowledgeManager:
             "graph_html_path": str(self.graph_html_path),
             "graph_report_path": str(self.graph_report_path),
         }
+
+    def _available_page_path(self, page_dir: Path, slug: str) -> tuple[str, Path]:
+        candidate_slug = slug
+        counter = 2
+        while True:
+            candidate_path = page_dir / f"{candidate_slug}.md"
+            if not candidate_path.exists():
+                return candidate_slug, candidate_path
+            candidate_slug = f"{slug}-{counter}"
+            counter += 1

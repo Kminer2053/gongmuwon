@@ -149,7 +149,7 @@ class DocumentManager:
 
         source_path = Path(content_base["artifact_path"])
         body = source_path.read_text(encoding="utf-8")
-        output_path = self.paths.outputs / self._final_output_filename(request["output_name"])
+        output_path = self._available_output_path(request["output_name"])
         output_path.write_text(body, encoding="utf-8")
 
         applied_at = now_iso()
@@ -243,3 +243,18 @@ class DocumentManager:
         }:
             stem = f"_{stem}"
         return f"{stem}.md"
+
+    def _available_output_path(self, output_name: str) -> Path:
+        filename = self._final_output_filename(output_name)
+        path = self.paths.outputs / filename
+        if not path.exists():
+            return path
+
+        suffix = path.suffix
+        stem = path.stem
+        counter = 2
+        while True:
+            candidate = path.with_name(f"{stem}-{counter}{suffix}")
+            if not candidate.exists():
+                return candidate
+            counter += 1

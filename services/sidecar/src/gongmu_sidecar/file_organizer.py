@@ -18,6 +18,10 @@ class FileOrganizer:
         proposal = self.db.fetch_one("SELECT * FROM file_org_proposals WHERE id = ?", (proposal_id,))
         if proposal is None:
             raise KeyError(proposal_id)
+        if proposal["status"] == "pending_approval":
+            raise ValueError("file organizer proposal already pending approval")
+        if proposal["status"] == "applied":
+            raise ValueError("file organizer proposal already applied")
 
         ticket = self.db.create_approval_ticket(
             target_type="file_org_apply",
@@ -43,6 +47,10 @@ class FileOrganizer:
         proposal = self.db.fetch_one("SELECT * FROM file_org_proposals WHERE id = ?", (proposal_id,))
         if proposal is None:
             raise KeyError(proposal_id)
+        if proposal["status"] == "applied":
+            raise ValueError("file organizer proposal already applied")
+        if proposal["status"] != "pending_approval":
+            raise ValueError("file organizer proposal is not pending approval")
 
         ticket = self.db.fetch_one(
             "SELECT * FROM approval_tickets WHERE target_id = ? AND action = ? ORDER BY requested_at DESC LIMIT 1",
@@ -54,7 +62,7 @@ class FileOrganizer:
             raise PermissionError(proposal_id)
 
         source = Path(proposal["target_path"])
-        destination = Path(proposal["proposed_destination"])
+        destination = self._available_destination_path(Path(proposal["proposed_destination"]))
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 
@@ -82,6 +90,19 @@ class FileOrganizer:
             approval_ticket_id=ticket["id"],
         )
         return {"operation": operation}
+
+    def _available_destination_path(self, destination: Path) -> Path:
+        if not destination.exists():
+            return destination
+
+        suffix = destination.suffix
+        stem = destination.stem
+        counter = 2
+        while True:
+            candidate = destination.with_name(f"{stem}-{counter}{suffix}")
+            if not candidate.exists():
+                return candidate
+            counter += 1
 
     def rollback(self, operation_id: str) -> dict[str, Any]:
         operation = self.db.fetch_one("SELECT * FROM file_org_operations WHERE id = ?", (operation_id,))
