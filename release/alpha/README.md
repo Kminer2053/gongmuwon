@@ -1,6 +1,6 @@
 # Gongmu Alpha Release Staging
 
-- generated_at: 2026-04-22T15:20:01.473Z
+- generated_at: 2026-04-23T01:32:56.024Z
 - product: Gongmu 0.1.0
 - desktop_bundle_ready: yes
 - sidecar_bundle_ready: yes
@@ -12,6 +12,7 @@
 - 2026-04-20-alpha-offline-packaging-runbook.md
 - 2026-04-20-sidecar-packaging-strategy.md
 - 2026-04-20-windows-install-validation.md
+- 2026-04-20-windows-remote-validation-checklist.md
 - 2026-04-21-windows-sidecar-packaging-validation.md
 - 2026-04-21-windows-desktop-sidecar-integration-validation.md
 - 2026-04-22-windows-interactive-install-validation.md
@@ -31,8 +32,10 @@
 ## Next Checks
 - Run npm run verify:all before final release sign-off.
 - Run npm run desktop:bundle when installer artifacts need to be refreshed.
+- Run npm run desktop:prepare:gui before a human GUI install pass on Windows.
 - Run npm run desktop:smoke:msi after MSI-affecting changes on Windows.
 - Run npm run desktop:smoke:nsis after NSIS-affecting changes on Windows.
 - Confirm NSIS installer smoke test with bundled sidecar on the target Windows host.
+- Use the Windows remote validation checklist for the manual GUI lane and close the desktop app before uninstall.
 - Use MSI install-and-uninstall smoke checks instead of administrative extraction when payload proof is needed.
 - Review the latest Anything-to-Documents handoff evidence in the checkpoint board.

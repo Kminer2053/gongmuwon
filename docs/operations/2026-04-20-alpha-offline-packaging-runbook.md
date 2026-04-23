@@ -89,3 +89,11 @@
 2. Python sidecar 독립 배포 전략 확정
 3. `Anything` 동봉 설치 또는 사전 설치 정책 결정
 4. 운영자용 설치 체크리스트를 1페이지 문서로 축약
+
+## 2026-04-23 Operator Addendum
+
+- Primary package refresh command: `npm.cmd run desktop:bundle`
+- Primary automated installer proof: `npm.cmd run desktop:smoke:nsis`
+- Manual GUI helper: `npm.cmd run desktop:prepare:gui`
+- In alpha staging, the sidecar operator note is published as `sidecar-README.md`
+- For manual GUI uninstall validation, close the desktop app first and allow any bundled `gongmu-sidecar.exe` process to exit before uninstalling

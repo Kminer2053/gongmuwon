@@ -96,6 +96,23 @@ The proof path used the bundled sidecar health check from the installed NSIS pay
 - Existing MSI proof remains the automated smoke/fallback path documented in:
   - `docs/operations/2026-04-21-windows-desktop-sidecar-integration-validation.md`
 
+## Later Follow-Up From GUI Click-Through
+
+On April 23, 2026, a human GUI pass on the Windows main machine additionally confirmed:
+
+- the installed desktop window became visible
+- the bundled sidecar could be started from the installed app and reached the connected state
+- the bundled sidecar tree existed under `resources\sidecar\windows-x64\gongmu-sidecar\`
+
+That same GUI pass also observed one minor follow-up:
+
+- uninstall removed `uninstall.exe` but left the install directory behind when the desktop app / bundled sidecar were still running
+
+Current interpretation:
+
+- this is recorded as a known follow-up, not a release blocker for the current batch
+- operators should close the desktop app and allow the bundled sidecar to exit before uninstalling in manual GUI validation
+
 ## Failure Reproduction Notes
 
 - If this flow fails in a future run, start by re-running:

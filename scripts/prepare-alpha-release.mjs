@@ -29,6 +29,7 @@ export const stagedDocuments = [
   "docs/operations/2026-04-20-alpha-offline-packaging-runbook.md",
   "docs/operations/2026-04-20-sidecar-packaging-strategy.md",
   "docs/operations/2026-04-20-windows-install-validation.md",
+  "docs/operations/2026-04-20-windows-remote-validation-checklist.md",
   "docs/operations/2026-04-21-windows-sidecar-packaging-validation.md",
   "docs/operations/2026-04-21-windows-desktop-sidecar-integration-validation.md",
   "docs/operations/2026-04-22-windows-interactive-install-validation.md",
@@ -107,9 +108,11 @@ export function buildManifest() {
     next_checks: [
       "Run npm run verify:all before final release sign-off.",
       "Run npm run desktop:bundle when installer artifacts need to be refreshed.",
+      "Run npm run desktop:prepare:gui before a human GUI install pass on Windows.",
       "Run npm run desktop:smoke:msi after MSI-affecting changes on Windows.",
       "Run npm run desktop:smoke:nsis after NSIS-affecting changes on Windows.",
       "Confirm NSIS installer smoke test with bundled sidecar on the target Windows host.",
+      "Use the Windows remote validation checklist for the manual GUI lane and close the desktop app before uninstall.",
       "Use MSI install-and-uninstall smoke checks instead of administrative extraction when payload proof is needed.",
       "Review the latest Anything-to-Documents handoff evidence in the checkpoint board.",
     ],
@@ -152,6 +155,7 @@ export function buildReadme(manifest) {
 }
 
 export function prepareAlphaRelease() {
+  fs.rmSync(releaseRoot, { recursive: true, force: true });
   ensureDir(releaseRoot);
 
   for (const sourceRelativePath of stagedDocuments) {

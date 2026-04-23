@@ -12,6 +12,11 @@ assert.ok(
 );
 
 assert.ok(
+  stagedDocuments.includes("docs/operations/2026-04-20-windows-remote-validation-checklist.md"),
+  "alpha staging should include the Windows remote validation checklist for the GUI lane",
+);
+
+assert.ok(
   stagedDocuments.includes("docs/superpowers/plans/2026-04-20-gongmu-mvp-checkpoint-board.md"),
   "alpha staging should include the checkpoint board for the latest handoff evidence",
 );
@@ -35,8 +40,25 @@ assert.ok(
 );
 
 assert.ok(
+  manifest.staged_documents.includes("2026-04-20-windows-remote-validation-checklist.md"),
+  "manifest should advertise the Windows remote validation checklist",
+);
+
+assert.ok(
   manifest.next_checks.includes("Review the latest Anything-to-Documents handoff evidence in the checkpoint board."),
   "manifest should surface the latest handoff verification follow-up",
+);
+
+assert.ok(
+  manifest.next_checks.includes("Run npm run desktop:prepare:gui before a human GUI install pass on Windows."),
+  "manifest should surface the GUI helper command for the manual validation lane",
+);
+
+assert.ok(
+  manifest.next_checks.includes(
+    "Use the Windows remote validation checklist for the manual GUI lane and close the desktop app before uninstall.",
+  ),
+  "manifest should remind operators about the close-before-uninstall rule for GUI validation",
 );
 
 console.log("prepare-alpha-release checks passed");
