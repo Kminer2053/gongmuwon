@@ -95,6 +95,7 @@ release/alpha/             알파 릴리스 문서 스테이징
 
 ## 문서
 
+- [사용자 매뉴얼](docs/user-manual/gongmu-user-manual.html)
 - [기술 부속문서](docs/TECHNICAL.md)
 - [현재 구현 스펙](docs/operations/2026-05-06-current-implementation-spec.md)
 - [최신 UI/기능 검증 보고서](docs/operations/2026-05-20-second-feedback-ui-validation-report.md)

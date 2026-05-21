@@ -22,5 +22,8 @@
     "release:offline": "node scripts/prepare-offline-release.mjs",
     "release:alpha": "node scripts/prepare-alpha-release.mjs",
     "verify:all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0"
   }
 }
