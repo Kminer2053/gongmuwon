@@ -1,7 +1,8 @@
-# Gongmu Alpha Release Staging
+# 로컬 AI에이전트 워크플레이스 : 공무원 Alpha Release Staging
 
 - generated_at: 2026-04-25T16:46:21.448Z
-- product: Gongmu 0.1.0
+- product: 로컬 AI에이전트 워크플레이스 : 공무원 0.1.0
+- internal_codename: Gongmu
 - desktop_bundle_ready: yes
 - sidecar_bundle_ready: yes
 - desktop_bundle_targets: msi, nsis

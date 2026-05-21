@@ -326,7 +326,7 @@ describe("App shell", () => {
   it("keeps the topbar compact with zoom buttons and no duplicated status pills", async () => {
     render(<App />);
 
-    await screen.findByText("로컬 AI 업무 에이전트 워크플레이스 : 공무원");
+    await screen.findByText("로컬 AI에이전트 워크플레이스 : 공무원");
 
     expect(screen.queryByTestId("workspace-header-summary")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "화면 축소" })).toBeInTheDocument();

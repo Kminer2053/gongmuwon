@@ -140,7 +140,7 @@ describe("menu zoom integration", () => {
   it("updates the zoom badge when a zoom-scale event arrives", async () => {
     render(<App />);
 
-    await screen.findByText("로컬 AI 업무 에이전트 워크플레이스 : 공무원");
+    await screen.findByText("로컬 AI에이전트 워크플레이스 : 공무원");
     expect(screen.getByText("100%")).toBeInTheDocument();
 
     await act(async () => {
@@ -153,7 +153,7 @@ describe("menu zoom integration", () => {
   it("shows a notice when a zoom-blocked event arrives", async () => {
     render(<App />);
 
-    await screen.findByText("로컬 AI 업무 에이전트 워크플레이스 : 공무원");
+    await screen.findByText("로컬 AI에이전트 워크플레이스 : 공무원");
 
     await act(async () => {
       window.dispatchEvent(

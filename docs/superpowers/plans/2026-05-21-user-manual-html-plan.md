@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 처음 설치/이용하는 사용자를 위한 Gongmu 사용자 매뉴얼을 실제 앱 스크린샷 기반의 A4 가로 HTML 문서로 제작한다.
+**Goal:** 처음 설치/이용하는 사용자를 위한 `로컬 AI에이전트 워크플레이스 : 공무원` 사용자 매뉴얼을 실제 앱 스크린샷 기반의 A4 가로 HTML 문서로 제작한다.
 
 **Architecture:** 실제 업무엔진과 데스크톱 React UI를 개발 서버로 기동한 뒤 Playwright로 전체화면 스크린샷을 확보한다. 매뉴얼은 `docs/user-manual/` 아래에 HTML과 이미지 asset을 함께 두고, `@page size: A4 landscape` 및 print media CSS로 출력 품질을 맞춘다.
 

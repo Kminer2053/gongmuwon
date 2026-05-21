@@ -1,6 +1,6 @@
-# Gongmu
+# 로컬 AI에이전트 워크플레이스 : 공무원
 
-> 공공분야 사무업무자를 위한 로컬 우선 AI 업무 에이전트 워크플레이스
+> 공공분야 사무업무자를 위한 보안 걱정 없는 로컬 우선 업무공간
 
 ![Windows](https://img.shields.io/badge/Windows-11%20%7C%20x64-111111)
 ![Tauri](https://img.shields.io/badge/Tauri-2-111111)
@@ -8,7 +8,9 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.11-111111)
 ![Local First](https://img.shields.io/badge/Local--first-폐쇄망%20대응-111111)
 
-Gongmu는 일정, 업무대화, 파일찾기, 지식폴더, 문서작성, 실행기록을 하나의 로컬 작업공간으로 연결하는 Windows 데스크톱 앱입니다. 단순 챗봇이 아니라 사용자의 업무 폴더와 대화 기록을 기반으로 업무 맥락을 쌓고, 필요한 자료를 찾아 문서 산출까지 이어가는 개인 업무 기억 시스템을 목표로 합니다.
+로컬 AI에이전트 워크플레이스 : 공무원은 일정, 업무대화, 파일찾기, 지식폴더, 문서작성, 실행기록을 하나의 로컬 작업공간으로 연결하는 Windows 데스크톱 앱입니다. 단순 챗봇이 아니라 사용자의 업무 폴더와 대화 기록을 기반으로 업무 맥락을 쌓고, 필요한 자료를 찾아 문서 산출까지 이어가는 개인 업무 기억 시스템을 목표로 합니다.
+
+내부 코드명과 설치 파일명에는 호환성을 위해 `Gongmu` 표기가 일부 남아 있습니다.
 
 ## 핵심 가치
 
@@ -59,7 +61,7 @@ npm.cmd run release:offline
 
 ```mermaid
 flowchart LR
-  A[User] --> B[Gongmu Desktop]
+  A[User] --> B[Desktop App]
   B --> C[Work Engine API]
   C --> D[SQLite Workspace]
   C --> E[Local File System]
@@ -72,7 +74,7 @@ flowchart LR
 
 | 구성요소 | 역할 |
 | --- | --- |
-| Gongmu Desktop | Tauri + React 기반 Windows 데스크톱 UI |
+| Desktop App | Tauri + React 기반 Windows 데스크톱 UI |
 | Work Engine API | Python FastAPI 기반 로컬 업무엔진 |
 | SQLite Workspace | 세션, 일정, 설정, 실행기록, 그래프 mirror 저장 |
 | Local File System | 지식폴더, 첨부파일, 문서 산출물, 로컬 파일찾기 대상 |
@@ -103,7 +105,7 @@ release/alpha/             알파 릴리스 문서 스테이징
 
 ## 현재 상태
 
-Gongmu는 MVP 이후 기능 고도화 단계입니다. 업무대화 중심 레이아웃, 자체 파일찾기, 지식폴더 GraphRAG, 문서작성 HWPX 흐름, Windows NSIS 패키징이 구현되어 있습니다. 실제 기관 양식 HWPX 렌더링 품질, 대규모 지식폴더 파서 품질, 폐쇄망 PC별 LLM endpoint 구성은 계속 검증해야 하는 운영 항목입니다.
+로컬 AI에이전트 워크플레이스 : 공무원은 MVP 이후 기능 고도화 단계입니다. 업무대화 중심 레이아웃, 자체 파일찾기, 지식폴더 GraphRAG, 문서작성 HWPX 흐름, Windows NSIS 패키징이 구현되어 있습니다. 실제 기관 양식 HWPX 렌더링 품질, 대규모 지식폴더 파서 품질, 폐쇄망 PC별 LLM endpoint 구성은 계속 검증해야 하는 운영 항목입니다.
 
 ## 라이선스
 

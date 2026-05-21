@@ -1,6 +1,8 @@
-# Gongmu Sidecar
+# 로컬 AI에이전트 워크플레이스 : 공무원 업무엔진
 
-Python FastAPI sidecar for the Gongmu local-first workspace.
+Python FastAPI 업무엔진 for 로컬 AI에이전트 워크플레이스 : 공무원.
+
+내부 패키지명과 설치 산출물에는 호환성을 위해 `Gongmu`와 `sidecar` 표기가 일부 남아 있습니다.
 
 ## Dev Commands
 

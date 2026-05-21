@@ -7513,7 +7513,7 @@ export function App() {
             <div className="brand-card__main">
               <div>
                 <p className="brand-card__eyebrow">공공분야 사무업무자를 위한 보안 걱정 없는 로컬 우선 업무공간</p>
-                <h1>로컬 AI 업무 에이전트 워크플레이스 : 공무원</h1>
+                <h1>로컬 AI에이전트 워크플레이스 : 공무원</h1>
                 <p>일정, 업무대화, 파일찾기, 지식폴더, 문서작성, 실행기록을 로컬 우선으로 연결합니다.</p>
               </div>
               <div className="shell-topbar__current" data-testid="shell-topbar-current">
