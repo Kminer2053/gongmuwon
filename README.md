@@ -59,16 +59,27 @@ npm.cmd run release:offline
 
 ```mermaid
 flowchart LR
-  user["사용자"] --> desktop["Gongmu Desktop<br/>Tauri + React"]
-  desktop --> engine["업무엔진<br/>Python FastAPI"]
-  engine --> sqlite["SQLite<br/>작업공간/세션/일정/로그"]
-  engine --> files["로컬 파일시스템<br/>업무폴더/첨부파일"]
-  engine --> rag["GraphRAG Pipeline<br/>parser/chunk/embedding/graph"]
-  rag --> chroma["ChromaDB optional<br/>vector store"]
-  rag --> graph["SQLite graph mirror<br/>업무지식 관계"]
-  engine --> llm["로컬/내부/외부 LLM<br/>Ollama/OpenAI-compatible/etc."]
-  engine --> docs["문서작성<br/>Content Base -> HWPX"]
+  A[User] --> B[Gongmu Desktop]
+  B --> C[Work Engine API]
+  C --> D[SQLite Workspace]
+  C --> E[Local File System]
+  C --> F[GraphRAG Pipeline]
+  F --> G[ChromaDB Vector Store]
+  F --> H[SQLite Graph Mirror]
+  C --> I[LLM Providers]
+  C --> J[Document Authoring]
 ```
+
+| 구성요소 | 역할 |
+| --- | --- |
+| Gongmu Desktop | Tauri + React 기반 Windows 데스크톱 UI |
+| Work Engine API | Python FastAPI 기반 로컬 업무엔진 |
+| SQLite Workspace | 세션, 일정, 설정, 실행기록, 그래프 mirror 저장 |
+| Local File System | 지식폴더, 첨부파일, 문서 산출물, 로컬 파일찾기 대상 |
+| GraphRAG Pipeline | parser, chunking, embedding, ontology, retrieval 처리 |
+| ChromaDB Vector Store | 선택형 vector backend |
+| LLM Providers | Ollama, 내부 서버, OpenAI-compatible, OpenRouter, Claude, Gemini, NVIDIA NIM |
+| Document Authoring | Content Base에서 HWPX/보고서 산출 흐름으로 연결 |
 
 ## 저장소 구조
 
