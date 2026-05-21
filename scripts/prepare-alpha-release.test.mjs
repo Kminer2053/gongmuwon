@@ -12,6 +12,16 @@ assert.ok(
 );
 
 assert.ok(
+  stagedDocuments.includes("docs/operations/2026-04-23-anything-external-integration-validation.md"),
+  "alpha staging should include the Anything external integration validation doc",
+);
+
+assert.ok(
+  stagedDocuments.includes("docs/operations/2026-04-23-functional-validation-results.md"),
+  "alpha staging should include the latest functional validation results doc",
+);
+
+assert.ok(
   stagedDocuments.includes("docs/operations/2026-04-20-windows-remote-validation-checklist.md"),
   "alpha staging should include the Windows remote validation checklist for the GUI lane",
 );
@@ -40,6 +50,16 @@ assert.ok(
 );
 
 assert.ok(
+  manifest.staged_documents.includes("2026-04-23-anything-external-integration-validation.md"),
+  "manifest should advertise the Anything external integration validation doc",
+);
+
+assert.ok(
+  manifest.staged_documents.includes("2026-04-23-functional-validation-results.md"),
+  "manifest should advertise the latest functional validation results doc",
+);
+
+assert.ok(
   manifest.staged_documents.includes("2026-04-20-windows-remote-validation-checklist.md"),
   "manifest should advertise the Windows remote validation checklist",
 );
@@ -47,6 +67,21 @@ assert.ok(
 assert.ok(
   manifest.next_checks.includes("Review the latest Anything-to-Documents handoff evidence in the checkpoint board."),
   "manifest should surface the latest handoff verification follow-up",
+);
+
+assert.ok(
+  manifest.next_checks.includes("Run npm run desktop:prepare:anything before Anything external-integration checks."),
+  "manifest should surface the Anything helper command",
+);
+
+assert.ok(
+  manifest.next_checks.includes("Review the Anything external integration validation note before release sign-off."),
+  "manifest should remind operators about the Anything integration validation note",
+);
+
+assert.ok(
+  manifest.next_checks.includes("Review the latest functional validation results before changing IA or workflow behavior."),
+  "manifest should remind operators to review the latest functional validation results",
 );
 
 assert.ok(

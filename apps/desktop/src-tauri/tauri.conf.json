@@ -7,12 +7,12 @@
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173"
+    "devUrl": "http://127.0.0.1:5173"
   },
   "app": {
     "windows": [
       {
-        "title": "공무 워크스페이스",
+        "title": "공무 업무 에이전트",
         "width": 1440,
         "height": 960,
         "resizable": true
@@ -24,8 +24,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": "nsis",
     "windows": {
+      "webviewInstallMode": {
+        "type": "offlineInstaller",
+        "silent": true
+      },
       "wix": {
         "template": "windows/main.wxs"
       }

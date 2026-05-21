@@ -1,34 +1,98 @@
 from __future__ import annotations
 
+import json
+import mimetypes
+import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from queue import Queue
+from threading import Thread
+from time import perf_counter
 from typing import Any, Literal
-from urllib.parse import quote
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
 from .db import Database, now_iso
+from .document_parsers import parse_document
 from .documents import DocumentManager
+from .embeddings import embed_text
 from .file_organizer import FileOrganizer
+from .graphrag_backends import ChromaVectorBackend
+from .graphrag_ingestion import GraphRAGIngestionManager
+from .kordoc_bridge import kordoc_status
 from .knowledge import KnowledgeManager
-from .settings import SidecarSettings, WorkspaceSettingsResponse
+from .local_file_search import (
+    compact_filename_text,
+    scan_local_files_for_index,
+    score_filename,
+    search_local_files_by_name,
+)
+from .llm import LLMGenerationError, generate_session_reply, generate_session_reply_streaming
+from .personalization import PersonalizationManager
+from .settings import SidecarSettings, WorkspaceSettingsResponse, WorkspaceSettingsUpdate
 from .tools import TOOLS
 from .workspace import WorkspacePaths, ensure_workspace
+
+ANYTHING_RELEASES_URL = "https://github.com/chrisryugj/Docufinder/releases"
 
 
 class ScheduleCreate(BaseModel):
     title: str
     starts_at: str
     ends_at: str
-    view: Literal["month", "week", "list"] = "list"
+    view: Literal["month", "week", "day"] = "day"
+
+
+class ScheduleUpdate(BaseModel):
+    title: str
+    starts_at: str
+    ends_at: str
+    view: Literal["month", "week", "day"] = "day"
 
 
 class WorkSessionCreate(BaseModel):
     title: str
     schedule_id: str | None = None
+
+
+class WorkSessionUpdate(BaseModel):
+    schedule_id: str | None = None
+
+
+class WorkSessionMessageCreate(BaseModel):
+    role: Literal["user", "assistant"] = "user"
+    text: str
+    message_type: Literal["chat", "note", "system"] = "chat"
+    status: Literal["pending", "streaming", "completed", "failed"] = "completed"
+    provider: str | None = None
+    model: str | None = None
+    latency_ms: int | None = None
+
+
+class WorkSessionTurnRequest(BaseModel):
+    text: str
+    attachment_ids: list[str] = Field(default_factory=list)
+    model_override: str | None = None
+    reasoning_effort: Literal["auto", "minimal", "low", "medium", "high"] = "auto"
+
+
+class WorkSessionFileLinkInput(BaseModel):
+    file_path: str
+    label: str | None = None
+    source: Literal["manual", "anything", "knowledge", "attachment"] = "manual"
+
+
+class WorkSessionFileLinksCreate(BaseModel):
+    items: list[WorkSessionFileLinkInput] = Field(default_factory=list)
+
+
+class LLMConnectionTestRequest(BaseModel):
+    prompt: str = "간단한 상태 점검 응답을 한 문장으로 돌려주세요."
 
 
 class ReferenceItemInput(BaseModel):
@@ -53,11 +117,49 @@ class CandidateApproveRequest(BaseModel):
     page_type: Literal["topic", "project", "issue", "entity"] = "topic"
 
 
+class KnowledgeSourceCreate(BaseModel):
+    label: str
+    root_path: str
+
+
+class KnowledgeIngestRequest(BaseModel):
+    source_id: str
+    run_now: bool = True
+    background: bool = False
+
+
+class KnowledgeRetrieveRequest(BaseModel):
+    query: str
+    session_id: str | None = None
+    limit: int = 5
+
+
+class KnowledgeParseDocumentRequest(BaseModel):
+    file_path: str
+
+
+class PersonalizationDecisionRequest(BaseModel):
+    status: Literal["approved", "rejected"]
+
+
 class ContentBaseCreate(BaseModel):
     title: str
     purpose: str
     reference_set_id: str | None = None
     template_key: Literal["report", "meeting", "review"] = "report"
+    source_session_id: str | None = None
+    outline: str = ""
+    document_format: Literal["auto", "officialMemo", "onePageReport", "fullReport", "email"] = "auto"
+    audience_type: str = ""
+    expected_length: str = ""
+    urgency_level: str = ""
+    needs_traceability: str = ""
+    requires_official_form: str = ""
+    requested_action: str = ""
+    deadline: str = ""
+    security_level: str = ""
+    direct_file_paths: list[str] = Field(default_factory=list)
+    user_template_path: str | None = None
 
 
 class FinalDocumentFinalizeRequest(BaseModel):
@@ -86,12 +188,183 @@ class ApprovalDecisionRequest(BaseModel):
 
 class AppServices:
     def __init__(self, workspace_root: Path | str | None = None) -> None:
-        self.settings = SidecarSettings()
         self.paths: WorkspacePaths = ensure_workspace(workspace_root)
+        self.settings = SidecarSettings.load(self.paths.config_file)
+        self._ensure_personalization_root()
         self.db = Database(self.paths)
         self.knowledge = KnowledgeManager(self.paths, self.db)
+        self.graphrag = GraphRAGIngestionManager(
+            self.db,
+            embedding_provider=self._embed_for_graphrag,
+            vector_backend=self._create_graphrag_vector_backend(),
+        )
+        self.graphrag.recover_interrupted_jobs()
+        self.personalization = PersonalizationManager(self.db)
         self.documents = DocumentManager(self.paths, self.db)
         self.file_organizer = FileOrganizer(self.paths, self.db)
+
+    @property
+    def personalization_root(self) -> Path:
+        if self.settings.personalization_root:
+            return Path(self.settings.personalization_root).expanduser().resolve()
+        return self.paths.personalization_root
+
+    def _ensure_personalization_root(self) -> None:
+        root = self.personalization_root
+        for path in (
+            root,
+            root / "session-summaries",
+            root / "work-patterns",
+            root / "user-preferences",
+            root / "entity-aliases",
+            root / "extraction-rules",
+            root / "feedback-signals",
+            root / "audit-log",
+        ):
+            path.mkdir(parents=True, exist_ok=True)
+
+    def _create_graphrag_vector_backend(self) -> ChromaVectorBackend | None:
+        if self.settings.graphrag_vector_backend != "chromadb":
+            return None
+        return ChromaVectorBackend(self.paths.knowledge_graph / "chroma")
+
+    def _embed_for_graphrag(self, text: str):
+        return embed_text(
+            text,
+            provider=self.settings.embedding_provider,
+            model=self.settings.embedding_model,
+            base_url=self.settings.embedding_base_url,
+            fallback=self.settings.embedding_fallback_enabled,
+        )
+
+    def _serialize_attachment(self, record: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": record["id"],
+            "session_id": record["session_id"],
+            "message_id": record.get("message_id"),
+            "file_name": record["file_name"],
+            "mime_type": record.get("mime_type"),
+            "stored_path": record["stored_path"],
+            "size_bytes": record["size_bytes"],
+            "text_excerpt": record.get("text_excerpt"),
+            "created_at": record["created_at"],
+        }
+
+    def _serialize_work_session_messages(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        if not records:
+            return []
+
+        message_ids = [record["id"] for record in records]
+        placeholders = ", ".join("?" for _ in message_ids)
+        attachments = self.db.fetch_all(
+            f"SELECT * FROM work_session_attachments WHERE message_id IN ({placeholders}) ORDER BY created_at ASC",
+            tuple(message_ids),
+        )
+        attachments_by_message: dict[str, list[dict[str, Any]]] = {}
+        for attachment in attachments:
+            attachments_by_message.setdefault(attachment["message_id"], []).append(
+                self._serialize_attachment(attachment)
+            )
+
+        return [
+            {
+                **record,
+                "attachments": attachments_by_message.get(record["id"], []),
+            }
+            for record in records
+        ]
+
+    def _serialize_work_session(self, record: dict[str, Any]) -> dict[str, Any]:
+        messages = self.db.fetch_all(
+            "SELECT * FROM work_session_messages WHERE session_id = ? ORDER BY created_at ASC",
+            (record["id"],),
+        )
+        return {
+            **record,
+            "messages": self._serialize_work_session_messages(messages),
+        }
+
+    def create_work_session_attachments(
+        self, session_id: str, files: list[tuple[str, str | None, bytes]]
+    ) -> list[dict[str, Any]]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+
+        attachment_root = self.paths.cache / "attachments" / session_id
+        attachment_root.mkdir(parents=True, exist_ok=True)
+
+        created: list[dict[str, Any]] = []
+        for original_name, mime_type, payload in files:
+            safe_name = Path(original_name or "attachment.bin").name or "attachment.bin"
+            stored_name = f"{uuid4()}-{safe_name}"
+            stored_path = attachment_root / stored_name
+            stored_path.write_bytes(payload)
+
+            excerpt: str | None = None
+            guessed_mime = mime_type or mimetypes.guess_type(safe_name)[0]
+            if guessed_mime and guessed_mime.startswith("text/"):
+                excerpt = payload.decode("utf-8", errors="ignore")[:4000].strip() or None
+            elif safe_name.lower().endswith((".md", ".txt", ".json", ".csv", ".py", ".ts", ".tsx", ".js")):
+                excerpt = payload.decode("utf-8", errors="ignore")[:4000].strip() or None
+
+            record = {
+                "id": str(uuid4()),
+                "session_id": session_id,
+                "message_id": None,
+                "file_name": safe_name,
+                "mime_type": guessed_mime,
+                "stored_path": str(stored_path),
+                "size_bytes": len(payload),
+                "text_excerpt": excerpt,
+                "created_at": now_iso(),
+            }
+            self.db.insert("work_session_attachments", record)
+            created.append(self._serialize_attachment(record))
+
+        self.db.log(
+            feature="chat",
+            action="work_session.attachments.created",
+            status="success",
+            inputs={"session_id": session_id, "count": len(created)},
+            outputs={"attachment_ids": [item["id"] for item in created]},
+        )
+        return created
+
+    def assign_work_session_attachments(
+        self, session_id: str, message_id: str, attachment_ids: list[str]
+    ) -> list[dict[str, Any]]:
+        if not attachment_ids:
+            return []
+
+        placeholders = ", ".join("?" for _ in attachment_ids)
+        rows = self.db.fetch_all(
+            f"SELECT * FROM work_session_attachments WHERE id IN ({placeholders})",
+            tuple(attachment_ids),
+        )
+        by_id = {row["id"]: row for row in rows}
+        attached: list[dict[str, Any]] = []
+        for attachment_id in attachment_ids:
+            row = by_id.get(attachment_id)
+            if not row or row["session_id"] != session_id:
+                continue
+            self.db.execute(
+                "UPDATE work_session_attachments SET message_id = ? WHERE id = ?",
+                (message_id, attachment_id),
+            )
+            updated = self.db.fetch_one("SELECT * FROM work_session_attachments WHERE id = ?", (attachment_id,))
+            if updated:
+                attached.append(self._serialize_attachment(updated))
+        return attached
+
+    def _build_attachment_prompt_block(self, attachments: list[dict[str, Any]]) -> str:
+        lines = ["[Attached files]"]
+        for attachment in attachments:
+            line = f"- {attachment['file_name']} ({attachment.get('mime_type') or 'unknown'}, {attachment['size_bytes']} bytes)"
+            lines.append(line)
+            if attachment.get("text_excerpt"):
+                lines.append(f"  excerpt: {attachment['text_excerpt']}")
+        return "\n".join(lines)
 
     def create_schedule(self, payload: ScheduleCreate) -> dict[str, Any]:
         record = {
@@ -115,6 +388,102 @@ class AppServices:
     def list_schedules(self) -> list[dict[str, Any]]:
         return self.db.fetch_all("SELECT * FROM schedules ORDER BY starts_at ASC")
 
+    def update_schedule(self, schedule_id: str, payload: ScheduleUpdate) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM schedules WHERE id = ?", (schedule_id,))
+        if not existing:
+            raise KeyError(schedule_id)
+
+        self.db.execute(
+            """
+            UPDATE schedules
+            SET title = ?, starts_at = ?, ends_at = ?, view = ?
+            WHERE id = ?
+            """,
+            (payload.title, payload.starts_at, payload.ends_at, payload.view, schedule_id),
+        )
+        updated = self.db.fetch_one("SELECT * FROM schedules WHERE id = ?", (schedule_id,))
+        assert updated is not None
+        self.db.log(
+            feature="schedule",
+            action="schedule.updated",
+            status="success",
+            inputs={"schedule_id": schedule_id, **payload.model_dump()},
+            outputs={"schedule_id": schedule_id},
+        )
+        return updated
+
+    def delete_schedule(self, schedule_id: str) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM schedules WHERE id = ?", (schedule_id,))
+        if not existing:
+            raise KeyError(schedule_id)
+        self.db.execute("UPDATE work_sessions SET schedule_id = NULL WHERE schedule_id = ?", (schedule_id,))
+        self.db.execute("DELETE FROM schedules WHERE id = ?", (schedule_id,))
+        self.db.log(
+            feature="schedule",
+            action="schedule.deleted",
+            status="success",
+            inputs={"schedule_id": schedule_id},
+            outputs={"schedule_id": schedule_id, "title": existing["title"]},
+        )
+        return {"id": schedule_id, "deleted": True, "schedule": existing}
+
+    def update_settings(self, payload: WorkspaceSettingsUpdate) -> WorkspaceSettingsResponse:
+        self.settings = self.settings.apply_update(payload)
+        self._ensure_personalization_root()
+        self.graphrag.vector_backend = self._create_graphrag_vector_backend()
+        self.settings.persist(self.paths.config_file)
+        self.db.log(
+            feature="settings",
+            action="settings.updated",
+            status="success",
+            inputs=payload.model_dump(),
+            outputs={
+                "llm_mode": self.settings.llm_mode,
+                "llm_provider": self.settings.llm_provider,
+                "llm_model": self.settings.llm_model,
+                "llm_api_key": "***" if self.settings.llm_api_key else None,
+                "llm_site_url": self.settings.llm_site_url,
+                "llm_application_name": self.settings.llm_application_name,
+                "llm_profiles": self.settings.llm_profiles.model_dump(),
+                "default_template_key": self.settings.default_template_key,
+                "internal_api_base_url": self.settings.internal_api_base_url,
+                "personalization_apply_mode": self.settings.personalization_apply_mode,
+                "personalization_root": str(self.personalization_root),
+                "embedding_provider": self.settings.embedding_provider,
+                "embedding_model": self.settings.embedding_model,
+                "embedding_base_url": self.settings.embedding_base_url,
+                "embedding_fallback_enabled": self.settings.embedding_fallback_enabled,
+                "graphrag_vector_backend": self.settings.graphrag_vector_backend,
+            },
+        )
+        return WorkspaceSettingsResponse(
+            defaults={
+                "llm_mode": self.settings.llm_mode,
+                "llm_provider": self.settings.llm_provider,
+                "llm_model": self.settings.llm_model,
+                "llm_api_key": self.settings.llm_api_key,
+                "llm_site_url": self.settings.llm_site_url,
+                "llm_application_name": self.settings.llm_application_name,
+                "profiles": self.settings.llm_profiles,
+                "anything_launch_mode": self.settings.anything_launch_mode,
+                "default_template_key": self.settings.default_template_key,
+                "internal_api_base_url": self.settings.internal_api_base_url,
+                "personalization_apply_mode": self.settings.personalization_apply_mode,
+                "embedding_provider": self.settings.embedding_provider,
+                "embedding_model": self.settings.embedding_model,
+                "embedding_base_url": self.settings.embedding_base_url,
+                "embedding_fallback_enabled": self.settings.embedding_fallback_enabled,
+                "graphrag_vector_backend": self.settings.graphrag_vector_backend,
+            },
+            paths={
+                "workspace_root": str(self.paths.root),
+                "database": str(self.paths.db_file),
+                "knowledge_root": str(self.paths.knowledge_root),
+                "documents_root": str(self.paths.documents_root),
+                "personalization_root": str(self.personalization_root),
+            },
+        )
+
     def create_work_session(self, payload: WorkSessionCreate) -> dict[str, Any]:
         record = {
             "id": str(uuid4()),
@@ -131,10 +500,1315 @@ class AppServices:
             inputs=payload.model_dump(),
             outputs={"session_id": record["id"]},
         )
-        return record
+        return self._serialize_work_session(record)
 
     def list_work_sessions(self) -> list[dict[str, Any]]:
-        return self.db.fetch_all("SELECT * FROM work_sessions ORDER BY created_at DESC")
+        return [
+            self._serialize_work_session(item)
+            for item in self.db.fetch_all("SELECT * FROM work_sessions ORDER BY created_at DESC")
+        ]
+
+    def update_work_session(self, session_id: str, payload: WorkSessionUpdate) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+
+        self.db.execute(
+            "UPDATE work_sessions SET schedule_id = ? WHERE id = ?",
+            (payload.schedule_id, session_id),
+        )
+        updated = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        assert updated is not None
+        self.db.log(
+            feature="chat",
+            action="work_session.updated",
+            status="success",
+            inputs={"session_id": session_id, **payload.model_dump()},
+            outputs={"session_id": session_id, "schedule_id": updated["schedule_id"]},
+        )
+        return self._serialize_work_session(updated)
+
+    def list_work_session_file_links(self, session_id: str) -> list[dict[str, Any]]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+        return self.db.fetch_all(
+            "SELECT * FROM work_session_file_links WHERE session_id = ? ORDER BY created_at DESC",
+            (session_id,),
+        )
+
+    def create_work_session_file_links(
+        self,
+        session_id: str,
+        payload: WorkSessionFileLinksCreate,
+    ) -> list[dict[str, Any]]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+
+        created: list[dict[str, Any]] = []
+        for item in payload.items:
+            file_path = item.file_path.strip()
+            if not file_path:
+                continue
+            label = (item.label or "").strip() or Path(file_path).name
+            duplicate = self.db.fetch_one(
+                "SELECT * FROM work_session_file_links WHERE session_id = ? AND file_path = ?",
+                (session_id, file_path),
+            )
+            if duplicate is not None:
+                self.db.execute(
+                    "UPDATE work_session_file_links SET label = ?, source = ? WHERE id = ?",
+                    (label, item.source, duplicate["id"]),
+                )
+                updated = self.db.fetch_one(
+                    "SELECT * FROM work_session_file_links WHERE id = ?",
+                    (duplicate["id"],),
+                )
+                if updated is not None:
+                    created.append(updated)
+                continue
+
+            record = {
+                "id": str(uuid4()),
+                "session_id": session_id,
+                "file_path": file_path,
+                "label": label,
+                "source": item.source,
+                "created_at": now_iso(),
+            }
+            self.db.insert("work_session_file_links", record)
+            created.append(record)
+
+        self.db.log(
+            feature="chat",
+            action="work_session.file_links.created",
+            status="success",
+            inputs={"session_id": session_id, "count": len(payload.items)},
+            outputs={"created_count": len(created)},
+        )
+        return created
+
+    def delete_work_session_file_link(self, session_id: str, link_id: str) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+        link = self.db.fetch_one(
+            "SELECT * FROM work_session_file_links WHERE id = ? AND session_id = ?",
+            (link_id, session_id),
+        )
+        if not link:
+            raise KeyError(link_id)
+
+        self.db.execute("DELETE FROM work_session_file_links WHERE id = ?", (link_id,))
+        self.db.log(
+            feature="chat",
+            action="work_session.file_link.deleted",
+            status="success",
+            inputs={"session_id": session_id, "link_id": link_id},
+            outputs={"deleted": True},
+        )
+        return {"id": link_id, "deleted": True}
+
+    def build_work_session_graph(self, session_id: str) -> dict[str, Any]:
+        session = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if session is None:
+            raise KeyError(session_id)
+
+        nodes: list[dict[str, Any]] = [
+            {
+                "id": f"session:{session_id}",
+                "label": session["title"],
+                "node_type": "work_session",
+            }
+        ]
+        edges: list[dict[str, Any]] = []
+        seen_nodes = {f"session:{session_id}"}
+
+        file_links = self.list_work_session_file_links(session_id)
+        for link in file_links:
+            linked_node_id = f"linked_file:{link['id']}"
+            nodes.append(
+                {
+                    "id": linked_node_id,
+                    "label": link["label"] or Path(link["file_path"]).name,
+                    "node_type": "linked_file",
+                    "path": link["file_path"],
+                    "source": link["source"],
+                }
+            )
+            seen_nodes.add(linked_node_id)
+            edges.append(
+                {
+                    "source": f"session:{session_id}",
+                    "target": linked_node_id,
+                    "relation": "links_file",
+                }
+            )
+
+            source_file = self.db.fetch_one(
+                "SELECT * FROM knowledge_source_files WHERE file_path = ? AND status != ?",
+                (link["file_path"], "deleted"),
+            )
+            if source_file is None:
+                continue
+
+            source_file_node_id = f"source_file:{source_file['id']}"
+            if source_file_node_id not in seen_nodes:
+                nodes.append(
+                    {
+                        "id": source_file_node_id,
+                        "label": source_file["title"] or source_file["relative_path"],
+                        "node_type": "source_file",
+                        "path": source_file["file_path"],
+                        "status": source_file["status"],
+                    }
+                )
+                seen_nodes.add(source_file_node_id)
+            edges.append(
+                {
+                    "source": linked_node_id,
+                    "target": source_file_node_id,
+                    "relation": "indexed_as",
+                }
+            )
+
+            source = self.db.fetch_one(
+                "SELECT * FROM knowledge_sources WHERE id = ?",
+                (source_file["source_id"],),
+            )
+            if source is None:
+                continue
+            source_node_id = f"source_folder:{source['id']}"
+            if source_node_id not in seen_nodes:
+                nodes.append(
+                    {
+                        "id": source_node_id,
+                        "label": source["label"],
+                        "node_type": "source_folder",
+                        "path": source["root_path"],
+                    }
+                )
+                seen_nodes.add(source_node_id)
+            edges.append(
+                {
+                    "source": source_node_id,
+                    "target": source_file_node_id,
+                    "relation": "contains",
+                }
+            )
+
+        return {
+            "session_id": session_id,
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "nodes": nodes,
+            "edges": edges,
+        }
+
+    def create_work_session_message(
+        self, session_id: str, payload: WorkSessionMessageCreate
+    ) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+
+        record = {
+            "id": str(uuid4()),
+            "session_id": session_id,
+            "role": payload.role,
+            "text": payload.text.strip(),
+            "message_type": payload.message_type,
+            "status": payload.status,
+            "provider": payload.provider,
+            "model": payload.model,
+            "latency_ms": payload.latency_ms,
+            "created_at": now_iso(),
+        }
+        self.db.insert("work_session_messages", record)
+        return {**record, "attachments": []}
+
+    def list_work_session_messages(self, session_id: str) -> list[dict[str, Any]]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+        return self._serialize_work_session_messages(
+            self.db.fetch_all(
+                "SELECT * FROM work_session_messages WHERE session_id = ? ORDER BY created_at ASC",
+                (session_id,),
+            )
+        )
+
+    def create_work_session_attachments(
+        self, session_id: str, files: list[tuple[str, str | None, bytes]]
+    ) -> list[dict[str, Any]]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+
+        attachment_root = self.paths.cache / "attachments" / session_id
+        attachment_root.mkdir(parents=True, exist_ok=True)
+
+        created: list[dict[str, Any]] = []
+        for original_name, mime_type, payload in files:
+            safe_name = Path(original_name or "attachment.bin").name or "attachment.bin"
+            stored_path = attachment_root / f"{uuid4()}-{safe_name}"
+            stored_path.write_bytes(payload)
+
+            guessed_mime = mime_type or mimetypes.guess_type(safe_name)[0]
+            excerpt: str | None = None
+            if guessed_mime and guessed_mime.startswith("text/"):
+                excerpt = payload.decode("utf-8", errors="ignore")[:4000].strip() or None
+            elif safe_name.lower().endswith((".md", ".txt", ".json", ".csv", ".js", ".ts", ".tsx", ".py")):
+                excerpt = payload.decode("utf-8", errors="ignore")[:4000].strip() or None
+
+            record = {
+                "id": str(uuid4()),
+                "session_id": session_id,
+                "message_id": None,
+                "file_name": safe_name,
+                "mime_type": guessed_mime,
+                "stored_path": str(stored_path),
+                "size_bytes": len(payload),
+                "text_excerpt": excerpt,
+                "created_at": now_iso(),
+            }
+            self.db.insert("work_session_attachments", record)
+            created.append(self._serialize_attachment(record))
+
+        self.db.log(
+            feature="chat",
+            action="work_session.attachments.created",
+            status="success",
+            inputs={"session_id": session_id, "count": len(created)},
+            outputs={"attachment_ids": [item["id"] for item in created]},
+        )
+        return created
+
+    def assign_work_session_attachments(
+        self, session_id: str, message_id: str, attachment_ids: list[str]
+    ) -> list[dict[str, Any]]:
+        if not attachment_ids:
+            return []
+
+        placeholders = ", ".join("?" for _ in attachment_ids)
+        rows = self.db.fetch_all(
+            f"SELECT * FROM work_session_attachments WHERE id IN ({placeholders})",
+            tuple(attachment_ids),
+        )
+        by_id = {row["id"]: row for row in rows}
+        attached: list[dict[str, Any]] = []
+        for attachment_id in attachment_ids:
+            row = by_id.get(attachment_id)
+            if not row or row["session_id"] != session_id:
+                continue
+            self.db.execute(
+                "UPDATE work_session_attachments SET message_id = ? WHERE id = ?",
+                (message_id, attachment_id),
+            )
+            updated = self.db.fetch_one("SELECT * FROM work_session_attachments WHERE id = ?", (attachment_id,))
+            if updated:
+                attached.append(self._serialize_attachment(updated))
+        return attached
+
+    def _build_attachment_prompt_block(self, attachments: list[dict[str, Any]]) -> str:
+        lines = ["[Attached files]"]
+        for attachment in attachments:
+            lines.append(
+                f"- {attachment['file_name']} ({attachment.get('mime_type') or 'unknown'}, {attachment['size_bytes']} bytes)"
+            )
+            if attachment.get("text_excerpt"):
+                lines.append(f"  excerpt: {attachment['text_excerpt']}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _redact_sensitive_text(text: str) -> str:
+        """Keep local RAG useful without echoing raw credentials into chat."""
+        if not text:
+            return text
+
+        patterns = [
+            re.compile(
+                r"(?i)\b(password|passwd|pwd|api[_\s-]*key|secret|token|access[_\s-]*token|authorization|bearer)\b\s*[:=]\s*([^\s,;]+)"
+            ),
+            re.compile(r"(비밀번호|암호|패스워드|토큰|인증키|API\s*키)\s*[:=]\s*([^\s,;]+)"),
+        ]
+        redacted = text
+        for pattern in patterns:
+            redacted = pattern.sub(lambda match: f"{match.group(1)}: [보호됨]", redacted)
+        redacted = re.sub(r"\b\d{6}-\d{7}\b", "[주민등록번호 보호됨]", redacted)
+        return redacted
+
+    @staticmethod
+    def _chat_guardrail_prompt() -> str:
+        return "\n".join(
+            [
+                "[Gongmu safety policy]",
+                "모든 답변은 한국어로 간결하게 작성하세요.",
+                "로컬 문서, GraphRAG 근거, 첨부파일, 연결파일에 비밀번호, API Key, 토큰, 인증키, 주민등록번호 같은 민감정보가 있으면 값을 그대로 말하지 말고 [보호됨]으로 가리세요.",
+                "민감정보의 존재나 위치는 업무상 필요한 범위에서만 설명하고, 실제 값 복사 요청은 거절한 뒤 사용자가 직접 원문 파일에서 확인하도록 안내하세요.",
+                "GraphRAG 근거를 사용할 때는 추정과 확인된 사실을 구분하고, 가능하면 출처 문서명과 파일 경로를 함께 제시하세요.",
+                "일정 등록, 일정 조회, 일정 삭제, 문서작성처럼 Gongmu가 직접 수행할 수 있는 업무는 일반 조언으로 돌리지 말고 도구 실행 결과를 우선 사용하세요.",
+            ]
+        )
+
+    def _build_graphrag_prompt_block(self, *, session_id: str, query: str) -> str | None:
+        normalized_query = query.strip()
+        if not normalized_query:
+            return None
+        try:
+            retrieval = self.graphrag.retrieve(query=normalized_query, session_id=session_id, limit=5)
+        except Exception as exc:
+            self.db.log(
+                feature="chat",
+                action="work_session.graphrag_context.failed",
+                status="failed",
+                inputs={"session_id": session_id, "query": normalized_query},
+                outputs={"error": str(exc)},
+            )
+            return None
+
+        items = retrieval.get("items") if isinstance(retrieval, dict) else None
+        if not isinstance(items, list) or not items:
+            return None
+
+        lines = [
+            "[GraphRAG context]",
+            "아래 근거는 사용자가 등록한 지식폴더와 이 업무대화 세션에 연결된 파일에서 검색한 로컬 근거입니다.",
+            "답변에는 이 근거를 우선 반영하고, 확실하지 않은 내용은 추정이라고 표시하세요.",
+        ]
+        for index, item in enumerate(items[:5], start=1):
+            if not isinstance(item, dict):
+                continue
+            document = item.get("document") if isinstance(item.get("document"), dict) else {}
+            title = str(document.get("title") or item.get("title") or "제목 없음")
+            file_path = str(document.get("file_path") or item.get("file_path") or "")
+            evidence_type = str(item.get("evidence_type") or "section")
+            chunk = item.get("chunk") if isinstance(item.get("chunk"), dict) else {}
+            text = str(item.get("text") or item.get("snippet") or chunk.get("text") or "").strip()
+            text = self._redact_sensitive_text(text)
+            if len(text) > 700:
+                text = f"{text[:700]}..."
+            relation_labels = [
+                str(relation.get("target_label") or relation.get("relation") or "").strip()
+                for relation in item.get("relations", [])
+                if isinstance(relation, dict)
+            ]
+            lines.append(f"{index}. {title}")
+            if file_path:
+                lines.append(f"   path: {file_path}")
+            lines.append(f"   evidence_type: {evidence_type}")
+            if relation_labels:
+                lines.append(f"   relations: {', '.join(label for label in relation_labels if label)}")
+            if text:
+                lines.append(f"   excerpt: {text}")
+
+        return "\n".join(lines).strip() or None
+
+    def _try_run_work_session_skill(
+        self,
+        *,
+        session_id: str,
+        session: dict[str, Any],
+        user_message: dict[str, Any],
+        text: str,
+    ) -> dict[str, Any] | None:
+        normalized = text.strip()
+        if not normalized:
+            return None
+        if self._looks_like_feature_usage_request(normalized):
+            return self._run_feature_usage_guide(normalized)
+        if self._looks_like_schedule_delete_request(normalized):
+            return self._run_schedule_delete_skill(normalized)
+        if self._looks_like_schedule_create_request(normalized):
+            return self._run_schedule_create_skill(normalized)
+        if self._looks_like_schedule_list_request(normalized):
+            return self._run_schedule_list_skill()
+        if self._looks_like_document_create_request(normalized):
+            return self._run_document_create_skill(session_id=session_id, session=session, text=normalized)
+        if self._looks_like_knowledge_request(normalized):
+            return self._run_knowledge_search_skill(session_id=session_id, query=normalized)
+        return None
+
+    @staticmethod
+    def _looks_like_feature_usage_request(text: str) -> bool:
+        lowered = text.lower()
+        usage_markers = ["사용법", "어떻게", "안내", "설명", "도움말", "가이드", "help", "guide", "how to"]
+        feature_markers = [
+            "업무대화",
+            "파일찾기",
+            "일정",
+            "문서작성",
+            "지식폴더",
+            "graphrag",
+            "그래프rag",
+            "실행기록",
+            "환경설정",
+        ]
+        return any(marker in lowered for marker in usage_markers) and any(marker in text or marker in lowered for marker in feature_markers)
+
+    @staticmethod
+    def _run_feature_usage_guide(query: str) -> dict[str, Any]:
+        lines = [
+            "Gongmu 기능 사용법입니다.",
+            "",
+            "1. 업무대화",
+            "- 작업을 자연어로 말하면 일정 조회/등록, 지식폴더 검색, 문서작성 같은 연계 기능을 먼저 시도합니다.",
+            "- 답변에 출처가 있는 경우 파일 열기/폴더 열기 링크로 원문 위치를 확인할 수 있습니다.",
+            "",
+            "2. 파일찾기",
+            "- 로컬 PC와 등록된 지식폴더의 파일명/경로/본문 색인을 검색합니다.",
+            "- 필요한 파일은 현재 업무대화 세션에 연결해 이후 대화와 문서작성 근거로 사용할 수 있습니다.",
+            "",
+            "3. 일정",
+            "- 캘린더 칸을 클릭해 일정을 등록하거나, 업무대화에서 '내일 오후 2시 회의 일정 등록'처럼 요청할 수 있습니다.",
+            "",
+            "4. 문서작성",
+            "- 업무대화 세션, 연결 파일, Reference Set, 직접 입력한 개요를 Content Base로 정리한 뒤 HWPX 산출로 이어갑니다.",
+            "- 시행문, 1페이지 보고서, 풀버전 보고서, 이메일 형식 중 하나를 선택할 수 있습니다.",
+            "",
+            "5. 내 지식폴더",
+            "- 업무 폴더를 등록한 뒤 색인 처리에서 GraphRAG 인덱싱을 실행하면 업무대화 검색 근거로 사용됩니다.",
+        ]
+        return {
+            "actions": ["help.guide"],
+            "results": [{"query": query, "guide_sections": 5}],
+            "text": "\n".join(lines),
+        }
+
+    @staticmethod
+    def _looks_like_knowledge_request(text: str) -> bool:
+        lowered = text.lower()
+        knowledge_markers = ["지식폴더", "graphrag", "그래프rag", "근거", "출처", "자료", "knowledge", "rag", "source"]
+        action_markers = ["찾", "알려", "검색", "알아", "무엇", "뭐", "search", "find", "lookup", "show"]
+        return any(marker in lowered for marker in knowledge_markers) and any(
+            marker in lowered for marker in action_markers
+        )
+
+    @staticmethod
+    def _looks_like_schedule_create_request(text: str) -> bool:
+        lowered = text.lower()
+        action_marker = any(token in text for token in ["등록", "추가", "생성", "만들", "잡아", "예약"]) or any(
+            token in lowered for token in ["add", "create", "register", "book", "schedule"]
+        )
+        has_schedule_marker = (
+            "일정" in text
+            or "스케줄" in text
+            or "schedule" in lowered
+            or "calendar" in lowered
+            or (action_marker and any(token in text for token in ["회의", "미팅", "면담", "보고"]))
+        )
+        has_delete_marker = any(token in text for token in ["삭제", "지워", "취소"]) or any(
+            token in lowered for token in ["delete", "remove", "cancel"]
+        )
+        if not has_schedule_marker or has_delete_marker:
+            return False
+        return action_marker
+
+    @staticmethod
+    def _looks_like_schedule_delete_request(text: str) -> bool:
+        lowered = text.lower()
+        has_schedule_marker = "일정" in text or "schedule" in lowered or "calendar" in lowered
+        has_delete_marker = any(token in text for token in ["삭제", "지워", "취소"]) or any(
+            token in lowered for token in ["delete", "remove", "cancel"]
+        )
+        return has_schedule_marker and has_delete_marker
+
+    @staticmethod
+    def _looks_like_schedule_list_request(text: str) -> bool:
+        lowered = text.lower()
+        has_schedule_marker = "일정" in text or "schedule" in lowered or "calendar" in lowered
+        has_list_marker = any(token in text for token in ["확인", "보여", "조회", "알려"]) or any(
+            token in lowered for token in ["show", "list", "check", "view"]
+        )
+        return has_schedule_marker and has_list_marker
+
+    @staticmethod
+    def _looks_like_document_create_request(text: str) -> bool:
+        lowered = text.lower()
+        if not any(token in lowered for token in ["문서작성", "문서", "보고서", "hwpx", "document", "report"]):
+            return False
+        return any(token in lowered for token in ["작성", "생성", "만들", "산출", "create", "write", "generate", "make"])
+
+    def _run_knowledge_search_skill(self, *, session_id: str, query: str) -> dict[str, Any]:
+        result = self.graphrag.ask(query=query, session_id=session_id, limit=5)
+        citations = [citation for citation in result.get("citations", []) if isinstance(citation, dict)]
+        lines = [
+            "GraphRAG 검색 결과입니다.",
+            "",
+            self._redact_sensitive_text(
+                str(result.get("answer") or "관련 근거를 찾았지만 요약 답변을 만들지 못했습니다.").strip()
+            ),
+        ]
+        if citations:
+            lines.extend(["", "출처"])
+            for index, citation in enumerate(citations[:5], start=1):
+                title = str(citation.get("title") or "제목 없음")
+                file_path = str(citation.get("file_path") or "")
+                folder_path = str(Path(file_path).parent) if file_path else ""
+                lines.append(f"{index}. {title}")
+                if file_path:
+                    lines.append(f"   - 파일 열기: {file_path}")
+                    lines.append(f"   - 폴더 열기: {folder_path}")
+                relation_labels = [
+                    str(relation.get("target_label") or relation.get("relation") or "").strip()
+                    for relation in citation.get("relations", [])
+                    if isinstance(relation, dict)
+                ]
+                if relation_labels:
+                    lines.append(f"   - 관계: {', '.join(label for label in relation_labels if label)}")
+        else:
+            lines.extend(["", "출처: 검색된 문서 없음"])
+        return {
+            "actions": ["knowledge.search"],
+            "results": [
+                {
+                    "query": query,
+                    "citation_count": len(citations),
+                    "retrieval_summary": result.get("retrieval_summary") or {},
+                }
+            ],
+            "text": "\n".join(lines).strip(),
+        }
+
+    def _run_schedule_list_skill(self) -> dict[str, Any]:
+        schedules = self.list_schedules()
+        lines = ["등록된 일정입니다."]
+        if not schedules:
+            lines.append("- 등록된 일정이 없습니다.")
+        for schedule in schedules[:10]:
+            lines.append(f"- {schedule['title']}: {schedule['starts_at']} ~ {schedule['ends_at']}")
+        return {
+            "actions": ["schedule.list"],
+            "results": [{"count": len(schedules)}],
+            "text": "\n".join(lines),
+        }
+
+    def _run_schedule_create_skill(self, text: str) -> dict[str, Any] | None:
+        parsed = self._parse_schedule_request(text)
+        if parsed is None:
+            return None
+        schedule = self.create_schedule(
+            ScheduleCreate(
+                title=parsed["title"],
+                starts_at=parsed["starts_at"],
+                ends_at=parsed["ends_at"],
+                view="day",
+            )
+        )
+        return {
+            "actions": ["schedule.create"],
+            "results": [{"schedule_id": schedule["id"], "title": schedule["title"]}],
+            "text": (
+                "일정을 등록했습니다.\n\n"
+                f"- 제목: {schedule['title']}\n"
+                f"- 시간: {schedule['starts_at']} ~ {schedule['ends_at']}"
+            ),
+        }
+
+    def _run_schedule_delete_skill(self, text: str) -> dict[str, Any] | None:
+        query = self._schedule_delete_query(text)
+        schedules = self.list_schedules()
+        matched = next(
+            (
+                schedule
+                for schedule in schedules
+                if query and (query in schedule["title"] or schedule["title"] in query)
+            ),
+            None,
+        )
+        if matched is None and len(schedules) == 1:
+            matched = schedules[0]
+        if matched is None:
+            return {
+                "actions": ["schedule.delete"],
+                "results": [{"deleted": False, "query": query}],
+                "text": f"삭제할 일정을 찾지 못했습니다. 검색어: {query or '없음'}",
+            }
+        deleted = self.delete_schedule(matched["id"])
+        schedule = deleted["schedule"]
+        return {
+            "actions": ["schedule.delete"],
+            "results": [{"schedule_id": schedule["id"], "title": schedule["title"], "deleted": True}],
+            "text": f"일정을 삭제했습니다.\n\n- 제목: {schedule['title']}",
+        }
+
+    @staticmethod
+    def _parse_schedule_request(text: str) -> dict[str, str] | None:
+        date_match = re.search(
+            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일",
+            text,
+        )
+        today = datetime.now(timezone(timedelta(hours=9)))
+        if date_match:
+            if date_match.group("date"):
+                date_text = date_match.group("date").replace(".", "-")
+                year, month, day = [int(part) for part in date_text.split("-")]
+            else:
+                year = int(date_match.group("year") or today.year)
+                month = int(date_match.group("month"))
+                day = int(date_match.group("day"))
+        elif "내일" in text:
+            next_day = today + timedelta(days=1)
+            year, month, day = next_day.year, next_day.month, next_day.day
+        elif "오늘" in text:
+            year, month, day = today.year, today.month, today.day
+        else:
+            return None
+
+        time_match = re.search(
+            r"(?P<ampm>오전|오후|아침|저녁|밤)?\s*(?P<hour>\d{1,2})(?::(?P<minute_colon>\d{2})|\s*시(?:\s*(?P<minute_text>\d{1,2})\s*분?)?)",
+            text,
+        )
+        if time_match is None:
+            return None
+
+        hour = int(time_match.group("hour"))
+        minute = int(time_match.group("minute_colon") or time_match.group("minute_text") or "0")
+        ampm = time_match.group("ampm") or ""
+        if ampm in {"오후", "저녁", "밤"} and hour < 12:
+            hour += 12
+        if ampm in {"오전", "아침"} and hour == 12:
+            hour = 0
+        starts_at = datetime(year, month, day, hour, minute, tzinfo=timezone(timedelta(hours=9)))
+        ends_at = starts_at + timedelta(hours=1)
+        raw_title = text
+        raw_title = re.sub(
+            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|오늘|내일",
+            " ",
+            raw_title,
+        )
+        raw_title = re.sub(
+            r"(오전|오후|아침|저녁|밤)?\s*\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}\s*분?)?)",
+            " ",
+            raw_title,
+        )
+        raw_title = re.sub(
+            r"(업무일정|일정|스케줄|schedule|calendar)?\s*(등록|추가|생성|만들어?줘?|잡아줘?|예약해줘?|add|create|register|book).*",
+            "",
+            raw_title,
+            flags=re.IGNORECASE,
+        ).strip()
+        raw_title = re.sub(r"\b(업무일정|일정|스케줄|등록|추가|생성|만들|잡아|예약)\b", " ", raw_title)
+        raw_title = re.sub(r"\s+", " ", raw_title).strip(" .,-:")
+        raw_title = re.sub(r"^(에|에서)\s+", "", raw_title).strip(" .,-:")
+        title = raw_title or "새 일정"
+        return {
+            "title": title,
+            "starts_at": starts_at.isoformat(),
+            "ends_at": ends_at.isoformat(),
+        }
+
+    @staticmethod
+    def _schedule_delete_query(text: str) -> str:
+        query = re.sub(r"(일정|schedule|calendar)?\s*(삭제|지워|취소|delete|remove|cancel).*", "", text, flags=re.IGNORECASE).strip()
+        query = query.replace("일정", "").strip()
+        query = re.sub(r"\b(schedule|calendar)\b", "", query, flags=re.IGNORECASE).strip()
+        return query
+
+    def _run_document_create_skill(
+        self,
+        *,
+        session_id: str,
+        session: dict[str, Any],
+        text: str,
+    ) -> dict[str, Any]:
+        document_format = self._document_format_from_text(text)
+        direct_paths = [
+            row["file_path"]
+            for row in self.list_work_session_file_links(session_id)
+            if str(row.get("file_path") or "").strip()
+        ]
+        content_base = self.documents.create_content_base(
+            title=f"{session['title']} 문서",
+            purpose="업무대화 세션 기반 자동 문서작성",
+            template_key="report",
+            reference_set_id=self._latest_reference_set_id_for_session(session_id),
+            source_session_id=session_id,
+            outline=text,
+            document_format=document_format,
+            audience_type="관련 부서",
+            expected_length="1페이지" if document_format == "onePageReport" else "자동",
+            urgency_level="보통",
+            needs_traceability="필요",
+            requires_official_form="필요",
+            requested_action="검토 및 후속 조치",
+            deadline="기한 미정",
+            security_level="내부",
+            direct_file_paths=direct_paths,
+        )
+        finalize = self.documents.request_final_document_output(
+            content_base_id=content_base["id"],
+            output_name=content_base["title"],
+        )
+        ticket_id = finalize["approval_ticket"]["id"]
+        self.decide_approval_ticket(
+            ticket_id,
+            ApprovalDecisionRequest(status="approved", decision_note="업무대화 문서작성 스킬 자동 승인"),
+        )
+        applied = self.documents.apply_final_document_output(ticket_id)
+        artifact = applied["artifact"]
+        return {
+            "actions": ["document.create"],
+            "results": [
+                {
+                    "content_base_id": content_base["id"],
+                    "artifact_path": artifact["path"],
+                    "markdown_path": artifact["markdown_path"],
+                    "format": artifact["format"],
+                }
+            ],
+            "text": (
+                "HWPX 문서를 생성했습니다.\n\n"
+                f"- 제목: {content_base['title']}\n"
+                f"- 형식: {artifact['format']}\n"
+                f"- 파일: {artifact['path']}\n"
+                f"- 폴더: {Path(artifact['path']).parent}"
+            ),
+        }
+
+    @staticmethod
+    def _document_format_from_text(text: str) -> Literal["auto", "officialMemo", "onePageReport", "fullReport", "email"]:
+        lowered = text.lower()
+        if "시행문" in text or "공문" in text:
+            return "officialMemo"
+        if "이메일" in text or "메일" in text:
+            return "email"
+        if "풀버전" in text or "상세" in text:
+            return "fullReport"
+        if "1페이지" in text or "1p" in lowered or "한장" in text:
+            return "onePageReport"
+        return "auto"
+
+    def _latest_reference_set_id_for_session(self, session_id: str) -> str | None:
+        row = self.db.fetch_one(
+            """
+            SELECT id
+            FROM reference_sets
+            WHERE session_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (session_id,),
+        )
+        return str(row["id"]) if row else None
+
+    def update_work_session_message(
+        self,
+        message_id: str,
+        *,
+        text: str,
+        status: Literal["pending", "streaming", "completed", "failed"],
+        provider: str | None = None,
+        model: str | None = None,
+        latency_ms: int | None = None,
+    ) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM work_session_messages WHERE id = ?", (message_id,))
+        if not existing:
+            raise KeyError(message_id)
+
+        self.db.execute(
+            """
+            UPDATE work_session_messages
+            SET text = ?, status = ?, provider = ?, model = ?, latency_ms = ?
+            WHERE id = ?
+            """,
+            (text.strip(), status, provider, model, latency_ms, message_id),
+        )
+        updated = self.db.fetch_one("SELECT * FROM work_session_messages WHERE id = ?", (message_id,))
+        assert updated is not None
+        return {
+            **updated,
+            "attachments": self._serialize_work_session_messages([updated])[0]["attachments"],
+        }
+
+    def run_work_session_turn(self, session_id: str, payload: WorkSessionTurnRequest) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+
+        user_message = self.create_work_session_message(
+            session_id,
+            WorkSessionMessageCreate(
+                role="user",
+                text=payload.text,
+                message_type="chat",
+                status="completed",
+            ),
+        )
+        attached_files = self.assign_work_session_attachments(
+            session_id,
+            user_message["id"],
+            payload.attachment_ids,
+        )
+        user_message["attachments"] = attached_files
+        assistant_message = self.create_work_session_message(
+            session_id,
+            WorkSessionMessageCreate(
+                role="assistant",
+                text="응답을 준비하는 중입니다.",
+                message_type="chat",
+                status="pending",
+                provider=self.settings.llm_provider,
+                model=self.settings.llm_model,
+            ),
+        )
+        assistant_message = self.update_work_session_message(
+            assistant_message["id"],
+            text="",
+            status="pending",
+            provider=self.settings.llm_provider,
+            model=self.settings.llm_model,
+        )
+
+        turn_started = perf_counter()
+        skill_result = self._try_run_work_session_skill(
+            session_id=session_id,
+            session=existing,
+            user_message=user_message,
+            text=payload.text,
+        )
+        if skill_result is not None:
+            duration_ms = int((perf_counter() - turn_started) * 1000)
+            assistant_message = self.update_work_session_message(
+                assistant_message["id"],
+                text=skill_result["text"],
+                status="completed",
+                provider="gongmu-skill",
+                model=", ".join(skill_result["actions"]),
+                latency_ms=duration_ms,
+            )
+            return {
+                "user_message": user_message,
+                "assistant_message": assistant_message,
+                "duration_ms": duration_ms,
+                "context_summary": {
+                    "graphrag_used": "knowledge.search" in skill_result["actions"],
+                    "graphrag_evidence_count": (
+                        skill_result["results"][0].get("citation_count", 0)
+                        if "knowledge.search" in skill_result["actions"] and skill_result["results"]
+                        else 0
+                    ),
+                    "attachment_count": len(attached_files),
+                    "linked_file_count": len(self.list_work_session_file_links(session_id)),
+                    "provider": assistant_message.get("provider"),
+                    "model": assistant_message.get("model"),
+                    "skill_actions": skill_result["actions"],
+                    "skill_results": skill_result["results"],
+                },
+            }
+
+        session_messages = self.list_work_session_messages(session_id)
+        prompt_messages: list[dict[str, Any]] = [
+            {
+                "id": f"{user_message['id']}-guardrail",
+                "session_id": session_id,
+                "role": "system",
+                "text": self._chat_guardrail_prompt(),
+                "message_type": "system",
+                "status": "completed",
+                "created_at": user_message["created_at"],
+            }
+        ]
+        attachment_prompt_block = (
+            self._build_attachment_prompt_block(attached_files) if attached_files else None
+        )
+        graphrag_prompt_block = self._build_graphrag_prompt_block(
+            session_id=session_id,
+            query=payload.text,
+        )
+        graphrag_evidence_count = (
+            sum(
+                1
+                for line in graphrag_prompt_block.splitlines()
+                if line.strip().split(".", 1)[0].isdigit()
+            )
+            if graphrag_prompt_block
+            else 0
+        )
+        linked_file_count = len(self.list_work_session_file_links(session_id))
+        context_summary: dict[str, Any] = {
+            "graphrag_used": bool(graphrag_prompt_block),
+            "graphrag_evidence_count": graphrag_evidence_count,
+            "attachment_count": len(attached_files),
+            "linked_file_count": linked_file_count,
+            "provider": None,
+            "model": None,
+        }
+        if graphrag_prompt_block:
+            prompt_messages.append(
+                {
+                    "id": f"{user_message['id']}-graphrag-context",
+                    "session_id": session_id,
+                    "role": "system",
+                    "text": graphrag_prompt_block,
+                    "message_type": "system",
+                    "status": "completed",
+                    "created_at": user_message["created_at"],
+                }
+            )
+        for message in session_messages:
+            if message["id"] == assistant_message["id"] or message.get("status") == "pending":
+                continue
+            next_message = dict(message)
+            if (
+                attachment_prompt_block
+                and next_message["id"] == user_message["id"]
+                and next_message["role"] == "user"
+            ):
+                next_message["text"] = f"{next_message['text']}\n\n{attachment_prompt_block}".strip()
+            prompt_messages.append(next_message)
+        try:
+            result = generate_session_reply(
+                self.settings,
+                prompt_messages,
+                model_override=payload.model_override,
+                reasoning_effort=payload.reasoning_effort,
+            )
+            duration_ms = int((perf_counter() - turn_started) * 1000)
+            assistant_message = self.update_work_session_message(
+                assistant_message["id"],
+                text=self._redact_sensitive_text(result.text),
+                status="completed",
+                provider=result.provider,
+                model=result.model,
+                latency_ms=duration_ms,
+            )
+        except LLMGenerationError as exc:
+            duration_ms = int((perf_counter() - turn_started) * 1000)
+            assistant_message = self.update_work_session_message(
+                assistant_message["id"],
+                text=f"LLM 응답 생성에 실패했습니다.\n\n{exc}",
+                status="failed",
+                provider=self.settings.llm_provider,
+                model=self.settings.llm_model,
+                latency_ms=duration_ms,
+            )
+            assistant_message = self.update_work_session_message(
+                assistant_message["id"],
+                text=f"LLM 응답 생성에 실패했습니다.\n\n{exc}",
+                status="failed",
+                provider=self.settings.llm_provider,
+                model=self.settings.llm_model,
+                latency_ms=duration_ms,
+            )
+            self.db.log(
+                feature="chat",
+                action="work_session.turn.failed",
+                status="failed",
+                inputs={
+                    "session_id": session_id,
+                    "text": payload.text,
+                    "model_override": payload.model_override,
+                    "reasoning_effort": payload.reasoning_effort,
+                },
+                outputs={
+                    "user_message_id": user_message["id"],
+                    "assistant_message_id": assistant_message["id"],
+                    "error": str(exc),
+                    "duration_ms": duration_ms,
+                    "attachment_ids": payload.attachment_ids,
+                },
+            )
+
+        context_summary["provider"] = assistant_message.get("provider")
+        context_summary["model"] = assistant_message.get("model")
+        return {
+            "user_message": user_message,
+            "assistant_message": assistant_message,
+            "duration_ms": duration_ms,
+            "context_summary": context_summary,
+        }
+
+    def run_work_session_turn_stream(self, session_id: str, payload: WorkSessionTurnRequest):
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+
+        user_message = self.create_work_session_message(
+            session_id,
+            WorkSessionMessageCreate(
+                role="user",
+                text=payload.text,
+                message_type="chat",
+                status="completed",
+            ),
+        )
+        attached_files = self.assign_work_session_attachments(
+            session_id,
+            user_message["id"],
+            payload.attachment_ids,
+        )
+        user_message["attachments"] = attached_files
+        assistant_message = self.create_work_session_message(
+            session_id,
+            WorkSessionMessageCreate(
+                role="assistant",
+                text="응답을 준비하는 중입니다.",
+                message_type="chat",
+                status="pending",
+                provider=self.settings.llm_provider,
+                model=self.settings.llm_model,
+            ),
+        )
+        assistant_message = self.update_work_session_message(
+            assistant_message["id"],
+            text="",
+            status="streaming",
+            provider=self.settings.llm_provider,
+            model=self.settings.llm_model,
+        )
+
+        turn_started = perf_counter()
+        yield {"event": "user_message", "data": user_message}
+        yield {"event": "assistant_message", "data": assistant_message}
+
+        skill_result = self._try_run_work_session_skill(
+            session_id=session_id,
+            session=existing,
+            user_message=user_message,
+            text=payload.text,
+        )
+        if skill_result is not None:
+            duration_ms = int((perf_counter() - turn_started) * 1000)
+            assistant_message = self.update_work_session_message(
+                assistant_message["id"],
+                text=skill_result["text"],
+                status="completed",
+                provider="gongmu-skill",
+                model=", ".join(skill_result["actions"]),
+                latency_ms=duration_ms,
+            )
+            if skill_result["text"]:
+                yield {"event": "delta", "data": {"text": skill_result["text"]}}
+            yield {
+                "event": "done",
+                "data": {
+                    "user_message": user_message,
+                    "assistant_message": assistant_message,
+                    "duration_ms": duration_ms,
+                    "context_summary": {
+                        "graphrag_used": "knowledge.search" in skill_result["actions"],
+                        "graphrag_evidence_count": (
+                            skill_result["results"][0].get("citation_count", 0)
+                            if "knowledge.search" in skill_result["actions"] and skill_result["results"]
+                            else 0
+                        ),
+                        "attachment_count": len(attached_files),
+                        "linked_file_count": len(self.list_work_session_file_links(session_id)),
+                        "provider": assistant_message.get("provider"),
+                        "model": assistant_message.get("model"),
+                        "skill_actions": skill_result["actions"],
+                        "skill_results": skill_result["results"],
+                    },
+                },
+            }
+            return
+
+        session_messages = self.list_work_session_messages(session_id)
+        prompt_messages: list[dict[str, Any]] = [
+            {
+                "id": f"{user_message['id']}-guardrail",
+                "session_id": session_id,
+                "role": "system",
+                "text": self._chat_guardrail_prompt(),
+                "message_type": "system",
+                "status": "completed",
+                "created_at": user_message["created_at"],
+            }
+        ]
+        attachment_prompt_block = (
+            self._build_attachment_prompt_block(attached_files) if attached_files else None
+        )
+        graphrag_prompt_block = self._build_graphrag_prompt_block(
+            session_id=session_id,
+            query=payload.text,
+        )
+        graphrag_evidence_count = (
+            sum(
+                1
+                for line in graphrag_prompt_block.splitlines()
+                if line.strip().split(".", 1)[0].isdigit()
+            )
+            if graphrag_prompt_block
+            else 0
+        )
+        linked_file_count = len(self.list_work_session_file_links(session_id))
+        context_summary: dict[str, Any] = {
+            "graphrag_used": bool(graphrag_prompt_block),
+            "graphrag_evidence_count": graphrag_evidence_count,
+            "attachment_count": len(attached_files),
+            "linked_file_count": linked_file_count,
+            "provider": None,
+            "model": None,
+        }
+        if graphrag_prompt_block:
+            prompt_messages.append(
+                {
+                    "id": f"{user_message['id']}-graphrag-context",
+                    "session_id": session_id,
+                    "role": "system",
+                    "text": graphrag_prompt_block,
+                    "message_type": "system",
+                    "status": "completed",
+                    "created_at": user_message["created_at"],
+                }
+            )
+        for message in session_messages:
+            if message["id"] == assistant_message["id"] or message.get("status") == "pending":
+                continue
+            next_message = dict(message)
+            if (
+                attachment_prompt_block
+                and next_message["id"] == user_message["id"]
+                and next_message["role"] == "user"
+            ):
+                next_message["text"] = f"{next_message['text']}\n\n{attachment_prompt_block}".strip()
+            prompt_messages.append(next_message)
+
+        events: Queue[tuple[str, Any]] = Queue()
+
+        def run_llm() -> None:
+            try:
+                result = generate_session_reply_streaming(
+                    self.settings,
+                    prompt_messages,
+                    model_override=payload.model_override,
+                    reasoning_effort=payload.reasoning_effort,
+                    on_delta=lambda delta: events.put(("delta", delta)),
+                )
+                events.put(("done", result))
+            except LLMGenerationError as exc:
+                events.put(("error", exc))
+
+        Thread(target=run_llm, daemon=True).start()
+
+        collected_text = ""
+        emitted_text = ""
+        while True:
+            kind, value = events.get()
+            if kind == "delta":
+                collected_text += str(value)
+                safe_text = self._redact_sensitive_text(collected_text)
+                if safe_text.startswith(emitted_text):
+                    delta_text = safe_text[len(emitted_text) :]
+                else:
+                    delta_text = safe_text
+                emitted_text = safe_text
+                if delta_text:
+                    yield {"event": "delta", "data": {"text": delta_text}}
+                continue
+
+            if kind == "error":
+                duration_ms = int((perf_counter() - turn_started) * 1000)
+                error_text = f"LLM 응답 생성에 실패했습니다.\n\n{value}"
+                assistant_message = self.update_work_session_message(
+                    assistant_message["id"],
+                    text=error_text,
+                    status="failed",
+                    provider=self.settings.llm_provider,
+                    model=self.settings.llm_model,
+                    latency_ms=duration_ms,
+                )
+                self.db.log(
+                    feature="chat",
+                    action="work_session.turn.failed",
+                    status="failed",
+                    inputs={
+                        "session_id": session_id,
+                        "text": payload.text,
+                        "model_override": payload.model_override,
+                        "reasoning_effort": payload.reasoning_effort,
+                    },
+                    outputs={
+                        "user_message_id": user_message["id"],
+                        "assistant_message_id": assistant_message["id"],
+                        "error": str(value),
+                        "duration_ms": duration_ms,
+                        "attachment_ids": payload.attachment_ids,
+                    },
+                )
+                yield {"event": "error", "data": {"message": str(value)}}
+                yield {
+                    "event": "done",
+                    "data": {
+                        "user_message": user_message,
+                        "assistant_message": assistant_message,
+                        "duration_ms": duration_ms,
+                        "context_summary": {
+                            **context_summary,
+                            "provider": assistant_message.get("provider"),
+                            "model": assistant_message.get("model"),
+                        },
+                    },
+                }
+                return
+
+            result = value
+            duration_ms = int((perf_counter() - turn_started) * 1000)
+            final_text = self._redact_sensitive_text(result.text)
+            assistant_message = self.update_work_session_message(
+                assistant_message["id"],
+                text=final_text,
+                status="completed",
+                provider=result.provider,
+                model=result.model,
+                latency_ms=duration_ms,
+            )
+            context_summary["provider"] = assistant_message.get("provider")
+            context_summary["model"] = assistant_message.get("model")
+            yield {
+                "event": "done",
+                "data": {
+                    "user_message": user_message,
+                    "assistant_message": assistant_message,
+                    "duration_ms": duration_ms,
+                    "context_summary": context_summary,
+                },
+            }
+            return
+
+    def test_llm_connection(self, payload: LLMConnectionTestRequest) -> dict[str, Any]:
+        probe_messages = [
+            {
+                "role": "system",
+                "text": "You are validating that the Gongmu workspace can reach the configured LLM.",
+            },
+            {"role": "user", "text": payload.prompt.strip()},
+        ]
+        try:
+            result = generate_session_reply(self.settings, probe_messages)
+            self.db.log(
+                feature="settings",
+                action="settings.llm.test.completed",
+                status="success",
+                inputs={"prompt": payload.prompt},
+                outputs={
+                    "provider": result.provider,
+                    "model": result.model,
+                    "text": result.text,
+                },
+            )
+            return {
+                "status": "ok",
+                "provider": result.provider,
+                "model": result.model,
+                "text": result.text,
+            }
+        except LLMGenerationError as exc:
+            self.db.log(
+                feature="settings",
+                action="settings.llm.test.failed",
+                status="failed",
+                inputs={"prompt": payload.prompt},
+                outputs={"error": str(exc)},
+            )
+            return {
+                "status": "failed",
+                "provider": self.settings.llm_provider,
+                "model": self.settings.llm_model,
+                "text": str(exc),
+            }
 
     def create_reference_set(self, payload: ReferenceSetCreate) -> dict[str, Any]:
         record = {
@@ -208,7 +1882,7 @@ class AppServices:
             "id": str(uuid4()),
             "approval_ticket_id": ticket["id"],
             "query": query,
-            "launch_target": f"es:{quote(query)}",
+            "launch_target": ANYTHING_RELEASES_URL,
             "status": "pending",
             "created_at": now_iso(),
             "applied_at": None,
@@ -406,6 +2080,168 @@ class AppServices:
             "SELECT * FROM file_org_proposals ORDER BY created_at DESC"
         )
 
+    def rebuild_file_search_index(self) -> dict[str, Any]:
+        scan = scan_local_files_for_index()
+        indexed_at = now_iso()
+        self.db.execute("DELETE FROM local_file_index")
+        for item in scan["items"]:
+            file_record = item["file"]
+            name = file_record["title"]
+            stem = Path(name).stem
+            self.db.execute(
+                """
+                INSERT OR REPLACE INTO local_file_index (
+                    id,
+                    file_path,
+                    search_root,
+                    relative_path,
+                    name,
+                    name_lower,
+                    stem_lower,
+                    compact_name,
+                    compact_stem,
+                    size_bytes,
+                    modified_at,
+                    indexed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    file_record["id"],
+                    file_record["file_path"],
+                    item["search_root"],
+                    file_record["relative_path"],
+                    name,
+                    name.lower(),
+                    stem.lower(),
+                    compact_filename_text(name),
+                    compact_filename_text(stem),
+                    file_record["size_bytes"],
+                    file_record["modified_at"],
+                    indexed_at,
+                ),
+            )
+        result = {
+            "status": "completed" if not scan["partial"] else "partial",
+            "indexed_count": scan["indexed_count"],
+            "searched_roots": scan["searched_roots"],
+            "partial": scan["partial"],
+            "indexed_at": indexed_at,
+        }
+        self.db.log(
+            feature="files",
+            action="files.index.rebuilt",
+            status=result["status"],
+            inputs={"searched_roots": scan["searched_roots"]},
+            outputs={"indexed_count": scan["indexed_count"], "partial": scan["partial"]},
+        )
+        return result
+
+    def _search_indexed_files(self, query: str, limit: int) -> dict[str, Any]:
+        normalized_query = query.strip().lower()
+        compact_query = compact_filename_text(normalized_query)
+        if not normalized_query:
+            return {"items": [], "index_count": 0, "index_total_count": self._local_file_index_total_count()}
+        rows = self.db.fetch_all(
+            """
+            SELECT *
+            FROM local_file_index
+            WHERE name_lower LIKE ?
+               OR stem_lower LIKE ?
+               OR compact_name LIKE ?
+               OR compact_stem LIKE ?
+            ORDER BY modified_at DESC
+            LIMIT ?
+            """,
+            (
+                f"%{normalized_query}%",
+                f"%{normalized_query}%",
+                f"%{compact_query}%",
+                f"%{compact_query}%",
+                max(20, min(limit * 10, 500)),
+            ),
+        )
+        hits: list[dict[str, Any]] = []
+        for row in rows:
+            score, reasons = score_filename(row["name"], query)
+            if score <= 0:
+                continue
+            hits.append(
+                {
+                    "file": {
+                        "id": row["id"],
+                        "source_id": "local-file-index",
+                        "file_path": row["file_path"],
+                        "relative_path": row["relative_path"],
+                        "file_hash": row["id"],
+                        "size_bytes": row["size_bytes"],
+                        "modified_at": row["modified_at"],
+                        "status": "filename_index_match",
+                        "title": row["name"],
+                        "mime_type": None,
+                        "text_excerpt": None,
+                        "extracted_text_path": None,
+                        "created_at": row["indexed_at"],
+                        "updated_at": row["indexed_at"],
+                    },
+                    "score": score + 20,
+                    "match_reasons": [*reasons, "파일명 인덱스"],
+                    "search_root": row["search_root"],
+                }
+            )
+        hits.sort(key=lambda item: (item["score"], item["file"]["updated_at"]), reverse=True)
+        return {
+            "items": hits[: max(1, min(limit, 100))],
+            "index_count": len(hits),
+            "index_total_count": self._local_file_index_total_count(),
+        }
+
+    def _local_file_index_total_count(self) -> int:
+        row = self.db.fetch_one("SELECT COUNT(*) AS count FROM local_file_index")
+        return int(row["count"]) if row else 0
+
+    def search_files(self, query: str, limit: int = 20) -> dict[str, Any]:
+        knowledge_results = self.knowledge.search_source_files(query=query, limit=limit)
+        for item in knowledge_results["items"]:
+            if "파일명" in item.get("match_reasons", []):
+                item["score"] = item.get("score", 0) + 300
+        knowledge_paths = {item["file"]["file_path"] for item in knowledge_results["items"]}
+        indexed_results = self._search_indexed_files(query=query, limit=limit)
+        indexed_paths = {item["file"]["file_path"] for item in indexed_results["items"]}
+        if indexed_results["index_total_count"] > 0:
+            local_results = {
+                "query": query,
+                "items": [],
+                "scope": "local_filename_index",
+                "searched_roots": sorted(
+                    {
+                        item["search_root"]
+                        for item in indexed_results["items"]
+                        if item.get("search_root")
+                    }
+                ),
+                "partial": False,
+            }
+        else:
+            local_results = search_local_files_by_name(query=query, limit=limit)
+        merged_items = [*knowledge_results["items"], *indexed_results["items"]]
+
+        for item in local_results["items"]:
+            if item["file"]["file_path"] in knowledge_paths or item["file"]["file_path"] in indexed_paths:
+                continue
+            merged_items.append(item)
+
+        merged_items.sort(
+            key=lambda item: (item.get("score", 0), item["file"].get("updated_at") or ""),
+            reverse=True,
+        )
+        return {
+            **local_results,
+            "items": merged_items[: max(1, min(limit, 100))],
+            "knowledge_index_count": len(knowledge_results["items"]),
+            "local_index_count": indexed_results["index_count"],
+            "local_index_total_count": indexed_results["index_total_count"],
+        }
+
 
 def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     services = AppServices(workspace_root)
@@ -420,6 +2256,18 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     app.state.services = services
     app.state.test_client_factory = lambda: TestClient(app)
 
+    def ensure_no_active_knowledge_ingestion() -> None:
+        active_job = services.graphrag.active_job()
+        if active_job is None:
+            return
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "GraphRAG ingestion 작업이 진행 중입니다. "
+                f"작업 {str(active_job['id'])[:8]}을 완료하거나 취소한 뒤 다시 시도하세요."
+            ),
+        )
+
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {
@@ -433,17 +2281,38 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
         return WorkspaceSettingsResponse(
             defaults={
                 "llm_mode": services.settings.llm_mode,
+                "llm_provider": services.settings.llm_provider,
+                "llm_model": services.settings.llm_model,
+                "llm_api_key": services.settings.llm_api_key,
+                "llm_site_url": services.settings.llm_site_url,
+                "llm_application_name": services.settings.llm_application_name,
+                "profiles": services.settings.llm_profiles,
                 "anything_launch_mode": services.settings.anything_launch_mode,
                 "default_template_key": services.settings.default_template_key,
                 "internal_api_base_url": services.settings.internal_api_base_url,
+                "personalization_apply_mode": services.settings.personalization_apply_mode,
+                "embedding_provider": services.settings.embedding_provider,
+                "embedding_model": services.settings.embedding_model,
+                "embedding_base_url": services.settings.embedding_base_url,
+                "embedding_fallback_enabled": services.settings.embedding_fallback_enabled,
+                "graphrag_vector_backend": services.settings.graphrag_vector_backend,
             },
             paths={
                 "workspace_root": str(services.paths.root),
                 "database": str(services.paths.db_file),
                 "knowledge_root": str(services.paths.knowledge_root),
                 "documents_root": str(services.paths.documents_root),
+                "personalization_root": str(services.personalization_root),
             },
         )
+
+    @app.put("/api/settings", response_model=WorkspaceSettingsResponse)
+    def update_settings(payload: WorkspaceSettingsUpdate) -> WorkspaceSettingsResponse:
+        return services.update_settings(payload)
+
+    @app.post("/api/settings/llm-test")
+    def test_llm_connection(payload: LLMConnectionTestRequest) -> dict[str, Any]:
+        return services.test_llm_connection(payload)
 
     @app.get("/api/templates")
     def templates() -> dict[str, Any]:
@@ -467,6 +2336,20 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     def list_schedules() -> dict[str, Any]:
         return {"items": services.list_schedules()}
 
+    @app.patch("/api/schedules/{schedule_id}")
+    def update_schedule(schedule_id: str, payload: ScheduleUpdate) -> dict[str, Any]:
+        try:
+            return services.update_schedule(schedule_id, payload)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="schedule not found") from error
+
+    @app.delete("/api/schedules/{schedule_id}")
+    def delete_schedule(schedule_id: str) -> dict[str, Any]:
+        try:
+            return services.delete_schedule(schedule_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="schedule not found") from error
+
     @app.post("/api/work-sessions", status_code=201)
     def create_work_session(payload: WorkSessionCreate) -> dict[str, Any]:
         return services.create_work_session(payload)
@@ -474,6 +2357,98 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     @app.get("/api/work-sessions")
     def list_work_sessions() -> dict[str, Any]:
         return {"items": services.list_work_sessions()}
+
+    @app.patch("/api/work-sessions/{session_id}")
+    def update_work_session(session_id: str, payload: WorkSessionUpdate) -> dict[str, Any]:
+        try:
+            return services.update_work_session(session_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.get("/api/work-sessions/{session_id}/file-links")
+    def list_work_session_file_links(session_id: str) -> dict[str, Any]:
+        try:
+            return {"items": services.list_work_session_file_links(session_id)}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.post("/api/work-sessions/{session_id}/file-links", status_code=201)
+    def create_work_session_file_links(
+        session_id: str,
+        payload: WorkSessionFileLinksCreate,
+    ) -> dict[str, Any]:
+        try:
+            return {"items": services.create_work_session_file_links(session_id, payload)}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.delete("/api/work-sessions/{session_id}/file-links/{link_id}")
+    def delete_work_session_file_link(session_id: str, link_id: str) -> dict[str, Any]:
+        try:
+            return services.delete_work_session_file_link(session_id, link_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session file link not found") from exc
+
+    @app.get("/api/work-sessions/{session_id}/graph")
+    def work_session_graph(session_id: str) -> dict[str, Any]:
+        try:
+            return services.build_work_session_graph(session_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.post("/api/work-sessions/{session_id}/messages", status_code=201)
+    def create_work_session_message(
+        session_id: str, payload: WorkSessionMessageCreate
+    ) -> dict[str, Any]:
+        try:
+            return services.create_work_session_message(session_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.get("/api/work-sessions/{session_id}/messages")
+    def list_work_session_messages(session_id: str) -> dict[str, Any]:
+        try:
+            return {"items": services.list_work_session_messages(session_id)}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.post("/api/work-sessions/{session_id}/attachments", status_code=201)
+    async def upload_work_session_attachments(
+        session_id: str, files: list[UploadFile] = File(...)
+    ) -> dict[str, Any]:
+        try:
+            payloads: list[tuple[str, str | None, bytes]] = []
+            for file in files:
+                payloads.append((file.filename or "attachment.bin", file.content_type, await file.read()))
+            return {"items": services.create_work_session_attachments(session_id, payloads)}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.post("/api/work-sessions/{session_id}/turn", status_code=201)
+    def run_work_session_turn(session_id: str, payload: WorkSessionTurnRequest) -> dict[str, Any]:
+        try:
+            return services.run_work_session_turn(session_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    def _sse_event(event: str, data: dict[str, Any]) -> str:
+        payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+        return f"event: {event}\ndata: {payload}\n\n"
+
+    @app.post("/api/work-sessions/{session_id}/turn/stream")
+    def stream_work_session_turn(session_id: str, payload: WorkSessionTurnRequest) -> StreamingResponse:
+        def generate():
+            try:
+                for item in services.run_work_session_turn_stream(session_id, payload):
+                    yield _sse_event(str(item["event"]), item["data"])
+            except KeyError:
+                yield _sse_event("error", {"message": "work session not found"})
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     @app.post("/api/reference-sets", status_code=201)
     def create_reference_set(payload: ReferenceSetCreate) -> dict[str, Any]:
@@ -499,12 +2474,194 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             )
         }
 
+    @app.get("/api/knowledge/sources")
+    def list_knowledge_sources() -> dict[str, Any]:
+        return {"items": services.knowledge.list_sources()}
+
+    @app.post("/api/knowledge/sources", status_code=201)
+    def create_knowledge_source(payload: KnowledgeSourceCreate) -> dict[str, Any]:
+        ensure_no_active_knowledge_ingestion()
+        try:
+            return services.knowledge.register_source(
+                label=payload.label,
+                root_path=payload.root_path,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/knowledge/sources/{source_id}/scan")
+    def scan_knowledge_source(source_id: str) -> dict[str, Any]:
+        ensure_no_active_knowledge_ingestion()
+        try:
+            return services.knowledge.scan_source(source_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge source not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/knowledge/source-files")
+    def list_knowledge_source_files(source_id: str | None = None) -> dict[str, Any]:
+        return {"items": services.knowledge.list_source_files(source_id=source_id)}
+
+    def enqueue_or_run_ingestion(
+        payload: KnowledgeIngestRequest,
+        background_tasks: BackgroundTasks,
+        *,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        ensure_no_active_knowledge_ingestion()
+        services.knowledge.scan_source(payload.source_id)
+        if payload.background and payload.run_now:
+            job = services.graphrag.ingest_source(payload.source_id, run_now=False, force=force)
+            background_tasks.add_task(services.graphrag.run_job, job["id"])
+            return {"job": job}
+        return {"job": services.graphrag.ingest_source(payload.source_id, run_now=payload.run_now, force=force)}
+
+    @app.post("/api/knowledge/ingest", status_code=201)
+    def ingest_knowledge_source(
+        payload: KnowledgeIngestRequest,
+        background_tasks: BackgroundTasks,
+    ) -> dict[str, Any]:
+        try:
+            return enqueue_or_run_ingestion(payload, background_tasks)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge source not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/knowledge/reindex", status_code=201)
+    def reindex_knowledge_source(
+        payload: KnowledgeIngestRequest,
+        background_tasks: BackgroundTasks,
+    ) -> dict[str, Any]:
+        try:
+            return enqueue_or_run_ingestion(payload, background_tasks, force=True)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge source not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.get("/api/knowledge/ingestion-jobs")
+    def list_knowledge_ingestion_jobs() -> dict[str, Any]:
+        return {"items": services.graphrag.list_jobs()}
+
+    @app.get("/api/knowledge/ingestion-jobs/{job_id}/log")
+    def read_knowledge_ingestion_job_log(job_id: str, limit: int = 200) -> dict[str, Any]:
+        try:
+            return services.graphrag.read_job_log(job_id, limit=limit)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge ingestion job not found") from exc
+
+    @app.post("/api/knowledge/ingestion-jobs/{job_id}/run")
+    def run_knowledge_ingestion_job(job_id: str) -> dict[str, Any]:
+        try:
+            return {"job": services.graphrag.run_job(job_id)}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge ingestion job not found") from exc
+
+    @app.post("/api/knowledge/ingestion-jobs/{job_id}/cancel")
+    def cancel_knowledge_ingestion_job(job_id: str) -> dict[str, Any]:
+        try:
+            return {"job": services.graphrag.request_cancel(job_id)}
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge ingestion job not found") from exc
+
+    @app.get("/api/knowledge/chunks")
+    def list_knowledge_chunks(document_id: str | None = None) -> dict[str, Any]:
+        return {"items": services.graphrag.list_chunks(document_id=document_id)}
+
+    @app.get("/api/knowledge/documents")
+    def list_knowledge_documents(source_id: str | None = None) -> dict[str, Any]:
+        return {"items": services.graphrag.list_documents(source_id=source_id)}
+
+    @app.get("/api/knowledge/document-structure")
+    def knowledge_document_structure(document_id: str, section_limit: int = 60) -> dict[str, Any]:
+        try:
+            return services.graphrag.document_structure(document_id, section_limit=section_limit)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge document not found") from exc
+
+    @app.get("/api/knowledge/tables")
+    def list_knowledge_tables(document_id: str | None = None) -> dict[str, Any]:
+        return {"items": services.graphrag.list_tables(document_id=document_id)}
+
+    @app.post("/api/knowledge/retrieve")
+    def retrieve_knowledge(payload: KnowledgeRetrieveRequest) -> dict[str, Any]:
+        return services.graphrag.retrieve(
+            query=payload.query,
+            session_id=payload.session_id,
+            limit=payload.limit,
+        )
+
+    @app.post("/api/knowledge/ask")
+    def ask_knowledge(payload: KnowledgeRetrieveRequest) -> dict[str, Any]:
+        return services.graphrag.ask(
+            query=payload.query,
+            session_id=payload.session_id,
+            limit=payload.limit,
+        )
+
+    def parse_structured_document_response(payload: KnowledgeParseDocumentRequest) -> dict[str, Any]:
+        path = Path(payload.file_path).expanduser().resolve()
+        if not path.exists() or not path.is_file():
+            raise HTTPException(status_code=404, detail="document file not found")
+        document = parse_document(path)
+        sections = [
+            {
+                "heading": section.heading,
+                "level": section.level,
+                "paragraphs": section.paragraphs,
+                "tables": [
+                    {
+                        "headers": table.headers,
+                        "rows": table.rows,
+                        "caption": table.caption,
+                    }
+                    for table in section.tables
+                ],
+            }
+            for section in document.sections
+        ]
+        tables = [
+            {
+                "section_heading": section.heading,
+                "headers": table.headers,
+                "rows": table.rows,
+                "caption": table.caption,
+            }
+            for section in document.sections
+            for table in section.tables
+        ]
+        return {
+            "document": {
+                "title": document.title,
+                "document_type": document.document_type,
+                "metadata": document.metadata,
+                "parser_name": document.parser_name,
+                "parser_version": document.parser_version,
+                "quality_score": document.quality_score,
+                "partial": document.partial,
+            },
+            "sections": sections,
+            "tables": tables,
+        }
+
+    @app.post("/api/knowledge/parse-hwp")
+    def parse_hwp_document(payload: KnowledgeParseDocumentRequest) -> dict[str, Any]:
+        return parse_structured_document_response(payload)
+
+    @app.post("/api/knowledge/parse-hwpx")
+    def parse_hwpx_document(payload: KnowledgeParseDocumentRequest) -> dict[str, Any]:
+        return parse_structured_document_response(payload)
+
     @app.post("/api/knowledge/candidates/{candidate_id}/approve")
     def approve_candidate(candidate_id: str, payload: CandidateApproveRequest) -> dict[str, Any]:
         try:
             return services.knowledge.approve_candidate(candidate_id, payload.page_type)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="candidate not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get("/api/knowledge/pages")
     def list_pages() -> dict[str, Any]:
@@ -518,18 +2675,98 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     def search_knowledge(query: str) -> dict[str, Any]:
         return services.knowledge.search(query)
 
+    @app.get("/api/files/search")
+    def search_files(query: str, limit: int = 20) -> dict[str, Any]:
+        return services.search_files(query=query, limit=limit)
+
+    @app.post("/api/files/index/rebuild")
+    def rebuild_file_search_index() -> dict[str, Any]:
+        return services.rebuild_file_search_index()
+
     @app.get("/api/knowledge/graph")
     def knowledge_graph() -> dict[str, Any]:
         return services.knowledge.graph_summary()
 
+    @app.get("/api/knowledge/backend-status")
+    def knowledge_backend_status() -> dict[str, Any]:
+        return services.graphrag.backend_status()
+
+    @app.get("/api/knowledge/parser-status")
+    def knowledge_parser_status() -> dict[str, Any]:
+        return {"kordoc": kordoc_status()}
+
+    @app.get("/api/knowledge/graph/query")
+    def query_knowledge_graph(query: str, limit: int = 20) -> dict[str, Any]:
+        return services.graphrag.graph_query(query=query, limit=limit)
+
+    @app.post("/api/personalization/work-sessions/{session_id}/analyze", status_code=201)
+    def analyze_work_session_for_personalization(session_id: str) -> dict[str, Any]:
+        try:
+            return services.personalization.analyze_session(
+                session_id=session_id,
+                apply_mode=services.settings.personalization_apply_mode,
+                personalization_root=services.personalization_root,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.get("/api/personalization/candidates")
+    def list_personalization_candidates() -> dict[str, Any]:
+        return {"items": services.personalization.list_candidates()}
+
+    @app.post("/api/personalization/candidates/{candidate_id}/decide")
+    def decide_personalization_candidate(
+        candidate_id: str,
+        payload: PersonalizationDecisionRequest,
+    ) -> dict[str, Any]:
+        try:
+            return services.personalization.decide_candidate(
+                candidate_id=candidate_id,
+                status=payload.status,
+                personalization_root=services.personalization_root,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="personalization candidate not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.post("/api/documents/content-bases", status_code=201)
     def create_content_base(payload: ContentBaseCreate) -> dict[str, Any]:
-        return services.documents.create_content_base(
-            title=payload.title,
-            purpose=payload.purpose,
-            reference_set_id=payload.reference_set_id,
-            template_key=payload.template_key,
-        )
+        try:
+            return services.documents.create_content_base(
+                title=payload.title,
+                purpose=payload.purpose,
+                reference_set_id=payload.reference_set_id,
+                template_key=payload.template_key,
+                source_session_id=payload.source_session_id,
+                outline=payload.outline,
+                document_format=payload.document_format,
+                audience_type=payload.audience_type,
+                expected_length=payload.expected_length,
+                urgency_level=payload.urgency_level,
+                needs_traceability=payload.needs_traceability,
+                requires_official_form=payload.requires_official_form,
+                requested_action=payload.requested_action,
+                deadline=payload.deadline,
+                security_level=payload.security_level,
+                direct_file_paths=payload.direct_file_paths,
+                user_template_path=payload.user_template_path,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="source work session not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/documents/templates/custom")
+    def list_custom_document_templates() -> dict[str, Any]:
+        return {"items": services.documents.list_custom_templates()}
+
+    @app.post("/api/documents/templates/custom", status_code=201)
+    async def upload_custom_document_template(file: UploadFile = File(...)) -> dict[str, Any]:
+        try:
+            return {"item": services.documents.save_custom_template(file.filename or "template.hwpx", await file.read())}
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/api/documents/finalize", status_code=202)
     def request_document_finalize(payload: FinalDocumentFinalizeRequest) -> dict[str, Any]:
@@ -549,6 +2786,8 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="final document request not found") from exc
         except PermissionError as exc:
             raise HTTPException(status_code=409, detail="approval ticket must be approved") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @app.post("/api/integrations/anything/launch", status_code=202)
     def request_anything_launch(payload: AnythingLaunchRequest) -> dict[str, Any]:
@@ -618,10 +2857,11 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             return services.file_organizer.commit_apply(proposal_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="file organizer proposal not found") from exc
-        except PermissionError as exc:
-            raise HTTPException(status_code=409, detail="approval ticket must be approved") from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except OSError as exc:
+            detail = exc.strerror or str(exc)
+            raise HTTPException(status_code=409, detail=f"file organizer apply failed: {detail}") from exc
 
     @app.post("/api/file-organizer/operations/{operation_id}/rollback")
     def rollback_file_org(operation_id: str) -> dict[str, Any]:

@@ -8,7 +8,9 @@ __pycache__/
 *.swp
 .venv/
 runtime-workspace/
+.playwright-cli/
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/resources/sidecar/windows-x64/
 release/sidecar/
+release/offline/
 release/alpha/20*-windows-*.md

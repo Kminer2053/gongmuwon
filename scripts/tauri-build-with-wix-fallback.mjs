@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(scriptPath), "..");
+const desktopRoot = path.join(repoRoot, "apps", "desktop");
 const wixSuppressedIces = ["ICE38", "ICE64", "ICE90", "ICE91"];
 
 function run(command, args, options = {}) {
@@ -19,6 +20,18 @@ function run(command, args, options = {}) {
 function readTauriConfig(root = repoRoot) {
   const configPath = path.join(root, "apps", "desktop", "src-tauri", "tauri.conf.json");
   return JSON.parse(fs.readFileSync(configPath, "utf8"));
+}
+
+function resolveTauriCli(root = repoRoot) {
+  return path.join(root, "node_modules", "@tauri-apps", "cli", "tauri.js");
+}
+
+function bundleTargetsIncludeMsi(config) {
+  const targets = config.bundle?.targets ?? "all";
+  if (targets === "all" || targets === "msi") {
+    return true;
+  }
+  return Array.isArray(targets) && targets.includes("msi");
 }
 
 export function buildMsiOutputPath({
@@ -87,6 +100,17 @@ function ensureArtifacts(paths) {
   }
 }
 
+function ensureFreshArtifacts(paths, notOlderThanMs) {
+  ensureArtifacts(paths);
+
+  for (const candidate of [paths.localePath, paths.objectPath, paths.sourcePath]) {
+    const { mtimeMs } = fs.statSync(candidate);
+    if (mtimeMs < notOlderThanMs) {
+      throw new Error(`stale WiX artifact: ${candidate}`);
+    }
+  }
+}
+
 export function manualLinkPerUserMsi({
   root = repoRoot,
   profile = "release",
@@ -94,9 +118,14 @@ export function manualLinkPerUserMsi({
   version,
   locale = "en-US",
   localAppData = process.env.LOCALAPPDATA ?? "",
+  notOlderThanMs,
 } = {}) {
   const wixArtifacts = getWixArtifacts({ root, profile });
-  ensureArtifacts(wixArtifacts);
+  if (typeof notOlderThanMs === "number") {
+    ensureFreshArtifacts(wixArtifacts, notOlderThanMs);
+  } else {
+    ensureArtifacts(wixArtifacts);
+  }
 
   const lightExe = resolveWixLightExe(localAppData);
   const outputPath = buildMsiOutputPath({ root, profile, productName, version, locale });
@@ -126,15 +155,20 @@ export function main(argv = process.argv.slice(2)) {
   const debug = argv.includes("--debug");
   const config = readTauriConfig();
   const profile = debug ? "debug" : "release";
-  const tauriArgs = ["--workspace", "apps/desktop", "exec", "tauri", "build"];
+  const tauriArgs = [resolveTauriCli(), "build"];
 
   if (debug) {
     tauriArgs.push("--debug");
   }
 
-  const tauriBuild = run("npm.cmd", tauriArgs);
+  const tauriBuildStartedAt = Date.now();
+  const tauriBuild = run(process.execPath, tauriArgs, { cwd: desktopRoot });
   if (!tauriBuild.error && tauriBuild.status === 0) {
     process.exit(0);
+  }
+
+  if (!bundleTargetsIncludeMsi(config)) {
+    process.exit(tauriBuild.status ?? 1);
   }
 
   try {
@@ -142,6 +176,7 @@ export function main(argv = process.argv.slice(2)) {
       profile,
       productName: config.productName,
       version: config.version,
+      notOlderThanMs: tauriBuildStartedAt,
     });
     console.log(`manual WiX MSI fallback produced ${path.relative(repoRoot, outputPath)}`);
     process.exit(0);

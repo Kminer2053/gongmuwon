@@ -9,6 +9,7 @@ This checklist is the manual complement to:
 - `npm.cmd run desktop:smoke:nsis`
 - `npm.cmd run desktop:smoke:msi`
 - `npm.cmd run desktop:verify:windows`
+- `npm.cmd run desktop:prepare:anything`
 
 ## Preconditions
 
@@ -21,11 +22,14 @@ This checklist is the manual complement to:
 Run:
 
 ```powershell
+npm.cmd run desktop:prepare:anything
 npm.cmd run desktop:prepare:gui
 ```
 
 Record the printed values:
 
+- `release_url`
+- `detected_path`
 - `installer_path`
 - `suggested_install_dir`
 - `suggested_workspace_root`
@@ -42,6 +46,9 @@ Record the printed values:
 4. Launch the installed desktop app.
 5. Confirm the desktop window becomes visible.
 6. Confirm the app can reach the bundled sidecar or at minimum does not fail immediately on startup.
+7. If `detected_path` is set, approve one Anything launch request and confirm the external app opens.
+   The detected executable may be `Anything.exe` or `docufinder.exe` depending on the upstream installer shape.
+8. If `detected_path` is `-`, confirm Gongmu opens the Docufinder releases page instead.
 
 ## Uninstall Pass
 
@@ -57,6 +64,8 @@ Record the printed values:
 - install directory used
 - whether the desktop window appeared
 - whether the bundled sidecar tree existed
+- whether Gongmu detected an external `Anything` executable
+- whether Gongmu opened the external app or the release page fallback
 - whether uninstall removed the install directory cleanly
 - any screenshots or logs
 

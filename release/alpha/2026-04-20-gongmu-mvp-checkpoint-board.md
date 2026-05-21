@@ -1,224 +1,155 @@
-# 공무 MVP Checkpoint Board
+# Gongmu MVP Checkpoint Board
 
 ## 1. 현재 상태 요약
 
-### 현재까지 완료된 것
+2026-04-25 기준 Gongmu는 Windows 메인 개발 환경에서 다음 기준선을 만족한다.
 
-- `apps/desktop`: `Tauri 2 + React + TypeScript` 기반 데스크톱 셸 생성
-- `services/sidecar`: `FastAPI + SQLite + LanceDB + NetworkX` 기반 사이드카 생성
-- `runtime-workspace` 기본 구조 자동 생성
-- `services/sidecar`: `/api/settings` runtime settings contract 추가
-- `services/sidecar`: `/api/settings` typed response model + env override verification 추가
-- `apps/desktop`: live settings snapshot 로딩 및 settings panel 표시 연결
-- `apps/desktop`: runtime parser/guard for `WorkspaceSettings` 추가
-- 일정 / 업무세션 / 참고자료 묶음 / 지식 반영 후보 / 콘텐츠 베이스 / 승인 요청 / 파일정리 제안 API 골격 구현
-- 지식 반영 시 `Markdown page + graph.json + graph.html + GRAPH_REPORT.md` 생성
-- 지식 검색과 그래프 요약을 sidecar API + desktop 패널에서 직접 탐색 가능
-- 문서작성 시 `ContentBase.md + preview.html` 생성
-- 문서작성 최종 저장 승인 요청/적용 시 `outputs/` Markdown 산출물 생성 및 execution log / DB persist 연결
-- 문서작성 최종 저장 UI의 `요청 -> 승인 -> 적용` 흐름 테스트 보강 완료
-- Windows 대상 최종 산출물 파일명 안전화 및 회귀 테스트 추가
-- 파일정리 제안의 승인 요청, 적용, rollback API와 데스크톱 액션 연결 완료
-- `services/sidecar`: `/api/tools` Tool Manifest와 `services/sidecar/README.md` 운영 런북 추가
-- `apps/desktop`: 도구 화면이 하드코딩 카드 대신 Tool Manifest 응답을 표시하도록 전환
-- `apps/desktop/src-tauri`: sidecar runtime status 조회 + 수동 시작/종료/재시작 command 추가
-- `apps/desktop/src-tauri`: 앱 종료 시 관리 중인 sidecar cleanup 추가
-- `apps/desktop/src-tauri`: 관리 중인 sidecar 비정상 종료 감지 + 자동 재시작 권고 상태 추가
-- `apps/desktop`: 헤더 runtime badge, `사이드카 시작/종료/재시작` 버튼, log path hint 추가
-- `apps/desktop`: 5초 주기 runtime poll + 비정상 종료 시 1회 자동 재시작 연결
-- `package.json`: `desktop:bundle`, `desktop:bundle:debug` 오프라인 배포 스크립트 추가
-- `docs/operations`: Alpha 오프라인 패키징 런북 추가
-- `scripts`: Alpha release manifest/staging 스크립트 추가
-- `docs/operations`: Python sidecar 독립 배포 전략 문서 추가
-- 데스크톱 셸에서 주요 메뉴 순서와 기본 입력/조회 흐름 구현
+- 핵심 기능 흐름이 모두 연결되어 있다.
+  - 업무대화
+  - 일정
+  - 로컬검색 / Anything 외부 연계
+  - Reference Set
+  - 문서작성
+  - 내 지식폴더
+  - 파일정리
+  - 승인 / 실행기록
+- 기능 검증에서 막혔던 blocker 3개는 모두 해소됐다.
+  - Content Base 생성 실패
+  - 지식 승인 실패
+  - 파일정리 적용 409
+- `Anything`는 Gongmu 패키지에 번들하지 않고, 외부 설치형 연계 계약으로 정리됐다.
+- Windows sidecar / desktop / installer smoke 루프는 계속 녹색이다.
+- 업무대화 화면은 `상단 기능 탭 + 좌측 세션 레일 + 중앙 세션 캔버스` 구조로 재배치됐다.
+- 우측 `현재 컨텍스트 / 승인 요청 / 최근 실행` 패널은 접기/펼치기와 선택적 표시가 가능하다.
+- 일정 화면은 `day / week / month` 보기와 캘린더 내부 편집 패널 구조로 정리됐다.
+- Anything은 기본 클립보드 handoff 외에, Windows에서 `GONGMU_ANYTHING_AUTOPASTE=1`일 때 실험적 자동 붙여넣기 시도를 지원한다.
 
-### 2026-04-20 기준 검증 완료 증거
+## 2. 핵심 결정 로그
+
+### 제품 / 구조
+
+- 주 진입 흐름은 `업무대화 중심`으로 가져간다.
+- 일정은 업무 흐름의 상위 개념이 아니라, 업무대화와 연결 가능한 보조 축으로 본다.
+- `Reference Set`은 문서작성과 업무 세션을 위한 참고자료 묶음 개념으로 유지한다.
+- 문서작성은 반드시 `Content Base(Markdown) -> Template -> 최종 산출물` 구조를 따른다.
+
+### Anything 연계
+
+- Gongmu는 `Anything` 바이너리를 재배포하지 않는다.
+- 이유:
+  - 사용자 요구사항상 별도 외부 프로그램으로 취급
+  - [Docufinder](https://github.com/chrisryugj/Docufinder) 기반 Anything은 BSL 1.1 라이선스 계약을 고려해야 함
+- Gongmu가 책임지는 범위:
+  - 설치 감지
+  - 설치 안내 fallback
+  - 승인 후 실행
+  - 결과 경로 import
+  - Reference Set / 문서작성 handoff
+
+## 3. 트랙별 상태
+
+| ID | 트랙 | 상태 | 메모 |
+| --- | --- | --- | --- |
+| W0 | 플랫폼 / 계약 | 완료 | runtime-workspace, settings, approval, execution log 계약 정리 완료 |
+| W1 | 일정 + 업무대화 + Reference Set | 완료 | 채팅 중심 셸, 세션 레일, calendar-first 입력 패널까지 반영 |
+| W2 | 내 지식폴더 MVP | 완료 | 후보 생성/승인/검색/graph 흐름 정상 |
+| W3 | 검색 / Anything 연계 | 완료 | 외부 설치형 Anything 감지, 설치 안내, launch, import, handoff 가능 |
+| W4 | 문서작성 MVP | 완료 | Content Base 생성, stale 보호, 최종 저장 승인/적용 가능 |
+| W5 | 파일정리 + 승인형 적용 | 완료 | 제안 생성, 승인, 적용, 롤백, 재요청 흐름 정상 |
+| W6 | graph / 보조 탐색 | 완료 | 지식 검색 및 graph 요약 표시 가능 |
+| W7 | Windows 운영 / 설치 루프 | 완료 | sidecar bundle, verify, MSI/NSIS smoke, GUI 검증 근거 확보 |
+
+## 4. 최신 검증 기준선
+
+2026-04-25 기준 최신 검증 결과:
 
 | 영역 | 명령 | 결과 |
 | --- | --- | --- |
-| Sidecar API | `npm run sidecar:test` | `13 passed` |
-| Sidecar settings contract | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | `PASS` |
-| Sidecar env override | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | `PASS` |
-| Desktop UI | `npm --workspace apps/desktop run test` | `10 passed` |
-| Desktop build | `npm --workspace apps/desktop run build` | 성공 |
-| Verify bundle | `npm run verify:all` | PASS |
-| Tauri shell | `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` | 성공 |
+| Sidecar | `npm.cmd run sidecar:test` | PASS (`28 passed`) |
+| Desktop UI | `npm.cmd run desktop:test` | PASS (`32 passed`) |
+| Desktop build | `npm.cmd run desktop:build` | PASS |
+| Tauri / Rust | `node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` | PASS |
+| 통합 검증 | `npm.cmd run verify:all` | PASS |
+| Windows installer smoke | `npm.cmd run desktop:smoke:nsis` | PASS |
 
-### 아직 비어 있는 핵심 구간
+NSIS smoke 최근 검증 결과:
 
-- Alpha 기준 핵심 구현 공백 없음
-- Windows 실환경 설치 검증과 PyInstaller 산출 검증은 2026-04-21 기준 반복 가능한 smoke/verify 루프로 닫힘
+- install dir: `runtime-workspace\\cache\\nsis-smoke-install-20260424-002328`
+- bundled sidecar `/health`: `status=ok`
+- uninstall 후 `remaining_install_files: []`
 
----
+## 5. 기능 검증 체크포인트
 
-## 2. 현재 산출물 지도
+사용자 수동 점검과 이후 수정 배치를 반영한 상태 요약:
 
-| 분류 | 파일 | 역할 | 상태 |
+| 영역 | 최초 점검 | 현재 상태 | 메모 |
 | --- | --- | --- | --- |
-| 운영 규칙 | `/Users/hoonsbook/Agent_Gongmu_Codex/AGENTS.md` | 에이전트 작업 모델과 도구 선택 기준 | 활성 |
-| 제품 마스터 플랜 | `/Users/hoonsbook/Agent_Gongmu_Codex/docs/superpowers/plans/2026-04-19-gongmu-agent-workspace-master-plan.md` | 장기 제품 구조와 아키텍처 기준 | 기준 문서 |
-| 통합 제품 계획 | `/Users/hoonsbook/Agent_Gongmu_Codex/계획서/공무_개발계획서_최종통합판_v2.md` | 제품 전략과 기술 선택 통합안 | 기준 문서 |
-| 체크포인트 보드 | `/Users/hoonsbook/Agent_Gongmu_Codex/docs/superpowers/plans/2026-04-20-gongmu-mvp-checkpoint-board.md` | 진행 상황, 검증 증거, 중간 점검 기준 | 신규 |
-| 남은 구현 계획 | `/Users/hoonsbook/Agent_Gongmu_Codex/docs/superpowers/plans/2026-04-20-gongmu-mvp-remaining-implementation-plan.md` | 남은 MVP 작업의 실행 소스 오브 트루스 | 신규 |
+| 일정 생성 | pass | pass | 다음 개선은 calendar-first UI |
+| 업무 세션 연결 | pass | pass | 다음 개선은 세션 중심 IA 강화 |
+| 수동 Reference Set 생성 | pass | pass | 역할 설명/직접 import UX 개선 여지 |
+| Content Base 생성 | fail | pass | fetch fail 수정 완료 |
+| stale 보호 | fail | pass | 초안 무효화 보호 검증 완료 |
+| 최종 문서 저장 | fail | pass | 승인/적용/산출물 경로 확인 가능 |
+| Anything 실행 요청 | partial | pass | 외부 설치형 계약으로 정리 |
+| Anything 실행 / 다시 열기 | fail | pass | 외부 설치본 감지 및 reopen 흐름 가능 |
+| Anything -> Reference Set import | fail | pass | 경로 import 가능 |
+| Continue to Documents handoff | 미평가 | pass | 제목/목적/요약 카드 handoff 가능 |
+| 지식 후보 생성 | pass | pass | 상세보기 UX는 후속 과제 |
+| 지식 페이지 승인 | fail | pass | 승인 실패 수정 완료 |
+| 지식 검색 | fail | pass | 검색/graph 흐름 정상 |
+| 파일정리 제안 생성 | pass | pass | 경로 선택 UX는 후속 과제 |
+| 파일정리 적용 | partial | pass | 409 / 디렉터리 apply 수정 완료 |
+| 파일정리 롤백 | fail | pass | 롤백 후 재요청 흐름 복구 완료 |
+| managed sidecar 제어 | pass | pass | start / restart / stop 정상 |
+| unmanaged sidecar 복구 | pass | pass | 자동 복구 흐름 정상 |
+| 승인 큐 일관성 | pass | pass | replay safety 보강 완료 |
+| 실행기록 | partial | partial | 가독성 / 상세보기는 후속 과제 |
 
----
+## 6. Windows 운영 체크포인트
 
-## 3. 워크스트림 보드
+### Anything 외부 설치형 연계
 
-| ID | 워크스트림 | 상태 | 종료 기준 | 증거 |
-| --- | --- | --- | --- | --- |
-| W0 | 플랫폼 골격 | 완료 | 셸/DB/로그/승인 구조가 뜬다 | 테스트 + 빌드 통과 |
-| W1 | 일정 + 업무대화 + 참고자료 | 완료 | 일정, 세션, ReferenceSet 생성/조회 가능 | API 테스트 통과 |
-| W2 | 지식폴더 MVP | 완료 | 후보 생성/승인/페이지 생성/그래프 산출 | API + UI + search/graph inspector 검증 통과 |
-| W3 | 검색 연계 | 완료 | Anything 승인 후 외부 링크 열기, 재실행, 선택 경로를 Reference Set으로 수집 가능 | API/UI 구현, 승인 후 `es:` 외부 링크 apply/open 흐름과 수동 경로 import 검증 |
-| W4 | 문서작성 MVP | 완료 | ContentBase 생성/미리보기/최종 저장 승인 및 outputs 생성 가능 | API + UI + spec/quality review + targeted verification 통과 |
-| W5 | 파일정리 + 지식화 루프 | 완료 | 제안 생성/조회/적용/rollback 가능 | sidecar workflow test + desktop action 연결 완료 |
-| W6 | 그래프 보조 탐색 | 완료 | graph 산출물 생성 + search/graph inspector UI 동작 | sidecar + desktop 테스트 통과 |
-| W7 | 설치/운영 안정화 | 완료 | runtime badge/lifecycle/auto-restart, bundle script, release staging, dev/runbook/tool manifest, Windows installer smoke/verify 루프 정리 | README + /api/tools + Tauri command + offline runbook + Windows validation docs/scripts |
+- 로컬 설치 감지 경로:
+  - `C:\Users\USER\AppData\Local\Anything\docufinder.exe`
+- helper 명령:
+  - `npm.cmd run desktop:prepare:anything`
+- 현재 기대 모드:
+  - 설치본이 있으면 `external_app_detected`
+  - 없으면 설치 안내 페이지 fallback
+- 실험적 자동입력:
+  - 환경변수 `GONGMU_ANYTHING_AUTOPASTE=1`일 때만 Windows에서 best-effort `Ctrl+V` 자동 붙여넣기를 시도
+  - 기본값은 off
+  - 실패해도 기본 클립보드 handoff 계약은 유지
 
----
+### GUI 설치 검증 메모
 
-## 4. 다음 구현 게이트
+- 앱 창 표시: 확인됨
+- bundled sidecar 시작 / 연결: 확인됨
+- uninstall 후 `uninstall.exe`만 사라지고 잔여 폴더가 남는 경미한 follow-up이 한 번 관찰됨
+- 현재 판단:
+  - 기능 blocker 아님
+  - `known follow-up`으로 유지
 
-### Gate A — Alpha 운영 연결
+## 7. 현재 남은 과제
 
-- 목표: 데스크톱 셸에서 사이드카 설정, 상태, 툴 목록, 승인 큐가 일관되게 보인다.
-- 포함:
-  - `/api/settings`
-  - Tool Manifest API
-  - Desktop 설정 패널 실데이터 연결
-  - 전체 검증 스크립트
+제품 blocker는 없고, 남은 과제는 완성도 개선 성격이 강하다.
 
-### Gate B — 문서 산출 닫기
+우선순위:
 
-- 목표: `ContentBase -> 최종 저장 요청 -> 승인 -> outputs/` 생성까지 닫힌다.
-- 포함:
-  - 최종 출력물 저장 승인
-  - 출력물 metadata/log 기록
-  - 문서작성 UI의 최종 저장 액션
-  - 완료: sidecar request/apply route, DB persist, desktop request/apply UI, verify bundle 통과
+1. 자유형 업무대화 자체의 메시지/스레드 모델 확장
+2. 일정 칸 내부 표시 밀도와 직접 수정 UX 보강
+3. 지식 후보 / 파일정리 제안 / 실행기록 카드 상세보기 패턴 공통화
+4. 파일정리 목적 설명 및 경로 선택 UX 개선
+5. 설치 패키지 최종 점검 재실행
 
-### Gate C — 지식/파일 정리 실사용화
+## 8. 다음 배치 권장
 
-- 목표: 지식 검색/그래프 보기와 파일정리 apply/rollback이 실제로 동작한다.
-- 포함:
-  - 지식 검색/그래프 엔드포인트 보강
-  - 파일정리 제안 적용/되돌리기
-  - 승인/실행기록 연결
+다음 배치는 `기능 완성도 개선` 중심으로 가져간다.
 
----
+### 추천 순서
 
-## 5. 중간 점검 규칙
-
-### 각 Task 종료 시 반드시 갱신할 항목
-
-1. 이 문서의 `워크스트림 보드` 상태
-2. 아래 `최근 검증 결과`
-3. `이슈/결정 로그`
-
-### 최근 검증 결과
-
-| 날짜 | 범위 | 명령 | 결과 | 메모 |
-| --- | --- | --- | --- | --- |
-| 2026-04-20 | baseline | `npm run sidecar:test` | PASS | `8 passed` |
-| 2026-04-20 | task1 | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_exposes_runtime_contract -v` | PASS | `/api/settings` runtime contract verified |
-| 2026-04-20 | task1 | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_settings_endpoint_honors_env_overrides -q` | PASS | `GONGMU_*` overrides verified |
-| 2026-04-20 | baseline | `npm --workspace apps/desktop run test` | PASS | `3 passed` |
-| 2026-04-20 | baseline | `npm --workspace apps/desktop run build` | PASS | Vite build 성공 |
-| 2026-04-20 | task1 | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 통과 |
-| 2026-04-20 | baseline | `source "$HOME/.cargo/env" && cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml` | PASS | 아이콘 자산 보정 후 통과 |
-| 2026-04-20 | task2 | `.venv/bin/pytest services/sidecar/tests/test_api_flows.py::test_document_finalize_requires_approval_and_creates_output -v` | PASS | finalize/apply sidecar flow verified |
-| 2026-04-20 | task2 | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `9 passed` |
-| 2026-04-20 | task2 | `npm --workspace apps/desktop run test` | PASS | `4 passed` |
-| 2026-04-20 | task2 | `npm --workspace apps/desktop run build` | PASS | desktop bundle rebuilt successfully |
-| 2026-04-20 | task2 | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 통과 |
-| 2026-04-20 | task2-review | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | finalize request/approval/apply UI flow exercised |
-| 2026-04-20 | task2-review | `.venv/bin/pytest services/sidecar/tests/test_api_flows.py::test_document_finalize_sanitizes_windows_invalid_output_name -q` | PASS | Windows invalid filename regression fixed |
-| 2026-04-20 | task2-review | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `10 passed` |
-| 2026-04-20 | task2-review | `git diff --check 321eb20..f682654` | PASS | whitespace / conflict marker issues 없음 |
-| 2026-04-20 | task3 | `.venv/bin/pytest services/sidecar/tests/test_knowledge_search.py -q` | PASS | knowledge search + graph summary endpoint verified |
-| 2026-04-20 | task3 | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `11 passed` |
-| 2026-04-20 | task3 | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | knowledge inspector UI + existing shell flows verified |
-| 2026-04-20 | task3 | `npm --workspace apps/desktop run test` | PASS | `5 passed` |
-| 2026-04-20 | task3 | `npm --workspace apps/desktop run build` | PASS | desktop bundle rebuilt with graph inspector panel |
-| 2026-04-20 | task4 | `.venv/bin/pytest services/sidecar/tests/test_file_organizer_apply.py -q` | PASS | file organizer request/apply/rollback workflow verified |
-| 2026-04-20 | task4 | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `12 passed` |
-| 2026-04-20 | task4 | `npm --workspace apps/desktop run test` | PASS | `5 passed` |
-| 2026-04-20 | task4 | `npm --workspace apps/desktop run build` | PASS | desktop bundle rebuilt with file organizer actions |
-| 2026-04-20 | task3-review | `.venv/bin/pytest services/sidecar/tests/test_knowledge_search.py -q` | PASS | graph summary edge/artifact contract tightened |
-| 2026-04-20 | task3-review | `.venv/bin/pytest services/sidecar/tests -q` | PASS | `12 passed` after graph summary fix |
-| 2026-04-20 | verification | `npm run verify:all` | PASS | sidecar, desktop, build, cargo check 일괄 재검증 완료 |
-| 2026-04-20 | task5 | `.venv/bin/pytest services/sidecar/tests/test_bootstrap.py::test_tools_manifest_endpoint_is_exposed -q` | PASS | `/api/tools` Tool Manifest contract verified |
-| 2026-04-20 | task5 | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | 도구 메뉴가 manifest 기반 데이터를 렌더링함 |
-| 2026-04-20 | task5 | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `6 passed`, build + cargo check 포함 |
-| 2026-04-20 | runtime-bridge | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | runtime badge + manual sidecar start UI flow verified |
-| 2026-04-20 | runtime-bridge | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `7 passed`, build + cargo check 포함 |
-| 2026-04-20 | runtime-lifecycle | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | managed sidecar stop UI flow verified |
-| 2026-04-20 | runtime-lifecycle | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `8 passed`, build + cargo check 포함 |
-| 2026-04-20 | runtime-restart | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | managed sidecar restart UI flow verified |
-| 2026-04-20 | runtime-restart | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `9 passed`, build + cargo check 포함 |
-| 2026-04-20 | runtime-auto-restart | `npm --workspace apps/desktop run test -- src/app.test.tsx` | PASS | managed sidecar crash detection + auto restart UI flow verified |
-| 2026-04-20 | runtime-auto-restart | `npm run verify:all` | PASS | sidecar `13 passed`, desktop `10 passed`, build + cargo check 포함 |
-| 2026-04-20 | offline-runbook | `npm run verify:all` | PASS | bundle script 추가 이후 전체 검증 재통과 |
-| 2026-04-20 | release-staging | `npm run release:alpha` | PASS | Alpha release manifest와 staged docs 생성 |
-| 2026-04-21 | windows-sidecar-packaging | `npm run sidecar:bundle:windows` | PASS | PyInstaller one-folder sidecar bundle 생성 및 `/health` 응답 검증 |
-| 2026-04-21 | windows-installer-smoke | `npm run desktop:smoke:msi` | PASS | MSI install -> bundled sidecar health -> uninstall cleanup 자동 검증 |
-| 2026-04-21 | windows-installer-smoke | `npm run desktop:smoke:nsis` | PASS | NSIS install -> bundled sidecar health -> uninstall cleanup 자동 검증 |
-| 2026-04-21 | windows-installer-verify-fast | `npm run desktop:verify:windows:fast` | PASS | Windows smoke 검증 루프를 bundle skip 모드로 반복 가능하게 고정 |
-| 2026-04-21 | windows-installer-verify-full | `npm run desktop:verify:windows` | PASS | `desktop:bundle` + MSI/NSIS smoke 검증을 한 번에 재현 |
-| 2026-04-21 | anything-launch | `npm run sidecar:test` | PASS | sidecar `16 passed`, `anything.launch` request/apply/list 흐름과 persisted launch record 검증 |
-| 2026-04-21 | anything-launch | `npm run desktop:test` | PASS | desktop `11 passed`, 승인된 Anything 외부 링크 열기와 다시 열기 UI 검증 |
-| 2026-04-22 | anything-reference-import | `npm run sidecar:test` | PASS | sidecar `17 passed`, applied Anything launch에서 pasted path를 Reference Set으로 가져오고 execution log를 남기는 흐름 검증 |
-| 2026-04-22 | anything-reference-import | `npm run desktop:test` | PASS | desktop `12 passed`, 승인 후 열기 -> pasted path import -> Reference Set 반영 UI 검증 |
-| 2026-04-22 | anything-reference-import-handoff | `npm run desktop:test` | PASS | desktop `13 passed`, imported Reference Set에서 `Continue to Documents`로 문서 초안 화면으로 이동하는 handoff UX 검증 |
-| 2026-04-22 | anything-reference-import-document-context | `npm run desktop:test` | PASS | desktop `13 passed`, 문서 초안 화면에서 선택된 Reference Set 제목과 item 수를 즉시 확인하는 context summary 검증 |
-| 2026-04-22 | anything-reference-import-document-preview | `npm run desktop:test` | PASS | desktop `13 passed`, 문서 초안 화면에서 선택된 Reference Set의 대표 파일명 2개를 즉시 확인하는 preview UX 검증 |
-| 2026-04-22 | anything-reference-import-document-purpose | `npm run desktop:test` | PASS | desktop `13 passed`, `Continue to Documents` 뒤 문서 목적을 `reference set title 기반 정리`로 자동 채우는 handoff UX 검증 |
-| 2026-04-22 | anything-reference-import-document-path-preview | `npm run desktop:test` | PASS | desktop `13 passed`, 문서 초안 화면에서 대표 참고자료 경로 1개를 추가로 보여주는 path preview UX 검증 |
-| 2026-04-21 | release-staging | `npm run release:alpha` | PASS | Windows 운영 문서와 verify 스크립트가 Alpha staging에 반영됨 |
-| 2026-04-22 | windows-interactive-install-followup | `npm run desktop:bundle` + `npm run desktop:smoke:nsis` | PASS | same-account isolated NSIS install/run/uninstall evidence recorded in `docs/operations/2026-04-22-windows-interactive-install-validation.md`; clean-account GUI click-through remains optional follow-up |
-
-### 이슈 / 결정 로그
-
-| 날짜 | 유형 | 내용 | 후속 액션 |
-| --- | --- | --- | --- |
-| 2026-04-20 | 결정 | 지식 정본은 `Obsidian-compatible Markdown Vault` 유지 | UI와 검색도 이 구조에 맞춰 확장 |
-| 2026-04-20 | 결정 | 검색은 `Anything` 외부 실행 연계만 유지 | ETP/깊은 통합은 후속 단계로 보류 |
-| 2026-04-20 | 이슈 | Tauri 빌드가 기본 아이콘 부재로 실패 | `src-tauri/icons/icon.png` 보강 완료 |
-| 2026-04-20 | 결정 | 런타임 설정은 sidecar `/api/settings` 단일 계약으로 제공 | desktop snapshot과 settings panel이 이 계약을 소비 |
-| 2026-04-20 | 결정 | `/api/settings`는 typed response model + desktop runtime guard + env override test로 hardening | contract drift를 낮추고 verification bundle에서 반복 검증 |
-| 2026-04-20 | 결정 | 문서 최종 저장은 approval-ticket 기반 request/apply + outputs/ Markdown artifact로 처리 | sidecar/desktop/UI 검증 범위를 이 경로로 고정 |
-| 2026-04-20 | 이슈 | 문서 최종 저장 UI 테스트가 승인 이후 apply 호출까지 닿지 않음 | `f4dbe84`에서 apply 버튼 클릭/endpoint/assertion으로 보강 완료 |
-| 2026-04-20 | 이슈 | Windows에서 금지 문자가 포함된 출력 이름은 최종 저장 실패 가능 | `f682654`에서 파일명 안전화 + 회귀 테스트 추가 완료 |
-| 2026-04-20 | 이슈 | `KnowledgeManager._table()`가 LanceDB `list_tables()` 응답 객체를 plain list처럼 검사해 기존 테이블을 다시 생성하려고 함 | `.tables` 기준으로 확인하도록 수정하고 Task 3 search/graph 테스트로 회귀 방지 |
-| 2026-04-20 | 이슈 | `graph.json`은 `edges`를 쓰는데 graph summary는 `links`만 읽어 `edge_count`를 0으로 보고함 | `edges` 우선, `links` fallback으로 수정하고 artifact contract assertion으로 회귀 방지 |
-| 2026-04-20 | 결정 | 파일정리는 자동 실행이 아니라 `적용 요청 -> 승인 -> 적용 -> rollback`의 보수적 흐름으로 유지 | 삭제 대신 copy 기반 operation 로그를 남기고 되돌리기를 허용 |
-| 2026-04-20 | 결정 | 도구 화면은 하드코딩 카드 대신 sidecar Tool Manifest를 단일 진실원천으로 사용 | README 런북과 `/api/tools`를 함께 갱신하는 방식으로 운영 |
-| 2026-04-20 | 결정 | Tauri-sidecar 1차 연결은 `상태 감지 + 수동 시작/종료/재시작 + 로그 경로 노출`까지 구현 | 자동 시작보다 디버깅과 내부망 운영 추적을 우선하고 crash 감지/자동 재시작은 다음 단계로 분리 |
-| 2026-04-20 | 결정 | 관리 중인 sidecar가 비정상 종료되면 desktop이 poll 결과를 보고 1회 자동 재시작을 시도 | 수동 시작 정책은 유지하고, 무한 재시작 루프는 incident 단위 1회로 제한 |
-| 2026-04-20 | 결정 | 오프라인 배포는 우선 `desktop:bundle` 스크립트와 Alpha 런북으로 운영 기준을 고정 | Windows 실환경 설치 검증과 Python 독립 배포는 다음 단계에서 확정 |
-| 2026-04-20 | 결정 | Python sidecar 독립 배포는 Alpha 기준 `PyInstaller one-folder`를 권장안으로 문서화 | 실제 spec 작성과 Windows 산출 검증은 후속 단계에서 확정 |
-| 2026-04-21 | 결정 | Windows 메인 루프는 `desktop:verify:windows` / `desktop:verify:windows:fast` 중심으로 운영 | 변경 범위에 따라 bundle 포함 여부만 고르고 MSI/NSIS smoke를 공통 증거로 사용 |
-| 2026-04-21 | 결정 | Windows installer payload 증명은 administrative extract 대신 실제 install/run/uninstall smoke로 통일 | sidecar 포함 여부와 cleanup 결과를 같은 루프에서 확인 |
-
----
-
-## 6. 작업 리듬 제안
-
-### 하루 단위
-
-- 오전: 1개 Task 구현
-- 오후: 검증, 체크포인트 보드 갱신, 다음 Task 착수 여부 결정
-
-### Task 단위
-
-- 테스트 작성
-- 실패 확인
-- 최소 구현
-- 테스트/빌드 재검증
-- 체크포인트 보드 갱신
-
-### 다음 우선순위
-
-1. 깨끗한 Windows 계정 또는 VM에서 interactive install/uninstall 1회 확인
-2. Windows release artifact/문서 범위를 기준으로 안전한 커밋 단위 정리
+1. 업무대화 세션 구조 강화
+2. 일정 calendar-first UI
+3. 실행기록 / 제안 카드 상세보기
+4. 파일정리 UX 보강
+5. 기능 점검 후 설치 패키지 재검증

@@ -8,13 +8,14 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
+use tauri::menu::{MenuBuilder, SubmenuBuilder};
 use tauri::path::BaseDirectory;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 const DEFAULT_SIDECAR_URL: &str = "http://127.0.0.1:8765";
 const BUNDLED_SIDECAR_RESOURCE_PATH: &str =
     "sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe";
-
+const SIDECAR_STARTUP_TIMEOUT_SECS: u64 = 60;
 fn bundled_sidecar_resource_path() -> PathBuf {
     PathBuf::from(BUNDLED_SIDECAR_RESOURCE_PATH)
 }
@@ -23,6 +24,22 @@ fn bundled_sidecar_resource_path() -> PathBuf {
 struct SidecarManager {
     child: Mutex<Option<Child>>,
     last_exit: Mutex<Option<SidecarExitReason>>,
+}
+struct ZoomState {
+    scale: Mutex<f64>,
+}
+
+impl Default for ZoomState {
+    fn default() -> Self {
+        Self {
+            scale: Mutex::new(1.0),
+        }
+    }
+}
+
+fn minimum_window_width_for_zoom(scale: f64) -> u32 {
+    let base_width = 980.0;
+    (base_width * scale).ceil() as u32
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -36,6 +53,10 @@ struct DesktopRuntimeStatus {
     available: bool,
     mode: &'static str,
     sidecar_url: String,
+    anything_available: bool,
+    anything_mode: &'static str,
+    anything_path: Option<String>,
+    anything_autopaste_enabled: bool,
     running: bool,
     managed: bool,
     auto_restart_recommended: bool,
@@ -48,6 +69,8 @@ struct RuntimePaths {
     workspace_root: PathBuf,
     sidecar_app_dir: PathBuf,
     bundled_sidecar_exe: Option<PathBuf>,
+    bundled_sidecar_candidates: Vec<PathBuf>,
+    anything_exe: Option<PathBuf>,
     log_path: PathBuf,
 }
 
@@ -55,7 +78,16 @@ impl RuntimePaths {
     fn detect<R: tauri::Runtime>(app: Option<&tauri::AppHandle<R>>) -> Self {
         let repo_root = resolve_repo_root();
         let sidecar_app_dir = repo_root.join("services").join("sidecar").join("src");
-        let bundled_sidecar_exe = app.and_then(resolve_bundled_sidecar_executable);
+        let bundled_sidecar_candidates = if cfg!(debug_assertions) {
+            Vec::new()
+        } else {
+            app.map(resolve_bundled_sidecar_candidates).unwrap_or_default()
+        };
+        let bundled_sidecar_exe = bundled_sidecar_candidates
+            .iter()
+            .find(|candidate| candidate.exists())
+            .cloned();
+        let anything_exe = resolve_anything_executable();
         let default_workspace_root = if bundled_sidecar_exe.is_some() {
             app.and_then(resolve_packaged_workspace_root)
                 .unwrap_or_else(|| repo_root.join("runtime-workspace"))
@@ -72,6 +104,8 @@ impl RuntimePaths {
             workspace_root,
             sidecar_app_dir,
             bundled_sidecar_exe,
+            bundled_sidecar_candidates,
+            anything_exe,
             log_path,
         }
     }
@@ -108,22 +142,163 @@ fn resolve_packaged_workspace_root<R: tauri::Runtime>(
         .map(|path| path.join("runtime-workspace"))
 }
 
-fn resolve_bundled_sidecar_executable<R: tauri::Runtime>(
+fn resolve_bundled_sidecar_candidates<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-) -> Option<PathBuf> {
-    let resource_path = app
-        .path()
-        .resolve(
-            bundled_sidecar_resource_path(),
-            BaseDirectory::Resource,
-        )
-        .ok()?;
+) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
 
-    if resource_path.exists() {
-        Some(resource_path)
-    } else {
-        None
+    for relative in [
+        bundled_sidecar_resource_path(),
+        PathBuf::from("resources").join(bundled_sidecar_resource_path()),
+    ] {
+        if let Ok(candidate) = app.path().resolve(relative, BaseDirectory::Resource) {
+            candidates.push(candidate);
+        }
     }
+
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(app_dir) = current_exe.parent() {
+            candidates.push(
+                app_dir
+                    .join("resources")
+                    .join(bundled_sidecar_resource_path()),
+            );
+            candidates.push(app_dir.join(bundled_sidecar_resource_path()));
+        }
+    }
+
+    candidates.sort();
+    candidates.dedup();
+    candidates
+}
+
+fn resolve_anything_executable() -> Option<PathBuf> {
+    let env_pairs: Vec<(String, String)> = std::env::vars().collect();
+    let candidates = resolve_anything_candidate_paths_from_env(env_pairs);
+
+    candidates.into_iter().find(|candidate| candidate.exists())
+}
+
+fn env_flag_enabled(key: &str) -> bool {
+    std::env::var(key)
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn schedule_anything_autopaste(process_id: u32) {
+    let script = format!(
+        "$wshell = New-Object -ComObject WScript.Shell; Start-Sleep -Milliseconds 900; if ($wshell.AppActivate({process_id})) {{ Start-Sleep -Milliseconds 250; $wshell.SendKeys('^v') }}"
+    );
+
+    let _ = Command::new("powershell")
+        .args(["-NoProfile", "-Command", &script])
+        .spawn();
+}
+
+#[cfg(not(windows))]
+fn schedule_anything_autopaste(_process_id: u32) {}
+
+fn resolve_anything_candidate_paths_from_env<K, V, I>(env: I) -> Vec<PathBuf>
+where
+    K: AsRef<str>,
+    V: AsRef<str>,
+    I: IntoIterator<Item = (K, V)>,
+{
+    let mut local_app_data: Option<String> = None;
+    let mut program_files: Option<String> = None;
+    let mut program_files_x86: Option<String> = None;
+
+    for (key, value) in env {
+        match key.as_ref() {
+            "LOCALAPPDATA" => local_app_data = Some(value.as_ref().to_string()),
+            "ProgramFiles" => program_files = Some(value.as_ref().to_string()),
+            "ProgramFiles(x86)" => program_files_x86 = Some(value.as_ref().to_string()),
+            _ => {}
+        }
+    }
+
+    if let Ok(value) = std::env::var("GONGMU_ANYTHING_EXE") {
+        let path = PathBuf::from(value);
+        if path.exists() {
+            return vec![path];
+        }
+    }
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Some(local_app_data) = local_app_data {
+        candidates.push(
+            PathBuf::from(&local_app_data)
+                .join("Anything")
+                .join("docufinder.exe"),
+        );
+        candidates.push(
+            PathBuf::from(&local_app_data)
+                .join("Programs")
+                .join("Anything")
+                .join("Anything.exe"),
+        );
+        candidates.push(
+            PathBuf::from(local_app_data)
+                .join("Programs")
+                .join("Docufinder")
+                .join("Anything.exe"),
+        );
+    }
+
+    if let Some(program_files) = program_files {
+        candidates.push(
+            PathBuf::from(&program_files)
+                .join("Anything")
+                .join("Anything.exe"),
+        );
+        candidates.push(
+            PathBuf::from(&program_files)
+                .join("Docufinder")
+                .join("Anything.exe"),
+        );
+        candidates.push(
+            PathBuf::from(&program_files)
+                .join("Anything")
+                .join("docufinder.exe"),
+        );
+        candidates.push(
+            PathBuf::from(&program_files)
+                .join("Docufinder")
+                .join("docufinder.exe"),
+        );
+    }
+
+    if let Some(program_files_x86) = program_files_x86 {
+        candidates.push(
+            PathBuf::from(&program_files_x86)
+                .join("Anything")
+                .join("Anything.exe"),
+        );
+        candidates.push(
+            PathBuf::from(&program_files_x86)
+                .join("Docufinder")
+                .join("Anything.exe"),
+        );
+        candidates.push(
+            PathBuf::from(&program_files_x86)
+                .join("Anything")
+                .join("docufinder.exe"),
+        );
+        candidates.push(
+            PathBuf::from(&program_files_x86)
+                .join("Docufinder")
+                .join("docufinder.exe"),
+        );
+    }
+
+    candidates
 }
 
 fn resolve_sidecar_addr() -> Result<SocketAddr, String> {
@@ -159,23 +334,35 @@ fn resolve_python_binary(repo_root: &Path) -> PathBuf {
     }
 }
 
-fn resolve_sidecar_launch(paths: &RuntimePaths) -> SidecarLaunch {
+fn resolve_sidecar_launch(paths: &RuntimePaths) -> Result<SidecarLaunch, String> {
     if let Some(executable) = paths.bundled_sidecar_exe.clone() {
         let working_dir = executable
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| paths.repo_root.clone());
-        SidecarLaunch::Bundled {
+        return Ok(SidecarLaunch::Bundled {
             executable,
             working_dir,
-        }
-    } else {
-        SidecarLaunch::Development {
+        });
+    }
+
+    if !cfg!(debug_assertions) {
+        let checked_paths = paths
+            .bundled_sidecar_candidates
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(format!(
+            "bundled sidecar executable not found. checked paths: {checked_paths}"
+        ));
+    }
+
+    Ok(SidecarLaunch::Development {
             python: resolve_python_binary(&paths.repo_root),
             working_dir: paths.repo_root.clone(),
             sidecar_app_dir: paths.sidecar_app_dir.clone(),
-        }
-    }
+    })
 }
 
 fn managed_sidecar_is_running(manager: &SidecarManager) -> bool {
@@ -291,6 +478,33 @@ fn open_external_target_inner(target: &str) -> Result<(), String> {
         .map_err(|error| format!("external open failed: {error}"))
 }
 
+fn launch_anything_query_inner<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    query: &str,
+    fallback_target: &str,
+) -> Result<(), String> {
+    let paths = RuntimePaths::detect(Some(app));
+
+    if let Some(executable) = paths.anything_exe {
+        let working_dir = executable
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| paths.repo_root.clone());
+
+        let child = Command::new(executable)
+            .current_dir(working_dir)
+            .spawn()
+            .map_err(|error| format!("Anything launch failed: {error}"))?;
+
+        if env_flag_enabled("GONGMU_ANYTHING_AUTOPASTE") && !query.trim().is_empty() {
+            schedule_anything_autopaste(child.id());
+        }
+        return Ok(());
+    }
+
+    open_external_target_inner(fallback_target)
+}
+
 fn desktop_runtime_status_inner<R: tauri::Runtime>(
     app: Option<&tauri::AppHandle<R>>,
     manager: &SidecarManager,
@@ -328,6 +542,14 @@ fn desktop_runtime_status_inner<R: tauri::Runtime>(
         available: true,
         mode: "tauri",
         sidecar_url: DEFAULT_SIDECAR_URL.to_string(),
+        anything_available: paths.anything_exe.is_some(),
+        anything_mode: if paths.anything_exe.is_some() {
+            "external_app_detected"
+        } else {
+            "install_page_fallback"
+        },
+        anything_path: paths.anything_exe.as_ref().map(|path| path.display().to_string()),
+        anything_autopaste_enabled: env_flag_enabled("GONGMU_ANYTHING_AUTOPASTE"),
         running,
         managed,
         auto_restart_recommended,
@@ -371,7 +593,7 @@ fn start_desktop_sidecar(
         .map_err(|error| error.to_string())?;
     let stderr = stdout.try_clone().map_err(|error| error.to_string())?;
 
-    let launch = resolve_sidecar_launch(&paths);
+    let launch = resolve_sidecar_launch(&paths)?;
     let child = match launch {
         SidecarLaunch::Bundled {
             executable,
@@ -425,7 +647,7 @@ fn start_desktop_sidecar(
         *last_exit = None;
     }
 
-    let deadline = Instant::now() + Duration::from_secs(5);
+    let deadline = Instant::now() + Duration::from_secs(SIDECAR_STARTUP_TIMEOUT_SECS);
     while Instant::now() < deadline {
         let status = desktop_runtime_status_inner(Some(&app), state.inner());
         if status.running {
@@ -464,23 +686,219 @@ fn open_external_target(target: String) -> Result<(), String> {
     open_external_target_inner(&target)
 }
 
+#[tauri::command]
+fn launch_anything_query(
+    app: tauri::AppHandle,
+    query: String,
+    fallback_target: String,
+) -> Result<(), String> {
+    launch_anything_query_inner(&app, &query, &fallback_target)
+}
+
+#[tauri::command]
+fn pick_directory() -> Result<Option<String>, String> {
+    Ok(rfd::FileDialog::new()
+        .pick_folder()
+        .map(|path| path.display().to_string()))
+}
+
+#[tauri::command]
+fn set_desktop_zoom(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ZoomState>,
+    scale: f64,
+) -> Result<f64, String> {
+    let next_scale = scale.clamp(0.8, 1.5);
+
+    let webview_window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main webview window not found".to_string())?;
+
+    webview_window
+        .set_zoom(next_scale)
+        .map_err(|error| format!("failed to set desktop zoom: {error}"))?;
+
+    {
+        let mut zoom_guard = state
+            .scale
+            .lock()
+            .map_err(|_| "zoom state lock poisoned".to_string())?;
+        *zoom_guard = next_scale;
+    }
+
+    let _ = webview_window.eval(&format!(
+        "window.dispatchEvent(new CustomEvent('gongmu-zoom-scale', {{ detail: {} }}));",
+        next_scale
+    ));
+
+    Ok(next_scale)
+}
+
+fn emit_zoom_scale<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    webview_window: &tauri::WebviewWindow<R>,
+    scale: f64,
+) {
+    let _ = app.emit("gongmu-zoom-scale", scale);
+    let _ = webview_window.emit("gongmu-zoom-scale", scale);
+    let _ = webview_window.eval(&format!(
+        "window.dispatchEvent(new CustomEvent('gongmu-zoom-scale', {{ detail: {} }}));",
+        scale
+    ));
+}
+
+fn emit_zoom_blocked<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    webview_window: &tauri::WebviewWindow<R>,
+    message: &str,
+) {
+    let _ = app.emit("gongmu-zoom-blocked", message);
+    let _ = webview_window.emit("gongmu-zoom-blocked", message);
+    let _ = webview_window.eval(&format!(
+        "window.dispatchEvent(new CustomEvent('gongmu-zoom-blocked', {{ detail: {:?} }}));",
+        message
+    ));
+}
+
 fn main() {
     let app = tauri::Builder::default()
+        .setup(|app| {
+            let file_menu = SubmenuBuilder::new(app, "파일")
+                .text("file-new-session", "새 업무 세션")
+                .separator()
+                .close_window()
+                .quit()
+                .build()?;
+            let edit_menu = SubmenuBuilder::new(app, "편집")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .select_all()
+                .build()?;
+            let view_menu = SubmenuBuilder::new(app, "보기")
+                .text("view-refresh", "새로고침")
+                .separator()
+                .text("view-zoom-in", "확대")
+                .text("view-zoom-out", "축소")
+                .text("view-zoom-reset", "기본 크기")
+                .separator()
+                .text("view-zoom-80", "80%")
+                .text("view-zoom-90", "90%")
+                .text("view-zoom-100", "100%")
+                .text("view-zoom-110", "110%")
+                .text("view-zoom-125", "125%")
+                .text("view-zoom-150", "150%")
+                .separator()
+                .fullscreen()
+                .build()?;
+            let window_menu = SubmenuBuilder::new(app, "창")
+                .minimize()
+                .maximize()
+                .separator()
+                .close_window()
+                .build()?;
+            let help_menu = SubmenuBuilder::new(app, "도움말")
+                .text("help-about", "공무 워크스페이스 정보")
+                .build()?;
+            let menu = MenuBuilder::new(app)
+                .items(&[&file_menu, &edit_menu, &view_menu, &window_menu, &help_menu])
+                .build()?;
+
+            app.set_menu(menu)?;
+            Ok(())
+        })
         .manage(SidecarManager::default())
+        .manage(ZoomState::default())
+        .on_menu_event(|app, event| {
+            let webview_window = app.get_webview_window("main");
+
+            match event.id().as_ref() {
+                "view-refresh" => {
+                    if let Some(webview_window) = &webview_window {
+                        let _ = webview_window.emit("gongmu-menu-action", "view.refresh");
+                    }
+                    let _ = app.emit("gongmu-menu-action", "view.refresh");
+                }
+                "view-zoom-in"
+                | "view-zoom-out"
+                | "view-zoom-reset"
+                | "view-zoom-80"
+                | "view-zoom-90"
+                | "view-zoom-100"
+                | "view-zoom-110"
+                | "view-zoom-125"
+                | "view-zoom-150" => {
+                    let zoom_state = app.state::<ZoomState>();
+                    let mut zoom_guard = match zoom_state.scale.lock() {
+                        Ok(guard) => guard,
+                        Err(_) => return,
+                    };
+
+                    let current_scale = *zoom_guard;
+                    let next_scale = match event.id().as_ref() {
+                        "view-zoom-in" => (current_scale + 0.1).min(1.4),
+                        "view-zoom-out" => (current_scale - 0.1).max(0.8),
+                        "view-zoom-reset" => 1.0,
+                        "view-zoom-80" => 0.8,
+                        "view-zoom-90" => 0.9,
+                        "view-zoom-100" => 1.0,
+                        "view-zoom-110" => 1.1,
+                        "view-zoom-125" => 1.25,
+                        "view-zoom-150" => 1.5,
+                        _ => current_scale,
+                    };
+
+                    if let Some(webview_window) = &webview_window {
+                        let is_zoom_in = next_scale > current_scale;
+                        if is_zoom_in {
+                            if let Ok(size) = webview_window.inner_size() {
+                                let required_width = minimum_window_width_for_zoom(next_scale);
+                                if size.width < required_width {
+                                    emit_zoom_blocked(
+                                        &app,
+                                        webview_window,
+                                        "이 창 크기에서는 더 확대할 수 없습니다. 창을 넓히거나 오른쪽 정보 패널을 접어주세요.",
+                                    );
+                                    return;
+                                }
+                            }
+                        }
+
+                        let _ = webview_window.set_zoom(next_scale);
+                        *zoom_guard = next_scale;
+                        emit_zoom_scale(&app, webview_window, next_scale);
+                    }
+                }
+                _ => {}
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             desktop_runtime_status,
             start_desktop_sidecar,
             stop_desktop_sidecar,
             restart_desktop_sidecar,
-            open_external_target
+            open_external_target,
+            launch_anything_query,
+            pick_directory,
+            set_desktop_zoom
         ])
         .build(tauri::generate_context!())
         .expect("failed to build gongmu desktop");
 
     app.run(move |app_handle, event| {
-        if matches!(event, tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. }) {
-            let sidecar_manager = app_handle.state::<SidecarManager>();
-            let _ = stop_managed_sidecar(sidecar_manager.inner(), SidecarExitReason::ManualStop);
+        match event {
+            tauri::RunEvent::Ready => {
+                let sidecar_manager = app_handle.state::<SidecarManager>();
+                let _ = start_desktop_sidecar(app_handle.clone(), sidecar_manager);
+            }
+            tauri::RunEvent::Exit | tauri::RunEvent::ExitRequested { .. } => {
+                let sidecar_manager = app_handle.state::<SidecarManager>();
+                let _ = stop_managed_sidecar(sidecar_manager.inner(), SidecarExitReason::ManualStop);
+            }
+            _ => {}
         }
     });
 }
@@ -488,6 +906,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn bundled_sidecar_resource_path_does_not_repeat_resources_prefix() {
@@ -498,6 +917,29 @@ mod tests {
             PathBuf::from("sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe")
         );
         assert!(!resource_path.starts_with("resources"));
+    }
+
+    #[test]
+    fn anything_candidate_paths_include_actual_local_appdata_install_shape() {
+        let mut env = HashMap::new();
+        env.insert(
+            "LOCALAPPDATA".to_string(),
+            "C:\\Users\\USER\\AppData\\Local".to_string(),
+        );
+        env.insert("ProgramFiles".to_string(), "C:\\Program Files".to_string());
+        env.insert(
+            "ProgramFiles(x86)".to_string(),
+            "C:\\Program Files (x86)".to_string(),
+        );
+
+        let candidates = resolve_anything_candidate_paths_from_env(&env);
+
+        assert!(candidates.contains(&PathBuf::from(
+            "C:\\Users\\USER\\AppData\\Local\\Anything\\docufinder.exe"
+        )));
+        assert!(candidates.contains(&PathBuf::from(
+            "C:\\Users\\USER\\AppData\\Local\\Programs\\Docufinder\\Anything.exe"
+        )));
     }
 
     #[cfg(windows)]

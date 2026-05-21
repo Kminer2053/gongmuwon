@@ -59,19 +59,24 @@ class FileOrganizer:
         if ticket is None:
             raise KeyError(proposal_id)
         if ticket["status"] != "approved":
-            raise PermissionError(proposal_id)
+            raise ValueError("approval ticket must be approved")
 
         source = Path(proposal["target_path"])
         destination = self._available_destination_path(Path(proposal["proposed_destination"]))
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
+        if source.is_dir():
+            shutil.copytree(source, destination)
+            action = "copytree"
+        else:
+            shutil.copy2(source, destination)
+            action = "copy"
 
         operation = {
             "id": str(uuid4()),
             "proposal_id": proposal_id,
             "source_path": str(source),
             "destination_path": str(destination),
-            "action": "copy",
+            "action": action,
             "approval_ticket_id": ticket["id"],
             "created_at": now_iso(),
             "rolled_back_at": None,
@@ -111,7 +116,10 @@ class FileOrganizer:
 
         destination = Path(operation["destination_path"])
         if destination.exists():
-            destination.unlink()
+            if destination.is_dir():
+                shutil.rmtree(destination)
+            else:
+                destination.unlink()
 
         rolled_back_at = now_iso()
         self.db.execute(

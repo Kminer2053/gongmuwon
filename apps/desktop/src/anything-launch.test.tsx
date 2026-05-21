@@ -1,13 +1,18 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AnythingLaunchItem } from "./api";
+import type { ApprovalTicketItem, AnythingLaunchItem } from "./api";
+import type { DesktopRuntimeStatus } from "./runtime";
 
-const runtimeState = {
+const runtimeState: { status: DesktopRuntimeStatus } = {
   status: {
     available: true,
-    mode: "tauri" as const,
+    mode: "tauri",
     sidecar_url: "http://127.0.0.1:8765",
+    anything_available: false,
+    anything_mode: "install_page_fallback",
+    anything_path: null,
+    anything_autopaste_enabled: false,
     running: true,
     managed: true,
     auto_restart_recommended: false,
@@ -17,17 +22,21 @@ const runtimeState = {
 };
 
 const loadDesktopRuntimeStatusMock = vi.fn(async () => runtimeState.status);
-const startDesktopSidecarMock = vi.fn(async () => runtimeState.status);
-const stopDesktopSidecarMock = vi.fn(async () => runtimeState.status);
-const restartDesktopSidecarMock = vi.fn(async () => runtimeState.status);
+const launchAnythingQueryMock = vi.fn(async (_query: string, _fallbackTarget: string) => undefined);
 const openExternalTargetMock = vi.fn(async (_target: string) => undefined);
+const copyTextToClipboardMock = vi.fn(async (_text: string) => undefined);
 
 vi.mock("./runtime", () => ({
   loadDesktopRuntimeStatus: () => loadDesktopRuntimeStatusMock(),
-  startDesktopSidecar: () => startDesktopSidecarMock(),
-  stopDesktopSidecar: () => stopDesktopSidecarMock(),
-  restartDesktopSidecar: () => restartDesktopSidecarMock(),
+  startDesktopSidecar: vi.fn(async () => runtimeState.status),
+  stopDesktopSidecar: vi.fn(async () => runtimeState.status),
+  restartDesktopSidecar: vi.fn(async () => runtimeState.status),
+  launchAnythingQuery: (query: string, fallbackTarget: string) =>
+    launchAnythingQueryMock(query, fallbackTarget),
   openExternalTarget: (target: string) => openExternalTargetMock(target),
+  copyTextToClipboard: (text: string) => copyTextToClipboardMock(text),
+  setDesktopZoom: vi.fn(async () => undefined),
+  pickDirectory: vi.fn(async () => "/tmp/chosen-folder"),
 }));
 
 import { App } from "./app";
@@ -40,31 +49,38 @@ const jsonResponse = (payload: unknown, status = 200) =>
     }),
   );
 
-beforeEach(() => {
-  openExternalTargetMock.mockClear();
+function installFetchStub() {
+  let approvalTickets: ApprovalTicketItem[] = [
+    {
+      id: "approval-1",
+      action: "anything.launch",
+      status: "approved",
+      target_type: "external_launch",
+      target_id: "launch-1",
+      requested_at: "2026-04-20T00:00:00+09:00",
+      decided_at: "2026-04-20T00:05:00+09:00",
+      decision_note: "approved",
+    },
+  ];
+
   let anythingLaunches: AnythingLaunchItem[] = [
     {
       id: "launch-1",
       approval_ticket_id: "approval-1",
       query: "예산 검토",
-      launch_target: "es:%EC%98%88%EC%82%B0%20%EA%B2%80%ED%86%A0",
+      launch_target: "https://github.com/chrisryugj/Docufinder/releases",
       status: "pending",
       created_at: "2026-04-20T00:00:00+09:00",
       applied_at: null,
     },
   ];
-  let referenceSets: Array<{
-    id: string;
-    title: string;
-    session_id?: string | null;
-    created_at: string;
-    items: Array<{ id: string; kind: string; label: string; value: string }>;
-  }> = [];
+
   vi.stubGlobal(
     "fetch",
     vi.fn((input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
       const method = (init?.method ?? "GET").toUpperCase();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
 
       if (url.endsWith("/health")) {
         return jsonResponse({
@@ -78,7 +94,9 @@ beforeEach(() => {
         return jsonResponse({
           defaults: {
             llm_mode: "local_first",
-            anything_launch_mode: "external_link_only",
+            llm_provider: "openai_compatible",
+            llm_model: "gpt-4.1-mini",
+            anything_launch_mode: "external_app_preferred",
             default_template_key: "report",
             internal_api_base_url: null,
           },
@@ -91,210 +109,144 @@ beforeEach(() => {
         });
       }
 
-      if (url.endsWith("/api/schedules")) {
-        return jsonResponse({ items: [] });
-      }
+      const collectionMap: Record<string, unknown> = {
+        "/api/schedules": { items: [] },
+        "/api/work-sessions": { items: [] },
+        "/api/reference-sets": { items: [] },
+        "/api/templates": { items: [{ key: "report", label: "보고서형" }] },
+        "/api/knowledge/candidates": { items: [] },
+        "/api/knowledge/pages": { items: [] },
+        "/api/file-organizer/proposals": { items: [] },
+        "/api/execution-logs": { items: [] },
+        "/api/tools": { items: [] },
+        "/api/approval-tickets": { items: approvalTickets },
+        "/api/integrations/anything/launches": { items: anythingLaunches },
+      };
 
-      if (url.endsWith("/api/work-sessions")) {
-        return jsonResponse({ items: [] });
-      }
-
-      if (url.endsWith("/api/reference-sets")) {
-        if (method === "POST") {
-          const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
-          const created = {
-            id: "ref-import-1",
-            title: body.title,
-            session_id: body.session_id ?? null,
-            created_at: "2026-04-20T00:10:00+09:00",
-            items: (body.items ?? []).map((item: { kind: string; label: string; value: string }, index: number) => ({
-              id: `item-${index + 1}`,
-              kind: item.kind,
-              label: item.label,
-              value: item.value,
-            })),
-          };
-          referenceSets = [created];
-          return jsonResponse(created, 201);
-        }
-        return jsonResponse({ items: referenceSets });
-      }
-
-      if (url.endsWith("/api/templates")) {
-        return jsonResponse({
-          items: [{ key: "report", label: "보고서형" }],
-        });
-      }
-
-      if (url.endsWith("/api/knowledge/candidates")) {
-        return jsonResponse({ items: [] });
-      }
-
-      if (url.endsWith("/api/knowledge/pages")) {
-        return jsonResponse({ items: [] });
-      }
-
-      if (url.endsWith("/api/file-organizer/proposals")) {
-        return jsonResponse({ items: [] });
-      }
-
-      if (url.endsWith("/api/execution-logs")) {
-        return jsonResponse({ items: [] });
-      }
-
-      if (url.endsWith("/api/approval-tickets")) {
-        return jsonResponse({
-          items: [
-            {
-              id: "approval-1",
-              action: "anything.launch",
-              status: "approved",
-              target_type: "external_launch",
-              target_id: "launch-1",
-              requested_at: "2026-04-20T00:00:00+09:00",
-              decided_at: "2026-04-20T00:05:00+09:00",
-              decision_note: "approved",
-            },
-          ],
-        });
-      }
-
-      if (url.endsWith("/api/integrations/anything/launches")) {
-        return jsonResponse({
-          items: anythingLaunches,
-        });
+      if (url.endsWith("/api/integrations/anything/launch") && method === "POST") {
+        const approvalId = `approval-${approvalTickets.length + 1}`;
+        const launchId = `launch-${anythingLaunches.length + 1}`;
+        const pendingApproval: ApprovalTicketItem = {
+          id: approvalId,
+          action: "anything.launch",
+          status: "pending",
+          target_type: "external_launch",
+          target_id: launchId,
+          requested_at: "2026-04-20T00:10:00+09:00",
+          decided_at: null,
+          decision_note: null,
+        };
+        const launchRequest: AnythingLaunchItem = {
+          id: launchId,
+          approval_ticket_id: approvalId,
+          query: body.query,
+          launch_target: "https://github.com/chrisryugj/Docufinder/releases",
+          status: "pending",
+          created_at: "2026-04-20T00:10:00+09:00",
+          applied_at: null,
+        };
+        approvalTickets = [...approvalTickets, pendingApproval];
+        anythingLaunches = [launchRequest, ...anythingLaunches];
+        return jsonResponse({ approval_ticket: pendingApproval, launch_request: launchRequest }, 201);
       }
 
       if (url.endsWith("/api/integrations/anything/launch/approval-1/apply") && method === "POST") {
-        anythingLaunches = [
-          {
-            ...anythingLaunches[0],
-            status: "applied",
-            applied_at: "2026-04-20T00:05:30+09:00",
-          },
-        ];
+        anythingLaunches = anythingLaunches.map((launch) =>
+          launch.approval_ticket_id === "approval-1"
+            ? { ...launch, status: "applied", applied_at: "2026-04-20T00:05:30+09:00" }
+            : launch,
+        );
         return jsonResponse(
           {
-            approval_ticket: {
-              id: "approval-1",
-              action: "anything.launch",
-              status: "approved",
-              target_type: "external_launch",
-              target_id: "launch-1",
-              requested_at: "2026-04-20T00:00:00+09:00",
-              decided_at: "2026-04-20T00:05:00+09:00",
-              decision_note: "approved",
-            },
-            launch_request: {
-              id: "launch-1",
-              approval_ticket_id: "approval-1",
-              query: "예산 검토",
-              launch_target: "es:%EC%98%88%EC%82%B0%20%EA%B2%80%ED%86%A0",
-              status: "applied",
-              created_at: "2026-04-20T00:00:00+09:00",
-              applied_at: "2026-04-20T00:05:30+09:00",
-            },
+            approval_ticket: approvalTickets[0],
+            launch_request: anythingLaunches.find((launch) => launch.approval_ticket_id === "approval-1"),
           },
           201,
         );
       }
 
-      if (url.endsWith("/api/integrations/anything/launch/approval-1/reference-set") && method === "POST") {
-        const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
-        const created = {
-          id: "ref-import-1",
-          title: body.title,
-          session_id: body.session_id ?? null,
-          created_at: "2026-04-20T00:10:00+09:00",
-          items: (body.paths ?? []).map((value: string, index: number) => ({
-            id: `item-${index + 1}`,
-            kind: "file",
-            label: value.split(/[\\\\/]/).pop() ?? value,
-            value,
-          })),
-        };
-        referenceSets = [created];
-        return jsonResponse(
-          {
-            launch_request: anythingLaunches[0],
-            reference_set: created,
-          },
-          201,
-        );
+      const matched = Object.entries(collectionMap).find(([path]) => url.endsWith(path));
+      if (matched) {
+        return jsonResponse(matched[1]);
       }
 
-      return jsonResponse({ items: [] });
+      return jsonResponse({ detail: `Unhandled request: ${method} ${url}` }, 404);
     }),
   );
+}
+
+beforeEach(() => {
+  runtimeState.status = {
+    available: true,
+    mode: "tauri",
+    sidecar_url: "http://127.0.0.1:8765",
+    anything_available: false,
+    anything_mode: "install_page_fallback",
+    anything_path: null,
+    anything_autopaste_enabled: false,
+    running: true,
+    managed: true,
+    auto_restart_recommended: false,
+    log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
+    detail: "desktop runtime ready",
+  };
+  vi.unstubAllGlobals();
+  launchAnythingQueryMock.mockClear();
+  openExternalTargetMock.mockClear();
+  copyTextToClipboardMock.mockClear();
+  loadDesktopRuntimeStatusMock.mockClear();
+  installFetchStub();
 });
 
-describe("Anything launch", () => {
-  it("opens an approved Anything launch and allows reopening it", async () => {
+describe("Anything launch flow", () => {
+  async function openSearchPanel(user: ReturnType<typeof userEvent.setup>) {
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: /^파일찾기/ }));
+  }
+
+  it("shows the install guide button when Anything is unavailable", async () => {
     const user = userEvent.setup();
     render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
 
-    await user.click(within(navigation).getByText("로컬파일/정보검색"));
-    await screen.findByRole("button", { name: "승인 후 열기" });
+    await openSearchPanel(user);
 
-    await user.click(screen.getByRole("button", { name: "승인 후 열기" }));
-
-    expect(openExternalTargetMock).toHaveBeenCalledWith(
-      "es:%EC%98%88%EC%82%B0%20%EA%B2%80%ED%86%A0",
-    );
-    expect(await screen.findByRole("button", { name: "다시 열기" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Anything 설치 안내 열기" })).toBeInTheDocument();
   });
 
-  it("imports pasted Anything result paths into a Reference Set", async () => {
+  it("reopens the approvals pane when a new Anything request is created", async () => {
     const user = userEvent.setup();
     render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-    const fetchMock = vi.mocked(global.fetch);
 
-    await user.click(within(navigation).getByText("로컬파일/정보검색"));
-    await user.click(await screen.findByRole("button", { name: "승인 후 열기" }));
+    await screen.findByText("대기 중인 승인");
+    await user.click(screen.getByRole("button", { name: "승인 요청" }));
+    expect(screen.queryByText("대기 중인 승인")).not.toBeInTheDocument();
 
-    const titleInput = await screen.findByLabelText("Import title");
-    await user.clear(titleInput);
-    await user.type(titleInput, "budget import");
-    await user.type(
-      screen.getByLabelText("Paste selected paths"),
-      "C:\\docs\\budget.xlsx{enter}C:\\docs\\meeting-notes.md",
-    );
-    await user.click(screen.getByRole("button", { name: "Import to Reference Set" }));
+    await openSearchPanel(user);
+    await user.type(screen.getByPlaceholderText("예: 예산, 회의자료, 사업계획"), "회의자료");
+    await user.click(screen.getByRole("button", { name: "Anything 열기 요청" }));
 
-    expect(
-      fetchMock.mock.calls.some(([input]) =>
-        String(input).includes("/api/integrations/anything/launch/approval-1/reference-set"),
-      ),
-    ).toBe(true);
-    expect(await screen.findByText("budget import")).toBeInTheDocument();
+    expect(await screen.findByText("대기 중인 승인")).toBeInTheDocument();
   });
 
-  it("moves imported Anything references into the document drafting flow", async () => {
+  it("launches a detected Anything app with clipboard handoff", async () => {
     const user = userEvent.setup();
+    runtimeState.status = {
+      ...runtimeState.status,
+      anything_available: true,
+      anything_mode: "external_app_detected",
+      anything_path: "C:/Users/USER/AppData/Local/Anything/docufinder.exe",
+    };
+
     render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
+    await openSearchPanel(user);
 
-    await user.click(within(navigation).getByText("로컬파일/정보검색"));
-    await user.click(await screen.findByRole("button", { name: "승인 후 열기" }));
+    const openButton = await screen.findByRole("button", { name: "승인 후 Anything 열기" });
+    await user.click(openButton);
 
-    await user.type(await screen.findByLabelText("Import title"), "budget import");
-    await user.type(
-      screen.getByLabelText("Paste selected paths"),
-      "C:\\docs\\budget.xlsx{enter}C:\\docs\\meeting-notes.md",
+    expect(copyTextToClipboardMock).toHaveBeenCalledWith("예산 검토");
+    expect(launchAnythingQueryMock).toHaveBeenCalledWith(
+      "예산 검토",
+      "https://github.com/chrisryugj/Docufinder/releases",
     );
-    await user.click(screen.getByRole("button", { name: "Import to Reference Set" }));
-
-    await user.click(await screen.findByRole("button", { name: "Continue to Documents" }));
-
-    expect(await screen.findByRole("heading", { name: "문서 초안 생성" })).toBeInTheDocument();
-    expect(screen.getByLabelText("문서 제목")).toHaveValue("budget import");
-    expect(screen.getByLabelText("문서 목적")).toHaveValue("budget import 기반 정리");
-    expect(screen.getByText("선택된 참고자료 묶음")).toBeInTheDocument();
-    expect(screen.getByText("2 items")).toBeInTheDocument();
-    expect(screen.getByText("budget.xlsx")).toBeInTheDocument();
-    expect(screen.getByText("meeting-notes.md")).toBeInTheDocument();
-    expect(screen.getByText("C:\\docs\\budget.xlsx")).toBeInTheDocument();
   });
 });

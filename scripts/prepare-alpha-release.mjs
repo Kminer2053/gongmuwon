@@ -33,6 +33,9 @@ export const stagedDocuments = [
   "docs/operations/2026-04-21-windows-sidecar-packaging-validation.md",
   "docs/operations/2026-04-21-windows-desktop-sidecar-integration-validation.md",
   "docs/operations/2026-04-22-windows-interactive-install-validation.md",
+  "docs/operations/2026-04-23-anything-external-integration-validation.md",
+  "docs/operations/2026-04-23-functional-validation-results.md",
+  "docs/operations/2026-04-25-llm-chat-integration-validation.md",
 ];
 
 function ensureDir(targetPath) {
@@ -82,6 +85,7 @@ export function buildManifest() {
       desktop_bundle_debug: "npm run desktop:bundle:debug",
       desktop_smoke_msi: "npm run desktop:smoke:msi",
       desktop_smoke_nsis: "npm run desktop:smoke:nsis",
+      desktop_prepare_anything: "npm run desktop:prepare:anything",
       sidecar_bundle_windows: "npm run sidecar:bundle:windows",
     },
     desktop: {
@@ -109,12 +113,15 @@ export function buildManifest() {
       "Run npm run verify:all before final release sign-off.",
       "Run npm run desktop:bundle when installer artifacts need to be refreshed.",
       "Run npm run desktop:prepare:gui before a human GUI install pass on Windows.",
+      "Run npm run desktop:prepare:anything before Anything external-integration checks.",
       "Run npm run desktop:smoke:msi after MSI-affecting changes on Windows.",
       "Run npm run desktop:smoke:nsis after NSIS-affecting changes on Windows.",
       "Confirm NSIS installer smoke test with bundled sidecar on the target Windows host.",
       "Use the Windows remote validation checklist for the manual GUI lane and close the desktop app before uninstall.",
       "Use MSI install-and-uninstall smoke checks instead of administrative extraction when payload proof is needed.",
       "Review the latest Anything-to-Documents handoff evidence in the checkpoint board.",
+      "Review the Anything external integration validation note before release sign-off.",
+      "Review the latest functional validation results before changing IA or workflow behavior.",
     ],
   };
 
@@ -140,6 +147,7 @@ export function buildReadme(manifest) {
     `- desktop_bundle_debug: ${manifest.scripts.desktop_bundle_debug}`,
     `- desktop_smoke_msi: ${manifest.scripts.desktop_smoke_msi}`,
     `- desktop_smoke_nsis: ${manifest.scripts.desktop_smoke_nsis}`,
+    `- desktop_prepare_anything: ${manifest.scripts.desktop_prepare_anything}`,
     `- sidecar_bundle_windows: ${manifest.scripts.sidecar_bundle_windows}`,
     "",
     "## Bundle Paths",

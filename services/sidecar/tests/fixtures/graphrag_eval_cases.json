@@ -1,0 +1,20 @@
+[
+  {
+    "name": "policy table citation with relation",
+    "documents": [
+      {
+        "path": "records-automation.md",
+        "content": "# Records Automation Plan\n\n정책: Privacy Act\n사업: Civil Service Modernization\n업무: Records automation\n\n## Implementation Table\n\n| Task | Owner |\n| --- | --- |\n| Records summary | General Affairs |\n"
+      },
+      {
+        "path": "cafeteria-menu.md",
+        "content": "# Cafeteria Menu\n\nLunch schedule archive.\n"
+      }
+    ],
+    "query": "Privacy Act General Affairs",
+    "expected_title": "Records Automation Plan",
+    "expected_relation": "REFERENCES",
+    "expected_evidence_type": "table",
+    "min_quality_score": 0.8
+  }
+]

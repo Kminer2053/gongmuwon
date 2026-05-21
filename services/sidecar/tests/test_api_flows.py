@@ -50,6 +50,160 @@ def test_schedule_session_reference_flow(tmp_path: Path) -> None:
     assert body["items"][0]["kind"] == "file"
 
 
+def test_work_session_can_be_linked_to_schedule_later(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    schedule = client.post(
+        "/api/schedules",
+        json={
+            "title": "예산 점검",
+            "starts_at": "2026-04-21T14:00:00+09:00",
+            "ends_at": "2026-04-21T15:00:00+09:00",
+            "view": "week",
+        },
+    )
+    assert schedule.status_code == 201
+    schedule_id = schedule.json()["id"]
+
+    session = client.post(
+        "/api/work-sessions",
+        json={"title": "독립 검토 세션"},
+    )
+    assert session.status_code == 201
+    session_id = session.json()["id"]
+    assert session.json()["schedule_id"] is None
+
+    linked = client.patch(
+        f"/api/work-sessions/{session_id}",
+        json={"schedule_id": schedule_id},
+    )
+    assert linked.status_code == 200
+    assert linked.json()["schedule_id"] == schedule_id
+
+    sessions = client.get("/api/work-sessions")
+    assert sessions.status_code == 200
+    assert any(
+        item["id"] == session_id and item["schedule_id"] == schedule_id
+        for item in sessions.json()["items"]
+    )
+
+    logs = client.get("/api/execution-logs")
+    actions = [entry["action"] for entry in logs.json()["items"]]
+    assert "work_session.updated" in actions
+
+
+def test_schedule_can_be_updated_after_creation(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    schedule = client.post(
+        "/api/schedules",
+        json={
+            "title": "초기 일정",
+            "starts_at": "2026-04-21T14:00:00+09:00",
+            "ends_at": "2026-04-21T15:00:00+09:00",
+            "view": "week",
+        },
+    )
+    assert schedule.status_code == 201
+    schedule_id = schedule.json()["id"]
+
+    updated = client.patch(
+        f"/api/schedules/{schedule_id}",
+        json={
+            "title": "수정된 일정",
+            "starts_at": "2026-04-21T15:00:00+09:00",
+            "ends_at": "2026-04-21T16:00:00+09:00",
+            "view": "day",
+        },
+    )
+    assert updated.status_code == 200
+    assert updated.json()["title"] == "수정된 일정"
+    assert updated.json()["starts_at"] == "2026-04-21T15:00:00+09:00"
+    assert updated.json()["view"] == "day"
+
+    schedules = client.get("/api/schedules")
+    assert schedules.status_code == 200
+    assert any(
+        item["id"] == schedule_id and item["title"] == "수정된 일정" and item["view"] == "day"
+        for item in schedules.json()["items"]
+    )
+
+    logs = client.get("/api/execution-logs")
+    actions = [entry["action"] for entry in logs.json()["items"]]
+    assert "schedule.updated" in actions
+
+
+def test_schedule_can_be_deleted_and_unlinks_work_sessions(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    schedule = client.post(
+        "/api/schedules",
+        json={
+            "title": "삭제 대상 일정",
+            "starts_at": "2026-04-22T10:00:00+09:00",
+            "ends_at": "2026-04-22T11:00:00+09:00",
+            "view": "week",
+        },
+    )
+    assert schedule.status_code == 201
+    schedule_id = schedule.json()["id"]
+
+    session = client.post(
+        "/api/work-sessions",
+        json={"title": "연결 세션", "schedule_id": schedule_id},
+    )
+    assert session.status_code == 201
+    session_id = session.json()["id"]
+
+    deleted = client.delete(f"/api/schedules/{schedule_id}")
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+
+    schedules = client.get("/api/schedules")
+    assert all(item["id"] != schedule_id for item in schedules.json()["items"])
+
+    sessions = client.get("/api/work-sessions")
+    assert any(
+        item["id"] == session_id and item["schedule_id"] is None
+        for item in sessions.json()["items"]
+    )
+
+    logs = client.get("/api/execution-logs")
+    actions = [entry["action"] for entry in logs.json()["items"]]
+    assert "schedule.deleted" in actions
+
+
+def test_work_session_message_flow_persists_messages(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    session = client.post(
+        "/api/work-sessions",
+        json={"title": "주간 보고 작업"},
+    )
+    assert session.status_code == 201
+    session_id = session.json()["id"]
+
+    created = client.post(
+        f"/api/work-sessions/{session_id}/messages",
+        json={"role": "user", "text": "회의자료 초안부터 정리해줘"},
+    )
+    assert created.status_code == 201
+    payload = created.json()
+    assert payload["session_id"] == session_id
+    assert payload["role"] == "user"
+    assert payload["text"] == "회의자료 초안부터 정리해줘"
+
+    messages = client.get(f"/api/work-sessions/{session_id}/messages")
+    assert messages.status_code == 200
+    items = messages.json()["items"]
+    assert len(items) == 1
+    assert items[0]["text"] == "회의자료 초안부터 정리해줘"
+
+    logs = client.get("/api/execution-logs")
+    actions = [entry["action"] for entry in logs.json()["items"]]
+    assert "work_session.message.created" not in actions
+
+
 def test_knowledge_candidate_approval_creates_topic_page_and_log(tmp_path: Path) -> None:
     client = _client(tmp_path)
 
@@ -80,6 +234,34 @@ def test_knowledge_candidate_approval_creates_topic_page_and_log(tmp_path: Path)
     assert logs.status_code == 200
     actions = [entry["action"] for entry in logs.json()["items"]]
     assert "knowledge.candidate.approved" in actions
+
+
+def test_knowledge_candidate_cannot_be_approved_twice(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    candidate = client.post(
+        "/api/knowledge/candidates/from-note",
+        json={
+            "title": "duplicate approval guard",
+            "body": "same candidate should not create multiple pages",
+            "candidate_type": "topic",
+        },
+    )
+    assert candidate.status_code == 201
+    candidate_id = candidate.json()["id"]
+
+    first_approval = client.post(
+        f"/api/knowledge/candidates/{candidate_id}/approve",
+        json={"page_type": "topic"},
+    )
+    assert first_approval.status_code == 200
+
+    second_approval = client.post(
+        f"/api/knowledge/candidates/{candidate_id}/approve",
+        json={"page_type": "topic"},
+    )
+    assert second_approval.status_code == 409
+    assert second_approval.json()["detail"] == "candidate already approved"
 
 
 def test_content_base_generation_persists_markdown_artifact(tmp_path: Path) -> None:
@@ -153,8 +335,13 @@ def test_document_finalize_requires_approval_and_creates_output(tmp_path: Path) 
     apply = client.post(f"/api/documents/finalize/{ticket_id}/apply")
     assert apply.status_code == 201
     artifact_path = Path(apply.json()["artifact"]["path"])
+    review_path = Path(apply.json()["artifact"]["markdown_path"])
     assert artifact_path.exists()
+    assert review_path.exists()
+    assert artifact_path.stat().st_size > 0
     assert artifact_path.parent.name == "outputs"
+    assert artifact_path.suffix == ".hwpx"
+    assert review_path.suffix == ".md"
 
     stored_output = client.app.state.services.db.fetch_one(
         "SELECT * FROM final_document_outputs WHERE approval_ticket_id = ?",
@@ -206,10 +393,14 @@ def test_document_finalize_sanitizes_windows_invalid_output_name(tmp_path: Path)
     apply = client.post(f"/api/documents/finalize/{ticket_id}/apply")
     assert apply.status_code == 201
     artifact_path = Path(apply.json()["artifact"]["path"])
+    review_path = Path(apply.json()["artifact"]["markdown_path"])
     assert artifact_path.exists()
+    assert review_path.exists()
+    assert artifact_path.stat().st_size > 0
     assert artifact_path.parent.name == "outputs"
     assert all(ch not in artifact_path.name for ch in ':*?"<>|')
-    assert artifact_path.suffix == ".md"
+    assert artifact_path.suffix == ".hwpx"
+    assert review_path.suffix == ".md"
 
 
 def test_document_finalize_versions_duplicate_output_names(tmp_path: Path) -> None:
@@ -261,14 +452,23 @@ def test_document_finalize_versions_duplicate_output_names(tmp_path: Path) -> No
 
     first_path = Path(first_apply.json()["artifact"]["path"])
     second_path = Path(second_apply.json()["artifact"]["path"])
+    first_review_path = Path(first_apply.json()["artifact"]["markdown_path"])
+    second_review_path = Path(second_apply.json()["artifact"]["markdown_path"])
     assert first_path.exists()
     assert second_path.exists()
+    assert first_review_path.exists()
+    assert second_review_path.exists()
+    assert first_path.stat().st_size > 0
+    assert second_path.stat().st_size > 0
     assert first_path != second_path
-    assert first_path.read_text(encoding="utf-8") != second_path.read_text(encoding="utf-8")
+    assert first_path.suffix == ".hwpx"
+    assert second_path.suffix == ".hwpx"
+    assert first_review_path.read_text(encoding="utf-8") != second_review_path.read_text(encoding="utf-8")
 
 
 def test_anything_launch_requires_approval_and_persists_launch_record(tmp_path: Path) -> None:
     client = _client(tmp_path)
+    releases_url = "https://github.com/chrisryugj/Docufinder/releases"
 
     response = client.post(
         "/api/integrations/anything/launch",
@@ -279,7 +479,7 @@ def test_anything_launch_requires_approval_and_persists_launch_record(tmp_path: 
     ticket_id = payload["approval_ticket"]["id"]
     launch_request = payload["launch_request"]
     assert launch_request["status"] == "pending"
-    assert launch_request["launch_target"].startswith("es:")
+    assert launch_request["launch_target"] == releases_url
 
     tickets = client.get("/api/approval-tickets")
     assert tickets.status_code == 200

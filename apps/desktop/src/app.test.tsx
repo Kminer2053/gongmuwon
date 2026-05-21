@@ -1,59 +1,48 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type {
+  ApprovalTicketItem,
+  ExecutionLogItem,
+  ReferenceSetItem,
+  ScheduleItem,
+  WorkSessionItem,
+} from "./api";
+import type { DesktopRuntimeStatus } from "./runtime";
 
-const runtimeState = {
+const runtimeState: { status: DesktopRuntimeStatus } = {
   status: {
     available: true,
-    mode: "tauri" as const,
+    mode: "tauri",
     sidecar_url: "http://127.0.0.1:8765",
-    running: false,
-    managed: false,
+    anything_available: false,
+    anything_mode: "install_page_fallback",
+    anything_path: null,
+    anything_autopaste_enabled: false,
+    running: true,
+    managed: true,
     auto_restart_recommended: false,
     log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
-    detail: "sidecar 시작 필요",
+    detail: "managed sidecar running",
   },
 };
 
 const loadDesktopRuntimeStatusMock = vi.fn(async () => runtimeState.status);
-const startDesktopSidecarMock = vi.fn(async () => {
-  runtimeState.status = {
-    ...runtimeState.status,
-    running: true,
-    managed: true,
-    auto_restart_recommended: false,
-    detail: "앱이 sidecar를 관리 중",
-  };
-  return runtimeState.status;
-});
-
-const stopDesktopSidecarMock = vi.fn(async () => {
-  runtimeState.status = {
-    ...runtimeState.status,
-    running: false,
-    managed: false,
-    auto_restart_recommended: false,
-    detail: "sidecar 시작 필요",
-  };
-  return runtimeState.status;
-});
-
-const restartDesktopSidecarMock = vi.fn(async () => {
-  runtimeState.status = {
-    ...runtimeState.status,
-    running: true,
-    managed: true,
-    auto_restart_recommended: false,
-    detail: "앱이 sidecar를 다시 시작함",
-  };
-  return runtimeState.status;
-});
+const startDesktopSidecarMock = vi.fn(async () => runtimeState.status);
+const stopDesktopSidecarMock = vi.fn(async () => runtimeState.status);
+const restartDesktopSidecarMock = vi.fn(async () => runtimeState.status);
+const pickDirectoryMock = vi.fn(async () => "/tmp/chosen-folder");
 
 vi.mock("./runtime", () => ({
   loadDesktopRuntimeStatus: () => loadDesktopRuntimeStatusMock(),
   startDesktopSidecar: () => startDesktopSidecarMock(),
   stopDesktopSidecar: () => stopDesktopSidecarMock(),
   restartDesktopSidecar: () => restartDesktopSidecarMock(),
+  pickDirectory: () => pickDirectoryMock(),
+  launchAnythingQuery: vi.fn(async () => undefined),
+  openExternalTarget: vi.fn(async () => undefined),
+  copyTextToClipboard: vi.fn(async () => undefined),
+  setDesktopZoom: vi.fn(async (scale: number) => scale),
 }));
 
 import { App } from "./app";
@@ -66,38 +55,68 @@ const jsonResponse = (payload: unknown, status = 200) =>
     }),
   );
 
-beforeEach(() => {
-  runtimeState.status = {
-    available: true,
-    mode: "tauri",
-    sidecar_url: "http://127.0.0.1:8765",
-    running: false,
-    managed: false,
-    auto_restart_recommended: false,
-    log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
-    detail: "sidecar 시작 필요",
-  };
-  loadDesktopRuntimeStatusMock.mockClear();
-  startDesktopSidecarMock.mockClear();
-  stopDesktopSidecarMock.mockClear();
-  restartDesktopSidecarMock.mockClear();
-
-  let approvalTickets: Array<{
-    id: string;
-    action: string;
-    status: "pending" | "approved" | "rejected";
-    target_type: string;
-    requested_at: string;
-    decided_at?: string | null;
-    decision_note?: string | null;
-    target_id?: string;
-  }> = [
+function installFetchStub() {
+  let schedules: ScheduleItem[] = [
     {
-      id: "approval-1",
-      action: "anything.launch",
-      status: "pending",
-      target_type: "external_launch",
-      requested_at: "2026-04-20T00:00:00+09:00",
+      id: "schedule-1",
+      title: "주간 보고 준비",
+      starts_at: "2026-04-20T09:00:00+09:00",
+      ends_at: "2026-04-20T10:00:00+09:00",
+      view: "week",
+      created_at: "2026-04-20T00:00:00+09:00",
+    },
+  ];
+
+  let workSessions: WorkSessionItem[] = [
+    {
+      id: "session-1",
+      title: "주간 보고 작업",
+      schedule_id: "schedule-1",
+      status: "open",
+      created_at: "2026-04-20T00:00:00+09:00",
+      messages: [
+        {
+          id: "message-1",
+          session_id: "session-1",
+          role: "assistant",
+          text: "초안 구조부터 정리해보겠습니다.",
+          message_type: "chat",
+          status: "completed",
+          created_at: "2026-04-20T00:10:00+09:00",
+        },
+      ],
+    },
+    {
+      id: "session-2",
+      title: "독립 검토 세션",
+      schedule_id: null,
+      status: "open",
+      created_at: "2026-04-20T08:30:00+09:00",
+      messages: [],
+    },
+  ];
+
+  const referenceSets: ReferenceSetItem[] = [
+    {
+      id: "ref-1",
+      title: "회의 참고자료",
+      session_id: "session-1",
+      created_at: "2026-04-20T00:00:00+09:00",
+      items: [{ id: "ref-item-1", kind: "file", label: "draft.md", value: "/tmp/draft.md" }],
+    },
+  ];
+
+  const approvalTickets: ApprovalTicketItem[] = [];
+  const logs: ExecutionLogItem[] = [
+    {
+      id: "log-1",
+      feature: "schedule",
+      action: "schedule.created",
+      status: "success",
+      created_at: "2026-04-20T00:00:00+09:00",
+      inputs: {},
+      outputs: {},
+      approval_ticket_id: null,
     },
   ];
 
@@ -120,7 +139,9 @@ beforeEach(() => {
         return jsonResponse({
           defaults: {
             llm_mode: "internal_server",
-            anything_launch_mode: "external_link_only",
+            llm_provider: "openai_compatible",
+            llm_model: "gpt-4.1-mini",
+            anything_launch_mode: "external_app_preferred",
             default_template_key: "meeting",
             internal_api_base_url: "http://127.0.0.1:9000",
           },
@@ -133,138 +154,70 @@ beforeEach(() => {
         });
       }
 
-      if (url.endsWith("/api/documents/content-bases") && method === "POST") {
-        return jsonResponse(
-          {
-            id: "content-base-1",
-            title: body?.title ?? "주간 보고 초안",
-            purpose: body?.purpose ?? "보고서형",
-            template_key: body?.template_key ?? "report",
-            artifact: { path: "/tmp/gongmu-workspace/documents/content-bases/content-base-1.md" },
-            preview: { path: "/tmp/gongmu-workspace/documents/drafts/content-base-1.html" },
-            content: "# 주간 보고 초안\n\n## 개요\n- 개요 내용을 여기에 정리합니다.\n",
-          },
-          201,
-        );
-      }
-
-      if (url.endsWith("/api/documents/finalize") && method === "POST") {
-        const ticketId = "approval-final-1";
-        const ticket = {
-          id: ticketId,
-          action: "documents.finalize",
-          status: "pending" as const,
-          target_type: "document_output",
-          target_id: body?.content_base_id ?? "content-base-1",
-          requested_at: "2026-04-20T00:00:00+09:00",
-          decided_at: null,
-          decision_note: null,
-        };
-        approvalTickets = [...approvalTickets, ticket];
-        return jsonResponse(
-          {
-            approval_ticket: ticket,
-            final_document_output: {
-              id: "final-output-1",
-              content_base_id: body?.content_base_id ?? "content-base-1",
-              approval_ticket_id: ticketId,
-              output_name: body?.output_name ?? "주간보고-2026-04-20",
-              artifact_path: null,
-              status: "pending",
-              created_at: "2026-04-20T00:00:00+09:00",
-              applied_at: null,
-            },
-          },
-          202,
-        );
-      }
-
-      const finalizeApplyMatch = url.match(/\/api\/documents\/finalize\/([^/]+)\/apply$/);
-      if (finalizeApplyMatch && method === "POST") {
-        const ticketId = finalizeApplyMatch[1];
-        const ticket = approvalTickets.find((item) => item.id === ticketId);
-        if (!ticket || ticket.status !== "approved") {
-          return jsonResponse({ detail: "approval ticket must be approved" }, 409);
-        }
-
-        return jsonResponse(
-          {
-            approval_ticket: ticket,
-            final_document_output: {
-              id: "final-output-1",
-              content_base_id: "content-base-1",
-              approval_ticket_id: ticketId,
-              output_name: "주간보고-2026-04-20",
-              artifact_path:
-                "/tmp/gongmu-workspace/documents/outputs/주간보고-2026-04-20.md",
-              status: "applied",
-              created_at: "2026-04-20T00:00:00+09:00",
-              applied_at: "2026-04-20T00:00:00+09:00",
-            },
-            artifact: { path: "/tmp/gongmu-workspace/documents/outputs/주간보고-2026-04-20.md" },
-          },
-          201,
-        );
-      }
-
-      const approvalDecisionMatch = url.match(/\/api\/approval-tickets\/([^/]+)\/decision$/);
-      if (approvalDecisionMatch && method === "POST") {
-        const ticketId = approvalDecisionMatch[1];
-        approvalTickets = approvalTickets.map((ticket) =>
-          ticket.id === ticketId
-            ? {
-                ...ticket,
-                status: body?.status ?? "approved",
-                decision_note: body?.decision_note ?? null,
-                decided_at: "2026-04-20T00:00:00+09:00",
-              }
-            : ticket,
-        );
-        const updated = approvalTickets.find((ticket) => ticket.id === ticketId);
-        return jsonResponse(updated ?? null);
-      }
-
       if (url.endsWith("/api/schedules")) {
-        return jsonResponse({
-          items: [
-            {
-              id: "schedule-1",
-              title: "주간 보고",
-              starts_at: "2026-04-20T09:00:00+09:00",
-              ends_at: "2026-04-20T10:00:00+09:00",
-              view: "week",
-              created_at: "2026-04-20T00:00:00+09:00",
-            },
-          ],
-        });
+        if (method === "POST") {
+          const created: ScheduleItem = {
+            id: `schedule-${schedules.length + 1}`,
+            title: body.title,
+            starts_at: body.starts_at,
+            ends_at: body.ends_at,
+            view: body.view,
+            created_at: "2026-04-20T01:00:00+09:00",
+          };
+          schedules = [...schedules, created];
+          return jsonResponse(created, 201);
+        }
+        return jsonResponse({ items: schedules });
+      }
+
+      const schedulePatchMatch = url.match(/\/api\/schedules\/([^/]+)$/);
+      if (schedulePatchMatch && method === "PATCH") {
+        const scheduleId = schedulePatchMatch[1];
+        const updated = schedules.find((schedule) => schedule.id === scheduleId);
+        if (!updated) {
+          return jsonResponse({ detail: "not found" }, 404);
+        }
+        const next = {
+          ...updated,
+          title: body.title,
+          starts_at: body.starts_at,
+          ends_at: body.ends_at,
+          view: body.view,
+        };
+        schedules = schedules.map((schedule) => (schedule.id === scheduleId ? next : schedule));
+        return jsonResponse(next);
       }
 
       if (url.endsWith("/api/work-sessions")) {
-        return jsonResponse({
-          items: [
-            {
-              id: "session-1",
-              title: "주간 보고 준비",
-              schedule_id: "schedule-1",
-              status: "open",
-              created_at: "2026-04-20T00:00:00+09:00",
-            },
-          ],
-        });
+        if (method === "POST") {
+          const created: WorkSessionItem = {
+            id: `session-${workSessions.length + 1}`,
+            title: body.title,
+            schedule_id: body.schedule_id ?? null,
+            status: "open",
+            created_at: "2026-04-20T01:00:00+09:00",
+            messages: [],
+          };
+          workSessions = [...workSessions, created];
+          return jsonResponse(created, 201);
+        }
+        return jsonResponse({ items: workSessions });
+      }
+
+      const sessionPatchMatch = url.match(/\/api\/work-sessions\/([^/]+)$/);
+      if (sessionPatchMatch && method === "PATCH") {
+        const sessionId = sessionPatchMatch[1];
+        const updated = workSessions.find((session) => session.id === sessionId);
+        if (!updated) {
+          return jsonResponse({ detail: "not found" }, 404);
+        }
+        const next = { ...updated, schedule_id: body.schedule_id ?? null };
+        workSessions = workSessions.map((session) => (session.id === sessionId ? next : session));
+        return jsonResponse(next);
       }
 
       if (url.endsWith("/api/reference-sets")) {
-        return jsonResponse({
-          items: [
-            {
-              id: "ref-1",
-              title: "보고 참고자료",
-              session_id: "session-1",
-              created_at: "2026-04-20T00:00:00+09:00",
-              items: [{ id: "item-1", kind: "file", label: "예산메모", value: "memo.md" }],
-            },
-          ],
-        });
+        return jsonResponse({ items: referenceSets });
       }
 
       if (url.endsWith("/api/templates")) {
@@ -277,380 +230,186 @@ beforeEach(() => {
         });
       }
 
-      if (url.endsWith("/api/tools")) {
-        return jsonResponse({
-          items: [
-            {
-              key: "metadata-cleanup",
-              label: "메타데이터 정리",
-              description: "참고자료의 제목, 날짜, 주제 태그를 보강합니다.",
-              status: "mvp",
-            },
-            {
-              key: "ocr",
-              label: "OCR",
-              description: "스캔 문서를 참고자료 텍스트로 변환합니다.",
-              status: "later",
-            },
-          ],
-        });
+      const collectionMap: Record<string, unknown> = {
+        "/api/knowledge/candidates": { items: [] },
+        "/api/knowledge/pages": { items: [] },
+        "/api/approval-tickets": { items: approvalTickets },
+        "/api/integrations/anything/launches": { items: [] },
+        "/api/file-organizer/proposals": { items: [] },
+        "/api/execution-logs": { items: logs },
+        "/api/tools": { items: [] },
+      };
+
+      const matched = Object.entries(collectionMap).find(([path]) => url.endsWith(path));
+      if (matched) {
+        return jsonResponse(matched[1]);
       }
 
-      if (url.endsWith("/api/knowledge/candidates/from-note")) {
-        return jsonResponse({
-          id: "candidate-1",
-          title: body?.title ?? "2026 예산편성 메모",
-          body: body?.body ?? "예산편성과 관련된 핵심 일정과 검토 포인트를 정리한 메모",
-          candidate_type: body?.candidate_type ?? "topic",
-          status: "pending",
-          created_at: "2026-04-20T00:00:00+09:00",
-        });
-      }
-
-      if (url.endsWith("/api/knowledge/candidates")) {
-        return jsonResponse({
-          items: [
-            {
-              id: "candidate-1",
-              title: "2026 예산편성 메모",
-              candidate_type: "topic",
-              status: "pending",
-              created_at: "2026-04-20T00:00:00+09:00",
-            },
-          ],
-        });
-      }
-
-      if (url.endsWith("/api/knowledge/pages")) {
-        return jsonResponse({
-          items: [
-            {
-              id: "page-1",
-              title: "예산편성",
-              page_type: "topic",
-              path: "/tmp/knowledge/예산편성.md",
-              created_at: "2026-04-20T00:00:00+09:00",
-            },
-          ],
-        });
-      }
-
-      if (url.includes("/api/knowledge/search")) {
-        return jsonResponse({
-          query: body?.query ?? "예산",
-          vector_hits: [
-            {
-              page: {
-                id: "page-1",
-                title: "예산편성",
-                page_type: "topic",
-                path: "/tmp/knowledge/예산편성.md",
-                created_at: "2026-04-20T00:00:00+09:00",
-              },
-              score: 0.12,
-              keyword_overlap: 1,
-            },
-          ],
-          graph_neighbors: ["예산", "일정"],
-        });
-      }
-
-      if (url.endsWith("/api/knowledge/graph")) {
-        return jsonResponse({
-          node_count: 2,
-          edge_count: 1,
-          artifacts: {
-            graph_json_path: "/tmp/gongmu-workspace/knowledge/graph/graph.json",
-            graph_html_path: "/tmp/gongmu-workspace/knowledge/graph/graph.html",
-            graph_report_path: "/tmp/gongmu-workspace/knowledge/graph/GRAPH_REPORT.md",
-          },
-          nodes: [
-            {
-              id: "page-1",
-              label: "예산편성",
-              node_type: "topic",
-              neighbors: ["예산"],
-            },
-            {
-              id: "concept:예산",
-              label: "예산",
-              node_type: "concept",
-              neighbors: ["예산편성"],
-            },
-          ],
-        });
-      }
-
-      if (url.endsWith("/api/approval-tickets")) {
-        return jsonResponse({
-          items: approvalTickets,
-        });
-      }
-
-      if (url.endsWith("/api/file-organizer/proposals")) {
-        return jsonResponse({
-          items: [
-            {
-              id: "proposal-1",
-              target_path: "/tmp/incoming/회의메모.md",
-              proposal_type: "knowledge_candidate",
-              proposed_destination: "/tmp/knowledge/raw/회의메모.md",
-              status: "proposed",
-              reason: "최근 변경분을 지식 반영 후보로 제안합니다.",
-              created_at: "2026-04-20T00:00:00+09:00",
-            },
-          ],
-        });
-      }
-
-      if (url.endsWith("/api/execution-logs")) {
-        return jsonResponse({
-          items: [
-            {
-              id: "log-1",
-              feature: "documents",
-              action: "documents.content_base.created",
-              status: "success",
-              created_at: "2026-04-20T00:00:00+09:00",
-            },
-          ],
-        });
-      }
-
-      return jsonResponse({ items: [] });
+      return jsonResponse({ detail: `Unhandled request: ${method} ${url}` }, 404);
     }),
   );
-});
+}
 
-afterEach(() => {
+beforeEach(() => {
+  runtimeState.status = {
+    available: true,
+    mode: "tauri",
+    sidecar_url: "http://127.0.0.1:8765",
+    anything_available: false,
+    anything_mode: "install_page_fallback",
+    anything_path: null,
+    anything_autopaste_enabled: false,
+    running: true,
+    managed: true,
+    auto_restart_recommended: false,
+    log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
+    detail: "managed sidecar running",
+  };
   vi.unstubAllGlobals();
+  loadDesktopRuntimeStatusMock.mockClear();
+  startDesktopSidecarMock.mockClear();
+  stopDesktopSidecarMock.mockClear();
+  restartDesktopSidecarMock.mockClear();
+  pickDirectoryMock.mockClear();
+  installFetchStub();
 });
 
 describe("App shell", () => {
-  it("renders the primary workspace navigation and workspace health", async () => {
-    render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-
-    expect(within(navigation).getByText("일정")).toBeInTheDocument();
-    expect(within(navigation).getByText("업무대화")).toBeInTheDocument();
-    expect(within(navigation).getByText("로컬파일/정보검색")).toBeInTheDocument();
-    expect(within(navigation).getByText("문서작성")).toBeInTheDocument();
-    expect(within(navigation).getByText("내 지식폴더")).toBeInTheDocument();
-    expect(within(navigation).getByText("실행기록")).toBeInTheDocument();
-
-    expect(await screen.findByText("사이드카 연결 정상")).toBeInTheDocument();
-    expect(screen.getAllByText("주간 보고").length).toBeGreaterThan(0);
-    expect(screen.getByText("업무대화 열기")).toBeInTheDocument();
-  });
-
-  it("shows live settings and uses the runtime default template fallback", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-
-    await user.click(within(navigation).getByText("기타 환경설정"));
-
-    expect(await screen.findByText("internal_server")).toBeInTheDocument();
-    expect(screen.getByText("http://127.0.0.1:9000")).toBeInTheDocument();
-
-    await user.click(within(navigation).getByText("문서작성"));
-
-    expect(screen.getByRole("combobox", { name: "템플릿" })).toHaveValue("meeting");
-  });
-
-  it("switches to the knowledge folder view and shows pending candidates", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-
-    await user.click(within(navigation).getByText("내 지식폴더"));
-
-    expect(await screen.findByText("2026 예산편성 메모")).toBeInTheDocument();
-    expect(screen.getByText("반영 승인")).toBeInTheDocument();
-  });
-
-  it("runs knowledge search and shows graph inspector details", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-
-    await user.click(within(navigation).getByText("내 지식폴더"));
-
-    expect(await screen.findByText("graph nodes: 2")).toBeInTheDocument();
-    expect(screen.getByText("graph edges: 1")).toBeInTheDocument();
-
-    await user.type(screen.getByLabelText("지식 검색"), "예산");
-    await user.click(screen.getByRole("button", { name: "검색 실행" }));
-
-    await waitFor(() => expect(screen.getAllByText("예산편성").length).toBeGreaterThan(0));
-    expect(screen.getByText("예산, 일정")).toBeInTheDocument();
-    expect(screen.getByText("knowledge/graph/graph.json")).toBeInTheDocument();
-  });
-
-  it("loads the tool manifest into the tools workspace", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-
-    await user.click(within(navigation).getByText("도구"));
-
-    expect(await screen.findByText("메타데이터 정리")).toBeInTheDocument();
-    expect(screen.getByText("참고자료의 제목, 날짜, 주제 태그를 보강합니다.")).toBeInTheDocument();
-    expect(screen.getByText("later")).toBeInTheDocument();
-  });
-
-  it("shows sidecar runtime status and can start the sidecar manually", async () => {
+  it("keeps the session rail visible when moving to another feature", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    expect(await screen.findByText("sidecar 시작 필요")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "사이드카 시작" }));
+    const sessionRail = await screen.findByTestId("session-rail");
+    await within(sessionRail).findByRole("button", { name: /주간 보고 작업/ });
+    expect(within(sessionRail).getByRole("button", { name: /주간 보고 작업/ })).toBeInTheDocument();
 
-    expect(startDesktopSidecarMock).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText("앱이 sidecar를 관리 중")).toBeInTheDocument();
-    expect(screen.getByText("gongmu-workspace/logs/sidecar-runtime.log")).toBeInTheDocument();
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: "일정" }));
+
+    expect(screen.getByTestId("session-rail")).toBeInTheDocument();
+    expect(within(screen.getByTestId("session-rail")).getByRole("button", { name: /주간 보고 작업/ })).toBeInTheDocument();
   });
 
-  it("can stop a managed sidecar from the runtime controls", async () => {
+  it("uses only the top-right toggle when the right info pane is collapsed", async () => {
     const user = userEvent.setup();
-    runtimeState.status = {
-      ...runtimeState.status,
-      running: true,
-      managed: true,
-      detail: "앱이 sidecar를 관리 중",
-    };
-
     render(<App />);
 
-    expect(await screen.findByText("앱이 sidecar를 관리 중")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "사이드카 종료" }));
+    await screen.findByText("대기 중인 승인");
+    await user.click(screen.getByRole("button", { name: "오른쪽 정보 패널 닫기" }));
 
-    expect(stopDesktopSidecarMock).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText("sidecar 시작 필요")).toBeInTheDocument();
+    expect(document.querySelector(".workspace-shell--context-collapsed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "오른쪽 정보 패널 열기" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("오른쪽 정보 패널 복원")).not.toBeInTheDocument();
   });
 
-  it("can restart a managed sidecar from the runtime controls", async () => {
+  it("opens the compact runtime popover from the top-right indicator", async () => {
     const user = userEvent.setup();
-    runtimeState.status = {
-      ...runtimeState.status,
-      running: true,
-      managed: true,
-      detail: "앱이 sidecar를 관리 중",
-    };
-
     render(<App />);
 
-    expect(await screen.findByText("앱이 sidecar를 관리 중")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "사이드카 재시작" }));
+    await screen.findByTestId("runtime-indicator-toggle");
+    await user.click(screen.getByTestId("runtime-indicator-toggle"));
 
-    expect(restartDesktopSidecarMock).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText("앱이 sidecar를 다시 시작함")).toBeInTheDocument();
+    expect(screen.getByTestId("runtime-popover")).toHaveTextContent("업무 엔진 상태");
+    expect(screen.getByTestId("runtime-popover")).not.toHaveTextContent("사이드카");
+    expect(screen.getByTestId("runtime-popover")).not.toHaveTextContent(/sidecar/i);
   });
 
-it("auto restarts a managed sidecar after crash detection", async () => {
-    runtimeState.status = {
-      ...runtimeState.status,
-      running: false,
-      managed: false,
-      auto_restart_recommended: true,
-      detail: "managed sidecar exited unexpectedly",
-    };
-
+  it("uses bundled image icon files for compact topbar actions", async () => {
     render(<App />);
+
+    await screen.findByTestId("shell-topbar-current");
+
+    expect(screen.getByTestId("topbar-refresh-icon")).toHaveAttribute("src", "/icons/refresh.svg");
+    expect(screen.getByTestId("topbar-context-toggle-icon")).toHaveAttribute("src", "/icons/panel-close.svg");
+  });
+
+  it("keeps the topbar compact with zoom buttons and no duplicated status pills", async () => {
+    render(<App />);
+
+    await screen.findByText("로컬 AI 업무 에이전트 워크플레이스 : 공무원");
+
+    expect(screen.queryByTestId("workspace-header-summary")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "화면 축소" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "화면 확대" })).toBeInTheDocument();
+    expect(screen.getByText("100%")).toBeInTheDocument();
+  });
+
+  it("simplifies the left rail labels and removes low-value session filters", async () => {
+    render(<App />);
+
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+
+    expect(within(navigation).getByRole("button", { name: "파일찾기" })).toBeInTheDocument();
+    expect(within(navigation).queryByRole("button", { name: "로컬파일/정보검색" })).not.toBeInTheDocument();
+    expect(within(navigation).getByText("기타")).toBeInTheDocument();
+    expect(within(navigation).getByText("환경설정")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-rail-filter-all")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-rail-filter-linked")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-rail-filter-independent")).not.toBeInTheDocument();
+  });
+
+  it("uses compact icon tabs in the right pane and removes the task detail panel", async () => {
+    render(<App />);
+
+    await screen.findByLabelText("현재 컨텍스트");
+
+    expect(screen.queryByRole("button", { name: "작업 상세" })).not.toBeInTheDocument();
+    expect(screen.getByLabelText("현재 컨텍스트")).toHaveClass("is-active");
+    expect(screen.getByLabelText("승인 요청")).toHaveClass("is-active");
+    expect(screen.getByLabelText("최근 실행")).toHaveClass("is-active");
+    expect(screen.getByLabelText("가까운 일정")).toBeDisabled();
+    expect(screen.getByLabelText("미리보기")).toBeDisabled();
+  });
+
+  it("renames the schedule calendar and moves summary details out of the main calendar", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: "일정" }));
+
+    expect(await screen.findByRole("heading", { name: "업무일정 캘린더" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "빠른 일정 캘린더" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("schedule-summary")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("가까운 일정")).not.toBeDisabled();
+  });
+
+  it("keeps schedule cells compact and exposes full details as hover text", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: /^일정/ }));
+
+    const occupiedSlot = await screen.findByTestId("schedule-slot-1");
+    const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
+
+    expect(occupiedSlot).toHaveAttribute("title", expect.stringContaining("주간 보고 준비"));
+    expect(existingTitle).toHaveClass("schedule-slot__line");
+    expect(existingTitle).toHaveAttribute("title", "주간 보고 준비");
+  });
+
+  it("clears previous schedule data when moving from existing edit to a new empty slot", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: /^일정/ }));
+
+    const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
+    await user.click(existingTitle.closest("button") as HTMLButtonElement);
 
     await waitFor(() => {
-      expect(restartDesktopSidecarMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByLabelText("일정 제목")).toHaveValue("주간 보고 준비");
+      expect(screen.getByRole("button", { name: "연결 세션 열기" })).toBeInTheDocument();
     });
-    await waitFor(() => {
-      expect(screen.getByText("앱이 sidecar를 다시 시작함")).toBeInTheDocument();
-    });
-  });
 
-  it("invalidates a generated content base after draft inputs change", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi.mocked(global.fetch);
-    render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-
-    await user.click(within(navigation).getByText("문서작성"));
-    await user.type(screen.getByLabelText("문서 제목"), "weekly draft");
-    await user.click(screen.getByRole("button", { name: "ContentBase.md 생성" }));
-
-    const finalizeButton = await screen.findByRole("button", { name: "최종 저장 요청" });
-    expect(finalizeButton).toBeEnabled();
-
-    const titleInput = screen.getByLabelText("문서 제목");
-    await user.clear(titleInput);
-    await user.type(titleInput, "weekly draft v2");
+    await user.click(screen.getByTestId("schedule-slot-0"));
 
     await waitFor(() => {
-      expect(screen.queryByRole("button", { name: "최종 저장 요청" })).not.toBeInTheDocument();
+      expect(screen.getByLabelText("일정 제목")).toHaveValue("");
+      expect(screen.queryByRole("button", { name: "연결 세션 열기" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "일정 등록" })).toBeInTheDocument();
     });
-    expect(
-      screen.getByText("Draft changed after ContentBase generation. Regenerate before final save."),
-    ).toBeInTheDocument();
-    expect(
-      fetchMock.mock.calls.some(
-        ([input, init]) =>
-          String(input).includes("/api/documents/finalize") &&
-          (init?.method ?? "GET").toUpperCase() === "POST",
-      ),
-    ).toBe(false);
-  });
-
-  it("shows a recovery action when an unmanaged sidecar is already reachable", async () => {
-    const user = userEvent.setup();
-    runtimeState.status = {
-      ...runtimeState.status,
-      running: true,
-      managed: false,
-      detail: "sidecar is already reachable",
-    };
-
-    render(<App />);
-
-    const recoverButton = await screen.findByRole("button", { name: "Recover sidecar" });
-    await user.click(recoverButton);
-
-    expect(loadDesktopRuntimeStatusMock).toHaveBeenCalledTimes(2);
-    expect(
-      await screen.findByText(
-        "External sidecar is still active. Close it, then start the managed sidecar again.",
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("requests final document save and applies it after approval", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-    const fetchMock = vi.mocked(global.fetch);
-
-    await user.click(within(navigation).getByText("문서작성"));
-
-    await user.type(screen.getByLabelText("문서 제목"), "주간 보고 초안");
-    await user.click(screen.getByRole("button", { name: "ContentBase.md 생성" }));
-    const outputNameInput = await screen.findByLabelText("출력 이름");
-    await user.clear(outputNameInput);
-    await user.type(outputNameInput, "주간보고-2026-04-20");
-
-    await user.click(await screen.findByRole("button", { name: "최종 저장 요청" }));
-
-    const finalizeCard = (await screen.findByText("documents.finalize")).closest("article");
-    expect(finalizeCard).not.toBeNull();
-    await user.click(within(finalizeCard as HTMLElement).getByRole("button", { name: "승인" }));
-
-    expect(await screen.findByText("승인되어 바로 적용할 수 있습니다.")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "최종 저장 적용" })).toBeEnabled(),
-    );
-    await user.click(screen.getByRole("button", { name: "최종 저장 적용" }));
-
-    expect(
-      fetchMock.mock.calls.some(([input]) =>
-        String(input).includes("/api/documents/finalize/approval-final-1/apply"),
-      ),
-    ).toBe(true);
-    expect(await screen.findByText("documents/outputs/주간보고-2026-04-20.md")).toBeInTheDocument();
   });
 });
