@@ -27,6 +27,7 @@ ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_PROVIDER_BASE_URLS = {
     "openai": "https://api.openai.com/v1",
     "openrouter": "https://openrouter.ai/api/v1",
+    "featherless": "https://api.featherless.ai/v1",
     "anthropic": "https://api.anthropic.com/v1",
     "gemini": "https://generativelanguage.googleapis.com/v1beta",
     "nvidia_nim": "https://integrate.api.nvidia.com/v1",
@@ -36,6 +37,7 @@ DEFAULT_PROVIDER_BASE_URLS = {
 PROVIDER_ENV_KEYS = {
     "openai": ("OPENAI_API_KEY",),
     "openrouter": ("OPENROUTER_API_KEY",),
+    "featherless": ("FEATHERLESS_API_KEY",),
     "anthropic": ("ANTHROPIC_API_KEY",),
     "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
     "nvidia_nim": ("NVIDIA_API_KEY",),
@@ -62,6 +64,8 @@ def _normalize_provider(settings: SidecarSettings) -> str:
         return "nvidia_nim"
     if raw in {"ollama", "ollama_native"}:
         return "ollama"
+    if raw in {"featherless", "featherless_ai", "featherlessapi"}:
+        return "featherless"
     if raw == "openai_compatible":
         return "custom_openai"
     return raw
@@ -444,7 +448,7 @@ def _openai_headers(api_key: str | None, provider: str, settings: SidecarSetting
     headers = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
-    if provider == "openrouter":
+    if provider in {"openrouter", "featherless"}:
         if settings.llm_site_url:
             headers["HTTP-Referer"] = settings.llm_site_url
         if settings.llm_application_name:
@@ -840,7 +844,7 @@ def generate_session_reply(
             try_responses=True,
             reasoning_effort=reasoning_effort,
         )
-    if provider in {"openrouter", "nvidia_nim"}:
+    if provider in {"openrouter", "featherless", "nvidia_nim"}:
         return _generate_openai_family_reply(
             settings,
             provider,
@@ -895,7 +899,7 @@ def generate_session_reply_streaming(
             on_delta=on_delta,
             reasoning_effort=reasoning_effort,
         )
-    if provider in {"openrouter", "nvidia_nim"}:
+    if provider in {"openrouter", "featherless", "nvidia_nim"}:
         return _generate_openai_family_reply_streaming(
             settings,
             provider,

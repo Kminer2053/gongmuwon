@@ -210,6 +210,7 @@ const ANYTHING_RELEASES_URL = "https://github.com/chrisryugj/Docufinder/releases
 const PROVIDER_OPTION_ORDER: LlmProviderKey[] = [
   "openai",
   "openrouter",
+  "featherless",
   "anthropic",
   "gemini",
   "nvidia_nim",
@@ -2548,6 +2549,12 @@ export function App() {
   }
 
   const selectedProviderPreset = LLM_PROVIDER_PRESETS[normalizeProviderKey(settingsForm.llm_provider)];
+  const selectedProviderAttributionLabel =
+    selectedProviderPreset.attributionLabel ?? selectedProviderPreset.label;
+  const selectedProviderSupportsAttributionHeaders =
+    selectedProviderPreset.supportsAttributionHeaders ??
+    selectedProviderPreset.supportsOpenRouterHeaders ??
+    false;
 
   function applyProviderPreset(providerKey: LlmProviderKey) {
     const committedProfiles = commitSettingsFormToProfiles(settingsProfiles, settingsForm);
@@ -7444,10 +7451,10 @@ export function App() {
                 placeholder={selectedProviderPreset.defaultBaseUrl}
               />
             </label>
-          {selectedProviderPreset.supportsOpenRouterHeaders ? (
+          {selectedProviderSupportsAttributionHeaders ? (
             <div className="grid-2">
               <label>
-                OpenRouter 사이트 URL (선택)
+                {selectedProviderAttributionLabel} 사이트 URL (선택)
                 <input
                   value={settingsForm.llm_site_url}
                   onChange={(event) => applySettingsFormPatch({ llm_site_url: event.target.value })}
@@ -7455,7 +7462,7 @@ export function App() {
                 />
               </label>
               <label>
-                OpenRouter 앱 이름 (선택)
+                {selectedProviderAttributionLabel} 앱 이름 (선택)
                 <input
                   value={settingsForm.llm_application_name}
                   onChange={(event) =>

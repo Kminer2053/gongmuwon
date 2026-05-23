@@ -78,6 +78,34 @@ def test_openrouter_uses_official_openai_compatible_chat_contract(monkeypatch) -
     assert captured["body"]["messages"] == [{"role": "user", "content": "요약해줘"}]
 
 
+def test_featherless_uses_official_openai_compatible_chat_contract(monkeypatch) -> None:
+    captured = _capture_request(
+        monkeypatch,
+        {"choices": [{"message": {"content": "featherless ok"}}]},
+    )
+    settings = SidecarSettings(
+        llm_mode="external_model",
+        llm_provider="featherless",
+        llm_model="GalrionSoftworks/Margnum-12B-v1",
+        llm_api_key="feather-key",
+        internal_api_base_url="https://api.featherless.ai/v1",
+        llm_site_url="https://gongmu.local",
+        llm_application_name="Gongmu Workspace",
+    )
+
+    result = generate_session_reply(settings, [{"role": "user", "text": "Hello"}])
+
+    assert result.provider == "featherless"
+    assert result.model == "GalrionSoftworks/Margnum-12B-v1"
+    assert result.text == "featherless ok"
+    assert captured["url"] == "https://api.featherless.ai/v1/chat/completions"
+    assert captured["headers"]["authorization"] == "Bearer feather-key"
+    assert captured["headers"]["http-referer"] == "https://gongmu.local"
+    assert captured["headers"]["x-title"] == "Gongmu Workspace"
+    assert captured["body"]["model"] == "GalrionSoftworks/Margnum-12B-v1"
+    assert captured["body"]["messages"] == [{"role": "user", "content": "Hello"}]
+
+
 def test_openrouter_streaming_reads_sse_delta_chunks(monkeypatch) -> None:
     captured: dict[str, Any] = {}
 

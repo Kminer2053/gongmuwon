@@ -191,6 +191,26 @@ describe("환경설정 편집", () => {
     expect(screen.queryByLabelText("기본 템플릿")).not.toBeInTheDocument();
   });
 
+  it("Featherless API preset을 선택하면 공식 OpenAI-compatible 연결값을 표시한다", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: "기타 환경설정" }));
+
+    await user.selectOptions(await screen.findByLabelText("LLM 정책"), "external_model");
+    await user.selectOptions(screen.getByLabelText("외부 모델 공급자"), "featherless");
+
+    expect(screen.getByLabelText("Featherless API Key")).toBeInTheDocument();
+    expect(screen.getByLabelText("모델 API Base URL")).toHaveValue("https://api.featherless.ai/v1");
+    expect(screen.getByLabelText("Featherless API 사이트 URL (선택)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Featherless API 앱 이름 (선택)")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "공식 연결 가이드" })).toHaveAttribute(
+      "href",
+      "https://featherless.ai/docs/api-overview-and-common-options",
+    );
+  });
+
   it("provider별 입력값을 저장하고 연결 테스트를 실행한다", async () => {
     const user = userEvent.setup();
     render(<App />);

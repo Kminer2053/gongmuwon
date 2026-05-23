@@ -35,6 +35,11 @@ def _default_external_provider_profiles() -> dict[str, LlmConnectionProfile]:
             model="openai/gpt-5.5",
             base_url="https://openrouter.ai/api/v1",
         ),
+        "featherless": LlmConnectionProfile(
+            provider="featherless",
+            model="GalrionSoftworks/Margnum-12B-v1",
+            base_url="https://api.featherless.ai/v1",
+        ),
         "anthropic": LlmConnectionProfile(
             provider="anthropic",
             model="claude-sonnet-4-20250514",

@@ -2,6 +2,7 @@ export type LlmProviderKey =
   | "ollama"
   | "openai"
   | "openrouter"
+  | "featherless"
   | "anthropic"
   | "gemini"
   | "nvidia_nim"
@@ -17,6 +18,8 @@ export type LlmProviderPreset = {
   apiKeyLabel: string;
   apiKeyPlaceholder: string;
   helperLines: string[];
+  supportsAttributionHeaders?: boolean;
+  attributionLabel?: string;
   supportsOpenRouterHeaders?: boolean;
 };
 
@@ -62,7 +65,26 @@ export const LLM_PROVIDER_PRESETS: Record<LlmProviderKey, LlmProviderPreset> = {
       "공식 기본 Base URL은 https://openrouter.ai/api/v1 입니다.",
       "모델명은 공급자/모델 slug 형식으로 입력합니다.",
     ],
+    supportsAttributionHeaders: true,
+    attributionLabel: "OpenRouter",
     supportsOpenRouterHeaders: true,
+  },
+  featherless: {
+    key: "featherless",
+    label: "Featherless API",
+    docsUrl: "https://featherless.ai/docs/api-overview-and-common-options",
+    defaultBaseUrl: "https://api.featherless.ai/v1",
+    defaultModel: "GalrionSoftworks/Margnum-12B-v1",
+    modelPlaceholder: "GalrionSoftworks/Margnum-12B-v1 or a Featherless model slug",
+    apiKeyLabel: "Featherless API Key",
+    apiKeyPlaceholder: "featherless api key",
+    helperLines: [
+      "Featherless uses an OpenAI-compatible Chat Completions API.",
+      "Use https://api.featherless.ai/v1 as the Base URL; Gongmu appends /chat/completions.",
+      "Vision-capable Featherless models can receive image attachments as OpenAI-style data URLs.",
+    ],
+    supportsAttributionHeaders: true,
+    attributionLabel: "Featherless API",
   },
   anthropic: {
     key: "anthropic",
@@ -133,6 +155,10 @@ export function normalizeProviderKey(provider: string): LlmProviderKey {
       return "openai";
     case "openrouter":
       return "openrouter";
+    case "featherless":
+    case "featherless_ai":
+    case "featherlessapi":
+      return "featherless";
     case "anthropic":
     case "claude":
       return "anthropic";

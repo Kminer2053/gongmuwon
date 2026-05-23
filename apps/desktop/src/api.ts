@@ -679,6 +679,14 @@ export function createDefaultWorkspaceLlmProfiles(): WorkspaceLlmProfiles {
           site_url: null,
           application_name: null,
         },
+        featherless: {
+          provider: "featherless",
+          model: "GalrionSoftworks/Margnum-12B-v1",
+          api_key: null,
+          base_url: "https://api.featherless.ai/v1",
+          site_url: null,
+          application_name: null,
+        },
         anthropic: {
           provider: "anthropic",
           model: "claude-sonnet-4-20250514",
