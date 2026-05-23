@@ -69,6 +69,16 @@ export type WorkSessionAttachmentItem = {
   created_at: string;
 };
 
+export type DocumentAttachmentItem = {
+  id: string;
+  file_name: string;
+  mime_type?: string | null;
+  stored_path: string;
+  size_bytes: number;
+  text_excerpt?: string | null;
+  created_at: string;
+};
+
 export type WorkSessionFileLinkItem = {
   id: string;
   session_id: string;
@@ -91,6 +101,7 @@ export type WorkSessionTurnResult = {
   user_message: WorkSessionMessageItem;
   assistant_message: WorkSessionMessageItem;
   duration_ms?: number;
+  work_job?: WorkJobItem;
   context_summary?: WorkSessionTurnContextSummary;
 };
 
@@ -222,6 +233,37 @@ export type KnowledgeIngestionLogDump = {
   log_dump_path: string;
   limit: number;
   items: Array<Record<string, unknown>>;
+};
+
+export type WorkJobItem = {
+  id: string;
+  kind: string;
+  title: string;
+  status: "queued" | "blocked" | "running" | "waiting_approval" | "cancel_requested" | "succeeded" | "partial" | "failed" | "canceled" | string;
+  priority: number;
+  resource_key?: string | null;
+  resource_policy: string;
+  progress_percent: number;
+  current_stage?: string | null;
+  cancel_requested: boolean;
+  input?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  error_message?: string | null;
+  created_at: string;
+  queued_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+};
+
+export type WorkJobEventItem = {
+  id: string;
+  job_id: string;
+  seq: number;
+  level: "info" | "warning" | "error" | string;
+  event_type: string;
+  message: string;
+  payload?: Record<string, unknown>;
+  created_at: string;
 };
 
 export type PersonalizationCandidateItem = {
@@ -506,7 +548,7 @@ export type FileProposalItem = {
 };
 
 export type FileOperationResult = {
-  operation: {
+  operation?: {
     id: string;
     proposal_id: string;
     source_path: string;
@@ -516,6 +558,8 @@ export type FileOperationResult = {
     created_at: string;
     rolled_back_at?: string | null;
   };
+  status?: string;
+  work_job?: WorkJobItem;
 };
 
 export type ExecutionLogItem = {
@@ -744,6 +788,7 @@ export type WorkspaceSnapshot = {
   knowledgeSourceFiles: KnowledgeSourceFileItem[];
   knowledgeIngestionJobs: KnowledgeIngestionJobItem[];
   knowledgeDocuments: KnowledgeDocumentItem[];
+  workJobs: WorkJobItem[];
   personalizationCandidates: PersonalizationCandidateItem[];
   approvalTickets: ApprovalTicketItem[];
   anythingLaunches: AnythingLaunchItem[];
@@ -768,6 +813,7 @@ export function createEmptyWorkspaceSnapshot(): WorkspaceSnapshot {
     knowledgeSourceFiles: [],
     knowledgeIngestionJobs: [],
     knowledgeDocuments: [],
+    workJobs: [],
     personalizationCandidates: [],
     approvalTickets: [],
     anythingLaunches: [],
@@ -1256,6 +1302,7 @@ export async function loadWorkspaceShellSnapshot(): Promise<WorkspaceSnapshot> {
     referenceSets,
     templates,
     approvalTickets,
+    workJobs,
   ] = await Promise.allSettled([
     requestJson<WorkspaceHealth>("/health"),
     requestJson<unknown>("/api/settings"),
@@ -1264,6 +1311,7 @@ export async function loadWorkspaceShellSnapshot(): Promise<WorkspaceSnapshot> {
     requestJson<{ items: ReferenceSetItem[] }>("/api/reference-sets"),
     requestJson<{ items: TemplateItem[] }>("/api/templates"),
     requestJson<{ items: ApprovalTicketItem[] }>("/api/approval-tickets"),
+    requestJson<{ items: WorkJobItem[] }>("/api/jobs?limit=20"),
   ]);
 
   return mergeWorkspaceSnapshot(createEmptyWorkspaceSnapshot(), {
@@ -1274,6 +1322,7 @@ export async function loadWorkspaceShellSnapshot(): Promise<WorkspaceSnapshot> {
     referenceSets: referenceSets.status === "fulfilled" ? referenceSets.value.items : [],
     templates: templates.status === "fulfilled" ? templates.value.items : [],
     approvalTickets: approvalTickets.status === "fulfilled" ? approvalTickets.value.items : [],
+    workJobs: workJobs.status === "fulfilled" ? workJobs.value.items : [],
   });
 }
 
@@ -1447,14 +1496,14 @@ export async function scanKnowledgeSource(sourceId: string) {
 }
 
 export async function ingestKnowledgeSource(sourceId: string, runNow = true, background = false) {
-  return requestJson<{ job: KnowledgeIngestionJobItem }>("/api/knowledge/ingest", {
+  return requestJson<{ job: KnowledgeIngestionJobItem; work_job?: WorkJobItem }>("/api/knowledge/ingest", {
     method: "POST",
     body: JSON.stringify({ source_id: sourceId, run_now: runNow, background }),
   });
 }
 
 export async function reindexKnowledgeSource(sourceId: string, runNow = true, background = false) {
-  return requestJson<{ job: KnowledgeIngestionJobItem }>("/api/knowledge/reindex", {
+  return requestJson<{ job: KnowledgeIngestionJobItem; work_job?: WorkJobItem }>("/api/knowledge/reindex", {
     method: "POST",
     body: JSON.stringify({ source_id: sourceId, run_now: runNow, background }),
   });
@@ -1495,9 +1544,25 @@ export async function searchLocalFiles(query: string) {
 }
 
 export async function rebuildLocalFileIndex() {
-  return requestJson<LocalFileIndexRebuildResult>("/api/files/index/rebuild", {
+  return requestJson<LocalFileIndexRebuildResult & { work_job?: WorkJobItem }>("/api/files/index/rebuild", {
     method: "POST",
   });
+}
+
+export async function cancelWorkJob(jobId: string) {
+  return requestJson<WorkJobItem>(`/api/jobs/${encodeURIComponent(jobId)}/cancel`, {
+    method: "POST",
+  });
+}
+
+export async function loadWorkJobEvents(jobId: string, limit = 30) {
+  return requestJson<{ items: WorkJobEventItem[] }>(
+    `/api/jobs/${encodeURIComponent(jobId)}/events?limit=${limit}`,
+  );
+}
+
+export async function loadKnowledgeIngestionJobs() {
+  return requestJson<{ items: KnowledgeIngestionJobItem[] }>("/api/knowledge/ingestion-jobs");
 }
 
 export async function runKnowledgeIngestionJob(jobId: string) {
@@ -1599,6 +1664,37 @@ export async function createContentBase(payload: {
   });
 }
 
+export async function generateDocument(payload: {
+  title: string;
+  purpose: string;
+  reference_set_id?: string | null;
+  template_key: "report" | "meeting" | "review";
+  source_session_id?: string | null;
+  outline?: string;
+  document_format?: DocumentFormat;
+  audience_type?: string;
+  expected_length?: string;
+  urgency_level?: string;
+  needs_traceability?: string;
+  requires_official_form?: string;
+  requested_action?: string;
+  deadline?: string;
+  security_level?: string;
+  direct_file_paths?: string[];
+  user_template_path?: string | null;
+  output_name?: string;
+}) {
+  return requestJson<{
+    content_base: ContentBaseResult;
+    finalize: FinalDocumentRequestResult;
+    artifact: { path: string; markdown_path?: string; format?: string };
+    work_job?: WorkJobItem;
+  }>("/api/documents/generate", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function loadCustomDocumentTemplates() {
   return requestJson<{ items: CustomDocumentTemplateItem[] }>("/api/documents/templates/custom");
 }
@@ -1607,6 +1703,17 @@ export async function uploadDocumentTemplate(file: File) {
   const body = new FormData();
   body.append("file", file);
   return requestJson<{ item: CustomDocumentTemplateItem }>("/api/documents/templates/custom", {
+    method: "POST",
+    body,
+  });
+}
+
+export async function uploadDocumentAttachments(files: File[]) {
+  const body = new FormData();
+  files.forEach((file) => {
+    body.append("files", file);
+  });
+  return requestJson<{ items: DocumentAttachmentItem[] }>("/api/documents/attachments", {
     method: "POST",
     body,
   });
@@ -1683,7 +1790,7 @@ export async function commitFileProposalApply(proposalId: string) {
 }
 
 export async function rollbackFileOperation(operationId: string) {
-  return requestJson<{ restored_path: string; operation_id: string }>(
+  return requestJson<{ restored_path?: string; operation_id?: string; status?: string; work_job?: WorkJobItem }>(
     `/api/file-organizer/operations/${operationId}/rollback`,
     { method: "POST" },
   );

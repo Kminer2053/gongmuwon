@@ -268,17 +268,23 @@ label {
   height: 34px;
   display: inline-grid;
   place-items: center;
+  line-height: 0;
   border-radius: 12px;
   background: #111214;
   color: #ffffff;
 }
 
-.shell-topbar__current strong,
-.shell-topbar__current span {
+.shell-topbar__current-icon > svg {
+  display: block;
+  margin: auto;
+}
+
+.shell-topbar__current > div > strong,
+.shell-topbar__current > div > span {
   display: block;
 }
 
-.shell-topbar__current span {
+.shell-topbar__current > div > span {
   color: var(--text-subtle);
   font-size: 0.82rem;
   line-height: 1.25;
@@ -1008,6 +1014,54 @@ label {
   color: inherit;
 }
 
+.chat-code-block {
+  position: relative;
+}
+
+.chat-code-block__lang {
+  display: inline-block;
+  margin-bottom: 0.45rem;
+  color: rgba(246, 247, 249, 0.62);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chat-markdown-table-wrap {
+  width: 100%;
+  margin: 0.75rem 0;
+  overflow-x: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.chat-markdown table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.chat-markdown th,
+.chat-markdown td {
+  padding: 0.62rem 0.75rem;
+  border-bottom: 1px solid rgba(17, 18, 20, 0.08);
+  text-align: left;
+  vertical-align: top;
+}
+
+.chat-markdown th {
+  background: rgba(17, 18, 20, 0.045);
+  color: var(--text-strong);
+  font-weight: 850;
+}
+
+.chat-markdown tr:last-child td {
+  border-bottom: 0;
+}
+
 .inline-open-target {
   display: inline-grid;
   gap: 0.15rem;
@@ -1018,6 +1072,16 @@ label {
   background: rgba(17, 18, 20, 0.04);
   color: inherit;
   text-align: left;
+}
+
+.inline-open-target--link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.08rem 0.3rem;
+  border-radius: 9px;
+  color: var(--accent-strong);
+  font-weight: 800;
+  vertical-align: baseline;
 }
 
 .inline-open-target:hover {
@@ -1276,6 +1340,19 @@ label {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: var(--shadow);
+}
+
+.chat-file-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chat-file-popover__close {
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0;
 }
 
 .chat-file-popover__item {
@@ -1632,14 +1709,13 @@ label {
 
 .local-file-explorer {
   display: grid;
-  grid-template-columns: minmax(180px, 0.72fr) minmax(0, 1.75fr) minmax(220px, 0.86fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.9rem;
   min-height: min(64vh, 720px);
 }
 
 .local-file-explorer__sidebar,
-.local-file-explorer__main,
-.local-file-explorer__details {
+.local-file-explorer__main {
   min-width: 0;
   display: grid;
   gap: 0.8rem;
@@ -1675,6 +1751,19 @@ label {
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 248, 245, 0.82)),
     var(--surface);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.local-file-result-card:hover,
+.local-file-result-card:focus-visible,
+.local-file-result-card.is-selected {
+  border-color: rgba(17, 18, 20, 0.32);
+  box-shadow: 0 14px 32px rgba(17, 18, 20, 0.08);
+  transform: translateY(-1px);
 }
 
 .planner-toolbar {

@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from collections.abc import Iterator
 from typing import Any
 from uuid import uuid4
 
@@ -99,6 +102,46 @@ CREATE TABLE IF NOT EXISTS execution_logs (
     outputs_json TEXT NOT NULL,
     approval_ticket_id TEXT,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS work_jobs (
+    id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL,
+    priority INTEGER NOT NULL DEFAULT 50,
+    resource_key TEXT,
+    resource_policy TEXT NOT NULL DEFAULT 'none',
+    progress_percent INTEGER NOT NULL DEFAULT 0,
+    current_stage TEXT,
+    cancel_requested INTEGER NOT NULL DEFAULT 0,
+    input_json TEXT NOT NULL DEFAULT '{}',
+    result_json TEXT NOT NULL DEFAULT '{}',
+    error_message TEXT,
+    created_at TEXT NOT NULL,
+    queued_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS work_job_events (
+    id TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    level TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    message TEXT NOT NULL,
+    payload_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(job_id) REFERENCES work_jobs(id)
+);
+
+CREATE TABLE IF NOT EXISTS work_job_locks (
+    resource_key TEXT PRIMARY KEY,
+    job_id TEXT NOT NULL,
+    lock_type TEXT NOT NULL,
+    acquired_at TEXT NOT NULL,
+    FOREIGN KEY(job_id) REFERENCES work_jobs(id)
 );
 
 CREATE TABLE IF NOT EXISTS knowledge_sources (
@@ -376,8 +419,12 @@ class Database:
     paths: WorkspacePaths
 
     def __post_init__(self) -> None:
+        self._lock = threading.RLock()
+        self._transaction_depth = 0
         self.connection = sqlite3.connect(self.paths.db_file, check_same_thread=False)
         self.connection.row_factory = sqlite3.Row
+        self.connection.execute("PRAGMA journal_mode = WAL")
+        self.connection.execute("PRAGMA busy_timeout = 5000")
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.executescript(SCHEMA)
         self._ensure_column("work_session_messages", "message_type", "TEXT NOT NULL DEFAULT 'chat'")
@@ -423,37 +470,64 @@ class Database:
         self.connection.commit()
 
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
-        columns = {
-            row["name"]
-            for row in self.connection.execute(f"PRAGMA table_info({table})").fetchall()
-        }
-        if column not in columns:
-            self.connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        with self._lock:
+            columns = {
+                row["name"]
+                for row in self.connection.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+            if column not in columns:
+                self.connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        with self._lock:
+            outermost = self._transaction_depth == 0
+            if outermost:
+                self.connection.execute("BEGIN IMMEDIATE")
+            self._transaction_depth += 1
+            try:
+                yield
+            except Exception:
+                self._transaction_depth -= 1
+                if outermost:
+                    self.connection.rollback()
+                raise
+            else:
+                self._transaction_depth -= 1
+                if outermost:
+                    self.connection.commit()
 
     def insert(self, table: str, payload: dict[str, Any]) -> dict[str, Any]:
         columns = ", ".join(payload.keys())
         placeholders = ", ".join("?" for _ in payload)
-        self.connection.execute(
-            f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
-            tuple(payload.values()),
-        )
-        self.connection.commit()
+        with self._lock:
+            self.connection.execute(
+                f"INSERT INTO {table} ({columns}) VALUES ({placeholders})",
+                tuple(payload.values()),
+            )
+            if self._transaction_depth == 0:
+                self.connection.commit()
         return payload
 
     def fetch_all(self, query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
-        rows = self.connection.execute(query, params).fetchall()
+        with self._lock:
+            rows = self.connection.execute(query, params).fetchall()
         return [dict(row) for row in rows]
 
     def fetch_one(self, query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
-        row = self.connection.execute(query, params).fetchone()
+        with self._lock:
+            row = self.connection.execute(query, params).fetchone()
         return dict(row) if row else None
 
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
-        self.connection.execute(query, params)
-        self.connection.commit()
+        with self._lock:
+            self.connection.execute(query, params)
+            if self._transaction_depth == 0:
+                self.connection.commit()
 
     def rollback(self) -> None:
-        self.connection.rollback()
+        with self._lock:
+            self.connection.rollback()
 
     def log(
         self,

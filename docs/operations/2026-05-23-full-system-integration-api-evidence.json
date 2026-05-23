@@ -1,0 +1,85 @@
+{
+  "session_id": "62ddabb3-335f-49d2-b20b-8ef88f8fc24f",
+  "schedule_id": "c362765f-47bc-4dea-8cbb-a76953522c22",
+  "file_link_count": 2,
+  "source_id": "5b318929-b012-45bc-9905-a031226db2f0",
+  "scan_status": 200,
+  "scan_keys": [
+    "source_id",
+    "status",
+    "indexed_count",
+    "metadata_count",
+    "deleted_count",
+    "failed_count",
+    "scanned_at"
+  ],
+  "ingest": {
+    "status": 201,
+    "job_id": "1a8da837-4b58-4764-ac9e-91097e768042",
+    "status_text": "completed"
+  },
+  "file_search": {
+    "status": 200,
+    "count": 3,
+    "first_path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\integration-fixtures\\2026-05-23-utf8\\integration_meeting_notes.txt"
+  },
+  "document_generate": {
+    "status": 201,
+    "keys": [
+      "content_base",
+      "finalize",
+      "artifact",
+      "work_job"
+    ],
+    "work_job_status": "succeeded",
+    "artifact_path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\full-system-integration-review-one-page.hwpx"
+  },
+  "chat_multi_intent": {
+    "status": 201,
+    "actions": [
+      "intent.plan",
+      "schedule.create",
+      "knowledge.search"
+    ],
+    "job": "succeeded",
+    "reply_head": "요청을 여러 작업으로 나누어 순서대로 처리했습니다.\n\n## 일정 등록\n일정을 등록했습니다.\n\n- 제목: 통합검증 회의\n- 시간: 2026-05-24T16:00:00+09:00 ~ 2026-05-24T17:00:00+09:00\n\n## 지식폴더 검색\nGraphRAG 검색 결과입니다.\n\n'내일 오후 4시 통합검증 회의 일정 등록하고 지식폴더에서 안전 프롬프트 자료 찾아줘'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. AI수요조사 결과 집계 (초안): 표: she"
+  },
+  "recent_jobs": [
+    {
+      "kind": "work_session.turn",
+      "status": "succeeded",
+      "resource": "work_session:62ddabb3-335f-49d2-b20b-8ef88f8fc24f",
+      "stage": "업무대화 스킬 실행 완료"
+    },
+    {
+      "kind": "documents.generate",
+      "status": "succeeded",
+      "resource": "document_output:full-system-integration-review-one-page",
+      "stage": "HWPX 문서 생성 완료"
+    },
+    {
+      "kind": "knowledge.ingest",
+      "status": "succeeded",
+      "resource": "knowledge_source:5b318929-b012-45bc-9905-a031226db2f0",
+      "stage": "GraphRAG 인덱싱 완료"
+    },
+    {
+      "kind": "work_session.turn",
+      "status": "succeeded",
+      "resource": "work_session:12810b56-fd9f-4044-8f39-71c4177a5280",
+      "stage": "업무대화 스킬 실행 완료"
+    },
+    {
+      "kind": "documents.generate",
+      "status": "succeeded",
+      "resource": "document_output:integration-review-one-page",
+      "stage": "HWPX 문서 생성 완료"
+    },
+    {
+      "kind": "files.index.rebuild",
+      "status": "partial",
+      "resource": "local_file_index",
+      "stage": "파일명 인덱스 갱신 완료"
+    }
+  ]
+}

@@ -19,6 +19,7 @@ const runtimeState = {
     detail: "managed sidecar running",
   },
 };
+const openExternalTargetMock = vi.fn(async (_target: string) => undefined);
 
 vi.mock("./runtime", () => ({
   loadDesktopRuntimeStatus: vi.fn(async () => runtimeState.status),
@@ -27,7 +28,7 @@ vi.mock("./runtime", () => ({
   restartDesktopSidecar: vi.fn(async () => runtimeState.status),
   pickDirectory: vi.fn(async () => null),
   launchAnythingQuery: vi.fn(),
-  openExternalTarget: vi.fn(),
+  openExternalTarget: (target: string) => openExternalTargetMock(target),
   copyTextToClipboard: vi.fn(async () => undefined),
 }));
 
@@ -45,6 +46,7 @@ describe("Chat attachments and latency", () => {
   let workSessionsGetCount = 0;
 
   beforeEach(() => {
+    openExternalTargetMock.mockClear();
     Object.defineProperty(URL, "createObjectURL", {
       writable: true,
       value: vi.fn((file: File) => `blob:${file.name}`),
@@ -214,7 +216,26 @@ describe("Chat attachments and latency", () => {
                   id: "message-assistant",
                   session_id: "session-1",
                   role: "assistant",
-                  text: "# 검토 요약\n\n- 첨부 내용을 확인했습니다.\n- **초안**을 바로 이어서 작성할 수 있습니다.",
+                  text: [
+                    "# 검토 요약",
+                    "",
+                    "> 첨부 근거를 기준으로 핵심만 정리했습니다.",
+                    "",
+                    "- 첨부 내용을 확인했습니다.",
+                    "- **초안**을 바로 이어서 작성할 수 있습니다.",
+                    "- 파일 열기: C:\\tmp\\weekly-report.hwpx",
+                    "",
+                    "1. 검토",
+                    "2. 작성",
+                    "",
+                    "| 항목 | 값 |",
+                    "| --- | --- |",
+                    "| 근거 | 첨부파일 |",
+                    "",
+                    "```json",
+                    "{\"status\":\"ok\"}",
+                    "```",
+                  ].join("\n"),
                   message_type: "chat",
                   status: "completed",
                   provider: "openai_compatible",
@@ -282,6 +303,14 @@ describe("Chat attachments and latency", () => {
     });
     expect(within(thread).getByText("첨부 내용을 확인했습니다.")).toBeInTheDocument();
     expect(within(thread).getByText("초안")).toBeInTheDocument();
+    expect(within(thread).getByText("첨부 근거를 기준으로 핵심만 정리했습니다.")).toBeInTheDocument();
+    expect(within(thread).getByText("검토")).toBeInTheDocument();
+    expect(within(thread).getByText("작성")).toBeInTheDocument();
+    expect(within(thread).getByRole("cell", { name: "근거" })).toBeInTheDocument();
+    expect(within(thread).getByRole("cell", { name: "첨부파일" })).toBeInTheDocument();
+    expect(within(thread).getByText('{"status":"ok"}')).toBeInTheDocument();
+    await user.click(within(thread).getByRole("button", { name: /파일 열기/ }));
+    expect(openExternalTargetMock).toHaveBeenCalledWith("C:\\tmp\\weekly-report.hwpx");
     expect(within(thread).getByText("응답 1.2초")).toBeInTheDocument();
     expect(workSessionsGetCount).toBe(workSessionRequestsBeforeSubmit);
   });

@@ -220,6 +220,117 @@ def test_final_hwpx_contains_session_and_file_context(tmp_path: Path) -> None:
     assert "후속 회의 일정 확정" in hwpx_text
 
 
+def test_document_generate_endpoint_creates_hwpx_without_manual_approval(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "AI strategy session"})
+    assert session.status_code == 201
+    session_id = session.json()["id"]
+    message = client.post(
+        f"/api/work-sessions/{session_id}/messages",
+        json={"role": "user", "text": "Summarize AI adoption direction and next actions."},
+    )
+    assert message.status_code == 201
+
+    attached_file = tmp_path / "ai-direction.txt"
+    attached_file.write_text("AI adoption should focus on secure local workflow automation.", encoding="utf-8")
+
+    generated = client.post(
+        "/api/documents/generate",
+        json={
+            "title": "AI strategy one page report",
+            "purpose": "Create a decision-ready public sector report",
+            "template_key": "report",
+            "source_session_id": session_id,
+            "outline": "Create a concise one-page report with background, direction, and next actions.",
+            "document_format": "onePageReport",
+            "audience_type": "department head",
+            "expected_length": "1 page",
+            "requested_action": "Review and decide next actions",
+            "direct_file_paths": [str(attached_file)],
+            "user_template_path": None,
+            "output_name": "ai-strategy-one-page",
+        },
+    )
+
+    assert generated.status_code == 201
+    payload = generated.json()
+    assert payload["content_base"]["id"]
+    assert payload["finalize"]["approval_ticket"]["status"] == "approved"
+    assert payload["work_job"]["kind"] == "documents.generate"
+    assert payload["work_job"]["status"] == "succeeded"
+    artifact_path = Path(payload["artifact"]["path"])
+    review_path = Path(payload["artifact"]["markdown_path"])
+    assert artifact_path.exists()
+    assert artifact_path.suffix == ".hwpx"
+    assert review_path.exists()
+    review_text = review_path.read_text(encoding="utf-8")
+    assert "AI strategy one page report" in review_text
+    assert "AI strategy session" in review_text
+    assert str(attached_file) in review_text
+
+
+def test_document_generate_uses_builtin_public_doc_template_when_no_user_template(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    generated = client.post(
+        "/api/documents/generate",
+        json={
+            "title": "기본 양식 적용 보고",
+            "purpose": "내장 표준 서식 확인",
+            "template_key": "report",
+            "source_session_id": None,
+            "outline": "내장 1페이지 보고서 양식에 맞춰 핵심만 정리",
+            "document_format": "onePageReport",
+            "direct_file_paths": [],
+            "user_template_path": None,
+            "output_name": "builtin-template-report",
+        },
+    )
+
+    assert generated.status_code == 201
+    artifact = generated.json()["artifact"]
+    assert artifact["format"] == "onePageReport"
+    assert artifact["template_source"] == "builtin"
+    assert artifact["template_path"].replace("\\", "/").endswith("public_doc_templates/format_1p/skeleton.hwpx")
+
+    hwpx_text = _extract_hwpx_text(Path(artifact["path"]))
+    assert "기본 양식 적용 보고" in hwpx_text
+    assert "공무 워크스페이스 생성 내용" not in hwpx_text
+    assert "{{" not in hwpx_text
+
+
+def test_document_attachment_upload_can_feed_generate_endpoint(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    uploaded = client.post(
+        "/api/documents/attachments",
+        files={"files": ("evidence.txt", b"secure local AI evidence", "text/plain")},
+    )
+    assert uploaded.status_code == 201
+    item = uploaded.json()["items"][0]
+    assert item["file_name"] == "evidence.txt"
+    assert Path(item["stored_path"]).exists()
+
+    generated = client.post(
+        "/api/documents/generate",
+        json={
+            "title": "첨부 근거 보고",
+            "purpose": "첨부 파일 기반 보고서 작성",
+            "template_key": "report",
+            "source_session_id": None,
+            "outline": "첨부 파일을 근거자료로 활용\n\n첨부/연결 파일 활용 계획:\n- evidence.txt: 핵심 근거로 반영",
+            "document_format": "onePageReport",
+            "direct_file_paths": [item["stored_path"]],
+            "user_template_path": None,
+            "output_name": "attachment-report",
+        },
+    )
+    assert generated.status_code == 201
+    review_text = Path(generated.json()["artifact"]["markdown_path"]).read_text(encoding="utf-8")
+    assert item["stored_path"] in review_text
+    assert "secure local AI evidence" in review_text
+    assert "핵심 근거로 반영" in review_text
+
+
 def test_public_document_writer_applies_public_document_style_rules(tmp_path: Path) -> None:
     client = _client(tmp_path)
     content_base = client.post(
@@ -382,6 +493,9 @@ def test_all_public_document_formats_generate_readable_hwpx(
 
     artifact = applied.json()["artifact"]
     assert artifact["format"] == document_format
+    if document_format == "email":
+        assert artifact["template_source"] == "builtin"
+        assert artifact["template_path"].replace("\\", "/").endswith("public_doc_templates/format_email/skeleton.hwpx")
     hwpx_text = _extract_hwpx_text(Path(artifact["path"]))
     assert "문서 유형 테스트" in hwpx_text
     assert expected_phrase in hwpx_text

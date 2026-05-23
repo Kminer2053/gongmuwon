@@ -1,0 +1,13 @@
+{
+  "session_id": "c974a94b-026a-4a29-acdb-d8d2815cbfa5",
+  "schedule_id": "7c73614d-6c3d-405b-9d17-1078b5e8666e",
+  "source_id": "b7090d15-cdbf-433c-a837-525497f744b2",
+  "ingest_status": "completed",
+  "artifact_path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\full-system-integration-review-utf8-one-page.hwpx",
+  "actions": [
+    "intent.plan",
+    "schedule.create",
+    "knowledge.search"
+  ],
+  "reply_head": "요청을 여러 작업으로 나누어 순서대로 처리했습니다.\n\n## 일정 등록\n일정을 등록했습니다.\n\n- 제목: 통합검증 회의\n- 시간: 2026-05-24T16:00:00+09:00 ~ 2026-05-24T17:00:00+09:00\n\n## 지식폴더 검색\nGraphRAG 검색 결과입니다.\n\n'내일 오후 4시 통합검증 회의 일정 등"
+}

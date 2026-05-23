@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import {
   askKnowledge,
+  cancelWorkJob,
   cancelKnowledgeIngestionJob,
   cloneWorkspaceLlmProfiles,
   createDefaultWorkspaceLlmProfiles,
@@ -43,6 +44,7 @@ import {
   createContentBase,
   createFileProposals,
   getLlmProfileForSelection,
+  generateDocument,
   createKnowledgeSource,
   createReferenceSet,
   createWorkSessionFileLinks,
@@ -61,9 +63,11 @@ import {
   loadKnowledgeBackendStatus,
   loadKnowledgeDocumentStructure,
   loadKnowledgeGraph,
+  loadKnowledgeIngestionJobs,
   loadKnowledgeIngestionJobLog,
   loadKnowledgeParserStatus,
   loadKnowledgeTables,
+  loadWorkJobEvents,
   loadCustomDocumentTemplates,
   loadTools,
   loadWorkSessionFileLinks,
@@ -83,6 +87,7 @@ import {
   scanKnowledgeSource,
   runKnowledgeIngestionJob,
   testWorkspaceLlmConnection,
+  uploadDocumentAttachments,
   uploadDocumentTemplate,
   uploadWorkSessionAttachments,
   updateWorkspaceSettings,
@@ -118,6 +123,8 @@ import {
   type WorkSessionTurnResult,
   type WorkSessionTurnContextSummary,
   type WorkSessionItem,
+  type WorkJobEventItem,
+  type WorkJobItem,
   analyzeWorkSessionPersonalization,
 } from "./api";
 import { buildChatContextEvidence } from "./chatContextSummary";
@@ -162,7 +169,7 @@ type DetailCardState =
   | { kind: "log"; id: string }
   | null;
 
-type ContextPanelKey = "context" | "approvals" | "logs" | "upcoming" | "preview" | "dump";
+type ContextPanelKey = "context" | "approvals" | "jobs" | "logs" | "upcoming" | "preview" | "dump";
 
 type KnowledgeScanActivity = {
   sourceId: string;
@@ -222,6 +229,7 @@ const EMPTY_SNAPSHOT: WorkspaceSnapshot = {
   knowledgeSourceFiles: [],
   knowledgeIngestionJobs: [],
   knowledgeDocuments: [],
+  workJobs: [],
   personalizationCandidates: [],
   approvalTickets: [],
   anythingLaunches: [],
@@ -235,12 +243,15 @@ const DOCUMENT_FORMAT_OPTIONS: Array<{
   description: string;
   output: string;
 }> = [
-  { key: "auto", label: "자동 선택", description: "내용과 목적을 보고 4개 공공문서 양식 중 적합한 유형을 고릅니다.", output: "자동" },
   { key: "officialMemo", label: "시행문", description: "수신·발신·관련·붙임이 필요한 공식 공문 흐름에 맞춥니다.", output: "HWPX" },
   { key: "onePageReport", label: "1페이지 보고서", description: "의사결정자가 30초 안에 핵심을 읽도록 요약·쟁점·조치안을 압축합니다.", output: "HWPX" },
   { key: "fullReport", label: "풀버전 보고서", description: "표지·목차·본문·근거를 갖춘 추진계획/결과보고 구조로 확장합니다.", output: "HWPX" },
   { key: "email", label: "이메일", description: "협업자에게 바로 보낼 수 있도록 결론과 요청사항을 짧게 정리합니다.", output: "본문/HWPX" },
 ];
+
+function documentFormatLabel(format: DocumentFormat) {
+  return DOCUMENT_FORMAT_OPTIONS.find((option) => option.key === format)?.label ?? "보고서";
+}
 
 function formatDateTime(value?: string | null) {
   if (!value) {
@@ -477,6 +488,35 @@ function describeIngestionJobStatus(job: KnowledgeIngestionJobItem) {
     default:
       return job.status;
   }
+}
+
+function describeWorkJobStatus(job: WorkJobItem) {
+  switch (job.status) {
+    case "queued":
+      return "대기";
+    case "blocked":
+      return "대기 중";
+    case "running":
+      return "진행 중";
+    case "waiting_approval":
+      return "승인 대기";
+    case "cancel_requested":
+      return "취소 요청";
+    case "succeeded":
+      return "완료";
+    case "partial":
+      return "부분 완료";
+    case "failed":
+      return "실패";
+    case "canceled":
+      return "취소됨";
+    default:
+      return job.status;
+  }
+}
+
+function isActiveWorkJob(job: WorkJobItem) {
+  return ["queued", "blocked", "running", "waiting_approval", "cancel_requested"].includes(job.status);
 }
 
 function activeKnowledgeIngestionMessage(job: KnowledgeIngestionJobItem | null) {
@@ -782,9 +822,9 @@ function formatLatencyBadge(latencyMs?: number | null) {
   return `응답 ${(latencyMs / 1000).toFixed(1)}초`;
 }
 
-function renderInlineMarkdown(text: string) {
+function renderInlineMarkdown(text: string, onOpenExternal?: (target: string) => void) {
   const nodes: ReactNode[] = [];
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  const pattern = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -793,10 +833,30 @@ function renderInlineMarkdown(text: string) {
       nodes.push(text.slice(lastIndex, match.index));
     }
     const token = match[0];
-    if (token.startsWith("**") && token.endsWith("**")) {
+    const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (link) {
+      const label = link[1];
+      const target = link[2].trim();
+      nodes.push(
+        onOpenExternal ? (
+          <button
+            key={`${match.index}-link`}
+            type="button"
+            className="inline-open-target inline-open-target--link"
+            onClick={() => onOpenExternal(target)}
+          >
+            <span>{label}</span>
+          </button>
+        ) : (
+          <span key={`${match.index}-link`}>{label}</span>
+        ),
+      );
+    } else if (token.startsWith("**") && token.endsWith("**")) {
       nodes.push(<strong key={`${match.index}-strong`}>{token.slice(2, -2)}</strong>);
     } else if (token.startsWith("`") && token.endsWith("`")) {
       nodes.push(<code key={`${match.index}-code`}>{token.slice(1, -1)}</code>);
+    } else if (token.startsWith("*") && token.endsWith("*")) {
+      nodes.push(<em key={`${match.index}-em`}>{token.slice(1, -1)}</em>);
     }
     lastIndex = match.index + token.length;
   }
@@ -814,6 +874,15 @@ function parseOpenTargetLine(text: string): { label: string; target: string } | 
     return null;
   }
   return { label: match[1], target: match[2].trim() };
+}
+
+function isMarkdownTableDivider(line: string) {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+}
+
+function parseMarkdownTableRow(line: string) {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed.split("|").map((cell) => cell.trim());
 }
 
 function renderMarkdownContent(markdown: string, onOpenExternal?: (target: string) => void) {
@@ -839,13 +908,88 @@ function renderMarkdownContent(markdown: string, onOpenExternal?: (target: strin
       const level = Math.min(heading[1].length + 1, 4) as 2 | 3 | 4;
       const title = heading[2];
       if (level === 2) {
-        blocks.push(<h2 key={`block-${index}`}>{renderInlineMarkdown(title)}</h2>);
+        blocks.push(<h2 key={`block-${index}`}>{renderInlineMarkdown(title, onOpenExternal)}</h2>);
       } else if (level === 3) {
-        blocks.push(<h3 key={`block-${index}`}>{renderInlineMarkdown(title)}</h3>);
+        blocks.push(<h3 key={`block-${index}`}>{renderInlineMarkdown(title, onOpenExternal)}</h3>);
       } else {
-        blocks.push(<h4 key={`block-${index}`}>{renderInlineMarkdown(title)}</h4>);
+        blocks.push(<h4 key={`block-${index}`}>{renderInlineMarkdown(title, onOpenExternal)}</h4>);
       }
       index += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith("```")) {
+      const language = trimmed.slice(3).trim();
+      const codeLines: string[] = [];
+      index += 1;
+      while (index < lines.length && !(lines[index]?.trim() ?? "").startsWith("```")) {
+        codeLines.push(lines[index] ?? "");
+        index += 1;
+      }
+      if (index < lines.length) {
+        index += 1;
+      }
+      blocks.push(
+        <pre key={`block-${index}`} className="chat-code-block">
+          {language ? <span className="chat-code-block__lang">{language}</span> : null}
+          <code>{codeLines.join("\n")}</code>
+        </pre>,
+      );
+      continue;
+    }
+
+    if (trimmed.startsWith(">")) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && (lines[index]?.trim() ?? "").startsWith(">")) {
+        quoteLines.push((lines[index] ?? "").trim().replace(/^>\s?/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <blockquote key={`block-${index}`}>
+          {quoteLines.map((quoteLine, quoteIndex) => (
+            <p key={`quote-${index}-${quoteIndex}`}>{renderInlineMarkdown(quoteLine, onOpenExternal)}</p>
+          ))}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    if (trimmed.includes("|") && index + 1 < lines.length && isMarkdownTableDivider(lines[index + 1] ?? "")) {
+      const headers = parseMarkdownTableRow(trimmed);
+      index += 2;
+      const rows: string[][] = [];
+      while (index < lines.length) {
+        const row = (lines[index] ?? "").trim();
+        if (!row || !row.includes("|")) {
+          break;
+        }
+        rows.push(parseMarkdownTableRow(row));
+        index += 1;
+      }
+      blocks.push(
+        <div key={`block-${index}`} className="chat-markdown-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                {headers.map((header, headerIndex) => (
+                  <th key={`table-head-${index}-${headerIndex}`}>{renderInlineMarkdown(header, onOpenExternal)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`table-row-${index}-${rowIndex}`}>
+                  {headers.map((_, cellIndex) => (
+                    <td key={`table-cell-${index}-${rowIndex}-${cellIndex}`}>
+                      {renderInlineMarkdown(row[cellIndex] ?? "", onOpenExternal)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
       continue;
     }
 
@@ -871,7 +1015,7 @@ function renderMarkdownContent(markdown: string, onOpenExternal?: (target: strin
                     <code>{openTarget.target}</code>
                   </button>
                 ) : (
-                  renderInlineMarkdown(item)
+                  renderInlineMarkdown(item, onOpenExternal)
                 )}
               </li>
             );
@@ -890,7 +1034,7 @@ function renderMarkdownContent(markdown: string, onOpenExternal?: (target: strin
       blocks.push(
         <ol key={`block-${index}`}>
           {items.map((item, itemIndex) => (
-            <li key={`ordered-${index}-${itemIndex}`}>{renderInlineMarkdown(item)}</li>
+            <li key={`ordered-${index}-${itemIndex}`}>{renderInlineMarkdown(item, onOpenExternal)}</li>
           ))}
         </ol>,
       );
@@ -900,7 +1044,15 @@ function renderMarkdownContent(markdown: string, onOpenExternal?: (target: strin
     const paragraphLines: string[] = [];
     while (index < lines.length) {
       const current = (lines[index] ?? "").trim();
-      if (!current || /^(#{1,4})\s+/.test(current) || current.startsWith("- ")) {
+      if (
+        !current ||
+        /^(#{1,4})\s+/.test(current) ||
+        current.startsWith("- ") ||
+        current.startsWith(">") ||
+        current.startsWith("```") ||
+        /^\d+[.)]\s+/.test(current) ||
+        (current.includes("|") && index + 1 < lines.length && isMarkdownTableDivider(lines[index + 1] ?? ""))
+      ) {
         break;
       }
       paragraphLines.push(current);
@@ -920,7 +1072,7 @@ function renderMarkdownContent(markdown: string, onOpenExternal?: (target: strin
           }, [])
         : [paragraph];
     readableParagraphs.forEach((item, itemIndex) => {
-      blocks.push(<p key={`block-${index}-${itemIndex}`}>{renderInlineMarkdown(item)}</p>);
+      blocks.push(<p key={`block-${index}-${itemIndex}`}>{renderInlineMarkdown(item, onOpenExternal)}</p>);
     });
   }
 
@@ -1185,6 +1337,7 @@ export function App() {
   });
   const [localFileQuery, setLocalFileQuery] = useState("");
   const [localFileSearchResult, setLocalFileSearchResult] = useState<LocalFileSearchResult | null>(null);
+  const [selectedLocalFileHit, setSelectedLocalFileHit] = useState<LocalFileSearchResult["items"][number] | null>(null);
   const [localFileSearchLoading, setLocalFileSearchLoading] = useState(false);
   const [localFileIndexResult, setLocalFileIndexResult] = useState<LocalFileIndexRebuildResult | null>(null);
   const [localFileIndexLoading, setLocalFileIndexLoading] = useState(false);
@@ -1210,6 +1363,9 @@ export function App() {
   const [knowledgeIngestionLogDumps, setKnowledgeIngestionLogDumps] = useState<
     Record<string, KnowledgeIngestionLogDump>
   >({});
+  const [expandedWorkJobId, setExpandedWorkJobId] = useState("");
+  const [workJobEvents, setWorkJobEvents] = useState<Record<string, WorkJobEventItem[]>>({});
+  const [workJobEventLoadingId, setWorkJobEventLoadingId] = useState("");
   const [knowledgeInspectorLoading, setKnowledgeInspectorLoading] = useState(false);
   const [toolManifest, setToolManifest] = useState<ToolManifestItem[]>([]);
   const [toolsLoading, setToolsLoading] = useState(false);
@@ -1222,6 +1378,7 @@ export function App() {
   const runtimePanelRef = useRef<HTMLDivElement | null>(null);
   const runtimeIndicatorButtonRef = useRef<HTMLButtonElement | null>(null);
   const chatAttachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const documentAttachmentInputRef = useRef<HTMLInputElement | null>(null);
   const documentTemplateInputRef = useRef<HTMLInputElement | null>(null);
   const chatDetailsPanelRef = useRef<HTMLDivElement | null>(null);
   const chatDetailsButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -1240,13 +1397,15 @@ export function App() {
     lastMessageSignature: "",
   });
   const toastIdRef = useRef(0);
+  const toastTimeoutsRef = useRef<number[]>([]);
   const [detailCard, setDetailCard] = useState<DetailCardState>(null);
+  const [selectedResponseContext, setSelectedResponseContext] = useState<string | null>(null);
   const [documentForm, setDocumentForm] = useState({
     title: "",
     purpose: "보고서형",
     template_key: "" as "" | "report" | "meeting" | "review",
     outline: "",
-    document_format: "auto" as DocumentFormat,
+    document_format: "onePageReport" as DocumentFormat,
     audience_type: "",
     expected_length: "",
     urgency_level: "",
@@ -1256,8 +1415,13 @@ export function App() {
     deadline: "",
     security_level: "",
     direct_file_paths_text: "",
+    file_usage_note: "",
     user_template_path: "",
   });
+  const [documentAttachmentDrafts, setDocumentAttachmentDrafts] = useState<
+    Array<{ id: string; file: File }>
+  >([]);
+  const [documentFileUsageNotes, setDocumentFileUsageNotes] = useState<Record<string, string>>({});
   const [documentSourceMode, setDocumentSourceMode] = useState<"session" | "direct">("direct");
   const [documentSourceSessionId, setDocumentSourceSessionId] = useState("");
   const [customDocumentTemplates, setCustomDocumentTemplates] = useState<CustomDocumentTemplateItem[]>([]);
@@ -1268,6 +1432,7 @@ export function App() {
   const [contextPanelVisibility, setContextPanelVisibility] = useState<Record<ContextPanelKey, boolean>>({
     context: true,
     approvals: true,
+    jobs: true,
     logs: true,
     upcoming: true,
     preview: true,
@@ -1278,6 +1443,7 @@ export function App() {
   const [contextPanelCollapsed, setContextPanelCollapsed] = useState<Record<ContextPanelKey, boolean>>({
     context: false,
     approvals: false,
+    jobs: false,
     logs: false,
     upcoming: false,
     preview: false,
@@ -1315,6 +1481,7 @@ export function App() {
     documentForm.deadline,
     documentForm.security_level,
     documentForm.direct_file_paths_text,
+    documentForm.file_usage_note,
     documentForm.user_template_path,
   ].join("\u0001");
   const pendingApprovals = snapshot.approvalTickets.filter((ticket) => ticket.status === "pending");
@@ -1412,14 +1579,25 @@ export function App() {
     }
     const id = ++toastIdRef.current;
     setToastItems((current) => [...current, { id, tone, message: trimmed }]);
-    window.setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       setToastItems((current) => current.filter((toast) => toast.id !== id));
+      toastTimeoutsRef.current = toastTimeoutsRef.current.filter((storedId) => storedId !== timeoutId);
     }, tone === "error" ? 7000 : 4500);
+    toastTimeoutsRef.current.push(timeoutId);
   }
 
   function removeToast(id: number) {
     setToastItems((current) => current.filter((toast) => toast.id !== id));
   }
+
+  useEffect(() => {
+    return () => {
+      for (const timeoutId of toastTimeoutsRef.current) {
+        window.clearTimeout(timeoutId);
+      }
+      toastTimeoutsRef.current = [];
+    };
+  }, []);
 
   async function copyKnowledgeLogDumpPath(logDumpPath: string) {
     try {
@@ -1451,6 +1629,7 @@ export function App() {
       return;
     }
     setExpandedIngestionLogJobId(job.id);
+    revealContextSection("dump");
     if (knowledgeIngestionLogDumps[job.id]) {
       return;
     }
@@ -1707,6 +1886,20 @@ export function App() {
     }
   }
 
+  async function refreshKnowledgeIngestionJobsOnly() {
+    try {
+      const response = await loadKnowledgeIngestionJobs();
+      startTransition(() => {
+        setSnapshot((current) => ({
+          ...current,
+          knowledgeIngestionJobs: response.items,
+        }));
+      });
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "GraphRAG 인덱싱 상태를 불러오지 못했습니다.");
+    }
+  }
+
   async function refreshShellSnapshot(options: { silent?: boolean } = {}) {
     if (!options.silent) {
       setLoading(true);
@@ -1849,13 +2042,27 @@ export function App() {
     }
 
     const intervalId = window.setInterval(() => {
-      void refreshSnapshot({ silent: true });
+      void refreshKnowledgeIngestionJobsOnly();
     }, 1500);
 
     return () => {
       window.clearInterval(intervalId);
     };
   }, [activeMenu, knowledgePanel, snapshot.knowledgeIngestionJobs]);
+
+  useEffect(() => {
+    if (!(snapshot.workJobs ?? []).some(isActiveWorkJob)) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshShellSnapshot({ silent: true });
+    }, 1500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [snapshot.workJobs]);
 
   useEffect(() => {
     if (!runtimeStatus?.available || runtimeStatus.running || runtimeStarting || autoStartAttemptedRef.current) {
@@ -2142,6 +2349,11 @@ export function App() {
     }));
   }
 
+  function openResponseContextDetail(label: string) {
+    setSelectedResponseContext(label);
+    revealContextSection("context");
+  }
+
   async function handleAction<T>(
     action: () => Promise<T>,
     successMessage: string,
@@ -2163,6 +2375,34 @@ export function App() {
       return null;
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function cancelGenericWorkJob(job: WorkJobItem) {
+    await handleAction(
+      () => cancelWorkJob(job.id),
+      `${job.title} 취소를 요청했습니다.`,
+      { revealSection: "jobs" },
+    );
+  }
+
+  async function toggleWorkJobEvents(job: WorkJobItem) {
+    if (expandedWorkJobId === job.id) {
+      setExpandedWorkJobId("");
+      return;
+    }
+    setExpandedWorkJobId(job.id);
+    if (workJobEvents[job.id]) {
+      return;
+    }
+    setWorkJobEventLoadingId(job.id);
+    try {
+      const events = await loadWorkJobEvents(job.id);
+      setWorkJobEvents((current) => ({ ...current, [job.id]: events.items }));
+    } catch (eventError) {
+      setError(eventError instanceof Error ? eventError.message : "작업 로그를 불러오지 못했습니다.");
+    } finally {
+      setWorkJobEventLoadingId("");
     }
   }
 
@@ -2722,6 +2962,15 @@ export function App() {
           [selectedSession.id]: result.context_summary!,
         }));
       }
+      if (result.work_job) {
+        revealContextSection("jobs");
+        setSnapshot((current) =>
+          mergeWorkspaceSnapshot(current, {
+            workJobs: [result.work_job!, ...(current.workJobs ?? []).filter((job) => job.id !== result.work_job!.id)],
+          }),
+        );
+        await refreshShellSnapshot({ silent: true });
+      }
       const nextUserMessage = {
         ...result.user_message,
         attachments: result.user_message.attachments ?? uploadedItems,
@@ -2760,12 +3009,15 @@ export function App() {
 
       if (result.assistant_message.status === "failed") {
         setNotice("LLM 응답 생성에 실패했습니다. 설정과 연결 상태를 확인해주세요.");
-        revealContextSection("logs");
+        revealContextSection(result.work_job ? "jobs" : "logs");
         return;
       }
 
-      revealContextSection("logs");
-      setNotice("업무대화 응답이 세션에 기록되었습니다.");
+      if (result.work_job?.status === "blocked") {
+        setNotice("앞선 업무대화 응답이 진행 중입니다. 우측 작업 진행에서 상태를 확인해 주세요.");
+      } else {
+        setNotice("업무대화 응답이 세션에 기록되었습니다.");
+      }
     } catch (messageError) {
       console.warn("failed to run work session turn", messageError);
       setSessionMessages((current) => ({
@@ -2884,11 +3136,22 @@ export function App() {
     try {
       const result = await searchLocalFiles(query);
       setLocalFileSearchResult(result);
+      setSelectedLocalFileHit(result.items[0] ?? null);
       setNotice(null);
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : "파일 검색에 실패했습니다.");
     } finally {
       setLocalFileSearchLoading(false);
+    }
+  }
+
+  async function copyLocalFilePath(filePath: string) {
+    try {
+      await copyTextToClipboard(filePath);
+      pushToast("info", "파일 경로를 복사했습니다.");
+    } catch (copyError) {
+      console.warn("failed to copy local file path", copyError);
+      pushToast("error", "파일 경로 복사에 실패했습니다.");
     }
   }
 
@@ -2898,6 +3161,15 @@ export function App() {
     try {
       const result = await rebuildLocalFileIndex();
       setLocalFileIndexResult(result);
+      revealContextSection("jobs");
+      if (result.work_job) {
+        setSnapshot((current) =>
+          mergeWorkspaceSnapshot(current, {
+            workJobs: [result.work_job!, ...(current.workJobs ?? []).filter((job) => job.id !== result.work_job!.id)],
+          }),
+        );
+        await refreshShellSnapshot({ silent: true });
+      }
       setNotice(`파일명 인덱스를 갱신했습니다. ${result.indexed_count}개 파일을 기록했습니다.`);
     } catch (indexError) {
       setError(indexError instanceof Error ? indexError.message : "파일명 인덱스 갱신에 실패했습니다.");
@@ -2999,11 +3271,22 @@ export function App() {
       setNotice(knowledgeIngestionLockMessage);
       return;
     }
-    await handleAction(
+    const started = await handleAction(
       () => ingestKnowledgeSource(source.id, true, true),
       `${source.label} GraphRAG 인덱싱 작업을 시작했습니다.`,
       { revealSection: "dump" },
     );
+    if (started) {
+      revealContextSection("jobs");
+      if (started.work_job) {
+        setSnapshot((current) =>
+          mergeWorkspaceSnapshot(current, {
+            workJobs: [started.work_job!, ...(current.workJobs ?? []).filter((job) => job.id !== started.work_job!.id)],
+          }),
+        );
+        await refreshShellSnapshot({ silent: true });
+      }
+    }
   }
 
   async function runKnowledgeSourceReindex(source: KnowledgeSourceItem) {
@@ -3012,11 +3295,22 @@ export function App() {
       setNotice(knowledgeIngestionLockMessage);
       return;
     }
-    await handleAction(
+    const started = await handleAction(
       () => reindexKnowledgeSource(source.id, true, true),
       `${source.label} GraphRAG 강제 재색인 작업을 시작했습니다.`,
       { revealSection: "dump" },
     );
+    if (started) {
+      revealContextSection("jobs");
+      if (started.work_job) {
+        setSnapshot((current) =>
+          mergeWorkspaceSnapshot(current, {
+            workJobs: [started.work_job!, ...(current.workJobs ?? []).filter((job) => job.id !== started.work_job!.id)],
+          }),
+        );
+        await refreshShellSnapshot({ silent: true });
+      }
+    }
   }
 
   async function runQueuedKnowledgeIngestionJob(job: KnowledgeIngestionJobItem) {
@@ -3071,6 +3365,93 @@ export function App() {
       setLastContentBaseSignature(currentContentBaseSignature);
       setFinalizeForm({ output_name: created.title });
       setLastFinalizeRequest(null);
+    }
+  }
+
+  async function submitDocumentGenerate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const sourceSession =
+      snapshot.workSessions.find((session) => session.id === documentSourceSessionId) ??
+      (documentSourceMode === "session" ? selectedSession : null);
+    const title =
+      documentForm.title.trim() ||
+      (sourceSession ? `${sourceSession.title} 문서` : `${documentFormatLabel(documentForm.document_format)} 초안`);
+    const formatLabel = documentFormatLabel(documentForm.document_format);
+    const purpose =
+      documentSourceMode === "session" && sourceSession
+        ? `업무대화 세션 기반 ${formatLabel} 작성`
+        : `${formatLabel} 바로 작성`;
+    const sessionFileLinks =
+      documentSourceMode === "session" && sourceSession?.id === selectedSession?.id ? selectedSessionFileLinks : [];
+    const generated = await handleAction(
+      async () => {
+        const uploaded =
+          documentAttachmentDrafts.length > 0
+            ? await uploadDocumentAttachments(documentAttachmentDrafts.map((item) => item.file))
+            : { items: [] };
+        const uploadedPaths = uploaded.items.map((item) => item.stored_path);
+        const directPaths = [...splitDocumentFilePaths(documentForm.direct_file_paths_text), ...uploadedPaths];
+        const uploadedNames = uploaded.items.map((item) => item.file_name);
+        const fileUsagePlan = buildDocumentFileUsagePlan(sessionFileLinks, directPaths, uploadedNames);
+        const outlineParts = [
+          documentForm.outline.trim() || "업무대화와 연결 자료를 바탕으로 공공문서 작성요령에 맞춰 정리합니다.",
+          fileUsagePlan,
+        ].filter(Boolean);
+        return generateDocument({
+          title,
+          purpose,
+          reference_set_id: selectedReferenceSetId || null,
+          template_key: activeTemplateKey as "report" | "meeting" | "review",
+          source_session_id: sourceSession?.id ?? null,
+          outline: outlineParts.join("\n\n"),
+          document_format: documentForm.document_format === "auto" ? "onePageReport" : documentForm.document_format,
+          audience_type: documentForm.audience_type,
+          expected_length: documentForm.expected_length,
+          urgency_level: documentForm.urgency_level,
+          needs_traceability: documentForm.needs_traceability,
+          requires_official_form: documentForm.requires_official_form,
+          requested_action: documentForm.requested_action,
+          deadline: documentForm.deadline,
+          security_level: documentForm.security_level,
+          direct_file_paths: directPaths,
+          user_template_path: documentForm.user_template_path || null,
+          output_name: finalizeForm.output_name.trim() || title,
+        });
+      },
+      "HWPX 보고서 생성을 완료했습니다.",
+      { revealSection: "jobs" },
+    );
+    if (generated) {
+      if (generated.work_job) {
+        setSnapshot((current) =>
+          mergeWorkspaceSnapshot(current, {
+            workJobs: [
+              generated.work_job!,
+              ...(current.workJobs ?? []).filter((job) => job.id !== generated.work_job!.id),
+            ],
+          }),
+        );
+        await refreshShellSnapshot({ silent: true });
+      }
+      setDocumentAttachmentDrafts([]);
+      if (documentAttachmentInputRef.current) {
+        documentAttachmentInputRef.current.value = "";
+      }
+      setLastContentBase(generated.content_base);
+      setLastContentBaseSignature(currentContentBaseSignature);
+      setLastFinalizeRequest({
+        ...generated.finalize,
+        artifact: generated.artifact,
+        final_document_output: {
+          ...generated.finalize.final_document_output,
+          artifact_path: generated.artifact.path,
+          status: "applied",
+        },
+      });
+      setFinalizeForm((current) => ({
+        ...current,
+        output_name: generated.finalize.final_document_output.output_name,
+      }));
     }
   }
 
@@ -3239,7 +3620,7 @@ export function App() {
       purpose: "업무대화 세션 기반 정리",
       outline: `${selectedSession.title} 대화 내용을 바탕으로 문서를 작성합니다.`,
       template_key: current.template_key || activeTemplateKey,
-      document_format: "auto",
+      document_format: "onePageReport",
     }));
     setActiveMenu("documents");
     revealContextSection("context");
@@ -3251,6 +3632,56 @@ export function App() {
       .split(/\r?\n/)
       .map((path) => path.trim())
       .filter(Boolean);
+  }
+
+  function documentFileUsageKey(filePath: string) {
+    return filePath.trim().toLowerCase();
+  }
+
+  function updateDocumentFileUsage(filePath: string, value: string) {
+    const key = documentFileUsageKey(filePath);
+    setDocumentFileUsageNotes((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  }
+
+  function appendDocumentAttachments(files: FileList | File[] | null) {
+    if (!files || files.length === 0) {
+      return;
+    }
+    const nextDrafts = Array.from(files).map((file) => ({
+      id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      file,
+    }));
+    setDocumentAttachmentDrafts((current) => [...current, ...nextDrafts]);
+  }
+
+  function removeDocumentAttachment(id: string) {
+    setDocumentAttachmentDrafts((current) => current.filter((item) => item.id !== id));
+  }
+
+  function buildDocumentFileUsagePlan(
+    sessionFileLinks: WorkSessionFileLinkItem[],
+    directPaths: string[],
+    uploadedFileNames: string[],
+  ) {
+    const lines: string[] = [];
+    for (const link of sessionFileLinks) {
+      const label = link.label || link.file_path.split(/[\\/]/).pop() || link.file_path;
+      const note = documentFileUsageNotes[documentFileUsageKey(link.file_path)]?.trim();
+      lines.push(`- ${label}: ${note || "세션 연결자료로 검토해 필요한 근거만 반영"}`);
+    }
+    for (const path of directPaths) {
+      const label = path.split(/[\\/]/).pop() || path;
+      const note = documentFileUsageNotes[documentFileUsageKey(path)]?.trim() || documentForm.file_usage_note.trim();
+      lines.push(`- ${label}: ${note || "직접 첨부/연결한 참고자료로 활용"}`);
+    }
+    for (const fileName of uploadedFileNames) {
+      const note = documentFileUsageNotes[documentFileUsageKey(fileName)]?.trim() || documentForm.file_usage_note.trim();
+      lines.push(`- ${fileName}: ${note || "업로드 첨부자료로 활용"}`);
+    }
+    return lines.length > 0 ? `첨부/연결 파일 활용 계획:\n${lines.join("\n")}` : "";
   }
 
   async function handleDocumentTemplateUpload(event: FormEvent<HTMLInputElement>) {
@@ -3293,16 +3724,27 @@ export function App() {
     const applied = await handleAction(
       () => commitFileProposalApply(proposal.id),
       "파일정리 적용을 완료했습니다.",
-      { revealSection: "logs" },
+      { revealSection: "jobs" },
     );
     if (applied) {
-      setFileOrgOperations((current) => ({
-        ...current,
-        [proposal.id]: {
-          id: applied.operation.id,
-          destination_path: applied.operation.destination_path,
-        },
-      }));
+      revealContextSection("jobs");
+      if (applied.work_job) {
+        setSnapshot((current) =>
+          mergeWorkspaceSnapshot(current, {
+            workJobs: [applied.work_job!, ...(current.workJobs ?? []).filter((job) => job.id !== applied.work_job!.id)],
+          }),
+        );
+        await refreshShellSnapshot({ silent: true });
+      }
+      if (applied.operation) {
+        setFileOrgOperations((current) => ({
+          ...current,
+          [proposal.id]: {
+            id: applied.operation!.id,
+            destination_path: applied.operation!.destination_path,
+          },
+        }));
+      }
     }
   }
 
@@ -3315,9 +3757,18 @@ export function App() {
     const rolledBack = await handleAction(
       () => rollbackFileOperation(operation.id),
       "파일정리 적용을 되돌렸습니다.",
-      { revealSection: "logs" },
+      { revealSection: "jobs" },
     );
     if (rolledBack) {
+      revealContextSection("jobs");
+      if (rolledBack.work_job) {
+        setSnapshot((current) =>
+          mergeWorkspaceSnapshot(current, {
+            workJobs: [rolledBack.work_job!, ...(current.workJobs ?? []).filter((job) => job.id !== rolledBack.work_job!.id)],
+          }),
+        );
+        await refreshShellSnapshot({ silent: true });
+      }
       setFileOrgOperations((current) => {
         const next = { ...current };
         delete next[proposal.id];
@@ -3435,8 +3886,9 @@ export function App() {
     ? snapshot.schedules.find((item) => item.id === selectedSession.schedule_id) ?? null
     : null;
   const selectedSessionMessages = selectedSession ? sessionMessages[selectedSession.id] ?? [] : [];
+  const selectedSessionContextSummary = selectedSession ? sessionContextSummaries[selectedSession.id] ?? null : null;
   const selectedSessionContextEvidence = buildChatContextEvidence(
-    selectedSession ? sessionContextSummaries[selectedSession.id] : null,
+    selectedSessionContextSummary,
   );
   const latestSessionMessageSignature =
     selectedSessionMessages.length === 0
@@ -4528,6 +4980,17 @@ export function App() {
 
               {chatFileLinksOpen && selectedSessionFileLinks.length > 0 ? (
                 <div className="chat-file-popover">
+                  <div className="chat-file-popover__header">
+                    <strong>연결 파일</strong>
+                    <button
+                      type="button"
+                      className="button-secondary chat-file-popover__close"
+                      aria-label="연결 파일 목록 닫기"
+                      onClick={() => setChatFileLinksOpen(false)}
+                    >
+                      <X size={14} aria-hidden="true" />
+                    </button>
+                  </div>
                   {selectedSessionFileLinks.slice(0, 8).map((link) => (
                     <article key={link.id} className="chat-file-popover__item">
                       <div>
@@ -4550,7 +5013,7 @@ export function App() {
                       key={item}
                       type="button"
                       className="pill pill--soft chat-context-evidence__pill"
-                      onClick={() => revealContextSection("context")}
+                      onClick={() => openResponseContextDetail(item)}
                     >
                       {item}
                     </button>
@@ -4720,12 +5183,11 @@ export function App() {
   }
 
   function renderSearchSection() {
-    const firstLocalFileHit = localFileSearchResult?.items[0] ?? null;
     return (
       <>
         <SectionCard eyebrow="로컬 우선" title="내장 파일찾기">
           <div className="local-file-explorer" data-testid="local-file-explorer">
-            <aside className="local-file-explorer__sidebar">
+            <section className="local-file-explorer__sidebar" data-testid="local-file-scope-panel">
               <p className="settings-grid__label">검색 범위</p>
               <div className="local-file-explorer__scope">
                 <span className="pill">지식폴더 {snapshot.knowledgeSources.length}</span>
@@ -4750,13 +5212,20 @@ export function App() {
                 <RefreshCcw size={15} />
                 {localFileIndexLoading ? "인덱스 갱신 중" : "파일명 인덱스 갱신"}
               </button>
-            </aside>
+              {localFileIndexResult ? (
+                <div className="document-preview__meta">
+                  <span>인덱스 {localFileIndexResult.indexed_count}개</span>
+                  <span>{localFileIndexResult.partial ? "부분 완료" : "완료"}</span>
+                </div>
+              ) : null}
+            </section>
 
-            <section className="local-file-explorer__main">
+            <section className="local-file-explorer__main" data-testid="local-file-search-panel">
               <form className="local-file-search-form" onSubmit={(event) => void runLocalFileSearch(event)}>
                 <label>
                   파일 검색
                   <input
+                    data-testid="local-file-search-input"
                     value={localFileQuery}
                     onChange={(event) => setLocalFileQuery(event.target.value)}
                     placeholder="파일명, 경로, 문서 본문 키워드"
@@ -4793,7 +5262,26 @@ export function App() {
                     {localFileSearchResult.items.map((hit) => {
                       const linked = isLocalFileLinked(hit.file.file_path);
                       return (
-                        <article key={hit.file.id} className="list-card local-file-result-card">
+                        <article
+                          key={hit.file.id}
+                          className={[
+                            "list-card",
+                            "local-file-result-card",
+                            selectedLocalFileHit?.file.id === hit.file.id ? "is-selected" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          data-testid={`local-file-result-${hit.file.id}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedLocalFileHit(hit)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              setSelectedLocalFileHit(hit);
+                            }
+                          }}
+                        >
                           <div className="list-card__main list-card__main--static">
                             <div>
                               <h3>{hit.file.title || fileNameFromPath(hit.file.file_path)}</h3>
@@ -4813,7 +5301,10 @@ export function App() {
                             <button
                               type="button"
                               disabled={!selectedSessionId || linked || submitting}
-                              onClick={() => void connectLocalFileToSession(hit)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void connectLocalFileToSession(hit);
+                              }}
                             >
                               <Plus size={15} />
                               {linked ? "연결됨" : "세션에 연결"}
@@ -4821,7 +5312,10 @@ export function App() {
                             <button
                               type="button"
                               className="button-secondary"
-                              onClick={() => void openExternalTarget(hit.file.file_path)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void openExternalTarget(hit.file.file_path);
+                              }}
                             >
                               <FileText size={15} />
                               파일 열기
@@ -4829,7 +5323,10 @@ export function App() {
                             <button
                               type="button"
                               className="button-secondary"
-                              onClick={() => void copyTextToClipboard(hit.file.file_path)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void copyLocalFilePath(hit.file.file_path);
+                              }}
                             >
                               경로 복사
                             </button>
@@ -4847,37 +5344,6 @@ export function App() {
               )}
             </section>
 
-            <aside className="local-file-explorer__details">
-              <p className="settings-grid__label">미리보기</p>
-              {firstLocalFileHit ? (
-                <div className="detail-panel">
-                  <p className="detail-panel__title">
-                    {firstLocalFileHit.file.title || fileNameFromPath(firstLocalFileHit.file.file_path)}
-                  </p>
-                  <p className="subtle-text">{relativePath(firstLocalFileHit.file.file_path)}</p>
-                  {firstLocalFileHit.file.text_excerpt ? <p>{firstLocalFileHit.file.text_excerpt}</p> : null}
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    onClick={() => void openExternalTarget(parentPathFromPath(firstLocalFileHit.file.file_path))}
-                  >
-                    <FolderTree size={15} />
-                    폴더 열기
-                  </button>
-                </div>
-              ) : (
-                <div className="hint-box">
-                  <strong>결과 미리보기</strong>
-                  <p>검색 결과가 있으면 첫 번째 후보의 경로와 본문 발췌를 여기에서 확인합니다.</p>
-                </div>
-              )}
-              {localFileIndexResult ? (
-                <div className="document-preview__meta">
-                  <span>인덱스 {localFileIndexResult.indexed_count}개</span>
-                  <span>{localFileIndexResult.partial ? "부분 완료" : "완료"}</span>
-                </div>
-              ) : null}
-            </aside>
           </div>
         </SectionCard>
 
@@ -5217,8 +5683,8 @@ export function App() {
           </div>
         </SectionCard>
 
-        <SectionCard eyebrow="콘텐츠 베이스 우선" title="공공문서 구성 및 양식 적용">
-          <form className="stack-form" onSubmit={submitContentBase}>
+        <SectionCard eyebrow="문서작성" title="HWPX 보고서 작업 시작">
+          <form className="stack-form" onSubmit={submitDocumentGenerate}>
             <label>
               문서 제목
               <input
@@ -5229,28 +5695,17 @@ export function App() {
               />
             </label>
             <label>
-              작성 개요
+              작업 설명
               <textarea
                 value={documentForm.outline}
                 onChange={(event) => setDocumentForm((current) => ({ ...current, outline: event.target.value }))}
-                placeholder="대화세션에서 이어받은 작업 목적, 또는 바로 작성할 문서 개요를 적습니다."
+                placeholder="문서작성 방향, 꼭 반영할 관점, 보고 대상, 강조할 결론 등을 자연어로 적습니다."
                 rows={4}
               />
             </label>
-            <div className="grid-3">
-              <label>
-                문서 목적
-                <input
-                  value={documentForm.purpose}
-                  onChange={(event) =>
-                    setDocumentForm((current) => ({ ...current, purpose: event.target.value }))
-                  }
-                  placeholder="보고서형"
-                  required
-                />
-              </label>
+            <div className="grid-2">
               <label className="select-field">
-                출력 유형
+                산출보고서
                 <select
                   value={documentForm.document_format}
                   onChange={(event) =>
@@ -5268,7 +5723,7 @@ export function App() {
                 </select>
               </label>
               <label className="select-field">
-                참고자료 묶음
+                Reference Set
                 <select
                   value={selectedReferenceSetId}
                   onChange={(event) => setSelectedReferenceSetId(event.target.value)}
@@ -5290,7 +5745,7 @@ export function App() {
                 <p>보고서 작성요령을 Content Base 이후 HWPX 산출 단계에 적용해 읽히는 공공문서로 정리합니다.</p>
               </div>
               <div className="document-format-cards">
-                {DOCUMENT_FORMAT_OPTIONS.filter((option) => option.key !== "auto").map((option) => (
+                {DOCUMENT_FORMAT_OPTIONS.map((option) => (
                   <button
                     key={option.key}
                     type="button"
@@ -5315,93 +5770,95 @@ export function App() {
               </div>
             </div>
 
-            <div className="grid-4">
-              <label>
-                수신/대상
+            <div className="detail-panel">
+              <div className="section-heading-row">
+                <div>
+                  <span className="eyebrow">FILES</span>
+                  <strong>첨부/연결 파일</strong>
+                </div>
+                <span className="pill">
+                  세션 {selectedDocumentSessionFileLinks.length}개 · 추가 {documentAttachmentDrafts.length}개
+                </span>
+              </div>
+              {documentSourceMode === "session" ? (
+                <div className="stack-list">
+                  <h4>세션 연결 파일</h4>
+                  {selectedDocumentSessionFileLinks.length > 0 ? (
+                    selectedDocumentSessionFileLinks.map((link) => {
+                      const label = link.label || link.file_path.split(/[\\/]/).pop() || "연결 파일";
+                      return (
+                        <article key={link.id} className="list-card list-card--compact">
+                          <strong>{label}</strong>
+                          <p>{link.file_path}</p>
+                          <label>
+                            {label} 활용방안
+                            <textarea
+                              value={documentFileUsageNotes[documentFileUsageKey(link.file_path)] ?? ""}
+                              onChange={(event) => updateDocumentFileUsage(link.file_path, event.target.value)}
+                              placeholder="예: 사실관계 근거, 통계 출처, 결재 참고자료 등"
+                              rows={2}
+                            />
+                          </label>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="hint-box">선택한 대화세션에 연결된 파일이 없습니다.</div>
+                  )}
+                </div>
+              ) : null}
+              <div className="grid-2">
+                <label>
+                  추가 파일 경로
+                  <textarea
+                    value={documentForm.direct_file_paths_text}
+                    onChange={(event) =>
+                      setDocumentForm((current) => ({ ...current, direct_file_paths_text: event.target.value }))
+                    }
+                    placeholder="파일찾기에서 복사한 경로를 한 줄에 하나씩 붙여넣으세요."
+                    rows={3}
+                  />
+                </label>
+                <label>
+                  추가 파일 활용방안
+                  <textarea
+                    value={documentForm.file_usage_note}
+                    onChange={(event) =>
+                      setDocumentForm((current) => ({ ...current, file_usage_note: event.target.value }))
+                    }
+                    placeholder="예: 회의결과 근거, 참고 통계, 결재용 양식 등"
+                    rows={3}
+                  />
+                </label>
+              </div>
+              <div className="hint-box">
+                <strong>보고서 관련 파일 첨부</strong>
                 <input
-                  value={documentForm.audience_type}
-                  onChange={(event) => setDocumentForm((current) => ({ ...current, audience_type: event.target.value }))}
-                  placeholder="예: 부서장, 참석자"
+                  ref={documentAttachmentInputRef}
+                  type="file"
+                  multiple
+                  aria-label="보고서 관련 파일 첨부"
+                  onChange={(event) => appendDocumentAttachments(event.currentTarget.files)}
                 />
-              </label>
-              <label>
-                예상 분량
-                <input
-                  value={documentForm.expected_length}
-                  onChange={(event) => setDocumentForm((current) => ({ ...current, expected_length: event.target.value }))}
-                  placeholder="예: 1쪽, 풀버전, 짧게"
-                />
-              </label>
-              <label>
-                긴급도
-                <input
-                  value={documentForm.urgency_level}
-                  onChange={(event) => setDocumentForm((current) => ({ ...current, urgency_level: event.target.value }))}
-                  placeholder="예: 보통, 높음"
-                />
-              </label>
-              <label>
-                기한
-                <input
-                  value={documentForm.deadline}
-                  onChange={(event) => setDocumentForm((current) => ({ ...current, deadline: event.target.value }))}
-                  placeholder="예: 2026-05-09"
-                />
-              </label>
+                {documentAttachmentDrafts.length > 0 ? (
+                  <div className="chat-composer__attachment-list">
+                    {documentAttachmentDrafts.map((item) => (
+                      <span key={item.id} className="pill pill--soft chat-composer__attachment-pill">
+                        <span>{item.file.name}</span>
+                        <button
+                          type="button"
+                          className="chat-composer__attachment-remove"
+                          aria-label={`${item.file.name} 첨부 제거`}
+                          onClick={() => removeDocumentAttachment(item.id)}
+                        >
+                          <X size={13} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
-
-            <div className="grid-4">
-              <label>
-                추적성 필요
-                <input
-                  value={documentForm.needs_traceability}
-                  onChange={(event) =>
-                    setDocumentForm((current) => ({ ...current, needs_traceability: event.target.value }))
-                  }
-                  placeholder="예: 필요"
-                />
-              </label>
-              <label>
-                공식 서식 필요
-                <input
-                  value={documentForm.requires_official_form}
-                  onChange={(event) =>
-                    setDocumentForm((current) => ({ ...current, requires_official_form: event.target.value }))
-                  }
-                  placeholder="예: 아니오"
-                />
-              </label>
-              <label>
-                요청 조치
-                <input
-                  value={documentForm.requested_action}
-                  onChange={(event) => setDocumentForm((current) => ({ ...current, requested_action: event.target.value }))}
-                  placeholder="예: 자료 제출"
-                />
-              </label>
-              <label>
-                보안 수준
-                <input
-                  value={documentForm.security_level}
-                  onChange={(event) => setDocumentForm((current) => ({ ...current, security_level: event.target.value }))}
-                  placeholder="예: 내부"
-                />
-              </label>
-            </div>
-
-            {documentSourceMode === "direct" ? (
-              <label>
-                관련 파일 경로
-                <textarea
-                  value={documentForm.direct_file_paths_text}
-                  onChange={(event) =>
-                    setDocumentForm((current) => ({ ...current, direct_file_paths_text: event.target.value }))
-                  }
-                  placeholder="관련 파일 경로를 한 줄에 하나씩 붙여넣으세요."
-                  rows={3}
-                />
-              </label>
-            ) : null}
 
             <div className="hint-box">
               <strong>사용자 HWPX/HWTX 양식</strong>
@@ -5429,10 +5886,20 @@ export function App() {
                   ))}
                 </select>
               </label>
+              <label>
+                출력 파일 이름(선택)
+                <input
+                  value={finalizeForm.output_name}
+                  onChange={(event) =>
+                    setFinalizeForm((current) => ({ ...current, output_name: event.target.value }))
+                  }
+                  placeholder="비워두면 문서 제목으로 저장합니다."
+                />
+              </label>
             </div>
 
             <button type="submit" disabled={submitting}>
-              ContentBase.md 생성
+              작업 시작
             </button>
           </form>
           {selectedReferenceSet ? (
@@ -5450,89 +5917,40 @@ export function App() {
           ) : null}
         </SectionCard>
 
-        <SectionCard eyebrow="최근 산출물" title="초안 콘텐츠 미리보기">
-          {lastContentBase ? (
-            <div className="document-preview">
+        <SectionCard eyebrow="생성 결과" title="HWPX 산출물">
+          {lastFinalizeRequest?.artifact?.path ? (
+            <div className="document-preview" data-testid="document-generate-result">
               <div className="document-preview__meta">
-                <span className="pill">{lastContentBase.template_key}</span>
-                <span className="subtle-text">{friendlyArtifactLabel(lastContentBase.artifact.path)}</span>
+                <span className="pill">생성 완료</span>
+                <span className="subtle-text">{lastFinalizeRequest.final_document_output.output_name}</span>
               </div>
-              <pre>{lastContentBase.content}</pre>
-            </div>
-          ) : (
-            <EmptyState
-              title="아직 생성된 콘텐츠 베이스가 없습니다."
-              body="참고자료를 고른 뒤 콘텐츠 베이스를 만들면 이 영역에서 초안 내용을 검토할 수 있습니다."
-            />
-          )}
-        </SectionCard>
-
-        <SectionCard eyebrow="최종 저장" title="승인 요청 및 적용">
-          {lastContentBase ? (
-            <div className="stack-form">
-              <label>
-                출력 이름
-                <input
-                  value={finalizeForm.output_name}
-                  onChange={(event) =>
-                    setFinalizeForm((current) => ({ ...current, output_name: event.target.value }))
-                  }
-                  placeholder={`${lastContentBase.title}-final`}
-                />
-              </label>
-              <div className="toolbar">
+              <p>{friendlyArtifactLabel(lastFinalizeRequest.artifact.path)}</p>
+              {lastFinalizeRequest.artifact.markdown_path ? (
                 <p className="subtle-text">
-                  ContentBase.md를 확인 자료로 삼아 `runtime-workspace/documents/outputs`에 HWPX와 검토용 Markdown을 저장합니다.
+                  검토용 Markdown: {friendlyArtifactLabel(lastFinalizeRequest.artifact.markdown_path)}
                 </p>
-                <button type="button" onClick={submitDocumentFinalizeRequest} disabled={submitting || !lastContentBase}>
-                  최종 저장 요청
+              ) : null}
+              <div className="inline-actions">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => void openExternalTarget(lastFinalizeRequest.artifact?.path ?? "")}
+                >
+                  파일 열기
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => void openExternalTarget(parentPathFromPath(lastFinalizeRequest.artifact?.path))}
+                >
+                  폴더 열기
                 </button>
               </div>
-              {lastFinalizeRequest ? (
-                <div className="document-preview">
-                  <div className="document-preview__meta">
-                    <span className="pill">{currentFinalizeTicket?.status ?? lastFinalizeRequest.approval_ticket.status}</span>
-                    <span className="subtle-text">{lastFinalizeRequest.final_document_output.output_name}</span>
-                  </div>
-                  <p>{shortDisplayId(lastFinalizeRequest.approval_ticket.id, "승인")}</p>
-                  <p>
-                    {finalizeAlreadyApplied
-                      ? "최종 저장이 이미 적용되었습니다."
-                      : canApplyFinalize
-                        ? "승인되어 바로 적용할 수 있습니다."
-                        : "승인 후 적용할 수 있습니다."}
-                  </p>
-                  <div className="inline-actions">
-                    <button
-                      type="button"
-                      onClick={submitDocumentFinalizeApply}
-                      disabled={submitting || !canApplyFinalize || finalizeAlreadyApplied}
-                    >
-                      최종 저장 적용
-                    </button>
-                  </div>
-                  {lastFinalizeRequest.final_document_output.artifact_path ? (
-                    <p className="subtle-text">
-                      {friendlyArtifactLabel(lastFinalizeRequest.final_document_output.artifact_path)}
-                    </p>
-                  ) : null}
-                  {lastFinalizeRequest.artifact?.markdown_path ? (
-                    <p className="subtle-text">
-                      검토용 Markdown: {friendlyArtifactLabel(lastFinalizeRequest.artifact.markdown_path)}
-                    </p>
-                  ) : null}
-                </div>
-              ) : (
-                <EmptyState
-                  title="아직 최종 저장 요청이 없습니다."
-                  body="콘텐츠 베이스를 만든 뒤 승인 요청을 보내면 여기에서 승인 상태와 적용 버튼을 볼 수 있습니다."
-                />
-              )}
             </div>
           ) : (
             <EmptyState
-              title="콘텐츠 베이스가 먼저 필요합니다."
-              body="문서 초안을 만든 뒤 최종 저장 승인 요청을 보낼 수 있습니다."
+              title="아직 생성된 보고서가 없습니다."
+              body="위 입력값을 채운 뒤 작업 시작을 누르면 승인 단계 없이 HWPX 보고서를 바로 생성합니다."
             />
           )}
         </SectionCard>
@@ -6274,44 +6692,6 @@ export function App() {
                             >
                               {expandedIngestionLogJobId === job.id ? "덤프 뷰어 닫기" : "덤프 뷰어 열기"}
                             </button>
-                          </div>
-                        ) : null}
-                        {expandedIngestionLogJobId === job.id ? (
-                          <div className="knowledge-log-preview">
-                            {knowledgeIngestionLogDumps[job.id] ? (
-                              <>
-                                <div className="document-preview__meta">
-                                  <span className="pill">최근 로그 {knowledgeIngestionLogDumps[job.id].items.length}개</span>
-                                  <span className="subtle-text">{knowledgeIngestionLogDumps[job.id].log_dump_path}</span>
-                                </div>
-                                <div className="item-list item-list--compact">
-                                  {knowledgeIngestionLogDumps[job.id].items.slice(0, 12).map((item, index) => (
-                                    <article key={`${job.id}-dump-${index}`} className="list-card list-card--compact">
-                                      <div className="list-card__main list-card__main--static">
-                                        <div>
-                                          <h3>{String(item.event ?? `event-${index + 1}`)}</h3>
-                                          <p>{String(item.message ?? item.stage ?? "메시지 없음")}</p>
-                                        </div>
-                                        {item.stage ? <span className="pill">{String(item.stage)}</span> : null}
-                                      </div>
-                                      {item.title || item.file_path ? (
-                                        <p className="subtle-text">{String(item.title ?? item.file_path)}</p>
-                                      ) : null}
-                                    </article>
-                                  ))}
-                                </div>
-                                <details className="knowledge-error-log">
-                                  <summary>원본 JSON 보기</summary>
-                                  <pre>
-                                    {knowledgeIngestionLogDumps[job.id].items
-                                      .map((item) => JSON.stringify(item, null, 2).normalize("NFC"))
-                                      .join("\n")}
-                                  </pre>
-                                </details>
-                              </>
-                            ) : (
-                              <p className="subtle-text">풀로그 덤프를 불러오는 중입니다.</p>
-                            )}
                           </div>
                         ) : null}
                         <p className="subtle-text">
@@ -7332,7 +7712,7 @@ export function App() {
             <div className="context-detail__stack">
               <p className="settings-grid__label">최근 응답 맥락</p>
               {selectedSessionContextEvidence.map((item) => (
-                <button key={item} type="button" className="context-detail__row" onClick={() => setActiveMenu("knowledge")}>
+                <button key={item} type="button" className="context-detail__row" onClick={() => openResponseContextDetail(item)}>
                   <span>{item}</span>
                   <ChevronRight size={14} />
                 </button>
@@ -7413,7 +7793,7 @@ export function App() {
     }
 
     if (activeMenu === "search") {
-      const firstHit = localFileSearchResult?.items[0];
+      const firstHit = previewFileHit;
       return (
         <div className="context-detail">
           <div className="context-detail__hero">
@@ -7462,12 +7842,14 @@ export function App() {
   const upcomingContextSchedules = [...snapshot.schedules]
     .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime())
     .slice(0, 5);
-  const previewFileHit = localFileSearchResult?.items[0] ?? null;
+  const previewFileHit = selectedLocalFileHit ?? localFileSearchResult?.items[0] ?? null;
   const dumpViewerJob =
     activeKnowledgeIngestionJob ??
     snapshot.knowledgeIngestionJobs.find((job) => job.log_dump_path) ??
     snapshot.knowledgeIngestionJobs[0] ??
     null;
+  const visibleWorkJobs = (snapshot.workJobs ?? []).slice(0, 8);
+  const activeWorkJobCount = (snapshot.workJobs ?? []).filter(isActiveWorkJob).length;
   const rightPanelControls: Array<{
     key: ContextPanelKey;
     label: string;
@@ -7476,6 +7858,7 @@ export function App() {
   }> = [
     { key: "context", label: "현재 컨텍스트", iconSrc: "/icons/panel-context.png", enabled: true },
     { key: "approvals", label: "승인 요청", iconSrc: "/icons/panel-approvals.png", enabled: true },
+    { key: "jobs", label: "작업 진행", iconSrc: "/icons/panel-logs.png", enabled: true },
     { key: "logs", label: "최근 실행", iconSrc: "/icons/panel-logs.png", enabled: true },
     { key: "upcoming", label: "가까운 일정", iconSrc: "/icons/panel-upcoming.png", enabled: activeMenu === "schedule" },
     { key: "preview", label: "미리보기", iconSrc: "/icons/panel-preview.png", enabled: activeMenu === "search" },
@@ -7514,7 +7897,7 @@ export function App() {
               <div>
                 <p className="brand-card__eyebrow">공공분야 사무업무자를 위한 보안 걱정 없는 로컬 우선 업무공간</p>
                 <h1>로컬 AI에이전트 워크플레이스 : 공무원</h1>
-                <p>일정, 업무대화, 파일찾기, 지식폴더, 문서작성, 실행기록을 로컬 우선으로 연결합니다.</p>
+                <p>일정에서 시작해 대화, 검색, 지식, 문서작성, 실행기록까지 한 워크플로로 묶습니다.</p>
               </div>
               <div className="shell-topbar__current" data-testid="shell-topbar-current">
                 <span className="shell-topbar__current-icon"><ActiveMenuIcon size={18} /></span>
@@ -7550,7 +7933,15 @@ export function App() {
           <button
             type="button"
             className="button-secondary topbar-icon-button"
-            onClick={() => void refreshSnapshot()}
+            onClick={() => {
+              if (lockedKnowledgeIngestion) {
+                setNotice("색인 처리 중에는 전체 새로고침 대신 인덱싱 상태만 갱신합니다.");
+                pushToast("info", "색인 처리 중에는 GraphRAG 상태만 갱신합니다.");
+                void refreshKnowledgeIngestionJobsOnly();
+                return;
+              }
+              void refreshSnapshot();
+            }}
             aria-label="새로고침"
             title="새로고침"
           >
@@ -7666,20 +8057,42 @@ export function App() {
             actions={renderPanelCollapseButton("context", "현재 컨텍스트")}
           >
             {!contextPanelCollapsed.context ? (
-              <div className="context-list">
-                <div>
-                  <p className="settings-grid__label">선택 일정</p>
-                  <p>{selectedSchedule?.title ?? "없음"}</p>
+              <>
+                <div className="context-list">
+                  <div>
+                    <p className="settings-grid__label">선택 일정</p>
+                    <p>{selectedSchedule?.title ?? "없음"}</p>
+                  </div>
+                  <div>
+                    <p className="settings-grid__label">선택 세션</p>
+                    <p>{selectedSession?.title ?? "없음"}</p>
+                  </div>
+                  <div>
+                    <p className="settings-grid__label">선택 ReferenceSet</p>
+                    <p>{selectedReferenceSet?.title ?? "없음"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="settings-grid__label">선택 세션</p>
-                  <p>{selectedSession?.title ?? "없음"}</p>
+              {selectedResponseContext ? (
+                <div className="detail-panel" data-testid="response-context-detail">
+                  <p className="settings-grid__label">최근 응답 맥락 상세</p>
+                  <p className="detail-panel__title">{selectedResponseContext}</p>
+                  <p className="subtle-text">
+                    이 맥락은 마지막 업무대화 응답에서 사용된 GraphRAG 근거, 연결 파일, 첨부파일 수를 요약한 값입니다.
+                  </p>
+                  <div className="context-detail__grid">
+                    <span>
+                      GraphRAG{" "}
+                      {selectedSessionContextSummary?.graphrag_used
+                        ? `${selectedSessionContextSummary.graphrag_evidence_count}개`
+                        : "대기"}
+                    </span>
+                    <span>연결 파일 {selectedSessionContextSummary?.linked_file_count ?? selectedSessionFileLinks.length}개</span>
+                    <span>첨부 {selectedSessionContextSummary?.attachment_count ?? 0}개</span>
+                    <span>{selectedSessionContextSummary?.provider ?? "제공자 미기록"}</span>
+                  </div>
                 </div>
-                <div>
-                  <p className="settings-grid__label">선택 ReferenceSet</p>
-                  <p>{selectedReferenceSet?.title ?? "없음"}</p>
-                </div>
-              </div>
+              ) : null}
+              </>
             ) : null}
           </SectionCard>
         ) : null}
@@ -7721,6 +8134,79 @@ export function App() {
                       </div>
                     </article>
                   ))}
+                </div>
+              )
+            ) : null}
+          </SectionCard>
+        ) : null}
+
+        {contextPanelVisibility.jobs ? (
+          <SectionCard
+            eyebrow="작업 진행"
+            title={activeWorkJobCount > 0 ? `진행 중 ${activeWorkJobCount}개` : "최근 작업"}
+            actions={renderPanelCollapseButton("jobs", "작업 진행")}
+          >
+            {!contextPanelCollapsed.jobs ? (
+              visibleWorkJobs.length === 0 ? (
+                <EmptyState title="진행 중인 작업이 없습니다." body="GraphRAG 인덱싱, 파일명 인덱스, 문서작성 같은 긴 작업은 여기에 표시됩니다." />
+              ) : (
+                <div className="item-list item-list--compact">
+                  {visibleWorkJobs.map((job) => {
+                    const progress = Math.max(0, Math.min(100, Math.round(job.progress_percent ?? 0)));
+                    return (
+                      <article key={job.id} className={`list-card list-card--compact ${isActiveWorkJob(job) ? "is-running" : ""}`}>
+                        <div className="list-card__main list-card__main--static">
+                          <div>
+                            <h3>{job.title}</h3>
+                            <p>{job.current_stage || job.kind}</p>
+                          </div>
+                          <span className={job.status === "failed" ? "pill pill--warning" : "pill"}>
+                            {describeWorkJobStatus(job)}
+                          </span>
+                        </div>
+                        <div className="knowledge-progress" aria-label={`${job.title} 진행률 ${progress}%`}>
+                          <span style={{ width: `${progress}%` }} />
+                        </div>
+                        <div className="document-preview__meta">
+                          <span>{progress}%</span>
+                          <span>{shortDisplayId(job.id, "작업")}</span>
+                          {job.resource_key ? <span>{String(job.resource_key)}</span> : null}
+                        </div>
+                        <div className="inline-actions">
+                          <button type="button" className="button-secondary" onClick={() => void toggleWorkJobEvents(job)}>
+                            {expandedWorkJobId === job.id ? "작업 로그 접기" : "작업 로그 보기"}
+                          </button>
+                        </div>
+                        {expandedWorkJobId === job.id ? (
+                          <div className="dump-viewer dump-viewer--compact" aria-label={`${job.title} 작업 로그`}>
+                            {workJobEventLoadingId === job.id ? <p>작업 로그를 불러오는 중입니다.</p> : null}
+                            {!workJobEventLoadingId && (workJobEvents[job.id] ?? []).length === 0 ? (
+                              <p>아직 표시할 작업 로그가 없습니다.</p>
+                            ) : null}
+                            {(workJobEvents[job.id] ?? []).map((event) => (
+                              <article key={event.id} className="dump-viewer__entry">
+                                <div className="document-preview__meta">
+                                  <span>{event.seq}</span>
+                                  <span>{event.event_type}</span>
+                                  <span>{formatDateTime(event.created_at)}</span>
+                                  <span>{event.level}</span>
+                                </div>
+                                <p>{event.message}</p>
+                              </article>
+                            ))}
+                          </div>
+                        ) : null}
+                        {job.error_message ? <p className="subtle-text">{job.error_message}</p> : null}
+                        {isActiveWorkJob(job) ? (
+                          <div className="inline-actions">
+                            <button type="button" className="button-secondary" onClick={() => void cancelGenericWorkJob(job)}>
+                              취소 요청
+                            </button>
+                          </div>
+                        ) : null}
+                      </article>
+                    );
+                  })}
                 </div>
               )
             ) : null}
@@ -7785,7 +8271,7 @@ export function App() {
           >
             {!contextPanelCollapsed.preview ? (
               previewFileHit ? (
-                <div className="context-detail">
+                <div className="context-detail" data-testid="right-file-preview">
                   <div className="context-detail__hero">
                     <span className="context-detail__icon"><FileSearch size={18} /></span>
                     <div>
@@ -7800,6 +8286,14 @@ export function App() {
                   <button type="button" className="context-detail__row" onClick={() => void openExternalTarget(previewFileHit.file.file_path)}>
                     <span>파일 열기</span>
                     <FileSearch size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="context-detail__row"
+                    onClick={() => void openExternalTarget(parentPathFromPath(previewFileHit.file.file_path))}
+                  >
+                    <span>폴더 열기</span>
+                    <FolderTree size={14} />
                   </button>
                 </div>
               ) : (
@@ -7841,6 +8335,44 @@ export function App() {
                   ) : (
                     <p className="subtle-text">아직 풀로그 덤프 경로가 없습니다.</p>
                   )}
+                  {expandedIngestionLogJobId === dumpViewerJob.id ? (
+                    <div className="knowledge-log-preview" data-testid="right-dump-viewer">
+                      {knowledgeIngestionLogDumps[dumpViewerJob.id] ? (
+                        <>
+                          <div className="document-preview__meta">
+                            <span className="pill">최근 로그 {knowledgeIngestionLogDumps[dumpViewerJob.id].items.length}개</span>
+                            <span className="subtle-text">{knowledgeIngestionLogDumps[dumpViewerJob.id].log_dump_path}</span>
+                          </div>
+                          <div className="item-list item-list--compact">
+                            {knowledgeIngestionLogDumps[dumpViewerJob.id].items.slice(0, 12).map((item, index) => (
+                              <article key={`${dumpViewerJob.id}-panel-dump-${index}`} className="list-card list-card--compact">
+                                <div className="list-card__main list-card__main--static">
+                                  <div>
+                                    <h3>{String(item.event ?? `event-${index + 1}`)}</h3>
+                                    <p>{String(item.message ?? item.stage ?? "메시지 없음")}</p>
+                                  </div>
+                                  {item.stage ? <span className="pill">{String(item.stage)}</span> : null}
+                                </div>
+                                {item.title || item.file_path ? (
+                                  <p className="subtle-text">{String(item.title ?? item.file_path)}</p>
+                                ) : null}
+                              </article>
+                            ))}
+                          </div>
+                          <details className="knowledge-error-log">
+                            <summary>원본 JSON 보기</summary>
+                            <pre>
+                              {knowledgeIngestionLogDumps[dumpViewerJob.id].items
+                                .map((item) => JSON.stringify(item, null, 2).normalize("NFC"))
+                                .join("\n")}
+                            </pre>
+                          </details>
+                        </>
+                      ) : (
+                        <p className="subtle-text">풀로그 덤프를 불러오는 중입니다.</p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <EmptyState title="인덱싱 로그가 없습니다." body="GraphRAG 인덱싱을 실행하면 상세 로그가 표시됩니다." />

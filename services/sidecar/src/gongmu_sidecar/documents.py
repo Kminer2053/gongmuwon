@@ -393,7 +393,7 @@ class DocumentManager:
 
         if direct_file_paths:
             lines += ["## 직접 연결 파일"]
-            lines += [f"- {path}" for path in direct_file_paths]
+            lines += self._file_context_lines(direct_file_paths)
             lines.append("")
 
         for section in template["sections"]:
@@ -462,10 +462,33 @@ class DocumentManager:
             for link in file_links:
                 label = link.get("label") or Path(link["file_path"]).name
                 lines.append(f"- {label}: {link['file_path']}")
+                excerpt = self._safe_file_excerpt(link["file_path"])
+                if excerpt:
+                    lines.append(f"  - 본문 요약: {excerpt}")
         else:
             lines.append("- 아직 연결된 파일이 없습니다.")
         lines.append("")
         return lines
+
+    def _file_context_lines(self, file_paths: list[str]) -> list[str]:
+        lines: list[str] = []
+        for path in file_paths:
+            label = Path(path).name or path
+            lines.append(f"- {label}: {path}")
+            excerpt = self._safe_file_excerpt(path)
+            if excerpt:
+                lines.append(f"  - 본문 요약: {excerpt}")
+        return lines
+
+    def _safe_file_excerpt(self, file_path: str, limit: int = 1200) -> str | None:
+        path = Path(file_path)
+        if not path.exists() or not path.is_file():
+            return None
+        if path.suffix.lower() not in {".txt", ".md", ".csv", ".json", ".log", ".yaml", ".yml"}:
+            return None
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:limit] if text else None
 
     def _render_html(self, markdown_text: str) -> str:
         paragraphs = []

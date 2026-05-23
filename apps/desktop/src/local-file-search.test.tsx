@@ -28,6 +28,7 @@ vi.mock("./runtime", () => ({
 }));
 
 import { App } from "./app";
+import { copyTextToClipboard } from "./runtime";
 
 const jsonResponse = (payload: unknown, status = 200) =>
   Promise.resolve(
@@ -116,6 +117,8 @@ describe("local file search", () => {
         if (url.includes("/api/files/search?")) {
           return jsonResponse({
             query: "budget",
+            knowledge_index_count: 1,
+            local_index_count: 42,
             items: [
               {
                 file: {
@@ -127,17 +130,27 @@ describe("local file search", () => {
                   size_bytes: 120,
                   modified_at: "2026-04-28T00:00:00+09:00",
                   status: "indexed",
-                  title: "예산 검토",
+                  title: "Budget Plan",
                   mime_type: "text/markdown",
-                  text_excerpt: "예산편성 회의자료를 정리한다.",
+                  text_excerpt: "Budget planning notes for the review session.",
                   extracted_text_path: "C:/cache/source-files/hash.txt",
                   created_at: "2026-04-28T00:00:00+09:00",
                   updated_at: "2026-04-28T00:00:00+09:00",
                 },
                 score: 92,
-                match_reasons: ["파일명", "본문"],
+                match_reasons: ["filename", "body"],
               },
             ],
+          });
+        }
+
+        if (url.endsWith("/api/files/index/rebuild")) {
+          return jsonResponse({
+            status: "completed",
+            indexed_count: 42,
+            searched_roots: ["C:/Docs"],
+            partial: false,
+            indexed_at: "2026-04-28T00:00:00+09:00",
           });
         }
 
@@ -145,10 +158,13 @@ describe("local file search", () => {
           "/api/schedules": { items: [] },
           "/api/reference-sets": { items: [] },
           "/api/templates": { items: [] },
+          "/api/documents/templates/custom": { items: [] },
           "/api/knowledge/candidates": { items: [] },
           "/api/knowledge/pages": { items: [] },
           "/api/knowledge/sources": { items: [] },
           "/api/knowledge/source-files": { items: [] },
+          "/api/knowledge/ingestion-jobs": { items: [] },
+          "/api/knowledge/documents": { items: [] },
           "/api/personalization/candidates": { items: [] },
           "/api/approval-tickets": { items: [] },
           "/api/integrations/anything/launches": { items: [] },
@@ -171,19 +187,46 @@ describe("local file search", () => {
     render(<App />);
 
     await screen.findByTestId("chat-workspace");
-    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
-    await user.click(within(navigation).getByRole("button", { name: /^파일찾기/ }));
+    await user.click(screen.getByRole("button", { name: "파일찾기" }));
 
     expect(await screen.findByText("내장 파일찾기")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("파일 검색"), "budget");
+    await user.type(screen.getByTestId("local-file-search-input"), "budget");
     await user.click(screen.getByRole("button", { name: "검색" }));
 
-    expect((await screen.findAllByText("예산 검토")).length).toBeGreaterThan(0);
+    expect(await screen.findByTestId("local-file-result-file-1")).toHaveTextContent("Budget Plan");
     expect(screen.getAllByText(/budget-plan\.md/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("예산편성 회의자료를 정리한다.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Budget planning notes for the review session.").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: "세션에 연결" }));
 
     await waitFor(() => expect(screen.getByRole("button", { name: "연결됨" })).toBeDisabled());
+  });
+
+  it("keeps preview details in the right panel and shows copy/index feedback", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByTestId("chat-workspace");
+    await user.click(screen.getByRole("button", { name: "파일찾기" }));
+
+    const explorer = await screen.findByTestId("local-file-explorer");
+    expect(within(explorer).queryByText("결과 미리보기")).not.toBeInTheDocument();
+    expect(within(explorer).getByTestId("local-file-scope-panel")).toHaveTextContent("검색 범위");
+    expect(within(explorer).getByTestId("local-file-search-panel")).toHaveTextContent("파일 검색");
+
+    await user.click(within(explorer).getByRole("button", { name: /파일명 인덱스 갱신/ }));
+    expect(await within(explorer).findByText("인덱스 42개")).toBeInTheDocument();
+    expect(screen.queryByTestId("local-file-central-preview")).not.toBeInTheDocument();
+
+    await user.type(screen.getByTestId("local-file-search-input"), "budget");
+    await user.click(screen.getByRole("button", { name: "검색" }));
+
+    const resultCard = await screen.findByTestId("local-file-result-file-1");
+    await user.click(resultCard);
+    expect(await screen.findByTestId("right-file-preview")).toHaveTextContent("budget-plan.md");
+
+    await user.click(within(resultCard).getByRole("button", { name: "경로 복사" }));
+    await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalledWith("C:/Docs/budget-plan.md"));
+    expect(await screen.findByText("파일 경로를 복사했습니다.")).toBeInTheDocument();
   });
 });

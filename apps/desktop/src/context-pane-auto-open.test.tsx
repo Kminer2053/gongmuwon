@@ -60,6 +60,7 @@ const KOREAN = {
   createdReferenceSetTitle: "예산 검토 묶음",
   fileApplyCommit: "승인 후 적용",
   logsTitle: "작업 이력 요약",
+  jobsTitle: "작업 진행",
 };
 
 describe("Context pane auto open", () => {
@@ -128,6 +129,8 @@ describe("Context pane auto open", () => {
       },
     ];
 
+    const workJobs: Array<Record<string, unknown>> = [];
+
     vi.stubGlobal(
       "fetch",
       vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -187,6 +190,26 @@ describe("Context pane auto open", () => {
         }
 
         if (url.endsWith("/api/file-organizer/proposals/proposal-1/apply/commit") && method === "POST") {
+          const workJob = {
+            id: "job-fileorg-apply",
+            kind: "fileorg.apply",
+            title: "source.md 파일정리 적용",
+            status: "succeeded",
+            priority: 50,
+            resource_key: "file_path:C:/docs/source.md",
+            resource_policy: "exclusive",
+            progress_percent: 100,
+            current_stage: "파일정리 적용 완료",
+            cancel_requested: false,
+            input: { proposal_id: "proposal-1" },
+            result: { destination_path: "C:/docs/archive/source.md" },
+            error_message: null,
+            created_at: "2026-04-25T09:00:00+09:00",
+            queued_at: "2026-04-25T09:00:00+09:00",
+            started_at: "2026-04-25T09:00:00+09:00",
+            completed_at: "2026-04-25T09:00:01+09:00",
+          };
+          workJobs.unshift(workJob);
           logs.unshift({
             id: `log-${logs.length + 1}`,
             feature: "file_org",
@@ -210,7 +233,39 @@ describe("Context pane auto open", () => {
               approval_ticket_id: "ticket-1",
               created_at: "2026-04-25T09:00:00+09:00",
             },
+            work_job: workJob,
           });
+        }
+
+        if (url.includes("/api/jobs/job-fileorg-apply/events")) {
+          return jsonResponse({
+            items: [
+              {
+                id: "event-1",
+                job_id: "job-fileorg-apply",
+                seq: 1,
+                level: "info",
+                event_type: "job.created",
+                message: "작업이 대기열에 등록되었습니다.",
+                payload: {},
+                created_at: "2026-04-25T09:00:00+09:00",
+              },
+              {
+                id: "event-2",
+                job_id: "job-fileorg-apply",
+                seq: 2,
+                level: "info",
+                event_type: "job.succeeded",
+                message: "파일정리 적용 완료",
+                payload: {},
+                created_at: "2026-04-25T09:00:01+09:00",
+              },
+            ],
+          });
+        }
+
+        if (url.includes("/api/jobs?")) {
+          return jsonResponse({ items: workJobs });
         }
 
         const collectionMap: Record<string, unknown> = {
@@ -223,6 +278,7 @@ describe("Context pane auto open", () => {
           "/api/integrations/anything/launches": { items: [] },
           "/api/file-organizer/proposals": { items: proposals },
           "/api/execution-logs": { items: logs },
+          "/api/jobs": { items: workJobs },
           "/api/tools": { items: [] },
         };
 
@@ -281,21 +337,23 @@ describe("Context pane auto open", () => {
     );
   }, 15000);
 
-  it("reopens the logs section after a file organizer apply commit", async () => {
+  it("reopens the work jobs section after a file organizer apply commit", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByText(KOREAN.logsTitle);
-    await user.click(screen.getByRole("button", { name: "최근 실행" }));
-    expect(screen.queryByText(KOREAN.logsTitle)).not.toBeInTheDocument();
+    await screen.findByText(KOREAN.jobsTitle);
+    await user.click(screen.getByRole("button", { name: KOREAN.jobsTitle }));
+    expect(screen.queryByText(KOREAN.jobsTitle)).not.toBeInTheDocument();
 
     const navigation = screen.getByRole("navigation", { name: KOREAN.navigation });
     await user.click(within(navigation).getByRole("button", { name: KOREAN.fileOrgMenu }));
     await user.click(screen.getByRole("button", { name: KOREAN.fileApplyCommit }));
 
-    expect(await screen.findByText(KOREAN.logsTitle)).toBeInTheDocument();
-    expect(await screen.findByText("파일정리 적용")).toBeInTheDocument();
-    expect(screen.getByText("파일정리 적용 작업이 성공 상태로 기록되었습니다.")).toBeInTheDocument();
+    expect(await screen.findByText(KOREAN.jobsTitle)).toBeInTheDocument();
+    expect(await screen.findByText("source.md 파일정리 적용")).toBeInTheDocument();
+    expect(screen.getByText("파일정리 적용 완료")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "작업 로그 보기" }));
+    expect(await screen.findByLabelText("source.md 파일정리 적용 작업 로그")).toBeInTheDocument();
     expect(screen.queryByText(/쨌/)).not.toBeInTheDocument();
   });
 });

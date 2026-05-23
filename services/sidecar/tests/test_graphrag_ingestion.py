@@ -1354,8 +1354,12 @@ def test_background_ingest_returns_queued_job_before_processing(tmp_path: Path) 
     )
 
     assert response.status_code == 201
-    job = response.json()["job"]
+    payload = response.json()
+    job = payload["job"]
+    work_job = payload["work_job"]
     assert job["status"] == "queued"
+    assert work_job["kind"] == "knowledge.ingest"
+    assert work_job["status"] in {"queued", "running", "succeeded", "partial"}
     assert job["processed_count"] == 0
 
     latest_job = job

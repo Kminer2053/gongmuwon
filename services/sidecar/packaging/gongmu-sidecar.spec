@@ -37,6 +37,13 @@ datas = (
 binaries = collect_dynamic_libs("chromadb_rust_bindings")
 if (KORDOC_ROOT / "kordoc_runner.js").exists():
     datas += [(str(KORDOC_ROOT), "packaging/kordoc")]
+if (SRC_ROOT / "gongmu_sidecar" / "public_doc_templates").exists():
+    datas += [
+        (
+            str(SRC_ROOT / "gongmu_sidecar" / "public_doc_templates"),
+            "gongmu_sidecar/public_doc_templates",
+        )
+    ]
 
 a = Analysis(
     [str(SRC_ROOT / "gongmu_sidecar" / "__main__.py")],

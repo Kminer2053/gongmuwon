@@ -37,6 +37,41 @@ def test_file_proposal_apply_and_rollback(tmp_path: Path) -> None:
     assert Path(rollback.json()["restored_path"]).exists()
 
 
+def test_file_proposal_apply_and_rollback_record_work_jobs(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    incoming = tmp_path / "incoming"
+    incoming.mkdir()
+    source = incoming / "meeting-note.md"
+    source.write_text("# incoming", encoding="utf-8")
+
+    proposals = client.post("/api/file-organizer/proposals", json={"target_path": str(incoming)})
+    proposal_id = proposals.json()["items"][0]["id"]
+    request_apply = client.post(f"/api/file-organizer/proposals/{proposal_id}/apply")
+    ticket_id = request_apply.json()["approval_ticket"]["id"]
+    client.post(
+        f"/api/approval-tickets/{ticket_id}/decision",
+        json={"status": "approved", "decision_note": "approved"},
+    )
+
+    applied = client.post(f"/api/file-organizer/proposals/{proposal_id}/apply/commit")
+
+    assert applied.status_code == 201
+    assert applied.json()["work_job"]["kind"] == "fileorg.apply"
+    assert applied.json()["work_job"]["status"] == "succeeded"
+    assert applied.json()["work_job"]["progress_percent"] == 100
+
+    operation_id = applied.json()["operation"]["id"]
+    rollback = client.post(f"/api/file-organizer/operations/{operation_id}/rollback")
+
+    assert rollback.status_code == 200
+    assert rollback.json()["work_job"]["kind"] == "fileorg.rollback"
+    assert rollback.json()["work_job"]["status"] == "succeeded"
+
+    jobs = client.get("/api/jobs").json()["items"]
+    assert any(job["kind"] == "fileorg.apply" for job in jobs)
+    assert any(job["kind"] == "fileorg.rollback" for job in jobs)
+
+
 def test_file_proposal_apply_versions_existing_destination_and_preserves_original(tmp_path: Path) -> None:
     client = _client(tmp_path)
     incoming = tmp_path / "incoming"

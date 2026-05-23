@@ -145,6 +145,8 @@ describe("work session file links", () => {
 
     await user.click(linkCountButton);
     expect(screen.getByText("C:/Docs/budget.xlsx")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "연결 파일 목록 닫기" }));
+    expect(screen.queryByText("C:/Docs/budget.xlsx")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "파일 연결" }));
 

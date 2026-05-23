@@ -36,3 +36,8 @@ testpaths = ["tests"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+gongmu_sidecar = [
+  "public_doc_templates/**/*"
+]
+

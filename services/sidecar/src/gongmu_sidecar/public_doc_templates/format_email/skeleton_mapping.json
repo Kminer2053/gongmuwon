@@ -1,0 +1,24 @@
+{
+  "description": "Gongmu built-in email HWPX skeleton. public-doc-to-hwpx does not ship a dedicated email form, so this lightweight bundled form keeps email output off the runtime blank-document path.",
+  "tokens": {
+    "문서_제목": "문서 제목",
+    "text_000": "양식 제목",
+    "text_001": "메일 제목",
+    "text_002": "수신자",
+    "text_003": "발신자",
+    "text_004": "작성일",
+    "text_005": "핵심 요약 제목",
+    "text_006": "핵심 요약 1",
+    "text_007": "핵심 요약 2",
+    "text_008": "요청사항 제목",
+    "text_009": "요청사항 1",
+    "text_010": "요청사항 2",
+    "text_011": "요청 기한",
+    "text_012": "근거 자료 제목",
+    "text_013": "근거 자료 1",
+    "text_014": "근거 자료 2",
+    "text_015": "작성 점검 제목",
+    "text_016": "품질 점검 1",
+    "text_017": "품질 점검 2"
+  }
+}

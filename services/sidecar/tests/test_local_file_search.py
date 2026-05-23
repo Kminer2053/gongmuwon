@@ -92,6 +92,56 @@ def test_local_file_search_uses_rebuilt_filename_index(tmp_path: Path, monkeypat
     assert payload["local_index_count"] == 1
 
 
+def test_local_file_index_rebuild_records_generic_work_job(tmp_path: Path, monkeypatch) -> None:
+    search_root = tmp_path / "pc"
+    search_root.mkdir()
+    (search_root / "Parallel_Work_Report.hwpx").write_text("dummy", encoding="utf-8")
+    monkeypatch.setenv("GONGMU_FILE_SEARCH_ROOTS", str(search_root))
+    monkeypatch.setenv("GONGMU_FILE_SEARCH_MAX_SECONDS", "2")
+
+    client = _client(tmp_path)
+    rebuild = client.post("/api/files/index/rebuild")
+
+    assert rebuild.status_code == 200
+    payload = rebuild.json()
+    assert payload["work_job"]["kind"] == "files.index.rebuild"
+    assert payload["work_job"]["status"] == "succeeded"
+    assert payload["work_job"]["progress_percent"] == 100
+
+    jobs = client.get("/api/jobs").json()["items"]
+    assert any(job["id"] == payload["work_job"]["id"] for job in jobs)
+
+
+def test_local_file_index_rebuild_blocks_when_index_resource_is_busy(tmp_path: Path, monkeypatch) -> None:
+    search_root = tmp_path / "pc"
+    search_root.mkdir()
+    monkeypatch.setenv("GONGMU_FILE_SEARCH_ROOTS", str(search_root))
+
+    client = _client(tmp_path)
+    jobs = client.app.state.services.jobs
+    running = jobs.create_job(
+        kind="test.busy",
+        title="busy index",
+        resource_key="local_file_index",
+        resource_policy="exclusive",
+    )
+    jobs.start_job_with_lock(running["id"], stage="indexing")
+
+    def fail_scan():
+        raise AssertionError("blocked index rebuild must not start a second filesystem scan")
+
+    monkeypatch.setattr("gongmu_sidecar.app.scan_local_files_for_index", fail_scan)
+
+    rebuild = client.post("/api/files/index/rebuild")
+
+    assert rebuild.status_code == 200
+    payload = rebuild.json()
+    assert payload["status"] == "blocked"
+    assert payload["work_job"]["kind"] == "files.index.rebuild"
+    assert payload["work_job"]["status"] == "blocked"
+    assert "선행 작업" in payload["work_job"]["current_stage"]
+
+
 def test_local_file_search_does_not_rescan_pc_when_filename_index_has_hits(
     tmp_path: Path,
     monkeypatch,
