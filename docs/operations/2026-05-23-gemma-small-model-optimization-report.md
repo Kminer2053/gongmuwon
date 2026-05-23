@@ -1,227 +1,307 @@
-# Google Gemma 4 E2B (2026-04 출시, 멀티모달 엣지 모델) 최적화 개선 보고서
+# Google Gemma 4 E2B 최적화 개선 보고서 (검증 v2)
 
 작성일: 2026-05-23
 대상 저장소: `Agent_Gongmu_Codex`
 브랜치: `claude/jolly-edison-Kr4Cx`
-대상 모델: **Google Gemma 4 E2B** (2026-04 출시). 모바일/노트북 등 엣지 환경 대상의 멀티모달(텍스트+이미지) 소형 변형. 본 보고서에서는 다음 특성으로 가정함.
+대상 모델: **Google Gemma 4 E2B** (2026-04-02 출시, Apache 2.0)
 
-- 약 **2B effective parameters** (E2B = "Effective 2B", per-layer embedding로 실 메모리 ~3GB대)
-- **Ollama 서빙**(예: `gemma4:e2b`) 또는 OpenAI 호환 endpoint 가능
-- **멀티모달 입력**(이미지 1장 권장, 256/512/768 픽셀 권장)
-- **컨텍스트 윈도우 ≈8K 토큰**(Gemma 3n E2B 계보 그대로일 경우 32K까지 가능하지만 안전선 8K로 가정)
-- **약한 한국어 능력 / 약한 구조화(JSON·표) 출력**(소형 멀티모달 공통 한계)
-- **thinking 미지원** (Gemma 계열 native reasoning 없음)
-
-실제 모델 능력(컨텍스트 윈도우·한국어 토크나이저·툴콜 지원 여부)이 위 가정과 다를 경우 §4.4 "모델 가정 영향도" 표대로만 보정하면 본 보고서의 개선 항목은 그대로 유효함.
+> v1 노트: 처음 작성한 보고서는 사용자가 지적한 대로 Gemma 3n E2B 가정으로 잘못 추측한 부분이 다수였음. 본 v2는 Google 공식·HF·MindStudio·Aurigait·Unsloth 등 공개 자료로 모델 사양을 재검증한 뒤 다시 작성. v1과 결론이 뒤집힌 항목은 §1.2에 명시.
 
 ---
 
-## 0. 한 줄 요약
+## 1. Gemma 4 E2B 모델 정확한 사양 (재조사 결과)
 
-현재 코드베이스는 **GPT-4 / Claude / Qwen 27B 같은 대형/중형 모델을 기본 전제로 설계**되어 있어, 시스템 프롬프트·GraphRAG 컨텍스트·이중 라우팅(규칙+LLM)·`max_tokens` 일괄값·reasoning 트레이스 제거 로직이 2B급 모델에서는 비효율적이거나 품질을 무너뜨림. 핵심 개선축은 ① **컨텍스트 예산 관리**, ② **Ollama 호출 옵션 노출**, ③ **프롬프트 슬림화/한국어 few-shot**, ④ **소형 모델 전용 라우팅 프로파일**, ⑤ **멀티모달/스트리밍/세션 안정화** 다섯 가지임.
+### 1.1 핵심 스펙
+
+| 항목 | 값 | 출처 |
+|---|---|---|
+| 출시 | 2026-04-02, Apache 2.0 | Google 공식 블로그 |
+| 패밀리 | E2B / E4B / 26B MoE(3.8B active) / 31B Dense | Gemma 4 발표 |
+| Effective parameters | **2.3B** (총 5.1B, Per-Layer Embeddings) | HF model card |
+| 4-bit 메모리 | **≈1.5 GB RAM**, Raspberry Pi 5에서 7.6 tok/s | MindStudio, Jetson AI Lab |
+| **컨텍스트 윈도우** | **128K tokens** (edge), 26B/31B는 256K | Google AI Dev 문서 |
+| **멀티모달 입력** | 텍스트 + 이미지(가변 종횡비/해상도, **configurable visual token budget**) + **오디오 최대 30초**(E2B/E4B 한정) + 비디오(프레임 시퀀스). interleaved 입력 지원 | HF blog, Datature |
+| 입력 권장 순서 | 이미지/오디오 → 텍스트 (앞쪽 배치) | HF blog |
+| **Function calling** | **Native 지원**. `apply_chat_template(tools=...)` JSON schema 또는 Python 함수 자동 파싱 | ai.google.dev/gemma function-calling |
+| **Thinking mode** | **모든 사이즈 지원**. system prompt 시작에 `<|think|>` 토큰 추가로 활성, 출력은 `<|channel>thought\n...<channel|>` 채널. 최대 4000+ 토큰 CoT. 비활성 시 토큰 제거 | ai.google.dev, MachineLearningMastery |
+| 권장 sampling | **temperature 1.0, top-k 65, top-p 0.95** (Google 공식 권장) | Unsloth recipe |
+| repeat_penalty | 1.0~1.05 권장, 1.2 초과 금지 | smcleod.net |
+| 학습 언어 | **140+ 언어 native** (한국어 포함 우수 성능 기대) | Google 발표 |
+| Ollama 식별자 | `gemma4:e2b`, `gemma4:e2b-it-q4_K_M`, `gemma4:e2b-mlx` 등 | Ollama 라이브러리 |
+| 추론 프레임워크 | MediaPipe, ExecuTorch, llama.cpp, Ollama, vLLM | HF, vLLM recipes |
+
+### 1.2 v1 보고서에서 잘못 가정했고 v2에서 뒤집은 항목
+
+| v1 가정 (오류) | v2 사실 | 영향 |
+|---|---|---|
+| 컨텍스트 8K | **128K** | GraphRAG/히스토리 슬림화는 *속도/메모리* 목적으로만, *맥락 손실* 우려는 불필요 |
+| thinking 미지원 → `think=True` 금지 | **`<|think|>` system 토큰으로 활성**, Ollama `think` 옵션도 매핑됨 | "사고 효과" 토글이 실제로 의미 있음. 단, latency 트레이드오프 큼 |
+| function calling 없음 → 정규식 라우팅 유지 | **native JSON schema function calling** | dossier 8.3 한계(LLM intent classifier 필요) 해결책이 단일 토큰 분류기가 아니라 **tool-calling 직접 사용** |
+| 한국어 약함 → 가드레일 강화·검수 강화 필요 | **140+ 언어 native** | 가드레일 더 단순화 가능. 다만 공무 도메인 평가셋 검증은 여전히 필요 |
+| temperature 0.3 권장 | **공식 1.0** (top-k 65, top-p 0.95) | 보수적 값은 한국어 응답이 단조롭고 반복 유도. 단 공무 응답 안정성 목적이면 0.6~0.8 절충 |
+| 이미지 768px 다운샘플 강제 | **variable aspect ratio + configurable visual token budget** | 다운샘플 대신 token budget(낮음/보통/높음) 노출이 더 정확 |
+| 오디오 미지원 가정 | **30초 오디오 입력 지원** | 신규 기능 기회. 회의록/메모/지시 녹음 직접 입력 가능 |
+| trace 패턴: `<think>`, `<reasoning>`, 영문 bullet | **실제 패턴은 `<|think|>` 토큰 / `<|channel>thought ... <channel|>`** | 트레이스 제거 정규식을 정확히 그 토큰 기준으로 변경 |
 
 ---
 
-## 1. 프로젝트 구조·동작 파악 (1번 작업 결과)
+## 2. 코드베이스 리뷰 (Gemma 4 E2B 정확한 스펙 기준)
 
-`README.md`와 `docs/operations/2026-05-23-codebase-review-dossier.md`를 종합한 골격:
+### 2.1 즉시 손봐야 할 핵심 결함 7가지
 
-- **데스크톱 UI**: `apps/desktop/src/app.tsx` 단일 거대 파일 (≈8.4K LOC)에서 모든 섹션(업무대화·일정·파일찾기·지식폴더·문서작성·실행기록) 렌더링.
-- **업무엔진**: `services/sidecar/src/gongmu_sidecar/app.py` (≈3.6K LOC). FastAPI 라우터 + 비즈니스 로직 + 의도 라우팅 + 가드레일이 한 클래스에 결합.
-- **LLM 계층**: `llm.py` (≈900 LOC)가 Ollama / OpenAI / Anthropic / Gemini / OpenRouter / NIM 6개 provider 호출 통합. Ollama는 `_looks_like_ollama_native()`로 native API(`/api/chat`, `/api/generate`)와 OpenAI 호환 API 분기.
-- **데이터**: SQLite WAL + write-lock + `work_jobs` 기반 작업 큐. ChromaDB는 옵션.
-- **GraphRAG**: `graphrag_ingestion.py`의 `SECTION_CHUNK_MAX_CHARS = 4000`, `SECTION_CHUNK_OVERLAP_CHARS = 250`. 검색은 `_build_graphrag_prompt_block()`에서 최대 5건, chunk당 700자 컷.
-- **임베딩**: `nomic-embed-text` (Ollama) 기본, 환경변수 `GONGMU_EMBEDDING_TIMEOUT_SECONDS`.
-- **의도 라우팅**: `_try_run_work_session_skill()` → `_plan_work_session_intents()` → 정규식 기반(`_looks_like_*`) → fallback으로 LLM 호출. **LLM intent classifier 미구현** (도시에서 한계로 명시됨).
-- **가드레일 프롬프트**: `_chat_guardrail_prompt()` 약 8줄 한국어 + GraphRAG 블록(최대 5×약 800자) → 매 턴 system에 주입.
-- **추론 트레이스 제거**: `_strip_assistant_reasoning_trace()`에서 `<think>`, `<reasoning>` 태그와 영문 bullet 패턴 23종 하드코딩 제거.
-
----
-
-## 2. 코드베이스 리뷰: 소형 모델 관점에서의 위험 지점 (2번 작업 결과)
-
-| # | 위치 | 현 상태 | 소형 모델에서의 문제 |
+| # | 위치 | 현 상태 | E2B 기준 결함 |
 |---|---|---|---|
-| R1 | `llm.py:743-750` `_generate_anthropic_reply` | `max_tokens=1024` 고정, **Ollama/OpenAI/Gemini 경로엔 max_tokens 미설정** | gemma3n은 `num_predict` 기본값(~128) 또는 무제한으로 길게 끌고 가다 컨텍스트 초과 → 응답 잘림 또는 OOM |
-| R2 | `llm.py:627-660` `_generate_ollama_reply` payload | `model`, `messages`, `stream`, `think`만 전달. `options`(num_ctx, num_predict, temperature, top_p, repeat_penalty, stop) 없음 | 기본 num_ctx=2048에서 시스템 프롬프트+GraphRAG+히스토리가 즉시 잘림. 한국어 반복(루프) 방지 불가 |
-| R3 | `llm.py:640,651,677,703` `think` 파라미터 | `reasoning_effort in {medium, high}`이면 `think=True` 강제 전송 | gemma3n은 native thinking 미지원 → Ollama가 옵션 무시하거나(베타) 빈 출력. UI에서 "사고" 토글이 작동 안 함 |
-| R4 | `app.py:938-950` `_chat_guardrail_prompt()` | 8줄 가드레일을 매 턴 system 메시지로 주입 | 약 350~450 token. 2B 모델 8K 컨텍스트에서 GraphRAG+히스토리 합치면 4K↑ → 실제 추론 가용분 급감, 지시사항 끝부분만 follow |
-| R5 | `app.py:952-1003` `_build_graphrag_prompt_block()` | 5건 × 700자 chunk + 메타데이터 → 최대 ≈5K char (≈2K token) 추가 | 소형 모델에서는 컨텍스트 폭발의 주범. 또한 5개 chunk 비교/요약은 2B 능력 한계 초과 — 환각 발생 |
-| R6 | `graphrag_ingestion.py:32-33` `SECTION_CHUNK_MAX_CHARS=4000` | 4K char(≈1.5K token) 단일 chunk | 소형 모델 retrieval-augmented 시점에서 1 chunk가 시스템 프롬프트보다 큼. 검색 정밀도 저하, 토큰 낭비 |
-| R7 | `app.py:1005-1052` intent planner | 모두 **정규식**(`_looks_like_*`). 다중 의도는 `_plan_work_session_intents()`가 순차 실행 | 소형 모델 입장에선 오히려 다행. 다만 정규식이 못 잡는 경우 곧장 LLM에 떠넘김 → 소형 모델은 도구 호출 의도를 무시하고 일반 답변 |
-| R8 | `app.py:888-932` `_strip_assistant_reasoning_trace()` | `<think>`, `<reasoning>` + 영문 23개 마커 bullet 제거 | gemma3n은 다른 형태 트레이스(예: `Okay, the user asked...`, `Let me think...`, 평문 단락) 출력 가능 → 거의 못 잘라냄 |
-| R9 | `llm.py:172-203` `_normalize_messages` | 모든 이미지 base64 인라인. 이미지 개수/크기 제한 없음 | gemma3n은 single image at 256/512/768 토큰만 처리 권장. 다중 이미지 또는 큰 이미지 전송 시 컨텍스트 초과 또는 거절 |
-| R10 | `llm.py:606-617` `_ollama_generate_prompt` fallback | role을 `User: ... Assistant: ...` plain text로 join | gemma3n은 `<start_of_turn>user...` 채팅 템플릿이 필수. `/api/generate` fallback이 발동되면 품질 급락 |
-| R11 | `settings.py:53-72` Ollama 기본 모델 `qwen3.6:27b` | 기본 모델/대체 모델 가정이 27B급 | 신규 설치 PC가 27B 모델 받지 못하면 첫 사용 실패. 소형 모델 프로파일 자체가 없음 |
-| R12 | `app.py:1868, 2175` `generate_session_reply` 호출부 | 히스토리 전체를 그대로 전달(메시지 누적 제한 미확인) | 세션 길어질수록 컨텍스트 폭증. 소형 모델은 4~6턴만 지나도 초기 메시지가 잘려 맥락 손상 |
-| R13 | `app.py:1242` "GraphRAG 검색 결과입니다." 응답 합성 | 검색 5건을 그대로 LLM 답변과 별개로 출력 | 소형 모델이 그 위에 다시 자연어 합성하면 중복/모순 답변 발생 |
-| R14 | `embeddings.py:14-15` `nomic-embed-text` 기본 | LLM(2B) + 임베딩(0.3B) 동시 로딩 가정 | 8GB RAM PC에서 모델 swap 빈발. gemma3n 멀티모달 가중치까지 합치면 메모리 압박 |
-| R15 | `documents.py` HWPX 생성 호출 | LLM이 구조화된 본문 작성 | 2B 모델은 시행문/보고서 양식 구조화 출력에서 깨진 markdown, 빠진 섹션 빈발 |
-| R16 | UI `app.tsx` 스트리밍 표시 | SSE delta를 그대로 누적 출력 | 트레이스 누출 시 사용자가 중간에 보게 됨(스트림 후처리 부재) |
-| R17 | `llm.py:589` `_looks_like_ollama_native` | `:11434` 포트 + `/v1` 미포함만 검사 | 사용자가 OpenWebUI/리버스 프록시 통해 다른 포트로 Ollama 노출 시 native API 미사용 → `options` 전달 불가 |
-| R18 | 가드레일 영문 마커 제거 | "wait", "let me", "self-correction" 등 영문 키워드만 | gemma3n 한국어 응답에서 영문 트레이스는 거의 없고 한국어 메타("생각해봅시다", "정리하자면") 형태 출력 가능 → 누출 |
-| R19 | 동시 호출 보호 | 세션 단위 `work_session:{id}` exclusive lock만 | Ollama는 모델 1개를 한 번에 1요청만 처리 효율적. 세션 간 동시 호출 시 GPU swap thrashing — 소형 모델은 더 민감 |
-| R20 | `/api/settings/llm-test` (`app.py:2298`) | 단순 generate_session_reply로 ping | 모델별 컨텍스트/멀티모달/툴콜 능력 프로빙 없음 → 사용자가 잘못된 모델 설정해도 OK로 표시 |
+| **C1** | `llm.py:627-660,663-727` Ollama payload | `options` 객체 누락 (num_ctx/num_predict/temperature/top_k/top_p/stop 없음) | num_ctx 기본값 2048에서 동작 → 128K context 모델 의미 무력화. 권장 temperature 1.0/top-k 65/top-p 0.95 미반영 → 응답 품질 저하 |
+| **C2** | `llm.py:640,651,677,703` `think` 파라미터 | `reasoning_effort in {medium, high}` → `think=True` 직접 전달 | Ollama Gemma 4 구현체는 `think` 옵션을 system prompt `<|think|>` 토큰 주입으로 매핑. **사용은 맞으나 출력의 `<|channel>thought...<channel|>` 채널이 그대로 답변에 노출** (`_strip_assistant_reasoning_trace`가 이 토큰 모름) |
+| **C3** | `app.py:888-932` `_strip_assistant_reasoning_trace` | `<think>...</think>`, `<reasoning>...</reasoning>`, 영문 bullet 23종 제거 | Gemma 4는 `<|channel>thought\n...<channel|>` 형식 사용 → **실제 트레이스가 그대로 사용자 화면에 노출됨**. 가장 치명적 결함 |
+| **C4** | `app.py:1005-1052` intent planner | 정규식만 사용, dossier 8.3에서 한계 명시 | Gemma 4 E2B는 **native function calling** 지원. JSON schema로 tool 등록 시 모델이 직접 `schedule.create`, `knowledge.search`, `documents.generate` 호출 가능. 정규식+LLM이중 라우팅 자체가 불필요 |
+| **C5** | `llm.py:172-203` `_normalize_messages` | 이미지 N장 무제한 base64 인라인, 텍스트 → 이미지 순서, 오디오 미지원 | E2B 권장은 **이미지/오디오 → 텍스트** 순. 오디오 첨부 30초 한도 입력 경로 자체가 없음. visual token budget(`image_token_count`) 노출 미비 |
+| **C6** | `llm.py:606-617` `_ollama_generate_prompt` fallback | `User: ... Assistant: ...` plain text join | Gemma 4 chat template(`<start_of_turn>user ... <start_of_turn>model`)을 깨뜨림. Ollama가 자체 template 적용해도 fallback 경로에서 깨짐 |
+| **C7** | `app.py:1868,2175` `generate_session_reply` 호출 | 전체 메시지 히스토리 + 가드레일 + GraphRAG 매 턴 동봉 | 128K context 덕분에 *컨텍스트 초과*는 아님. 그러나 **PLE 구조 특성상 prefill 시간이 입력 길이에 강하게 비례** → 노트북에서 첫 토큰 지연 폭증 |
+
+### 2.2 중요도 중간 (8~14)
+
+| # | 위치 | 결함 |
+|---|---|---|
+| C8 | `settings.py:53-72` | 기본 모델 `qwen3.6:27b`. Gemma 4 E2B 프로파일 없음 |
+| C9 | `llm.py:743` Anthropic만 `max_tokens=1024` | 다른 provider 미설정. E2B는 thinking 시 4000+ 토큰 가능 → num_predict 명시 필요 |
+| C10 | `graphrag_ingestion.py:32` `SECTION_CHUNK_MAX_CHARS=4000` | 128K 모델엔 너무 작은 chunk 아님. 다만 retrieval precision 측면에서 1500자대가 일반적으로 우수 |
+| C11 | `app.py:952` GraphRAG 5×700자 컷 | 128K에 비해 매우 보수적. 도리어 *늘려도* 무방. 다만 PLE prefill 비용 고려 시 현 수준 유지가 합리적 |
+| C12 | `embeddings.py:14-15` `nomic-embed-text` | E2B(1.5GB) + nomic(0.3GB) 동시 로딩 시 노트북 통합 그래픽에서 GPU 메모리 swap |
+| C13 | `app.py:938` 가드레일 8줄 | 한국어 강한 모델이라 8줄까지 필요 없음. 3~4줄로 단축해도 동일 효과 |
+| C14 | `/api/settings/llm-test` (`app.py:2298`) | Gemma 4 능력 프로빙 없음 (vision/audio/function calling/thinking 각각 검증 안 함) |
+
+### 2.3 신규 기회 (E2B 고유 강점 미활용)
+
+| # | 활용 영역 | 현재 상태 | 개선 기회 |
+|---|---|---|---|
+| O1 | **Function calling** | 미사용 | 일정·지식·문서·파일정리 모든 도구를 JSON schema로 모델에 직접 노출 → 자연어 라우팅 품질 도약 |
+| O2 | **Thinking mode 토글** | UI에 reasoning_effort 슬라이더 추정 존재 (`llm.py:632` 참조), 실제 효과 검증 미흡 | 복잡 도구 호출(HWPX 산출, 다중 일정 조정)에는 thinking ON, 단순 채팅 OFF |
+| O3 | **오디오 입력** | 미구현 | 첨부 wav/m4a/mp3 30초 한도로 직접 입력 → 음성 메모 → 일정/지시 추출 |
+| O4 | **128K 컨텍스트** | 활용 안 함 | 문서작성 시 연결 파일 전문(부분 발췌 아님) 투입 가능. RAG 미스 시 fallback으로 raw 문서 전달 |
+| O5 | **Interleaved multimodal** | 텍스트만 먼저 배치 | 이미지·오디오를 첨부 순서대로 텍스트 사이에 끼워 넣기 |
+| O6 | **Variable visual token budget** | 미노출 | 빠른 모드(저 budget) / 정밀 모드(고 budget) UI 옵션 |
 
 ---
 
-## 3. 개선 계획 (3번 작업 결과 — 우선순위별)
+## 3. 개선 계획 (v2, Gemma 4 E2B 실 사양 기준)
 
-### 3.1 P0 — 즉시 적용(코드 1~2일 작업, 품질 즉효)
+### 3.1 P0 — 핵심 결함 수정 (1주 이내, 사용자 즉시 체감)
 
-**① Ollama 호출 옵션 노출 + 소형 모델 기본값 (R1, R2, R6)**
-- `llm.py` `_generate_ollama_reply(_streaming)`의 payload에 `options` dict 추가.
-- 추천 기본값 (Gemma 4 E2B 가정):
-  ```
-  options = {
-      "num_ctx": 8192,         # 컨텍스트 명시 (기본 2048 회피, 실제 모델이 32K 지원 확인되면 상향)
-      "num_predict": 768,      # 응답 길이 상한
-      "temperature": 0.3,      # 공무 응답 안정성
-      "top_p": 0.9,
-      "repeat_penalty": 1.15,  # 한국어 루프 방지
-      "stop": ["<start_of_turn>", "<end_of_turn>", "User:", "System:"],
-  }
-  ```
-  > Gemma 채팅 템플릿은 `<start_of_turn>user / <start_of_turn>model` 토큰을 사용하므로 stop 시퀀스에 반드시 포함.
-- `SidecarSettings`에 `ollama_options: dict` 필드 추가 — 사용자가 환경설정에서 override 가능.
-- Anthropic도 `max_tokens=1024`를 settings 기반 동적 값으로.
+**P0-① Ollama `options` payload 추가 + Gemma 4 권장값**
 
-**② `think` 파라미터 모델별 가드 (R3)**
-- 모델명에 `qwen3`, `deepseek-r1`, `o1`, `o3` 등 포함 시에만 `think=True` 전송.
-- **gemma4/gemma3/llama/phi 계열은 무조건 제외** — Gemma 4도 native reasoning 미발표이므로 think 옵션을 Ollama가 무시하거나 빈 응답 유발 가능.
+`llm.py:636-641, 673-678, 699-704` 의 payload에 다음 dict 추가:
 
-**③ GraphRAG 블록 동적 슬림화 (R5)**
-- `_build_graphrag_prompt_block(...)`에 `max_chunks`, `chunk_char_budget` 인자 추가.
-- 모델 프로파일이 "small"인 경우 chunks 5→2, 700자→350자.
-- 메타데이터(relations, evidence_type) 라인을 1줄로 축약: `[근거 1] 제목 (path) — excerpt`.
+```python
+options = {
+    "num_ctx": 32768,       # 128K 모델이지만 prefill 속도 위해 32K로 출발, 사용자 설정 가능
+    "num_predict": 1024,    # thinking 비활성 기준. thinking ON이면 4096
+    "temperature": 1.0,     # Google 공식 권장
+    "top_k": 65,
+    "top_p": 0.95,
+    "repeat_penalty": 1.0,  # Gemma 4는 1.0~1.05 권장
+    "stop": ["<end_of_turn>", "<start_of_turn>"],
+}
+```
+- `SidecarSettings`에 `ollama_options: dict | None`, `ollama_options_thinking: dict | None` 필드 추가.
+- 환경설정 UI에서 슬라이더 노출(num_ctx, temperature).
+- `num_predict`는 `reasoning_effort`에 따라 1024 / 2048 / 4096 자동 스위치.
 
-**④ 시스템 가드레일 축약(소형 모델 프로파일) (R4)**
-- 현재 8줄 → 소형용 3줄 압축 버전 추가:
-  ```
-  한국어 간결 답변. 민감정보(비밀번호/주민번호/API Key 등)는 [보호됨]으로 가리기.
-  GraphRAG 근거 사용 시 출처 파일명 함께 제시. 추정은 "추정"으로 표기.
-  내부 사고 과정 노출 금지. Markdown 짧은 문단·목록 사용.
-  ```
-- `_chat_guardrail_prompt(profile)` 시그니처로 변경.
+**P0-② Thinking 토큰/채널 출력 파싱 정확화 (가장 치명적)**
 
-**⑤ 메시지 히스토리 슬라이딩 윈도우 (R12)**
-- `generate_session_reply` 호출 전, 토큰 추정으로 last N turn만 남기기(소형: last 4 user/assistant pair).
-- 첫 user 메시지(세션 의도)는 별도 system 메시지로 압축 보존.
+`app.py:888-932` `_strip_assistant_reasoning_trace`를 Gemma 4 채널 포맷에 맞춰 재작성:
 
-### 3.2 P1 — 1주 작업(품질·UX 큰 폭 개선)
+```python
+# Gemma 4 thinking output: <|channel>thought\n...<channel|> 다음에 최종 답변
+CHANNEL_THOUGHT_RE = re.compile(
+    r"(?is)<\|channel\|?>\s*thought.*?<\|?channel\|>", re.DOTALL
+)
+# 이전 호환(Qwen, R1) 패턴도 유지
+LEGACY_THINK_RE = re.compile(r"(?is)<think>.*?</think>")
+LEGACY_REASONING_RE = re.compile(r"(?is)<reasoning>.*?</reasoning>")
+```
 
-**⑥ 소형 모델 프로파일 신설 (R11)**
-- `settings.py` `_default_external_provider_profiles()`에 Gemma 4 E2B 프리셋 추가:
+스트리밍 경로 (`llm.py:663-727`, `app.py:2175`)에도 partial buffer 필터 추가 — 채널 토큰 닫힘 전에는 사용자에게 흘리지 않음.
+
+**P0-③ `think` 옵션 방향 수정**
+
+v1 권고 "gemma 계열에서 `think` 비활성"은 **틀렸음**. 실제로는:
+- `reasoning_effort="off"`: `think=False`, `num_predict=1024`
+- `reasoning_effort="low"`: `think=False`, `num_predict=1536`
+- `reasoning_effort="medium"`: `think=True`, `num_predict=2560`
+- `reasoning_effort="high"`: `think=True`, `num_predict=4096`
+
+Ollama 0.6+에서 Gemma 4의 `think` 파라미터는 system prompt에 `<|think|>` 자동 주입으로 매핑됨. 별도 작업 불필요. 단 P0-② 트레이스 제거가 선결.
+
+**P0-④ Gemma 4 chat template fallback 보호**
+
+`llm.py:606-617` `_ollama_generate_prompt`는 `/api/chat`이 비어있는 경우만 사용되지만, 만약 호출되면 Gemma 4 템플릿을 깬다. 다음 중 하나 채택:
+- (안전) Gemma 4 모델 감지 시 `/api/generate` fallback 시도 자체를 막고, 명확한 에러 반환.
+- (정밀) 모델별 chat template 라이브러리(예: `transformers` 토크나이저 호출) 추가.
+
+**P0-⑤ 가드레일 단축**
+
+`app.py:938-950` 8줄 → 4줄(Gemma 4 한국어 능력 신뢰):
+```
+한국어로 간결하게 답하고, 비밀번호·주민번호·API Key·토큰은 [보호됨]으로 가립니다.
+GraphRAG 근거 사용 시 출처 파일명을 표기하고, 불확실한 내용은 "추정"으로 명시합니다.
+일정 등록·조회·삭제, 문서작성처럼 도구로 처리 가능한 작업은 도구 호출 결과를 우선합니다.
+내부 사고 채널(<|channel>thought)은 출력하지 않습니다.
+```
+
+**P0-⑥ Gemma 4 E2B 프로파일 신설**
+
+`settings.py:_default_external_provider_profiles()`에 추가:
+```python
+"ollama_gemma4_e2b": LlmConnectionProfile(
+    provider="ollama",
+    model="gemma4:e2b-it-q4_K_M",
+    base_url="http://127.0.0.1:11434",
+),
+```
+`apps/desktop/src/llmProviders.ts`의 ollama 프리셋 `modelPlaceholder`: `"gemma4:e2b 또는 qwen3.6:27b"`. 신규 사용자 추천 default를 RAM 검출 결과로 분기.
+
+### 3.2 P1 — 강점 활용 신기능 (2~3주, 품질 도약)
+
+**P1-⑦ Native Function Calling으로 의도 라우팅 재설계** ⭐
+
+- `app.py`에 도구 스키마 등록 모듈 신설:
   ```python
-  "ollama_gemma4_e2b": LlmConnectionProfile(
-      provider="ollama", model="gemma4:e2b",
-      base_url="http://127.0.0.1:11434",
-  ),
+  GONGMU_TOOLS = [
+      {"name": "schedule.create", "parameters": {...}},
+      {"name": "schedule.list",   "parameters": {...}},
+      {"name": "schedule.delete", "parameters": {...}},
+      {"name": "knowledge.search","parameters": {...}},
+      {"name": "documents.generate","parameters": {...}},
+      {"name": "files.search",    "parameters": {...}},
+      {"name": "files.organize",  "parameters": {...}},
+  ]
   ```
-- `apps/desktop/src/llmProviders.ts` 프리셋의 `modelPlaceholder`를 `"gemma4:e2b 또는 qwen3.6:27b"`로 갱신, `defaultModel`은 사용자 PC 사양 감지 결과(RAM ≥ 24GB → 대형, 그 외 → `gemma4:e2b`)에 따라 추천.
-- UI 환경설정에 **"저사양 PC 모드 / 모바일·노트북 모드"** 토글 → 위 P0 옵션과 P1-⑧·⑩ 자동 적용.
-- 첫 실행 마법사에서 사용자가 Ollama 모델을 안 받았다면 `ollama pull gemma4:e2b` 안내 + 진행률 표시(폐쇄망일 경우 패키지 zip에 포함하는 옵션 명시).
+- `llm.py`에 `generate_session_reply(... tools=GONGMU_TOOLS)` 인자 추가. Ollama Gemma 4 chat API의 `tools` 필드로 전달.
+- 모델이 tool_call 응답 시 `_try_run_work_session_skill()`가 직접 호출 → 결과를 next-turn user 메시지로 모델에 반환.
+- 정규식 라우팅(`_looks_like_*`)은 **fallback**으로만 유지. dossier 8.3 한계 해소.
 
-**⑦ 트레이스 제거기 강화 (R8, R18)**
-- 새 매처 추가:
-  - 한국어 메타: `생각해\s?(보|봐)`, `정리하(자|겠)`, `우선[,\s]`, `먼저[,\s]`, `자, 그러면`
-  - 평문 영문: `^(Okay|Sure|Alright|Let me|First,)`
-  - markdown checklist 형식의 "사용자 분석" 블록
-- 스트리밍 경로(`generate_session_reply_streaming`)에 line-buffered 후처리 적용 — 사용자에게 트레이스 노출 차단.
+**P1-⑧ 오디오 입력 경로 추가 (E2B 신기능)** ⭐
 
-**⑧ 멀티모달 가드 (R9)**
-- 이미지 N장 ≤ 1로 자동 다운샘플(Gemma 4 E2B 프로파일에서). longest edge > 768px이면 768로 resize 후 base64.
-- 모델명 화이트리스트로 vision capability 판정: `gemma4*`, `gemma3n*`, `llava*`, `qwen2.5-vl*`, `gpt-4o*`, `claude-*`, `gemini-*` 등. (Gemma 4 E2B는 멀티모달 변형이지만 같은 시리즈의 텍스트 전용 변형도 있을 수 있으므로 모델 ID에 `e2b`/`mm`/`vision` 같은 suffix 추가 매칭.)
-- vision 미지원 모델 + 이미지 첨부 시 사용자에게 명확한 안내(현재는 silently 텍스트만 전송).
+- 백엔드:
+  - `work_session_attachments`에 audio MIME (`audio/wav`, `audio/mp3`, `audio/mp4`, `audio/m4a`, `audio/ogg`) 허용.
+  - `llm.py`에 `_attachment_audio_base64()` 추가, 30초 초과 시 자동 trim 또는 거절.
+  - Ollama Gemma 4 multimodal 입력 페이로드에 `audio` 필드 또는 첨부 url 전달 (Ollama 0.6+ Gemma 4 multimodal 지원 형식 확인 필요).
+- UI: 채팅 입력창에 🎙 버튼 → MediaRecorder API로 30초 한도 녹음, base64 첨부.
+- 시나리오: "방금 회의 메모예요 → 일정 자동 등록", "지시사항 받아쓰기 → 업무대화 첫 메시지로".
 
-**⑨ Intent classifier LLM fallback(소형 모델 안전 버전) (R7)**
-- 정규식이 못 잡고 LLM 호출 직전, 매우 짧은 분류 프롬프트(20~40 token)로 single-token 응답(`A`/`B`/`C`/`N`) 요청.
-- 토큰 비용 작아서 2B 모델도 정확. 잘못 분류 시 정규식 결과 fallback.
-- `app.py`에 `_classify_intent_via_llm(text) -> Optional[Intent]` 추가, dossier 8.3에서 지적한 한계 해소.
+**P1-⑨ Interleaved multimodal + 입력 순서 정정**
 
-**⑩ chunk size 모델 인지 (R6)**
-- `SECTION_CHUNK_MAX_CHARS`을 settings 값으로. 소형 모델 프로파일에서 1500자로.
-- 단, 재인덱싱 비용이 크므로 마이그레이션 가이드 문서 추가.
+`llm.py:172-203` `_normalize_messages`:
+- 첨부 이미지/오디오를 **텍스트 앞**에 배치 (현재는 텍스트 먼저, 이미지가 뒤).
+- 멀티 첨부 시 사용자 첨부 순서를 보존.
+- OpenAI/Anthropic 경로도 동일 순서로 (provider 자체가 순서 보존).
 
-### 3.3 P2 — 2~3주 작업(중장기 안정성)
+**P1-⑩ Visual token budget 노출**
 
-**⑪ Ollama 모델 사전 워밍 + keep-alive 단일화 (R19)**
-- sidecar 부팅 시 `/api/generate` ping 1회로 모델 로드 (E2B는 cold start ≈ 3~6s).
-- `keep_alive: "30m"` 옵션 전달로 GPU/CPU swap 방지 (노트북 환경에서는 메모리 압박 시 `"10m"`로 단축 가능 옵션화).
-- 세션 동시 호출 시 글로벌 single-flight queue (Ollama 1요청 단일 처리 정렬, 노트북 CPU/iGPU에서 특히 효과 큼).
+- `SidecarSettings`에 `image_token_budget: Literal["fast", "balanced", "quality"] = "balanced"`.
+- Ollama Gemma 4 multimodal 옵션(현재 `num_image_tokens` 또는 유사 키, Ollama doc 확인 필요)에 매핑.
+- UI에 채팅 첨부 옵션 토글.
 
-**⑫ `/api/settings/llm-test` 능력 프로빙 (R20)**
-- 모델별 ① 한국어 응답, ② JSON 출력, ③ 이미지 인식, ④ 컨텍스트 8K 처리 4개 마이크로 테스트 → 결과를 UI 신호등으로.
-- `gemma4:e2b` 선택 시 자동으로 P0 옵션 권장 다이얼로그 띄우고 1-클릭 적용.
+**P1-⑪ 능력 프로빙 + 자동 옵션 적용**
 
-**⑬ HWPX/문서 생성 보조 prompting (R15)**
-- 소형 모델용 문서작성 경로: LLM 한 번에 다 쓰는 대신, **개요 → 섹션별 채우기**의 multi-step로 분할.
-- 각 단계 출력 길이 ≤ 200 토큰 — 2B 모델 안정 영역.
-- HWPX 템플릿의 placeholder 위치를 미리 결정하고 LLM은 문구만 생성.
+`/api/settings/llm-test`를 다음 4단계로:
+1. 한국어 응답 (3턴 길이/맞춤법)
+2. JSON schema function calling (간단 tool 호출 성공 여부)
+3. 이미지 인식 (테스트 이미지 1장 캡션)
+4. 오디오 인식 (테스트 짧은 음성 → 텍스트 일치도)
 
-**⑭ 임베딩 모델 메모리 최적화 (R14)**
-- Gemma 4 E2B와 nomic-embed-text 모두 Ollama이면 `OLLAMA_MAX_LOADED_MODELS=2`, `OLLAMA_NUM_PARALLEL=1` 환경 기본화 가이드.
-- 노트북/모바일 환경에서는 멀티모달 가중치까지 합쳐 RAM 압박이 커지므로, 임베딩을 onnxruntime `bge-m3-quantized` 같은 인앱 lightweight로 교체 옵션 제공.
+모델명에 `gemma4` 포함 시 P0 옵션 자동 적용 다이얼로그.
 
-**⑮ Ollama 감지 강화 (R17)**
-- `/api/version` ping으로 native 여부 자동 판정. 포트 휴리스틱 제거.
+### 3.3 P2 — 안정성·운영 (3~4주)
 
-**⑯ UI 후처리 안전망 (R16)**
-- `app.tsx`에서 SSE delta 누적 시 `_strip_assistant_reasoning_trace` 대응되는 클라이언트 측 partial filter 도입.
+**P2-⑫ Ollama keep_alive + 워밍**
 
-### 3.4 P3 — 권장 운영/문서 작업
+- 부팅 시 `/api/generate` ping (E2B cold start ≈ 2~4s).
+- `keep_alive: "30m"` 옵션. 노트북 배터리 모드는 `"5m"`로 자동 단축 (`SidecarSettings.power_mode`).
 
-- `docs/operations`에 **"저사양 PC / 노트북 + Gemma 4 E2B 운영 가이드"** 추가: 권장 RAM 6GB↑(통합 그래픽 기준 8GB↑), `OLLAMA_*` 환경 변수, ChromaDB off, 임베딩 모델 선택, 첨부 이미지 1장 제한, 배터리 모드에서의 keep_alive 단축 권장.
-- `verify:all`에 **소형 모델용 통합 시나리오** 추가: ① 단순 일정 등록, ② 지식 검색 1건, ③ HWPX 1페이지 보고서, ④ 이미지 첨부 1장 인식 — 응답 길이/지연/메모리 임계 검증.
-- 회귀 방지: `test_llm_ollama.py`에 `options` 페이로드 검증, `_strip_assistant_reasoning_trace` 한국어 케이스 fixture 추가.
+**P2-⑬ Single-flight Ollama 큐**
 
----
+- Ollama는 동일 모델 단일 요청 효율 최대. 글로벌 큐로 동시 요청 직렬화.
+- 세션 lock(`work_session:{id}`)은 이미 존재 → 글로벌 `ollama:{model}` lock 추가.
 
-## 4. 부록
+**P2-⑭ Embedding 메모리 최적화**
 
-### 4.1 변경 파일 요약(작업 분량 가이드)
+- 통합그래픽/노트북 detection 시 `OLLAMA_MAX_LOADED_MODELS=2`, `OLLAMA_NUM_PARALLEL=1` 환경 권장 안내.
+- 옵션: onnxruntime `bge-m3-quantized` 인앱 임베딩으로 교체 (Ollama 두 모델 회피).
 
-| 우선순위 | 파일 | 예상 변경 LOC |
-|---|---|---|
-| P0 | `services/sidecar/src/gongmu_sidecar/llm.py` | +120 |
-| P0 | `services/sidecar/src/gongmu_sidecar/app.py` (`_chat_guardrail_prompt`, `_build_graphrag_prompt_block`, history trim) | +80 / -30 |
-| P0 | `services/sidecar/src/gongmu_sidecar/settings.py` (`ollama_options`, model_profile) | +40 |
-| P1 | `apps/desktop/src/llmProviders.ts`, `app.tsx` 환경설정 UI | +120 |
-| P1 | `services/sidecar/src/gongmu_sidecar/graphrag_ingestion.py` (chunk size 설정화) | +20 |
-| P1 | `services/sidecar/src/gongmu_sidecar/app.py` (intent LLM classifier) | +90 |
-| P2 | `documents.py` (multi-step) | +150 |
+**P2-⑮ 문서작성에서 function call 체인**
 
-### 4.2 회귀 위험
+- 현재 `documents.py`는 단발성 LLM 호출. Gemma 4 function calling으로:
+  1. `outline.generate` (개요 JSON)
+  2. 각 섹션마다 `section.fill(section_id)`
+  3. `document.finalize` (HWPX 생성은 결정론 코드)
+- 2B 모델 약점인 긴 구조화 출력 → 짧은 단계 분할로 안정화.
 
-- **Ollama options 추가**: 기존 사용자 큰 모델(qwen 27B)에서 `num_ctx=8192`가 GPU OOM 유발 가능 → 옵션은 **프로파일별**로 적용, 기존 default는 보존.
-- **GraphRAG 컨텍스트 축소**: 대형 모델 사용자의 답변 풍부도 감소 가능 → small 프로파일에만 적용.
-- **`think` 가드**: qwen3/r1 사용자 영향 없음(여전히 활성), gemma/llama 사용자는 호환성 개선.
-- **트레이스 제거기 강화**: false positive로 정상 한국어 단어("정리") 제거 위험 → 단어 단독이 아닌 **줄 시작 + 콜론/쉼표** 같이 강한 패턴만.
+### 3.4 P3 — 문서/회귀
 
-### 4.3 측정 지표(개선 검증용)
-
-| 지표 | 측정 방법 | 목표 |
-|---|---|---|
-| 단순 채팅 응답 지연 (P50/P95) | `/api/work-sessions/.../turn` latency 로그 | P50 < 4s, P95 < 12s on i7+8GB |
-| GraphRAG ask 응답 정확도 | 평가셋(공무 도메인 50문) 정답 포함률 | ≥ 75% (현 baseline 측정 필요) |
-| 트레이스 누출 빈도 | 회귀 테스트 50턴 fixture | 0건 |
-| HWPX 1페이지 보고서 완성도 | 사람 평가(섹션 누락/맞춤법) | 사용자 검수 통과율 ≥ 80% |
-| 메모리 peak | sidecar RSS | ≤ 6GB on Gemma 4 E2B + nomic-embed |
-
-### 4.4 모델 가정 영향도
-
-본 보고서는 **Gemma 4 E2B(2026-04 출시, 멀티모달, ~2B effective, ~8K context 안전선)** 기준. 실제 모델 사양이 다음과 같이 다르다면 조정:
-
-- **컨텍스트 윈도우가 32K로 확인된 경우**: P0-③(GraphRAG 슬림화)에서 chunks 5건 유지하되 chunk 당 350자는 그대로. num_ctx=16384로 상향. 메시지 슬라이딩 윈도우(P0-⑤)는 last 8 pair로 확장.
-- **Gemma 4 E4B (Effective 4B)**: 모든 P0 적용은 유지하되 num_predict=1024, temperature=0.4. HWPX multi-step(P2-⑬)은 선택사항.
-- **Gemma 4 12B/27B(대형, 데스크톱)**: 본 보고서의 "small profile"을 대형 모델에는 절대 적용하지 말 것. 기존 default 경로 유지.
-- **텍스트 전용 Gemma 4 변형**: P1-⑧ 멀티모달 가드 영구 비활성, vision capability 화이트리스트에서 제외.
-- **Gemma 4 E2B가 native tool-calling을 지원할 경우**: P1-⑨ intent LLM classifier를 tool-calling 기반으로 대체(단일 토큰 분류 대신 함수 호출). 단, 2B 규모에서 tool-calling 정확도는 검증 필요.
+- `docs/operations/`에 **"Gemma 4 E2B 운영 가이드"** 신설: 권장 RAM(8GB↑, 통합그래픽은 12GB↑), 환경변수, thinking 토글 가이드, 오디오·이미지 한도.
+- `scripts/`에 `bench-gemma4-e2b.mjs` 추가: latency P50/P95, 첫 토큰 지연, function call 정확도.
+- 회귀 fixture (`test_llm_ollama.py`):
+  - Ollama payload에 `options.num_ctx`, `temperature=1.0` 검증.
+  - `<|channel>thought` 토큰이 사용자 응답에 포함되지 않음 검증.
+  - function call JSON 파싱 검증.
 
 ---
 
-## 5. 추천 적용 순서
+## 4. 측정 지표
 
-1. **이번 스프린트**: P0 5건 적용 → `npm.cmd run sidecar:test` + `desktop:test` 통과 → 사내 실 사용자 1명에게 `gemma4:e2b` (Ollama) 환경에서 dogfood.
-2. **다음 스프린트**: P1 5건 + 4.3 측정 지표 baseline 수집 → 가이드 문서 작성.
-3. **이후**: P2 6건 점진 적용 + 회귀 테스트셋 확장.
+| 지표 | 측정 방법 | 목표 (E2B 4-bit, RAM 8GB 노트북) |
+|---|---|---|
+| 첫 토큰 지연(thinking OFF) | `/turn/stream` 첫 chunk 시점 | P50 < 2.0s, P95 < 5.0s |
+| 단발 응답 latency(thinking OFF) | `/turn` 전체 | P50 < 6s, P95 < 14s |
+| Thinking ON latency | `reasoning_effort=high` | P50 < 25s, P95 < 60s |
+| Function call 정확도 | 50문 시나리오셋(공무 도메인) | ≥ 85% (Gemma 4 E2B 공식 벤치 기대치 부합) |
+| 트레이스 누출 빈도 | thinking ON 50턴 fixture | **0건** |
+| GraphRAG ask 한국어 정답 포함률 | 평가셋 50문 | ≥ 80% |
+| RSS peak | sidecar + Ollama | ≤ 4.5 GB (E2B 4-bit + nomic) |
+| 오디오 30초 → 일정 추출 성공률 | 20개 샘플 | ≥ 70% (신규 P1 기능 초기 목표) |
+
+---
+
+## 5. v1 → v2 변경 요약 (코드 변경 영향)
+
+| v1 권고 | v2 변경 | 사유 |
+|---|---|---|
+| `num_ctx=8192`, temperature 0.3 | **num_ctx=32768 시작, temperature 1.0, top-k 65, top-p 0.95** | 컨텍스트 128K + Google 공식 권장 |
+| gemma에서 `think=True` 제거 | **유지하되 `<|channel>thought` 채널 출력 제거 로직 추가** | thinking 실제로 강력 지원 |
+| LLM intent classifier(단일 토큰) | **Native function calling으로 대체** | E2B가 JSON schema function calling 지원 |
+| 이미지 768px 다운샘플 강제 | **visual token budget 노출 (fast/balanced/quality)** | variable aspect ratio·해상도 지원 |
+| 오디오 미고려 | **30초 오디오 입력 신규 경로 추가** | E2B/E4B 한정 신기능 |
+| 가드레일 영문 trace 23종 | **`<|channel>thought ... <channel|>` 정확 매칭 + 영문 패턴은 fallback** | Gemma 4 출력 포맷 정확화 |
+| 한국어 보강 추가 few-shot | **불필요**(140+ 언어 native) | 가드레일 단축 가능 |
+| 컨텍스트 폭증 우려로 GraphRAG 5→2 강제 | **유지(5건)**, chunk 길이만 settings화 | 컨텍스트는 충분, 슬림화는 PLE prefill 속도 목적만 |
+
+---
+
+## 6. 적용 순서 권고
+
+1. **이번 스프린트(P0-① ~ ⑥)**: 1주. 가장 큰 효과는 P0-② 트레이스 채널 제거(즉시 UX 정상화) + P0-① options(품질·속도 동시).
+2. **다음 스프린트(P1-⑦ Function calling)**: 2주. dossier 8.3 한계 해소, 의도 라우팅 정확도 도약.
+3. **그 다음(P1-⑧ 오디오, ⑨ interleaved, ⑩ visual budget, ⑪ 프로빙)**: 1~2주.
+4. **이후 P2/P3**: 운영 안정화 및 회귀 방어.
+
+각 단계 종료 시 §4 측정 지표로 baseline 갱신.
+
+---
+
+## 출처
+
+- [Gemma 4: Byte for byte, the most capable open models — Google blog](https://blog.google/innovation-and-ai/technology/developers-tools/gemma-4/)
+- [Gemma 4 model overview — ai.google.dev](https://ai.google.dev/gemma/docs/core)
+- [Gemma 4 model card — ai.google.dev](https://ai.google.dev/gemma/docs/core/model_card_4)
+- [Function calling with Gemma 4 — ai.google.dev](https://ai.google.dev/gemma/docs/capabilities/text/function-calling-gemma4)
+- [google/gemma-4-E2B-it — Hugging Face](https://huggingface.co/google/gemma-4-E2B-it)
+- [Welcome Gemma 4 — Hugging Face blog](https://huggingface.co/blog/gemma4)
+- [Gemma 4 E2B vs E4B — MindStudio](https://www.mindstudio.ai/blog/gemma-4-e2b-e4b-edge-models-phone-local)
+- [Gemma 4 — Aurigait](https://aurigait.com/blog/gemma-4-features-benchmarks-guide/)
+- [Gemma 4 for CV engineers — Datature](https://datature.io/blog/gemma-4-what-computer-vision-engineers-actually-need-to-know)
+- [Gemma 4 Usage Guide — vLLM Recipes](https://docs.vllm.ai/projects/recipes/en/latest/Google/Gemma4.html)
+- [Gemma 4 — Unsloth Docs](https://unsloth.ai/docs/models/gemma-4)
+- [Local-First AI with Gemma 4 E2B and Thinking Mode — DEV](https://dev.to/gde/local-first-ai-done-right-how-gemma-4-e2b-and-thinking-mode-powered-diagramflowai-3bop)
+- [How to Implement Tool Calling with Gemma 4 and Python — MachineLearningMastery](https://machinelearningmastery.com/how-to-implement-tool-calling-with-gemma-4-and-python/)
