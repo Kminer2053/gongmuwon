@@ -192,6 +192,19 @@ def test_describe_llm_runtime_policy_preserves_legacy_qwen_fallback() -> None:
     assert policy["recommended_options"] is None
 
 
+def test_describe_llm_runtime_policy_marks_generic_small_models_as_lightweight() -> None:
+    policy = describe_llm_runtime_policy(provider="openrouter", model="meta-llama/llama-3.2-3b-instruct")
+
+    assert policy["model_family"] == "generic"
+    assert policy["is_lightweight"] is True
+    assert policy["is_gemma4"] is False
+    assert policy["is_gemma4_e2b"] is False
+    assert policy["recommended_reasoning_effort"] == "low"
+    assert policy["streaming_required"] is True
+    assert policy["generate_fallback_enabled"] is True
+    assert policy["recommended_options"] is None
+
+
 def test_ollama_gemma4_e2b_keeps_short_replies_fast_when_reasoning_is_low(monkeypatch) -> None:
     captured = _capture_request(
         monkeypatch,

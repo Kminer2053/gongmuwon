@@ -997,9 +997,10 @@ class AppServices:
                     "모델 이름, 시스템 지침, 안전 정책 준수, 내부 체크리스트를 답변 항목으로 쓰지 마세요.",
                     "업무 목록은 사용자 업무 관점으로 작성하고, 질문에 답변하기/정책 준수하기 같은 모델 수행 항목을 쓰지 마세요.",
                     "정보가 부족하더라도 사용자가 할 일, 준비사항, 목록, bullet 정리를 요청하면 먼저 '일반적인 기준으로는'이라고 전제하고 2~4개 실행 항목을 제시한 뒤 필요한 추가정보를 짧게 물으세요.",
-                    "Gemma 4 E2B 계열은 장황한 자기설명보다 사용자가 요청한 결과만 먼저 보여주세요.",
                 ]
             )
+            if runtime_policy.get("is_gemma4_e2b"):
+                lines.append("Gemma 4 E2B 계열은 장황한 자기설명보다 사용자가 요청한 결과만 먼저 보여주세요.")
         return "\n".join(lines)
 
     def _build_graphrag_prompt_block(self, *, session_id: str, query: str) -> str | None:

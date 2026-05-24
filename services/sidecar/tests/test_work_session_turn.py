@@ -726,6 +726,44 @@ def test_work_session_turn_injects_lightweight_model_format_guardrails(
     assert "일반적인 기준" in guardrail
 
 
+def test_work_session_turn_injects_generic_lightweight_guardrails_without_gemma_specific_text(
+    tmp_path: Path, monkeypatch
+) -> None:
+    captured_messages: list[dict] = []
+
+    def fake_generate_reply(settings, messages, **kwargs):
+        captured_messages.extend(messages)
+        return LLMGenerationResult(
+            text="- 첫 번째 업무\n- 두 번째 업무",
+            provider="openrouter",
+            model="meta-llama/llama-3.2-3b-instruct",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+    client = _client(tmp_path)
+    settings = client.put(
+        "/api/settings",
+        json={
+            "llm_provider": "openrouter",
+            "llm_model": "meta-llama/llama-3.2-3b-instruct",
+        },
+    )
+    assert settings.status_code == 200
+    session = client.post("/api/work-sessions", json={"title": "Generic lightweight guardrail session"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "오늘 할 일을 두 가지 bullet로 정리해줘"},
+    )
+
+    assert response.status_code == 201
+    guardrail = captured_messages[0]["text"]
+    assert "경량모델" in guardrail
+    assert "Markdown 불릿" in guardrail
+    assert "Gemma 4 E2B 계열" not in guardrail
+
+
 def test_work_session_turn_removes_lightweight_model_meta_policy_from_reply(
     tmp_path: Path, monkeypatch
 ) -> None:

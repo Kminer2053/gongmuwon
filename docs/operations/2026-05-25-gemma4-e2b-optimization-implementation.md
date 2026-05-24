@@ -12,6 +12,8 @@
 - Gemma 4에서는 `/api/chat` 응답에 최종 assistant content가 없을 때 `/api/generate` plain-text fallback을 사용하지 않는다.
 - Qwen 계열 등 기존 모델의 `reasoning_content` fallback과 `/api/generate` fallback은 유지했다.
 - 업무대화 시스템 가드레일을 짧고 한국어 중심으로 정리했다.
+- `mini`, `small`, `edge`, `nano`, `flash`, `2b`, `3b`, `4b` 등 일반 경량모델명도 `is_lightweight=true`로 감지한다.
+- 일반 경량모델에는 공통 경량 응답 가드레일을 적용하되, Gemma 4 E2B 전용 문구는 `is_gemma4_e2b=true`일 때만 주입한다.
 
 ## Gemma 4 Ollama 옵션
 
@@ -39,6 +41,8 @@
 - `<|channel>thought` 블록은 일반 응답과 스트리밍 응답 모두에서 사용자 화면에 노출되지 않아야 한다.
 - Gemma 4 `/api/chat` 무응답 시 `/api/generate` fallback을 호출하지 않아야 한다.
 - 기존 Qwen/Ollama fallback 동작은 깨지지 않아야 한다.
+- Gemma 4 E2B가 아닌 일반 소형 모델도 경량모델 정책을 받아야 한다.
+- 일반 소형 모델 프롬프트에는 Gemma 4 E2B 전용 문구가 섞이지 않아야 한다.
 
 ## 검증 결과
 

@@ -642,10 +642,14 @@ def describe_llm_runtime_policy(provider: str, model: str) -> dict[str, Any]:
     is_qwen = "qwen" in normalized_model
     is_small_name = any(
         marker in normalized_model
-        for marker in ["e2b", "e4b", "2b", "3b", "4b", "mini", "small", "edge"]
+        for marker in ["e2b", "e4b", "2b", "3b", "4b", "mini", "small", "edge", "nano", "flash"]
+    )
+    is_large_name = any(
+        marker in normalized_model
+        for marker in ["20b", "27b", "30b", "31b", "32b", "34b", "70b", "72b", "120b", "405b"]
     )
     model_family = "gemma4" if is_gemma4 else "qwen" if is_qwen else "generic"
-    is_lightweight = bool(is_gemma4_e2b or (is_gemma4 and is_small_name and "31b" not in normalized_model))
+    is_lightweight = bool(is_gemma4_e2b or (is_small_name and not is_large_name))
     recommended_reasoning_effort = "low" if is_lightweight else "medium" if is_gemma4 else "auto"
 
     return {
