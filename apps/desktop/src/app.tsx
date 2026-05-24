@@ -1331,7 +1331,7 @@ export function App() {
   const [settingsForm, setSettingsForm] = useState({
     llm_mode: "local_first" as "local_first" | "internal_server" | "external_model",
     llm_provider: "ollama",
-    llm_model: "qwen3.6:27b",
+    llm_model: "gemma4:e2b",
     llm_api_key: "",
     llm_site_url: "",
     llm_application_name: "",

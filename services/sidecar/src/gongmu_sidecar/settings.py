@@ -57,7 +57,7 @@ def _default_external_provider_profiles() -> dict[str, LlmConnectionProfile]:
         ),
         "ollama": LlmConnectionProfile(
             provider="ollama",
-            model="qwen3.6:27b",
+            model="gemma4:e2b",
             base_url="http://127.0.0.1:11434",
         ),
     }
@@ -72,7 +72,7 @@ def _default_mode_profile(mode: ModeKey) -> LlmConnectionProfile:
         )
     return LlmConnectionProfile(
         provider="ollama",
-        model="qwen3.6:27b",
+        model="gemma4:e2b",
         base_url="http://127.0.0.1:11434",
     )
 
@@ -202,7 +202,7 @@ class WorkspaceSettingsUpdate(BaseModel):
 class SidecarSettings(BaseSettings):
     llm_mode: ModeKey = "local_first"
     llm_provider: str = "ollama"
-    llm_model: str = "qwen3.6:27b"
+    llm_model: str = "gemma4:e2b"
     llm_api_key: str | None = None
     llm_site_url: str | None = None
     llm_application_name: str | None = None

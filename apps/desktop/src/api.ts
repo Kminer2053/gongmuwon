@@ -685,7 +685,7 @@ export function createDefaultWorkspaceLlmProfiles(): WorkspaceLlmProfiles {
   return {
     local_first: {
       provider: "ollama",
-      model: "qwen3.6:27b",
+      model: "gemma4:e2b",
       api_key: null,
       base_url: "http://127.0.0.1:11434",
       site_url: null,
@@ -752,7 +752,7 @@ export function createDefaultWorkspaceLlmProfiles(): WorkspaceLlmProfiles {
         },
         ollama: {
           provider: "ollama",
-          model: "qwen3.6:27b",
+          model: "gemma4:e2b",
           api_key: null,
           base_url: "http://127.0.0.1:11434",
           site_url: null,

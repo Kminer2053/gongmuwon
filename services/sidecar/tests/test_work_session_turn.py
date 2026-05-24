@@ -753,6 +753,36 @@ def test_work_session_turn_removes_inline_model_reasoning_trace_from_reply(tmp_p
     assert "무엇을 도와드릴까요?" in text
 
 
+def test_work_session_turn_removes_gemma_channel_thought_trace_from_reply(tmp_path: Path, monkeypatch) -> None:
+    def fake_generate_reply(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text=(
+                "<|channel>thought\n"
+                "The user wants Korean. I should plan internally and not reveal this.\n"
+                "<channel|>\n"
+                "네, 한국어로 답변하겠습니다.\n\n필요한 업무를 알려주세요."
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "Gemma thought strip session"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "한국말로 해라"},
+    )
+
+    assert response.status_code == 201
+    text = response.json()["assistant_message"]["text"]
+    assert "<|channel>thought" not in text
+    assert "I should plan internally" not in text
+    assert text == "네, 한국어로 답변하겠습니다.\n\n필요한 업무를 알려주세요."
+
+
 def test_work_session_turn_stream_sends_delta_events_before_done(tmp_path: Path, monkeypatch) -> None:
     def fake_stream_reply(settings, messages, *, on_delta, **kwargs):
         assert messages[-1]["role"] == "user"
@@ -786,6 +816,39 @@ def test_work_session_turn_stream_sends_delta_events_before_done(tmp_path: Path,
     assistant = [message for message in messages if message["role"] == "assistant"][-1]
     assert assistant["status"] == "completed"
     assert assistant["text"] == "첫 응답"
+
+
+def test_work_session_turn_stream_hides_gemma_channel_thought_deltas(tmp_path: Path, monkeypatch) -> None:
+    def fake_stream_reply(settings, messages, *, on_delta, **kwargs):
+        on_delta("<|channel>thought\ninternal scratchpad")
+        on_delta("\n<channel|>\n최종 답변")
+        return LLMGenerationResult(
+            text="<|channel>thought\ninternal scratchpad\n<channel|>\n최종 답변",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply_streaming", fake_stream_reply)
+
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "Gemma stream strip session"})
+    session_id = session.json()["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/work-sessions/{session_id}/turn/stream",
+        json={"text": "한국말로 답해줘"},
+    ) as response:
+        assert response.status_code == 200
+        body = "".join(response.iter_text())
+
+    assert "<|channel>thought" not in body
+    assert "internal scratchpad" not in body
+    assert "최종 답변" in body
+
+    messages = client.get(f"/api/work-sessions/{session_id}/messages").json()["items"]
+    assistant = [message for message in messages if message["role"] == "assistant"][-1]
+    assert assistant["text"] == "최종 답변"
 
 
 def test_llm_connection_test_returns_success_result(tmp_path: Path, monkeypatch) -> None:
