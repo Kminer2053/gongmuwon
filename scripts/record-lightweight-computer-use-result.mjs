@@ -247,6 +247,62 @@ export function evaluateWorkflowEvidence({
         blocker: "Day-view time-slot schedule registration was not proven by workflow evidence.",
       }),
       workflowScenario({
+        id: "LMUX-05-02",
+        functional: Boolean(schedule.weekViewShown),
+        ux: Boolean(schedule.weekViewShown),
+        evidence,
+        notes: `week_view=${Boolean(schedule.weekViewShown)}`,
+        blocker: "Week-view time grid was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-05-04",
+        functional: Boolean(schedule.longTitleEllipsized),
+        ux: Boolean(schedule.longTitleEllipsized),
+        evidence,
+        notes: `long_title_ellipsized=${Boolean(schedule.longTitleEllipsized)}`,
+        blocker: "Long schedule title truncation was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-05-05",
+        functional: Boolean(schedule.hoverDetailsShown),
+        ux: Boolean(schedule.hoverDetailsShown),
+        evidence,
+        notes: `hover_details=${Boolean(schedule.hoverDetailsShown)}`,
+        blocker: "Schedule hover/detail disclosure was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-05-06",
+        functional: Boolean(schedule.updatedThenCreated),
+        ux: Boolean(schedule.updatedThenCreated),
+        evidence,
+        notes: `updated_then_created=${Boolean(schedule.updatedThenCreated)}`,
+        blocker: "Edit-existing then create-new schedule flow was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-05-07",
+        functional: Boolean(schedule.linkedSessionOpened),
+        ux: Boolean(schedule.linkedSessionOpened),
+        evidence,
+        notes: `linked_session_opened=${Boolean(schedule.linkedSessionOpened)}`,
+        blocker: "Opening the linked work-session from a schedule was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-05-08",
+        functional: Boolean(schedule.todayNavigation),
+        ux: Boolean(schedule.todayNavigation),
+        evidence,
+        notes: `today_navigation=${Boolean(schedule.todayNavigation)}`,
+        blocker: "Today navigation was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-05-09",
+        functional: Boolean(schedule.periodNavigation),
+        ux: Boolean(schedule.periodNavigation),
+        evidence,
+        notes: `period_navigation=${Boolean(schedule.periodNavigation)}`,
+        blocker: "Previous/next period navigation was not proven by workflow evidence.",
+      }),
+      workflowScenario({
         id: "LMUX-05-10",
         functional: Boolean(schedule.deleted && schedule.listed),
         ux: Boolean(schedule.deleted),
@@ -419,6 +475,9 @@ export function evaluateWorkflowEvidence({
 
   if (settings) {
     const evidence = workflowEvidenceList(settings);
+    const apiKeyMasked = Boolean(
+      settings.apiKeyMasked || (settings.uiApiKeyMasked && settings.uiApiKeyNotVisible),
+    );
     results.push(
       workflowScenario({
         id: "LMUX-02-06",
@@ -438,11 +497,11 @@ export function evaluateWorkflowEvidence({
       }),
       workflowScenario({
         id: "LMUX-02-08",
-        functional: Boolean(settings.apiKeyMasked),
-        ux: Boolean(settings.apiKeyMasked),
-        modelQuality: Boolean(settings.apiKeyMasked),
+        functional: apiKeyMasked,
+        ux: apiKeyMasked,
+        modelQuality: apiKeyMasked,
         evidence,
-        notes: `api_key_masked=${Boolean(settings.apiKeyMasked)}`,
+        notes: `api_key_masked=${apiKeyMasked}; ui_masked=${Boolean(settings.uiApiKeyMasked)}; ui_key_not_visible=${Boolean(settings.uiApiKeyNotVisible)}`,
         blocker: "API key masking was not proven by workflow evidence.",
       }),
       workflowScenario({

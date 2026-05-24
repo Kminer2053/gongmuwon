@@ -1,10 +1,10 @@
 {
-  "runId": "computer-use-actual-1779649078253",
+  "runId": "computer-use-actual-1779650196147",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "startedAt": "2026-05-24T18:57:58.253Z",
-  "completedAt": "2026-05-24T18:57:58.253Z",
+  "startedAt": "2026-05-24T19:16:36.147Z",
+  "completedAt": "2026-05-24T19:16:36.147Z",
   "sourceSessionId": "b4f4771a-9528-4b21-8663-d1cf645a50b5",
   "scenarios": [
     {
@@ -19,7 +19,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "app_title=true; engine_healthy=true",
       "blocker": ""
@@ -36,7 +36,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5",
+        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5",
         "http://127.0.0.1:8765/api/settings"
       ],
       "notes": "runtime_policy=provider=featherless; model=google/gemma-4-E2B-it; lightweight=true; gemma4_e2b=true; reasoning=low",
@@ -54,7 +54,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "session=b4f4771a-9528-4b21-8663-d1cf645a50b5; user_turn=true; assistant_turn=true; recent_context=true",
       "blocker": ""
@@ -71,7 +71,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "latency_ms=8723; response_time_observed=true",
       "blocker": ""
@@ -88,7 +88,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "markdown_render=provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
       "blocker": ""
@@ -105,7 +105,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "thought_trace=false; model_meta=false; policy_meta=false",
       "blocker": ""
@@ -218,7 +218,11 @@
       "evidence": [
         "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
         "http://127.0.0.1:8765/api/schedules#listed=true",
-        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
       ],
       "notes": "schedule_created=true; title=AI ?? ?? ?? 1779648418544",
       "blocker": ""
@@ -235,7 +239,11 @@
       "evidence": [
         "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
         "http://127.0.0.1:8765/api/schedules#listed=true",
-        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
       ],
       "notes": "schedule_listed=true; count=23",
       "blocker": ""
@@ -252,7 +260,11 @@
       "evidence": [
         "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
         "http://127.0.0.1:8765/api/schedules#listed=true",
-        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
       ],
       "notes": "schedule_deleted=true; title=AI ?? ?? ?? 1779648418544",
       "blocker": ""
@@ -269,9 +281,160 @@
       "evidence": [
         "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
         "http://127.0.0.1:8765/api/schedules#listed=true",
-        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
       ],
       "notes": "day_time_registration=true; starts_at=2026-05-26T01:00:00.000Z",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "week_view=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "long_title_ellipsized=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "hover_details=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "updated_then_created=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "linked_session_opened=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "today_navigation=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "period_navigation=true",
       "blocker": ""
     },
     {
@@ -286,7 +449,11 @@
       "evidence": [
         "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
         "http://127.0.0.1:8765/api/schedules#listed=true",
-        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
       ],
       "notes": "delete_reflected=true",
       "blocker": ""
@@ -597,6 +764,8 @@
       },
       "evidence": [
         "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings/llm-test#status=200"
       ],
       "notes": "featherless_active=true; active_matches_saved=true",
@@ -613,6 +782,8 @@
       },
       "evidence": [
         "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings/llm-test#status=200"
       ],
       "notes": "openrouter_profile_preserved=true",
@@ -620,19 +791,21 @@
     },
     {
       "id": "LMUX-02-08",
-      "status": "fail",
+      "status": "pass",
       "scores": {
-        "functional": 0,
-        "ux": 0,
-        "modelQuality": 0,
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
         "evidence": 1
       },
       "evidence": [
         "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings/llm-test#status=200"
       ],
-      "notes": "api_key_masked=false",
-      "blocker": "API key masking was not proven by workflow evidence."
+      "notes": "api_key_masked=true; ui_masked=true; ui_key_not_visible=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-02-09",
@@ -645,6 +818,8 @@
       },
       "evidence": [
         "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings/llm-test#status=200"
       ],
       "notes": "connection_test_completed=true",
@@ -661,6 +836,8 @@
       },
       "evidence": [
         "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings/llm-test#status=200"
       ],
       "notes": "active_provider_matches_saved=true",
@@ -797,7 +974,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "work_progress_observed=true",
       "blocker": ""

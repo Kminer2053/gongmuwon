@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -638,16 +639,15 @@ def describe_llm_runtime_policy(provider: str, model: str) -> dict[str, Any]:
     normalized_provider = provider.strip().lower().replace("-", "_").replace(" ", "_")
     normalized_model = model.strip().lower().replace("_", "-")
     is_gemma4 = _is_gemma4_model(model)
-    is_gemma4_e2b = is_gemma4 and ("e2b" in normalized_model or "2b" in normalized_model)
+    model_sizes = [
+        float(match.group(1))
+        for match in re.finditer(r"(?<!\d)(?:e)?(\d+(?:\.\d+)?)b(?![a-z0-9])", normalized_model)
+    ]
+    small_name = re.search(r"(^|[^a-z0-9])(mini|small|edge|nano|flash)([^a-z0-9]|$)", normalized_model)
+    is_gemma4_e2b = is_gemma4 and any(size == 2 for size in model_sizes)
     is_qwen = "qwen" in normalized_model
-    is_small_name = any(
-        marker in normalized_model
-        for marker in ["e2b", "e4b", "2b", "3b", "4b", "mini", "small", "edge", "nano", "flash"]
-    )
-    is_large_name = any(
-        marker in normalized_model
-        for marker in ["20b", "27b", "30b", "31b", "32b", "34b", "70b", "72b", "120b", "405b"]
-    )
+    is_small_name = bool(small_name or any(0 < size <= 4 for size in model_sizes))
+    is_large_name = any(size >= 8 for size in model_sizes)
     model_family = "gemma4" if is_gemma4 else "qwen" if is_qwen else "generic"
     is_lightweight = bool(is_gemma4_e2b or (is_small_name and not is_large_name))
     recommended_reasoning_effort = "low" if is_lightweight else "medium" if is_gemma4 else "auto"

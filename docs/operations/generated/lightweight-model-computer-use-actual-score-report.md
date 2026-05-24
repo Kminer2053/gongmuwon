@@ -1,11 +1,11 @@
 # 경량모델 컴퓨터유즈 실제 점수 리포트
 
-- 실행 ID: computer-use-actual-1779649078253
+- 실행 ID: computer-use-actual-1779650196147
 - 기준 모델: Gemma 4 E2B (gemma4:e2b)
 - 평가 방식: playwright-computer-use
-- 총점: 461 / 1000
-- 실시: 47개
-- 미실시: 53개
+- 총점: 540 / 1000
+- 실시: 54개
+- 미실시: 46개
 - 종합 등급: needs-work
 
 ## 카테고리별 점수
@@ -13,10 +13,10 @@
 | 카테고리 | 실시 | 점수 | 등급 |
 | --- | ---: | ---: | --- |
 | 시작/업무엔진 | 1/10 | 10/100 | release-ready |
-| 모델 설정/Gemma 4 E2B | 6/10 | 51/100 | minor polish |
+| 모델 설정/Gemma 4 E2B | 6/10 | 60/100 | release-ready |
 | 업무대화 기본 UX | 4/10 | 40/100 | release-ready |
 | 업무대화 도구 라우팅 | 5/10 | 50/100 | release-ready |
-| 일정 캘린더 | 3/10 | 30/100 | release-ready |
+| 일정 캘린더 | 10/10 | 100/100 | release-ready |
 | 파일찾기/세션 연결 | 10/10 | 100/100 | release-ready |
 | 지식폴더/GraphRAG 인덱싱 | 1/10 | 10/100 | release-ready |
 | GraphRAG 검색/출처 품질 | 4/10 | 40/100 | release-ready |
@@ -34,7 +34,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-02-01 모델 설정/Gemma 4 E2B
 
@@ -45,7 +45,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
   - http://127.0.0.1:8765/api/settings
 
 ### LMUX-02-06 모델 설정/Gemma 4 E2B
@@ -56,6 +56,8 @@
 - 메모: featherless_active=true; active_matches_saved=true
 - 증거:
   - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-02-07 모델 설정/Gemma 4 E2B
@@ -66,17 +68,20 @@
 - 메모: openrouter_profile_preserved=true
 - 증거:
   - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-02-08 모델 설정/Gemma 4 E2B
 
-- 상태: 실패
-- 점수: 1 / 10
-- 등급: blocker
-- 메모: api_key_masked=false
-- 남은 문제: API key masking was not proven by workflow evidence.
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: api_key_masked=true; ui_masked=true; ui_key_not_visible=true
 - 증거:
   - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-02-09 모델 설정/Gemma 4 E2B
@@ -87,6 +92,8 @@
 - 메모: connection_test_completed=true
 - 증거:
   - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-02-10 모델 설정/Gemma 4 E2B
@@ -97,6 +104,8 @@
 - 메모: active_provider_matches_saved=true
 - 증거:
   - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-03-01 업무대화 기본 UX
@@ -108,7 +117,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-03-03 업무대화 기본 UX
 
@@ -119,7 +128,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-03-04 업무대화 기본 UX
 
@@ -130,7 +139,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-03-10 업무대화 기본 UX
 
@@ -141,7 +150,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-04-01 업무대화 도구 라우팅
 
@@ -153,6 +162,10 @@
   - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
   - http://127.0.0.1:8765/api/schedules#listed=true
   - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
 
 ### LMUX-04-02 업무대화 도구 라우팅
 
@@ -164,6 +177,10 @@
   - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
   - http://127.0.0.1:8765/api/schedules#listed=true
   - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
 
 ### LMUX-04-03 업무대화 도구 라우팅
 
@@ -175,6 +192,10 @@
   - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
   - http://127.0.0.1:8765/api/schedules#listed=true
   - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
 
 ### LMUX-04-04 업무대화 도구 라우팅
 
@@ -207,6 +228,21 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
 
+### LMUX-05-02 일정 캘린더
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: week_view=true
+- 증거:
+  - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
+  - http://127.0.0.1:8765/api/schedules#listed=true
+  - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
+
 ### LMUX-05-03 일정 캘린더
 
 - 상태: 통과
@@ -217,6 +253,100 @@
   - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
   - http://127.0.0.1:8765/api/schedules#listed=true
   - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
+
+### LMUX-05-04 일정 캘린더
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: long_title_ellipsized=true
+- 증거:
+  - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
+  - http://127.0.0.1:8765/api/schedules#listed=true
+  - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
+
+### LMUX-05-05 일정 캘린더
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: hover_details=true
+- 증거:
+  - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
+  - http://127.0.0.1:8765/api/schedules#listed=true
+  - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
+
+### LMUX-05-06 일정 캘린더
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: updated_then_created=true
+- 증거:
+  - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
+  - http://127.0.0.1:8765/api/schedules#listed=true
+  - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
+
+### LMUX-05-07 일정 캘린더
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: linked_session_opened=true
+- 증거:
+  - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
+  - http://127.0.0.1:8765/api/schedules#listed=true
+  - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
+
+### LMUX-05-08 일정 캘린더
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: today_navigation=true
+- 증거:
+  - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
+  - http://127.0.0.1:8765/api/schedules#listed=true
+  - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
+
+### LMUX-05-09 일정 캘린더
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: period_navigation=true
+- 증거:
+  - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
+  - http://127.0.0.1:8765/api/schedules#listed=true
+  - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
 
 ### LMUX-05-10 일정 캘린더
 
@@ -228,6 +358,10 @@
   - http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244
   - http://127.0.0.1:8765/api/schedules#listed=true
   - http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png
 
 ### LMUX-06-01 파일찾기/세션 연결
 
@@ -460,7 +594,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-10-02 실행기록/작업진행/다중작업
 

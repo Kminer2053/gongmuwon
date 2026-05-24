@@ -205,6 +205,25 @@ def test_describe_llm_runtime_policy_marks_generic_small_models_as_lightweight()
     assert policy["recommended_options"] is None
 
 
+@pytest.mark.parametrize(
+    ("model", "expected_lightweight"),
+    [
+        ("meta-llama/llama-3.2-3b-instruct", True),
+        ("microsoft/phi-4-mini-instruct", True),
+        ("google/gemma-4-E2B-it", True),
+        ("mistralai/mistral-nemo-12b-instruct", False),
+        ("qwen/qwen2.5-14b-instruct", False),
+        ("qwen3.6:32b", False),
+    ],
+)
+def test_describe_llm_runtime_policy_uses_model_size_boundaries(
+    model: str, expected_lightweight: bool
+) -> None:
+    policy = describe_llm_runtime_policy(provider="openrouter", model=model)
+
+    assert policy["is_lightweight"] is expected_lightweight
+
+
 def test_ollama_gemma4_e2b_keeps_short_replies_fast_when_reasoning_is_low(monkeypatch) -> None:
     captured = _capture_request(
         monkeypatch,

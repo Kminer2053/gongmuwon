@@ -11,10 +11,10 @@
         - 'heading "로컬 AI에이전트 워크플레이스 : 공무원" [level=1] [ref=e9]'
         - paragraph [ref=e10]: 대화에서 시작해 일정, 검색, 지식, 문서작성, 실행기록까지 한 워크플로로 묶습니다.
       - generic [ref=e11]:
-        - img [ref=e1078]
+        - img [ref=e1198]
         - generic [ref=e16]:
-          - strong [ref=e17]: 일정
-          - generic [ref=e18]: 업무 연결 캘린더
+          - strong [ref=e17]: 기타 환경설정
+          - generic [ref=e18]: 로컬 우선 설정
     - generic "작업 표시 도구" [ref=e19]:
       - button "화면 축소" [ref=e20] [cursor=pointer]: "-"
       - generic "현재 배율" [ref=e21]: 100%
@@ -29,7 +29,7 @@
       - button "업무대화" [ref=e32] [cursor=pointer]:
         - img [ref=e33]
         - generic [ref=e34]: 업무대화
-      - button "일정" [active] [ref=e35] [cursor=pointer]:
+      - button "일정" [ref=e35] [cursor=pointer]:
         - img [ref=e36]
         - generic [ref=e37]: 일정
       - button "파일찾기" [ref=e38] [cursor=pointer]:
@@ -50,7 +50,7 @@
       - button "실행기록" [ref=e53] [cursor=pointer]:
         - img [ref=e54]
         - generic [ref=e55]: 실행기록
-      - button "기타 환경설정" [ref=e56] [cursor=pointer]:
+      - button "기타 환경설정" [active] [ref=e56] [cursor=pointer]:
         - img [ref=e57]
         - generic [ref=e58]:
           - generic [ref=e59]: 기타
@@ -663,98 +663,236 @@
                 - generic [ref=e745]: 독립 흐름
   - main [ref=e79]:
     - generic [ref=e746]:
-      - generic [ref=e747]:
-        - generic [ref=e748]:
-          - paragraph [ref=e890]: calendar-first planner
-          - heading "업무일정 캘린더" [level=2] [ref=e1080]
-        - generic [ref=e1082]:
-          - generic [ref=e1083]: "현재 보기: 주"
-          - generic [ref=e1084]: 4/19 - 4/25
-      - generic [ref=e1086]:
-        - generic [ref=e1087]:
-          - generic [ref=e1088]:
-            - button "월" [ref=e1089] [cursor=pointer]
-            - button "주" [ref=e1090] [cursor=pointer]
-            - button "일" [ref=e1091] [cursor=pointer]
-          - generic [ref=e1092]:
-            - button "이전" [ref=e1093] [cursor=pointer]:
-              - img [ref=e1094]
-              - text: 이전
-            - button "오늘" [ref=e1096] [cursor=pointer]
-            - button "다음" [ref=e1097] [cursor=pointer]:
-              - text: 다음
-              - img [ref=e1098]
-        - paragraph [ref=e1100]: 등록된 일정을 보려면 시간 칸을 눌러 시작/종료 시각을 바로 채울 수 있습니다.
-        - generic [ref=e1101]:
-          - generic [ref=e1102]: 일
-          - generic [ref=e1103]: 월
-          - generic [ref=e1104]: 화
-          - generic [ref=e1105]: 수
-          - generic [ref=e1106]: 목
-          - generic [ref=e1107]: 금
-          - generic [ref=e1108]: 토
-        - generic [ref=e1109]:
-          - button "일요일 일정 칸 선택" [ref=e1110] [cursor=pointer]:
-            - generic "일" [ref=e1111]
-            - strong [ref=e1112]: 4/19
-            - generic "등록 일정 없음" [ref=e1113]
-          - button "월요일 일정 칸 선택" [ref=e1114] [cursor=pointer]:
-            - generic "월" [ref=e1115]
-            - strong [ref=e1116]: 4/20
-            - generic "등록 일정 없음" [ref=e1117]
-          - button "화요일 일정 칸 선택" [ref=e1118] [cursor=pointer]:
-            - generic "화" [ref=e1119]
-            - strong [ref=e1120]: 4/21
-            - generic "등록 일정 없음" [ref=e1121]
-          - button "수요일 일정 칸 선택" [ref=e1122] [cursor=pointer]:
-            - generic "수" [ref=e1123]
-            - strong [ref=e1124]: 4/22
-            - generic "4월 22일 오전 09:00 - test" [ref=e1125]
-            - generic "등록 일정 1개" [ref=e1126]: "1"
-            - generic "test" [ref=e1127]
-            - generic "test 작업" [ref=e1128]
-            - 'generic "연결 세션: test 작업" [ref=e1129]': 세션 연결
-            - generic "클릭해 일정 편집" [ref=e1130]
-          - button "목요일 일정 칸 선택" [ref=e1131] [cursor=pointer]:
-            - generic "목" [ref=e1132]
-            - strong [ref=e1133]: 4/23
-            - generic "4월 23일 오전 09:00 - qhrhdd" [ref=e1134]
-            - generic "등록 일정 1개" [ref=e1135]: "1"
-            - generic "qhrhdd" [ref=e1136]
-            - generic "연결된 업무대화 세션 없음" [ref=e1137]: 독립 일정
-            - generic "클릭해 일정 편집" [ref=e1138]
-          - button "금요일 일정 칸 선택" [ref=e1139] [cursor=pointer]:
-            - generic "금" [ref=e1140]
-            - strong [ref=e1141]: 4/24
-            - generic "등록 일정 없음" [ref=e1142]
-          - button "토요일 일정 칸 선택" [ref=e1143] [cursor=pointer]:
-            - generic "토" [ref=e1144]
-            - strong [ref=e1145]: 4/25
-            - generic "등록 일정 없음" [ref=e1146]
-        - generic [ref=e1147]:
-          - generic [ref=e1148]:
-            - strong [ref=e1149]: 선택 칸 일정 입력
-            - generic [ref=e1150]: 아직 선택 없음
-          - generic [ref=e1151]:
-            - generic [ref=e1152]:
-              - text: 일정 제목
-              - textbox "일정 제목" [ref=e1153]:
-                - /placeholder: "예: 주간 보고"
-            - generic [ref=e1154]:
-              - generic [ref=e1155]:
-                - text: 시작
-                - textbox "시작" [ref=e1156]
-              - generic [ref=e1157]:
-                - text: 종료
-                - textbox "종료" [ref=e1158]
-            - generic [ref=e1159]:
-              - generic [ref=e1160]:
-                - text: 보기
-                - combobox "보기" [ref=e1161]:
-                  - option "월"
-                  - option "주" [selected]
-                  - option "일"
-              - button "일정 등록" [ref=e1162] [cursor=pointer]
+      - generic [ref=e748]:
+        - paragraph [ref=e890]: local-first settings
+        - heading "환경설정" [level=2] [ref=e1201]
+      - generic [ref=e750]:
+        - generic [ref=e751]:
+          - paragraph [ref=e1202]: 읽기 전용으로만 보이던 설정을 이제 워크스페이스 기준으로 직접 수정하고 저장할 수 있습니다.
+          - paragraph [ref=e1203]: LLM 정책과 외부 또는 내부 모델 연결값을 바꾸면 이후 업무대화 워크플로에 바로 반영됩니다.
+          - paragraph [ref=e1204]: 외부 모델은 공급자별 공식 Base URL, 인증 방식, 모델 슬러그가 달라서 preset을 고르고 그 기준으로 입력하는 방식을 사용합니다.
+        - generic [ref=e1205]:
+          - generic [ref=e1206]:
+            - generic [ref=e1207]:
+              - text: LLM 정책
+              - combobox "LLM 정책" [ref=e1208]:
+                - option "로컬 우선"
+                - option "내부 서버"
+                - option "외부 모델" [selected]
+            - generic [ref=e1209]:
+              - text: 외부 모델 공급자
+              - combobox "외부 모델 공급자" [ref=e1210]:
+                - option "ChatGPT / OpenAI"
+                - option "OpenRouter"
+                - option "Featherless API" [selected]
+                - option "Claude / Anthropic"
+                - option "Gemini / Google AI"
+                - option "NVIDIA NIM"
+            - generic [ref=e1211]:
+              - text: LLM Model
+              - textbox "LLM Model" [ref=e1212]:
+                - /placeholder: google/gemma-4-E2B-it or a Featherless model slug
+                - text: google/gemma-4-E2B-it
+            - generic [ref=e1213]:
+              - text: Featherless API Key
+              - textbox "Featherless API Key" [ref=e1214]:
+                - /placeholder: featherless api key
+                - text: rc_3569a21ee62f6659459314ce7eaf82c57c1dd4dd521e73cb0999b00e2626bd87
+          - generic [ref=e1215]:
+            - paragraph [ref=e1216]: 연결 preset 요약
+            - generic [ref=e1217]:
+              - generic [ref=e1218]:
+                - term [ref=e1219]: 공급자
+                - definition [ref=e1220]: Featherless API
+              - generic [ref=e1221]:
+                - term [ref=e1222]: 권장 Base URL
+                - definition [ref=e1223]: https://api.featherless.ai/v1
+              - generic [ref=e1224]:
+                - term [ref=e1225]: 모델 예시
+                - definition [ref=e1226]: google/gemma-4-E2B-it
+              - generic [ref=e1227]:
+                - term [ref=e1228]: 가이드
+                - definition [ref=e1229]:
+                  - link "공식 연결 가이드" [ref=e1230] [cursor=pointer]:
+                    - /url: https://featherless.ai/docs/api-overview-and-common-options
+            - list [ref=e1231]:
+              - listitem [ref=e1232]: Featherless uses an OpenAI-compatible Chat Completions API.
+              - listitem [ref=e1233]: Use https://api.featherless.ai/v1 as the Base URL; Gongmu appends /chat/completions.
+              - listitem [ref=e1234]: Vision-capable Featherless models can receive image attachments as OpenAI-style data URLs.
+          - generic [ref=e1235]:
+            - text: 모델 API Base URL
+            - textbox "모델 API Base URL" [ref=e1236]:
+              - /placeholder: https://api.featherless.ai/v1
+              - text: https://api.featherless.ai/v1
+          - generic [ref=e1237]:
+            - generic [ref=e1238]:
+              - text: Featherless API 사이트 URL (선택)
+              - textbox "Featherless API 사이트 URL (선택)" [ref=e1239]:
+                - /placeholder: https://example.com
+                - text: https://api.featherless.ai/v1
+            - generic [ref=e1240]:
+              - text: Featherless API 앱 이름 (선택)
+              - textbox "Featherless API 앱 이름 (선택)" [ref=e1241]:
+                - /placeholder: Gongmu Workspace
+          - generic [ref=e1242]:
+            - paragraph [ref=e1243]: GraphRAG 임베딩
+            - paragraph [ref=e1244]: 지식폴더 ingestion과 자연어 검색에 사용할 벡터 생성 방식을 정합니다. 폐쇄망에서는 로컬 Ollama embedding 모델을 권장하고, 실패 시 deterministic fallback을 켤 수 있습니다.
+            - generic [ref=e1245]:
+              - generic [ref=e1246]:
+                - text: Embedding Provider
+                - combobox "Embedding Provider" [ref=e1247]:
+                  - option "Deterministic fallback" [selected]
+                  - option "Ollama local embedding"
+              - generic [ref=e1248]:
+                - text: Vector Store
+                - combobox "Vector Store" [ref=e1249]:
+                  - option "SQLite fallback"
+                  - option "ChromaDB" [selected]
+              - generic [ref=e1250]:
+                - text: Embedding Model
+                - textbox "Embedding Model" [ref=e1251]:
+                  - /placeholder: nomic-embed-text 또는 bge-m3
+                  - text: nomic-embed-text
+              - generic [ref=e1252]:
+                - text: Embedding Base URL
+                - textbox "Embedding Base URL" [ref=e1253]:
+                  - /placeholder: http://127.0.0.1:11434
+                  - text: http://127.0.0.1:11434
+              - generic [ref=e1254]:
+                - text: 실패 시 fallback
+                - combobox "실패 시 fallback" [ref=e1255]:
+                  - option "켜기" [selected]
+                  - option "끄기"
+          - generic [ref=e1256]:
+            - generic [ref=e1257]:
+              - text: 개인화 학습 저장폴더
+              - textbox "개인화 학습 저장폴더" [ref=e1258]:
+                - /placeholder: runtime-workspace/personalization
+                - text: C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\personalization
+            - generic [ref=e1259]:
+              - text: 학습 후보 반영 방식
+              - combobox "학습 후보 반영 방식" [ref=e1260]:
+                - option "승인 후 반영" [selected]
+                - option "낮은 위험 항목 자동 반영"
+          - generic [ref=e1261]:
+            - button "설정 저장" [ref=e1262] [cursor=pointer]
+            - button "LLM 연결 테스트" [ref=e1263] [cursor=pointer]
+            - generic [ref=e1264]: 검색 연계는 external_app_preferred 기준으로 유지됩니다.
+        - generic [ref=e1265]:
+          - generic [ref=e1266]:
+            - paragraph [ref=e1267]: 워크스페이스 루트
+            - paragraph [ref=e1268]: C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace
+          - generic [ref=e1269]:
+            - paragraph [ref=e1270]: SQLite
+            - paragraph [ref=e1271]: C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\db\gongmu.db
+          - generic [ref=e1272]:
+            - paragraph [ref=e1273]: 지식 정본
+            - paragraph [ref=e1274]: C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\knowledge
+          - generic [ref=e1275]:
+            - paragraph [ref=e1276]: 문서 루트
+            - paragraph [ref=e1277]: C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents
+          - generic [ref=e1278]:
+            - paragraph [ref=e1279]: 개인화 학습 저장소
+            - paragraph [ref=e1280]: C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\personalization
+          - generic [ref=e1281]:
+            - paragraph [ref=e1282]: 학습 반영 방식
+            - paragraph [ref=e1283]: 승인 후 반영
+          - generic [ref=e1284]:
+            - paragraph [ref=e1285]: LLM Provider
+            - paragraph [ref=e1286]: Featherless API
+          - generic [ref=e1287]:
+            - paragraph [ref=e1288]: LLM Model
+            - paragraph [ref=e1289]: google/gemma-4-E2B-it
+          - generic [ref=e1290]:
+            - paragraph [ref=e1291]: API Key
+            - paragraph [ref=e1292]: 저장됨
+          - generic [ref=e1293]:
+            - paragraph [ref=e1294]: Provider Base URL
+            - paragraph [ref=e1295]: https://api.featherless.ai/v1
+          - generic [ref=e1296]:
+            - paragraph [ref=e1297]: GraphRAG Embedding
+            - paragraph [ref=e1298]: deterministic / nomic-embed-text
+          - generic [ref=e1299]:
+            - paragraph [ref=e1300]: GraphRAG Vector Store
+            - paragraph [ref=e1301]: ChromaDB
+          - generic [ref=e1302]:
+            - paragraph [ref=e1303]: Embedding Base URL
+            - paragraph [ref=e1304]: http://127.0.0.1:11434
+          - generic [ref=e1305]:
+            - paragraph [ref=e1306]: Embedding Fallback
+            - paragraph [ref=e1307]: 켜짐
+          - generic [ref=e1308]:
+            - paragraph [ref=e1309]: OpenRouter 부가 헤더
+            - paragraph [ref=e1310]: https://api.featherless.ai/v1
+          - generic [ref=e1311]:
+            - paragraph [ref=e1312]: 런타임 모드
+            - paragraph [ref=e1313]: browser
+          - generic [ref=e1314]:
+            - paragraph [ref=e1315]: 업무 엔진 URL
+            - paragraph [ref=e1316]: http://127.0.0.1:8765
+          - generic [ref=e1317]:
+            - paragraph [ref=e1318]: 업무 엔진 로그
+            - paragraph [ref=e1319]: "-"
+          - generic [ref=e1320]:
+            - paragraph [ref=e1321]: 런타임 관리
+            - paragraph [ref=e1322]: 외부 또는 미연결
+        - generic [ref=e1323]:
+          - paragraph [ref=e1324]: 저장된 모델 프로필
+          - generic [ref=e1325]:
+            - article [ref=e1326]:
+              - strong [ref=e1328]: local_first
+              - paragraph [ref=e1329]: Ollama / 로컬 모델
+              - paragraph [ref=e1330]: qwen3.6:27b
+              - paragraph [ref=e1331]: Base URL 미설정
+            - article [ref=e1332]:
+              - strong [ref=e1334]: internal_server
+              - paragraph [ref=e1335]: 커스텀 OpenAI 호환 서버
+              - paragraph [ref=e1336]: gpt-4.1-mini
+              - paragraph [ref=e1337]: http://127.0.0.1:9000/v1
+            - article [ref=e1338]:
+              - strong [ref=e1340]: openai
+              - paragraph [ref=e1341]: ChatGPT / OpenAI
+              - paragraph [ref=e1342]: gpt-5.5
+              - paragraph [ref=e1343]: https://api.openai.com/v1
+              - paragraph [ref=e1344]: API Key 미설정
+            - article [ref=e1345]:
+              - strong [ref=e1347]: openrouter
+              - paragraph [ref=e1348]: OpenRouter
+              - paragraph [ref=e1349]: google/gemma-4-31b-it
+              - paragraph [ref=e1350]: https://openrouter.ai/api/v1
+              - paragraph [ref=e1351]: API Key 저장됨
+            - article [ref=e1352]:
+              - generic [ref=e1353]:
+                - strong [ref=e1354]: featherless
+                - generic [ref=e1355]: 활성 공급자
+              - paragraph [ref=e1356]: Featherless API
+              - paragraph [ref=e1357]: google/gemma-4-E2B-it
+              - paragraph [ref=e1358]: https://api.featherless.ai/v1
+              - paragraph [ref=e1359]: API Key 저장됨
+            - article [ref=e1360]:
+              - strong [ref=e1362]: anthropic
+              - paragraph [ref=e1363]: Claude / Anthropic
+              - paragraph [ref=e1364]: claude-sonnet-4-20250514
+              - paragraph [ref=e1365]: https://api.anthropic.com/v1
+              - paragraph [ref=e1366]: API Key 미설정
+            - article [ref=e1367]:
+              - strong [ref=e1369]: gemini
+              - paragraph [ref=e1370]: Gemini / Google AI
+              - paragraph [ref=e1371]: gemini-2.5-flash
+              - paragraph [ref=e1372]: https://generativelanguage.googleapis.com/v1beta
+              - paragraph [ref=e1373]: API Key 미설정
+            - article [ref=e1374]:
+              - strong [ref=e1376]: nvidia_nim
+              - paragraph [ref=e1377]: NVIDIA NIM
+              - paragraph [ref=e1378]: meta/llama-3.1-8b-instruct
+              - paragraph [ref=e1379]: https://integrate.api.nvidia.com/v1
+              - paragraph [ref=e1380]: API Key 미설정
+            - article [ref=e1381]:
+              - strong [ref=e1383]: ollama
+              - paragraph [ref=e1384]: Ollama / 로컬 모델
+              - paragraph [ref=e1385]: qwen3.6:27b
+              - paragraph [ref=e1386]: http://127.0.0.1:11434
+              - paragraph [ref=e1387]: API Key 미설정
   - separator "오른쪽 패널 크기 조절" [ref=e82]
   - complementary [ref=e83]:
     - generic [ref=e84]:
@@ -767,7 +905,7 @@
           - img [ref=e91]
         - button "최근 실행" [ref=e92] [cursor=pointer]:
           - img [ref=e93]
-        - button "가까운 일정" [ref=e94] [cursor=pointer]:
+        - button "가까운 일정" [disabled] [ref=e94]:
           - img [ref=e95]
         - button "미리보기" [disabled] [ref=e96]:
           - img [ref=e97]
@@ -924,32 +1062,4 @@
         - generic [ref=e152]:
           - paragraph [ref=e153]: 기록이 없습니다.
           - paragraph [ref=e154]: 이력은 기능 실행 직후 자동 갱신됩니다.
-      - generic [ref=e1163]:
-        - generic [ref=e1164]:
-          - generic [ref=e1165]:
-            - paragraph [ref=e1166]: 가까운 일정
-            - heading "다가오는 업무" [level=2] [ref=e1167]
-          - button "가까운 일정 접기" [expanded] [ref=e1169] [cursor=pointer]:
-            - img [ref=e1170]
-        - generic [ref=e1172]:
-          - article [ref=e1173]:
-            - generic [ref=e1175]:
-              - strong [ref=e1176]: test
-              - paragraph [ref=e1177]: 4월 22일 오전 09:00
-          - article [ref=e1178]:
-            - generic [ref=e1180]:
-              - strong [ref=e1181]: qhrhdd
-              - paragraph [ref=e1182]: 4월 23일 오전 09:00
-          - article [ref=e1183]:
-            - generic [ref=e1185]:
-              - strong [ref=e1186]: ㅇㄹㄴㅇㄹㄴ
-              - paragraph [ref=e1187]: 4월 30일 오후 09:45
-          - article [ref=e1188]:
-            - generic [ref=e1190]:
-              - strong [ref=e1191]: AI 전략회의
-              - paragraph [ref=e1192]: 5월 20일 오후 03:00
-          - article [ref=e1193]:
-            - generic [ref=e1195]:
-              - strong [ref=e1196]: AI 전략회의
-              - paragraph [ref=e1197]: 5월 20일 오후 03:00
 ```

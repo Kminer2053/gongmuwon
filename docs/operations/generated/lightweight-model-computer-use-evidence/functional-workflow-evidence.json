@@ -3,6 +3,13 @@
     "created": true,
     "listed": true,
     "deleted": true,
+    "weekViewShown": true,
+    "longTitleEllipsized": true,
+    "hoverDetailsShown": true,
+    "updatedThenCreated": true,
+    "linkedSessionOpened": true,
+    "todayNavigation": true,
+    "periodNavigation": true,
     "count": 23,
     "id": "1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
     "title": "AI ?? ?? ?? 1779648418544",
@@ -10,7 +17,11 @@
     "evidence": [
       "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
       "http://127.0.0.1:8765/api/schedules#listed=true",
-      "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
     ]
   },
   "knowledge": {
@@ -78,12 +89,16 @@
     "activeProviderMatchesSaved": true,
     "openRouterProfilePreserved": true,
     "apiKeyMasked": false,
+    "uiApiKeyMasked": true,
+    "uiApiKeyNotVisible": true,
     "connectionTestCompleted": true,
     "activeProvider": "featherless",
     "model": "google/gemma-4-E2B-it",
     "llmTestStatus": 200,
     "evidence": [
       "http://127.0.0.1:8765/api/settings",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
       "http://127.0.0.1:8765/api/settings/llm-test#status=200"
     ]
   },

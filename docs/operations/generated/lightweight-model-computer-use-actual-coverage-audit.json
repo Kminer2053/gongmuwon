@@ -1,13 +1,13 @@
 {
-  "runId": "computer-use-actual-1779649078253",
+  "runId": "computer-use-actual-1779650196147",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "generatedAt": "2026-05-24T18:57:58.261Z",
-  "readyForCompletion": false,
+  "generatedAt": "2026-05-24T19:16:36.151Z",
+  "readyForCompletion": true,
   "totalScenarios": 100,
-  "testedCount": 47,
-  "notTestedCount": 53,
-  "requiredTestedCount": 47,
+  "testedCount": 54,
+  "notTestedCount": 46,
+  "requiredTestedCount": 54,
   "categoriesCovered": 10,
   "categoriesMissing": 0,
   "missingCategories": [],
@@ -36,13 +36,6 @@
     "LMUX-04-08",
     "LMUX-04-09",
     "LMUX-04-10",
-    "LMUX-05-02",
-    "LMUX-05-04",
-    "LMUX-05-05",
-    "LMUX-05-06",
-    "LMUX-05-07",
-    "LMUX-05-08",
-    "LMUX-05-09",
     "LMUX-07-01",
     "LMUX-07-03",
     "LMUX-07-04",
@@ -67,13 +60,9 @@
     "LMUX-10-06"
   ],
   "scenariosMissingEvidence": [],
-  "failedScenarios": [
-    "LMUX-02-08"
-  ],
+  "failedScenarios": [],
   "overallGrade": "needs-work",
-  "totalScore": 461,
+  "totalScore": 540,
   "totalMaxScore": 1000,
-  "issues": [
-    "실패 또는 차단 시나리오 1개가 있습니다."
-  ]
+  "issues": []
 }
