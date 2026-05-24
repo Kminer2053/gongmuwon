@@ -14,6 +14,7 @@ const DEFAULT_OUT_DIR = path.join("docs", "operations", "generated");
 const RESULT_TEMPLATE_BASENAME = "lightweight-model-test-results-template";
 const SCORE_REPORT_BASENAME = "lightweight-model-test-score-report";
 const RUN_PACK_BASENAME = "lightweight-model-computer-use-run-pack";
+const COVERAGE_AUDIT_BASENAME = "lightweight-model-computer-use-coverage-audit";
 
 const SCORE_LIMITS = {
   functional: 4,
@@ -305,6 +306,84 @@ export function scoreScenarioRun({ scenarioSet, results }) {
   };
 }
 
+export function auditComputerUseCoverage({
+  scenarioSet,
+  results,
+  minTestedCount = null,
+  requireAllCategories = true,
+  requireEvidenceForTested = true,
+} = {}) {
+  const summary = scoreScenarioRun({ scenarioSet, results });
+  const requiredTestedCount = Number.isFinite(minTestedCount)
+    ? minTestedCount
+    : summary.scenarios.length;
+  const testedScenarios = summary.scenarios.filter(
+    (scenario) => !["not_tested", "skip"].includes(scenario.status),
+  );
+  const testedIds = new Set(testedScenarios.map((scenario) => scenario.id));
+  const coveredCategories = new Set(testedScenarios.map((scenario) => scenario.category));
+  const categoryNames = Array.isArray(scenarioSet.categories)
+    ? scenarioSet.categories.map((item) =>
+        typeof item === "string" ? item : String(item?.category || ""),
+      ).filter(Boolean)
+    : [...new Set(scenarioSet.scenarios.map((scenario) => scenario.category))];
+  const missingCategories = requireAllCategories
+    ? categoryNames.filter((category) => !coveredCategories.has(category))
+    : [];
+  const scenariosMissingEvidence = requireEvidenceForTested
+    ? testedScenarios
+        .filter((scenario) => !Array.isArray(scenario.evidence) || scenario.evidence.length === 0)
+        .map((scenario) => scenario.id)
+    : [];
+  const failedScenarios = summary.scenarios
+    .filter((scenario) => ["fail", "blocked"].includes(scenario.status))
+    .map((scenario) => scenario.id);
+  const notTestedIds = summary.scenarios
+    .filter((scenario) => !testedIds.has(scenario.id))
+    .map((scenario) => scenario.id);
+  const issues = [];
+
+  if (testedScenarios.length < requiredTestedCount) {
+    issues.push(
+      `미실시 시나리오가 ${requiredTestedCount - testedScenarios.length}개 남았습니다.`,
+    );
+  }
+  if (missingCategories.length > 0) {
+    issues.push(`컴퓨터유즈 점검이 빠진 카테고리 ${missingCategories.length}개가 있습니다.`);
+  }
+  if (scenariosMissingEvidence.length > 0) {
+    issues.push(`증거가 없는 실시 시나리오 ${scenariosMissingEvidence.length}개가 있습니다.`);
+  }
+  if (failedScenarios.length > 0) {
+    issues.push(`실패 또는 차단 시나리오 ${failedScenarios.length}개가 있습니다.`);
+  }
+  if (summary.notTestedCount === 0 && summary.overallGrade !== "release-ready") {
+    issues.push(`전체 점검 등급이 ${summary.overallGrade}입니다.`);
+  }
+
+  return {
+    runId: summary.runId,
+    model: summary.model,
+    modelDisplayName: summary.modelDisplayName,
+    generatedAt: nowIso(),
+    readyForCompletion: issues.length === 0,
+    totalScenarios: summary.scenarios.length,
+    testedCount: testedScenarios.length,
+    notTestedCount: notTestedIds.length,
+    requiredTestedCount,
+    categoriesCovered: coveredCategories.size,
+    categoriesMissing: missingCategories.length,
+    missingCategories,
+    notTestedIds,
+    scenariosMissingEvidence,
+    failedScenarios,
+    overallGrade: summary.overallGrade,
+    totalScore: summary.totalScore,
+    totalMaxScore: summary.totalMaxScore,
+    issues,
+  };
+}
+
 export function renderScoreReport(summary) {
   const lines = [
     "# 경량모델 UX/성능 컴퓨터유즈 점수 리포트",
@@ -355,6 +434,51 @@ export function renderScoreReport(summary) {
   return `${lines.join("\n")}\n`;
 }
 
+export function renderComputerUseCoverageAudit(audit) {
+  const lines = [
+    "# 경량모델 컴퓨터유즈 커버리지 감사",
+    "",
+    `- 실행 ID: ${audit.runId}`,
+    `- 모델 기준: ${audit.modelDisplayName} (${audit.model})`,
+    `- 완료 인정 가능: ${audit.readyForCompletion ? "예" : "아니오"}`,
+    `- 실시: ${audit.testedCount} / ${audit.totalScenarios}`,
+    `- 필수 실시 기준: ${audit.requiredTestedCount}`,
+    `- 카테고리 커버리지: ${audit.categoriesCovered}개 커버, ${audit.categoriesMissing}개 누락`,
+    `- 총점: ${audit.totalScore} / ${audit.totalMaxScore}`,
+    `- 종합 등급: ${audit.overallGrade}`,
+    "",
+    "## 이슈",
+    "",
+  ];
+
+  if (audit.issues.length === 0) {
+    lines.push("- 없음");
+  } else {
+    for (const issue of audit.issues) {
+      lines.push(`- ${issue}`);
+    }
+  }
+
+  const sections = [
+    ["미실시 시나리오", audit.notTestedIds],
+    ["증거 누락 시나리오", audit.scenariosMissingEvidence],
+    ["실패/차단 시나리오", audit.failedScenarios],
+    ["누락 카테고리", audit.missingCategories],
+  ];
+  for (const [title, items] of sections) {
+    lines.push("", `## ${title}`, "");
+    if (!items.length) {
+      lines.push("- 없음");
+    } else {
+      for (const item of items) {
+        lines.push(`- ${item}`);
+      }
+    }
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
 function parseArgs(argv) {
   const options = {
     scenarios: DEFAULT_SCENARIO_PATH,
@@ -362,6 +486,9 @@ function parseArgs(argv) {
     outDir: DEFAULT_OUT_DIR,
     createTemplate: false,
     createRunPack: false,
+    auditCoverage: false,
+    failOnIncomplete: false,
+    minTestedCount: null,
     scenarioLimit: null,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -380,6 +507,13 @@ function parseArgs(argv) {
       options.createTemplate = true;
     } else if (arg === "--create-run-pack") {
       options.createRunPack = true;
+    } else if (arg === "--audit-coverage") {
+      options.auditCoverage = true;
+    } else if (arg === "--fail-on-incomplete") {
+      options.failOnIncomplete = true;
+    } else if (arg === "--min-tested" && next) {
+      options.minTestedCount = Number.parseInt(next, 10);
+      index += 1;
     } else if (arg === "--scenario-limit" && next) {
       options.scenarioLimit = Number.parseInt(next, 10);
       index += 1;
@@ -404,6 +538,21 @@ export function writeScoreArtifacts({ scenarioSet, results, outDir = DEFAULT_OUT
   writeJson(jsonPath, summary);
   fs.writeFileSync(markdownPath, renderScoreReport(summary), "utf-8");
   return { summary, written: [jsonPath, markdownPath] };
+}
+
+export function writeCoverageAuditArtifacts({
+  scenarioSet,
+  results,
+  outDir = DEFAULT_OUT_DIR,
+  minTestedCount = null,
+}) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const audit = auditComputerUseCoverage({ scenarioSet, results, minTestedCount });
+  const jsonPath = path.join(outDir, `${COVERAGE_AUDIT_BASENAME}.json`);
+  const markdownPath = path.join(outDir, `${COVERAGE_AUDIT_BASENAME}.md`);
+  writeJson(jsonPath, audit);
+  fs.writeFileSync(markdownPath, renderComputerUseCoverageAudit(audit), "utf-8");
+  return { audit, written: [jsonPath, markdownPath] };
 }
 
 export function writeRunPackArtifacts({ scenarioSet, outDir = DEFAULT_OUT_DIR, scenarioLimit = null }) {
@@ -456,6 +605,24 @@ function main() {
   console.log(`${summary.totalScore}/${summary.totalMaxScore} ${summary.overallGrade}`);
   for (const filePath of written) {
     console.log(filePath);
+  }
+
+  if (options.auditCoverage) {
+    const { audit, written: auditWritten } = writeCoverageAuditArtifacts({
+      scenarioSet,
+      results,
+      outDir: options.outDir,
+      minTestedCount: options.minTestedCount,
+    });
+    console.log(
+      `coverage audit: ${audit.testedCount}/${audit.totalScenarios} tested, ready=${audit.readyForCompletion}`,
+    );
+    for (const filePath of auditWritten) {
+      console.log(filePath);
+    }
+    if (options.failOnIncomplete && !audit.readyForCompletion) {
+      process.exitCode = 1;
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 
 import { buildScenarioSet } from "./generate-lightweight-model-test-scenarios.mjs";
 import {
+  auditComputerUseCoverage,
   createComputerUseRunPack,
   createBlankResultSheet,
   renderComputerUseRunPack,
@@ -94,6 +95,38 @@ assert.ok(report.includes("총점: 17 / 100"));
 assert.ok(report.includes("미실시: 8개"));
 assert.ok(report.includes("LMUX-01-01"));
 assert.ok(report.includes("screenshot://01_engine_green.png"));
+
+const incompleteAudit = auditComputerUseCoverage({
+  scenarioSet,
+  results: {
+    runId: "manual-computer-use-001",
+    tester: "computer-use",
+    scenarios: [
+      {
+        id: "LMUX-01-01",
+        status: "pass",
+        scores: { functional: 4, ux: 3, modelQuality: 2, evidence: 1 },
+        evidence: ["screenshot://01_engine_green.png"],
+      },
+      {
+        id: "LMUX-02-01",
+        status: "pass",
+        scores: { functional: 4, ux: 3, modelQuality: 2, evidence: 1 },
+        evidence: [],
+      },
+    ],
+  },
+});
+
+assert.equal(incompleteAudit.readyForCompletion, false);
+assert.equal(incompleteAudit.totalScenarios, 10);
+assert.equal(incompleteAudit.testedCount, 2);
+assert.equal(incompleteAudit.notTestedCount, 8);
+assert.equal(incompleteAudit.categoriesCovered, 2);
+assert.equal(incompleteAudit.categoriesMissing, 8);
+assert.deepEqual(incompleteAudit.scenariosMissingEvidence, ["LMUX-02-01"]);
+assert.ok(incompleteAudit.issues.some((issue) => issue.includes("미실시")));
+assert.ok(incompleteAudit.issues.some((issue) => issue.includes("증거")));
 
 assert.throws(
   () =>
