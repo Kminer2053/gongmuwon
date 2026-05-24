@@ -690,6 +690,79 @@ def test_work_session_turn_routes_natural_korean_report_requests_to_document_ski
     assert artifact_path.suffix == ".hwpx"
 
 
+def test_work_session_turn_injects_lightweight_model_format_guardrails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    captured_messages: list[dict] = []
+
+    def fake_generate_reply(settings, messages, **kwargs):
+        captured_messages.extend(messages)
+        return LLMGenerationResult(
+            text="안녕하세요.\n\n- 첫 번째 업무\n- 두 번째 업무\n- 세 번째 업무",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "Lightweight guardrail session"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "오늘 할 일을 세 가지 bullet로 정리해줘"},
+    )
+
+    assert response.status_code == 201
+    guardrail = captured_messages[0]["text"]
+    assert "경량모델" in guardrail
+    assert "Markdown 불릿" in guardrail
+    assert "모델 이름" in guardrail
+    assert "안전 정책" in guardrail
+    assert "답변 항목으로 쓰지 마세요" in guardrail
+    assert "사용자 업무 관점" in guardrail
+    assert "모델 수행 항목" in guardrail
+
+
+def test_work_session_turn_removes_lightweight_model_meta_policy_from_reply(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fake_generate_reply(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text=(
+                "안녕하세요. 저는 Gemma 4입니다.\n\n"
+                "안녕하세요. Gemma 4입니다.\n\n"
+                "오늘 할 일은 다음과 같습니다.\n\n"
+                "- 사용자의 질문에 정확하고 명확하게 답변하기\n"
+                "- 제공된 정보를 바탕으로 논리적이고 일관성 있는 내용 생성하기\n"
+                "- 안전 정책을 준수하며 민감 정보는 [보호됨]으로 처리하겠습니다.\n"
+                "* Gemma 4 모델로서의 지침과 안전 정책을 준수하며 응답하기"
+            ),
+            provider="featherless",
+            model="google/gemma-4-E2B-it",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "Lightweight meta strip session"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "오늘 할 일을 세 가지 bullet로 정리해줘"},
+    )
+
+    assert response.status_code == 201
+    text = response.json()["assistant_message"]["text"]
+    assert "안녕하세요" in text
+    assert "Gemma 4 모델" not in text
+    assert "저는 Gemma 4" not in text
+    assert "Gemma 4입니다" not in text
+    assert "안전 정책" not in text
+    assert "지침" not in text
+    assert "민감 정보" not in text
+
+
 def test_work_session_turn_removes_model_reasoning_trace_from_reply(tmp_path: Path, monkeypatch) -> None:
     def fake_generate_reply(settings, messages, **kwargs):
         return LLMGenerationResult(
