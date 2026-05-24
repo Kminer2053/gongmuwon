@@ -24,16 +24,91 @@
       "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
     ]
   },
+  "engine": {
+    "statusPopoverShown": true,
+    "compactToolbarShown": true,
+    "refreshSessionRetained": true,
+    "longJobRecovered": true,
+    "understandableErrorShown": true,
+    "evidence": [
+      "http://127.0.0.1:8765/health#status=ok",
+      "http://127.0.0.1:8765/api/jobs?limit=30",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png"
+    ]
+  },
+  "chat": {
+    "streamingObserved": true,
+    "scrollBottomPreserved": true,
+    "imageThumbnailShown": true,
+    "attachmentCancelShown": true,
+    "largePreviewShown": true,
+    "detailSettingsOverlayShown": true,
+    "evidence": [
+      "http://127.0.0.1:8765/api/work-sessions/*/turn/stream",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml"
+    ]
+  },
+  "knowledgeIndexing": {
+    "sourceRegistered": true,
+    "scanProgressShown": true,
+    "ingestionProgressShown": true,
+    "duplicateWorkLocked": true,
+    "cancelObserved": true,
+    "dumpViewerOpenable": true,
+    "structureViewOpenable": true,
+    "partialWarningShown": true,
+    "completedCountDrilldown": true,
+    "sourceCount": 4,
+    "completedDocumentCount": 23,
+    "progressPercent": 100,
+    "evidence": [
+      "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+      "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+      "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+    ]
+  },
   "knowledge": {
     "searched": true,
     "answered": true,
     "sourceDocumentCount": 5,
     "sourcePathCount": 5,
+    "lowQualityWarningShown": true,
+    "relationDrilldownShown": true,
+    "graphNodeClicked": true,
+    "tableEvidenceShown": true,
+    "sessionKnowledgeSearch": true,
     "answerText": "'AI ?? ??? ???'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 표: 🎯 팀 구성 및 역할 팀원 | 역할 | 전문 영역 **Sam** | 프롬프트 아키텍트 | 구조 설계, 컨텍스트 분석, 요구사항 명세 **Jenny** | 기술 도메인 전문가 | 코드 패턴, 기술 스택, 베스트 프랙티스 **Will** | 팀 리더 & 품질 관리 | 최종 검토, 통합, 실행 가능성 검증.\n2. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will) 코딩 AI(Cursor, Claude Code 등)에게 제공할 고품질 프롬프트를 작성하는 전문가 팀 프롬프트를 설계해 드리겠습니다. ---.\n3. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 🔶 2단계: Jenny의 기술적 강화 - React 18 + TypeScript 5 - 상태 관리: useState/useReducer - 드래그앤드롭: react-beautiful-dnd 또는 @dnd-kit/core - 스타일: CSS Modules 또는 Tailwind - 테스트: React Testing Library.\n위 응답은 로컬 문서 chunk와 그래프 관계를 근거로 생성되었습니다.",
     "evidence": [
       "http://127.0.0.1:8765/api/knowledge/ask",
       "citations:5",
-      "source_paths:5"
+      "source_paths:5",
+      "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
     ],
     "rawShape": [
       "query",
@@ -51,9 +126,16 @@
     "format": "onePageReport",
     "outputPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
     "openLink": true,
+    "fromSessionHandoff": true,
+    "linkedFileUsageCaptured": true,
+    "fullReportTypeAvailable": true,
+    "emailTypeAvailable": true,
+    "customTemplateSelectable": true,
     "evidence": [
       "http://127.0.0.1:8765/api/documents/generate",
-      "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx"
+      "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+      "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
     ],
     "rawShape": [
       "content_base",
@@ -85,6 +167,9 @@
     "noResultCount": 0
   },
   "settings": {
+    "ollamaBaseUrlSaved": true,
+    "reasoningLowRecommended": true,
+    "thinkingTraceClean": true,
     "featherlessActive": true,
     "activeProviderMatchesSaved": true,
     "openRouterProfilePreserved": true,
@@ -99,6 +184,8 @@
       "http://127.0.0.1:8765/api/settings",
       "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
       "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+      "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+      "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
       "http://127.0.0.1:8765/api/settings/llm-test#status=200"
     ]
   },

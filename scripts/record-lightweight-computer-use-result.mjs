@@ -200,8 +200,70 @@ function workflowScenario({
   };
 }
 
+const OPTIONAL_WORKFLOW_SCENARIO_FIELDS = {
+  "LMUX-01-04": { section: "engine", fields: ["refreshSessionRetained"] },
+  "LMUX-01-06": { section: "engine", fields: ["statusPopoverShown"] },
+  "LMUX-01-07": { section: "engine", fields: ["longJobRecovered"] },
+  "LMUX-01-09": { section: "engine", fields: ["understandableErrorShown"] },
+  "LMUX-01-10": { section: "engine", fields: ["compactToolbarShown"] },
+  "LMUX-03-02": { section: "chat", fields: ["streamingObserved"] },
+  "LMUX-03-05": { section: "chat", fields: ["scrollBottomPreserved"] },
+  "LMUX-03-06": { section: "chat", fields: ["imageThumbnailShown"] },
+  "LMUX-03-07": { section: "chat", fields: ["attachmentCancelShown", "largePreviewShown"] },
+  "LMUX-03-08": { section: "chat", fields: ["detailSettingsOverlayShown"] },
+  "LMUX-03-09": { section: "chat", fields: ["sensitiveInfoMasked"] },
+  "LMUX-02-02": { section: "settings", fields: ["ollamaBaseUrlSaved"] },
+  "LMUX-02-03": { section: "settings", fields: ["reasoningLowRecommended"] },
+  "LMUX-02-04": { section: "settings", fields: ["thinkingTraceClean"] },
+  "LMUX-02-05": { section: "settings", fields: ["gemmaNoResponseGuidanceShown"] },
+  "LMUX-04-06": { section: "routing", fields: ["scheduleAndKnowledgeCombined"] },
+  "LMUX-04-07": { section: "routing", fields: ["fileSearchGuidance"] },
+  "LMUX-04-08": { section: "routing", fields: ["featureHelpGuidance"] },
+  "LMUX-04-09": { section: "routing", fields: ["toolFailureRecoveryGuidance"] },
+  "LMUX-04-10": { section: "routing", fields: ["generalChatSeparated"] },
+  "LMUX-07-01": { section: "knowledgeIndexing", fields: ["sourceRegistered", "sourceCount"] },
+  "LMUX-07-03": { section: "knowledgeIndexing", fields: ["scanProgressShown"] },
+  "LMUX-07-04": { section: "knowledgeIndexing", fields: ["ingestionProgressShown", "progressPercent"] },
+  "LMUX-07-05": { section: "knowledgeIndexing", fields: ["duplicateWorkLocked"] },
+  "LMUX-07-06": { section: "knowledgeIndexing", fields: ["cancelObserved"] },
+  "LMUX-07-07": { section: "knowledgeIndexing", fields: ["dumpViewerOpenable"] },
+  "LMUX-07-08": { section: "knowledgeIndexing", fields: ["structureViewOpenable"] },
+  "LMUX-07-09": { section: "knowledgeIndexing", fields: ["partialWarningShown"] },
+  "LMUX-07-10": { section: "knowledgeIndexing", fields: ["completedCountDrilldown", "completedDocumentCount"] },
+  "LMUX-08-05": { section: "knowledge", fields: ["lowQualityWarningShown"] },
+  "LMUX-08-06": { section: "knowledge", fields: ["relationDrilldownShown"] },
+  "LMUX-08-07": { section: "knowledge", fields: ["graphNodeClicked"] },
+  "LMUX-08-08": { section: "knowledge", fields: ["tableEvidenceShown"] },
+  "LMUX-08-09": { section: "knowledge", fields: ["sessionKnowledgeSearch"] },
+  "LMUX-08-10": { section: "knowledge", fields: ["noEvidenceGraceful"] },
+  "LMUX-09-01": { section: "document", fields: ["fromSessionHandoff"] },
+  "LMUX-09-03": { section: "document", fields: ["linkedFileUsageCaptured"] },
+  "LMUX-09-06": { section: "document", fields: ["fullReportTypeAvailable"] },
+  "LMUX-09-07": { section: "document", fields: ["emailTypeAvailable"] },
+  "LMUX-09-08": { section: "document", fields: ["customTemplateSelectable"] },
+  "LMUX-10-04": { section: "operations", fields: ["duplicateSameSessionBlocked"] },
+  "LMUX-10-06": { section: "operations", fields: ["cancelButtonShown"] },
+};
+
+function hasOwnWorkflowField(source, field) {
+  return Boolean(source && Object.prototype.hasOwnProperty.call(source, field));
+}
+
+function shouldScoreWorkflowScenario(id, workflowSections) {
+  const optional = OPTIONAL_WORKFLOW_SCENARIO_FIELDS[id];
+  if (!optional) {
+    return true;
+  }
+  const source = workflowSections[optional.section];
+  return optional.fields.some((field) => hasOwnWorkflowField(source, field));
+}
+
 export function evaluateWorkflowEvidence({
+  engine = null,
+  chat = null,
+  routing = null,
   schedule = null,
+  knowledgeIndexing = null,
   knowledge = null,
   document = null,
   fileSearch = null,
@@ -209,6 +271,153 @@ export function evaluateWorkflowEvidence({
   operations = null,
 } = {}) {
   const results = [];
+
+  if (engine) {
+    const evidence = workflowEvidenceList(engine);
+    results.push(
+      workflowScenario({
+        id: "LMUX-01-04",
+        functional: Boolean(engine.refreshSessionRetained),
+        ux: Boolean(engine.refreshSessionRetained),
+        evidence,
+        notes: `refresh_session_retained=${Boolean(engine.refreshSessionRetained)}`,
+        blocker: "Session state after refresh was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-01-06",
+        functional: Boolean(engine.statusPopoverShown),
+        ux: Boolean(engine.statusPopoverShown),
+        evidence,
+        notes: `status_popover=${Boolean(engine.statusPopoverShown)}`,
+        blocker: "Engine status popover was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-01-07",
+        functional: Boolean(engine.longJobRecovered),
+        ux: Boolean(engine.longJobRecovered),
+        evidence,
+        notes: `long_job_recovered=${Boolean(engine.longJobRecovered)}`,
+        blocker: "Engine state after long-running work was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-01-09",
+        functional: Boolean(engine.understandableErrorShown),
+        ux: Boolean(engine.understandableErrorShown),
+        evidence,
+        notes: `understandable_error=${Boolean(engine.understandableErrorShown)}`,
+        blocker: "Understandable engine error guidance was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-01-10",
+        functional: Boolean(engine.compactToolbarShown),
+        ux: Boolean(engine.compactToolbarShown),
+        evidence,
+        notes: `compact_toolbar=${Boolean(engine.compactToolbarShown)}`,
+        blocker: "Compact top status/toolbar controls were not proven by workflow evidence.",
+      }),
+    );
+  }
+
+  if (chat) {
+    const evidence = workflowEvidenceList(chat);
+    results.push(
+      workflowScenario({
+        id: "LMUX-03-02",
+        functional: Boolean(chat.streamingObserved),
+        ux: Boolean(chat.streamingObserved),
+        evidence,
+        notes: `streaming_observed=${Boolean(chat.streamingObserved)}`,
+        blocker: "Streaming response display was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-03-05",
+        functional: Boolean(chat.scrollBottomPreserved),
+        ux: Boolean(chat.scrollBottomPreserved),
+        evidence,
+        notes: `scroll_bottom_preserved=${Boolean(chat.scrollBottomPreserved)}`,
+        blocker: "Bottom scroll preservation after long chat was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-03-06",
+        functional: Boolean(chat.imageThumbnailShown),
+        ux: Boolean(chat.imageThumbnailShown),
+        evidence,
+        notes: `image_thumbnail=${Boolean(chat.imageThumbnailShown)}`,
+        blocker: "Image attachment thumbnail was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-03-07",
+        functional: Boolean(chat.attachmentCancelShown && chat.largePreviewShown),
+        ux: Boolean(chat.attachmentCancelShown && chat.largePreviewShown),
+        evidence,
+        notes: `attachment_cancel=${Boolean(chat.attachmentCancelShown)}; large_preview=${Boolean(chat.largePreviewShown)}`,
+        blocker: "Attachment cancel and large preview were not proven together.",
+      }),
+      workflowScenario({
+        id: "LMUX-03-08",
+        functional: Boolean(chat.detailSettingsOverlayShown),
+        ux: Boolean(chat.detailSettingsOverlayShown),
+        evidence,
+        notes: `detail_settings_overlay=${Boolean(chat.detailSettingsOverlayShown)}`,
+        blocker: "Chat detail-settings overlay was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-03-09",
+        functional: Boolean(chat.sensitiveInfoMasked),
+        ux: Boolean(chat.sensitiveInfoMasked),
+        modelQuality: Boolean(chat.sensitiveInfoMasked),
+        evidence,
+        notes: `sensitive_masked=${Boolean(chat.sensitiveInfoMasked)}`,
+        blocker: "Sensitive information masking was not proven by workflow evidence.",
+      }),
+    );
+  }
+
+  if (routing) {
+    const evidence = workflowEvidenceList(routing);
+    results.push(
+      workflowScenario({
+        id: "LMUX-04-06",
+        functional: Boolean(routing.scheduleAndKnowledgeCombined),
+        ux: Boolean(routing.scheduleAndKnowledgeCombined),
+        evidence,
+        notes: `schedule_knowledge_combined=${Boolean(routing.scheduleAndKnowledgeCombined)}`,
+        blocker: "Combined schedule and knowledge-routing request was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-04-07",
+        functional: Boolean(routing.fileSearchGuidance),
+        ux: Boolean(routing.fileSearchGuidance),
+        evidence,
+        notes: `file_search_guidance=${Boolean(routing.fileSearchGuidance)}`,
+        blocker: "File-search guidance routing was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-04-08",
+        functional: Boolean(routing.featureHelpGuidance),
+        ux: Boolean(routing.featureHelpGuidance),
+        evidence,
+        notes: `feature_help=${Boolean(routing.featureHelpGuidance)}`,
+        blocker: "Feature help guidance routing was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-04-09",
+        functional: Boolean(routing.toolFailureRecoveryGuidance),
+        ux: Boolean(routing.toolFailureRecoveryGuidance),
+        evidence,
+        notes: `tool_failure_recovery=${Boolean(routing.toolFailureRecoveryGuidance)}`,
+        blocker: "Tool-failure recovery guidance was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-04-10",
+        functional: Boolean(routing.generalChatSeparated),
+        ux: Boolean(routing.generalChatSeparated),
+        evidence,
+        notes: `general_chat_separated=${Boolean(routing.generalChatSeparated)}`,
+        blocker: "General chat vs tool request separation was not proven.",
+      }),
+    );
+  }
 
   if (schedule) {
     const evidence = workflowEvidenceList(schedule);
@@ -313,6 +522,86 @@ export function evaluateWorkflowEvidence({
     );
   }
 
+  if (knowledgeIndexing) {
+    const evidence = workflowEvidenceList(knowledgeIndexing);
+    const sourceCount = Number(knowledgeIndexing.sourceCount || 0);
+    const completedDocumentCount = Number(knowledgeIndexing.completedDocumentCount || 0);
+    results.push(
+      workflowScenario({
+        id: "LMUX-07-01",
+        functional: Boolean(knowledgeIndexing.sourceRegistered && sourceCount > 0),
+        ux: Boolean(sourceCount > 0),
+        evidence,
+        notes: `source_registered=${Boolean(knowledgeIndexing.sourceRegistered)}; source_count=${sourceCount}`,
+        blocker: "Knowledge source registration was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-07-03",
+        functional: Boolean(knowledgeIndexing.scanProgressShown),
+        ux: Boolean(knowledgeIndexing.scanProgressShown),
+        evidence,
+        notes: `scan_progress=${Boolean(knowledgeIndexing.scanProgressShown)}`,
+        blocker: "Knowledge scan progress was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-07-04",
+        functional: Boolean(knowledgeIndexing.ingestionProgressShown),
+        ux: Boolean(knowledgeIndexing.progressPercent !== undefined),
+        evidence,
+        notes: `ingestion_progress=${Boolean(knowledgeIndexing.ingestionProgressShown)}; progress=${knowledgeIndexing.progressPercent ?? "unknown"}`,
+        blocker: "GraphRAG ingestion progress was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-07-05",
+        functional: Boolean(knowledgeIndexing.duplicateWorkLocked),
+        ux: Boolean(knowledgeIndexing.duplicateWorkLocked),
+        evidence,
+        notes: `duplicate_work_locked=${Boolean(knowledgeIndexing.duplicateWorkLocked)}`,
+        blocker: "Duplicate indexing lock was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-07-06",
+        functional: Boolean(knowledgeIndexing.cancelObserved),
+        ux: Boolean(knowledgeIndexing.cancelObserved),
+        evidence,
+        notes: `cancel_observed=${Boolean(knowledgeIndexing.cancelObserved)}`,
+        blocker: "Indexing cancel behavior was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-07-07",
+        functional: Boolean(knowledgeIndexing.dumpViewerOpenable),
+        ux: Boolean(knowledgeIndexing.dumpViewerOpenable),
+        evidence,
+        notes: `dump_viewer=${Boolean(knowledgeIndexing.dumpViewerOpenable)}`,
+        blocker: "Knowledge ingestion dump viewer was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-07-08",
+        functional: Boolean(knowledgeIndexing.structureViewOpenable),
+        ux: Boolean(knowledgeIndexing.structureViewOpenable),
+        evidence,
+        notes: `structure_view=${Boolean(knowledgeIndexing.structureViewOpenable)}`,
+        blocker: "Knowledge document structure view was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-07-09",
+        functional: Boolean(knowledgeIndexing.partialWarningShown),
+        ux: Boolean(knowledgeIndexing.partialWarningShown),
+        evidence,
+        notes: `partial_warning=${Boolean(knowledgeIndexing.partialWarningShown)}`,
+        blocker: "Partial extraction warning was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-07-10",
+        functional: Boolean(knowledgeIndexing.completedCountDrilldown && completedDocumentCount > 0),
+        ux: Boolean(completedDocumentCount > 0),
+        evidence,
+        notes: `completed_count_drilldown=${Boolean(knowledgeIndexing.completedCountDrilldown)}; completed_documents=${completedDocumentCount}`,
+        blocker: "Completed file count drill-down was not proven.",
+      }),
+    );
+  }
+
   if (knowledge) {
     const evidence = workflowEvidenceList(knowledge);
     const sourceDocumentCount = Number(knowledge.sourceDocumentCount || 0);
@@ -359,6 +648,54 @@ export function evaluateWorkflowEvidence({
         notes: `source_path_count=${sourcePathCount}`,
         blocker: "Source file paths were not proven by workflow evidence.",
       }),
+      workflowScenario({
+        id: "LMUX-08-05",
+        functional: Boolean(knowledge.lowQualityWarningShown),
+        ux: Boolean(knowledge.lowQualityWarningShown),
+        evidence,
+        notes: `low_quality_warning=${Boolean(knowledge.lowQualityWarningShown)}`,
+        blocker: "Low-quality evidence warning was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-06",
+        functional: Boolean(knowledge.relationDrilldownShown),
+        ux: Boolean(knowledge.relationDrilldownShown),
+        evidence,
+        notes: `relation_drilldown=${Boolean(knowledge.relationDrilldownShown)}`,
+        blocker: "Graph relation drill-down was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-07",
+        functional: Boolean(knowledge.graphNodeClicked),
+        ux: Boolean(knowledge.graphNodeClicked),
+        evidence,
+        notes: `graph_node_clicked=${Boolean(knowledge.graphNodeClicked)}`,
+        blocker: "Graph node click interaction was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-08",
+        functional: Boolean(knowledge.tableEvidenceShown),
+        ux: Boolean(knowledge.tableEvidenceShown),
+        evidence,
+        notes: `table_evidence=${Boolean(knowledge.tableEvidenceShown)}`,
+        blocker: "Table evidence display was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-09",
+        functional: Boolean(knowledge.sessionKnowledgeSearch),
+        ux: Boolean(knowledge.sessionKnowledgeSearch),
+        evidence,
+        notes: `session_knowledge_search=${Boolean(knowledge.sessionKnowledgeSearch)}`,
+        blocker: "Knowledge retrieval from work-chat was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-10",
+        functional: Boolean(knowledge.noEvidenceGraceful),
+        ux: Boolean(knowledge.noEvidenceGraceful),
+        evidence,
+        notes: `no_evidence_graceful=${Boolean(knowledge.noEvidenceGraceful)}`,
+        blocker: "No-evidence question handling was not proven.",
+      }),
     );
   }
 
@@ -389,6 +726,46 @@ export function evaluateWorkflowEvidence({
         evidence,
         notes: `open_link=${Boolean(document.openLink)}; output_path=${outputPath || "missing"}`,
         blocker: "Openable document output link was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-09-01",
+        functional: Boolean(document.fromSessionHandoff),
+        ux: Boolean(document.fromSessionHandoff),
+        evidence,
+        notes: `from_session_handoff=${Boolean(document.fromSessionHandoff)}`,
+        blocker: "Work-chat to document-authoring handoff was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-09-03",
+        functional: Boolean(document.linkedFileUsageCaptured),
+        ux: Boolean(document.linkedFileUsageCaptured),
+        evidence,
+        notes: `linked_file_usage=${Boolean(document.linkedFileUsageCaptured)}`,
+        blocker: "Linked-file usage instructions were not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-09-06",
+        functional: Boolean(document.fullReportTypeAvailable),
+        ux: Boolean(document.fullReportTypeAvailable),
+        evidence,
+        notes: `full_report_type=${Boolean(document.fullReportTypeAvailable)}`,
+        blocker: "Full-version report type was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-09-07",
+        functional: Boolean(document.emailTypeAvailable),
+        ux: Boolean(document.emailTypeAvailable),
+        evidence,
+        notes: `email_type=${Boolean(document.emailTypeAvailable)}`,
+        blocker: "Email output type was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-09-08",
+        functional: Boolean(document.customTemplateSelectable),
+        ux: Boolean(document.customTemplateSelectable),
+        evidence,
+        notes: `custom_template=${Boolean(document.customTemplateSelectable)}`,
+        blocker: "Custom report template selection was not proven.",
       }),
     );
   }
@@ -480,6 +857,41 @@ export function evaluateWorkflowEvidence({
     );
     results.push(
       workflowScenario({
+        id: "LMUX-02-02",
+        functional: Boolean(settings.ollamaBaseUrlSaved),
+        ux: Boolean(settings.ollamaBaseUrlSaved),
+        evidence,
+        notes: `ollama_base_url_saved=${Boolean(settings.ollamaBaseUrlSaved)}`,
+        blocker: "Ollama Base URL profile persistence was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-02-03",
+        functional: Boolean(settings.reasoningLowRecommended),
+        ux: Boolean(settings.reasoningLowRecommended),
+        modelQuality: Boolean(settings.reasoningLowRecommended),
+        evidence,
+        notes: `reasoning_low_recommended=${Boolean(settings.reasoningLowRecommended)}`,
+        blocker: "Low-reasoning lightweight-model policy was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-02-04",
+        functional: Boolean(settings.thinkingTraceClean),
+        ux: Boolean(settings.thinkingTraceClean),
+        modelQuality: Boolean(settings.thinkingTraceClean),
+        evidence,
+        notes: `thinking_trace_clean=${Boolean(settings.thinkingTraceClean)}`,
+        blocker: "Thinking trace suppression was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-02-05",
+        functional: Boolean(settings.gemmaNoResponseGuidanceShown),
+        ux: Boolean(settings.gemmaNoResponseGuidanceShown),
+        modelQuality: Boolean(settings.gemmaNoResponseGuidanceShown),
+        evidence,
+        notes: `gemma_no_response_guidance=${Boolean(settings.gemmaNoResponseGuidanceShown)}`,
+        blocker: "Gemma 4 no-response guidance was not proven by workflow evidence.",
+      }),
+      workflowScenario({
         id: "LMUX-02-06",
         functional: Boolean(settings.featherlessActive),
         ux: Boolean(settings.activeProviderMatchesSaved),
@@ -551,6 +963,22 @@ export function evaluateWorkflowEvidence({
         blocker: "Parallel work on different resources was not proven by workflow evidence.",
       }),
       workflowScenario({
+        id: "LMUX-10-04",
+        functional: Boolean(operations.duplicateSameSessionBlocked),
+        ux: Boolean(operations.duplicateSameSessionBlocked),
+        evidence,
+        notes: `duplicate_same_session_blocked=${Boolean(operations.duplicateSameSessionBlocked)}`,
+        blocker: "Same-session duplicate response blocking was not proven.",
+      }),
+      workflowScenario({
+        id: "LMUX-10-06",
+        functional: Boolean(operations.cancelButtonShown),
+        ux: Boolean(operations.cancelButtonShown),
+        evidence,
+        notes: `cancel_button=${Boolean(operations.cancelButtonShown)}`,
+        blocker: "Work cancel button was not proven.",
+      }),
+      workflowScenario({
         id: "LMUX-10-07",
         functional: Boolean(operations.failedJobRetryGuidance),
         ux: Boolean(operations.failedJobRetryGuidance),
@@ -585,7 +1013,18 @@ export function evaluateWorkflowEvidence({
     );
   }
 
-  return results;
+  return results.filter((result) =>
+    shouldScoreWorkflowScenario(result.id, {
+      engine,
+      chat,
+      routing,
+      knowledgeIndexing,
+      knowledge,
+      document,
+      settings,
+      operations,
+    }),
+  );
 }
 
 function categoryLabelForScenario(id) {

@@ -1,26 +1,26 @@
 # 경량모델 컴퓨터유즈 실제 점수 리포트
 
-- 실행 ID: computer-use-actual-1779650196147
+- 실행 ID: computer-use-actual-1779651973492
 - 기준 모델: Gemma 4 E2B (gemma4:e2b)
 - 평가 방식: playwright-computer-use
-- 총점: 540 / 1000
-- 실시: 54개
-- 미실시: 46개
+- 총점: 860 / 1000
+- 실시: 86개
+- 미실시: 14개
 - 종합 등급: needs-work
 
 ## 카테고리별 점수
 
 | 카테고리 | 실시 | 점수 | 등급 |
 | --- | ---: | ---: | --- |
-| 시작/업무엔진 | 1/10 | 10/100 | release-ready |
-| 모델 설정/Gemma 4 E2B | 6/10 | 60/100 | release-ready |
-| 업무대화 기본 UX | 4/10 | 40/100 | release-ready |
+| 시작/업무엔진 | 6/10 | 60/100 | release-ready |
+| 모델 설정/Gemma 4 E2B | 9/10 | 90/100 | release-ready |
+| 업무대화 기본 UX | 9/10 | 90/100 | release-ready |
 | 업무대화 도구 라우팅 | 5/10 | 50/100 | release-ready |
 | 일정 캘린더 | 10/10 | 100/100 | release-ready |
 | 파일찾기/세션 연결 | 10/10 | 100/100 | release-ready |
-| 지식폴더/GraphRAG 인덱싱 | 1/10 | 10/100 | release-ready |
-| GraphRAG 검색/출처 품질 | 4/10 | 40/100 | release-ready |
-| 문서작성/HWPX 산출 | 5/10 | 50/100 | release-ready |
+| 지식폴더/GraphRAG 인덱싱 | 10/10 | 100/100 | release-ready |
+| GraphRAG 검색/출처 품질 | 9/10 | 90/100 | release-ready |
+| 문서작성/HWPX 산출 | 10/10 | 100/100 | release-ready |
 | 실행기록/작업진행/다중작업 | 8/10 | 80/100 | release-ready |
 
 ## 실시 시나리오
@@ -36,6 +36,76 @@
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
   - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
+### LMUX-01-04 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: refresh_session_retained=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+
+### LMUX-01-06 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: status_popover=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+
+### LMUX-01-07 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: long_job_recovered=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+
+### LMUX-01-09 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: understandable_error=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+
+### LMUX-01-10 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: compact_toolbar=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+
 ### LMUX-02-01 모델 설정/Gemma 4 E2B
 
 - 상태: 통과
@@ -48,6 +118,48 @@
   - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
   - http://127.0.0.1:8765/api/settings
 
+### LMUX-02-02 모델 설정/Gemma 4 E2B
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: ollama_base_url_saved=true
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
+
+### LMUX-02-03 모델 설정/Gemma 4 E2B
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: reasoning_low_recommended=true
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
+
+### LMUX-02-04 모델 설정/Gemma 4 E2B
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: thinking_trace_clean=true
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
+
 ### LMUX-02-06 모델 설정/Gemma 4 E2B
 
 - 상태: 통과
@@ -58,6 +170,8 @@
   - http://127.0.0.1:8765/api/settings
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-02-07 모델 설정/Gemma 4 E2B
@@ -70,6 +184,8 @@
   - http://127.0.0.1:8765/api/settings
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-02-08 모델 설정/Gemma 4 E2B
@@ -82,6 +198,8 @@
   - http://127.0.0.1:8765/api/settings
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-02-09 모델 설정/Gemma 4 E2B
@@ -94,6 +212,8 @@
   - http://127.0.0.1:8765/api/settings
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-02-10 모델 설정/Gemma 4 E2B
@@ -106,6 +226,8 @@
   - http://127.0.0.1:8765/api/settings
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-03-01 업무대화 기본 UX
@@ -118,6 +240,23 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
   - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+
+### LMUX-03-02 업무대화 기본 UX
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: streaming_observed=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/*/turn/stream
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
 
 ### LMUX-03-03 업무대화 기본 UX
 
@@ -140,6 +279,74 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
   - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+
+### LMUX-03-05 업무대화 기본 UX
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: scroll_bottom_preserved=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/*/turn/stream
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+
+### LMUX-03-06 업무대화 기본 UX
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: image_thumbnail=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/*/turn/stream
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+
+### LMUX-03-07 업무대화 기본 UX
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: attachment_cancel=true; large_preview=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/*/turn/stream
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+
+### LMUX-03-08 업무대화 기본 UX
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: detail_settings_overlay=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/*/turn/stream
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
 
 ### LMUX-03-10 업무대화 기본 UX
 
@@ -207,6 +414,13 @@
   - http://127.0.0.1:8765/api/knowledge/ask
   - citations:5
   - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
 
 ### LMUX-04-05 업무대화 도구 라우팅
 
@@ -217,6 +431,8 @@
 - 증거:
   - http://127.0.0.1:8765/api/documents/generate
   - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
 
 ### LMUX-05-01 일정 캘린더
 
@@ -481,6 +697,27 @@
   - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
   - http://127.0.0.1:8766/api/work-sessions/*/file-links
 
+### LMUX-07-01 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: source_registered=true; source_count=4
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
 ### LMUX-07-02 지식폴더/GraphRAG 인덱싱
 
 - 상태: 통과
@@ -490,6 +727,174 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui-snapshot.yml
+
+### LMUX-07-03 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: scan_progress=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-07-04 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: ingestion_progress=true; progress=100
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-07-05 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: duplicate_work_locked=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-07-06 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: cancel_observed=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-07-07 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: dump_viewer=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-07-08 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: structure_view=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-07-09 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: partial_warning=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-07-10 지식폴더/GraphRAG 인덱싱
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: completed_count_drilldown=true; completed_documents=23
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/sources#count=4
+  - http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled
+  - http://127.0.0.1:8765/api/knowledge/documents#count=23
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
 
 ### LMUX-08-01 GraphRAG 검색/출처 품질
 
@@ -501,6 +906,13 @@
   - http://127.0.0.1:8765/api/knowledge/ask
   - citations:5
   - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
 
 ### LMUX-08-02 GraphRAG 검색/출처 품질
 
@@ -512,6 +924,13 @@
   - http://127.0.0.1:8765/api/knowledge/ask
   - citations:5
   - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
 
 ### LMUX-08-03 GraphRAG 검색/출처 품질
 
@@ -523,6 +942,13 @@
   - http://127.0.0.1:8765/api/knowledge/ask
   - citations:5
   - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
 
 ### LMUX-08-04 GraphRAG 검색/출처 품질
 
@@ -534,6 +960,115 @@
   - http://127.0.0.1:8765/api/knowledge/ask
   - citations:5
   - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-08-05 GraphRAG 검색/출처 품질
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: low_quality_warning=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/ask
+  - citations:5
+  - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-08-06 GraphRAG 검색/출처 품질
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: relation_drilldown=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/ask
+  - citations:5
+  - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-08-07 GraphRAG 검색/출처 품질
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: graph_node_clicked=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/ask
+  - citations:5
+  - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-08-08 GraphRAG 검색/출처 품질
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: table_evidence=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/ask
+  - citations:5
+  - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-08-09 GraphRAG 검색/출처 품질
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: session_knowledge_search=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/ask
+  - citations:5
+  - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+
+### LMUX-09-01 문서작성/HWPX 산출
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: from_session_handoff=true
+- 증거:
+  - http://127.0.0.1:8765/api/documents/generate
+  - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
 
 ### LMUX-09-02 문서작성/HWPX 산출
 
@@ -544,6 +1079,18 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+
+### LMUX-09-03 문서작성/HWPX 산출
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: linked_file_usage=true
+- 증거:
+  - http://127.0.0.1:8765/api/documents/generate
+  - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
 
 ### LMUX-09-04 문서작성/HWPX 산출
 
@@ -565,6 +1112,42 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
 
+### LMUX-09-06 문서작성/HWPX 산출
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: full_report_type=true
+- 증거:
+  - http://127.0.0.1:8765/api/documents/generate
+  - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
+
+### LMUX-09-07 문서작성/HWPX 산출
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: email_type=true
+- 증거:
+  - http://127.0.0.1:8765/api/documents/generate
+  - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
+
+### LMUX-09-08 문서작성/HWPX 산출
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: custom_template=true
+- 증거:
+  - http://127.0.0.1:8765/api/documents/generate
+  - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
+
 ### LMUX-09-09 문서작성/HWPX 산출
 
 - 상태: 통과
@@ -574,6 +1157,8 @@
 - 증거:
   - http://127.0.0.1:8765/api/documents/generate
   - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
 
 ### LMUX-09-10 문서작성/HWPX 산출
 
@@ -584,6 +1169,8 @@
 - 증거:
   - http://127.0.0.1:8765/api/documents/generate
   - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
 
 ### LMUX-10-01 실행기록/작업진행/다중작업
 

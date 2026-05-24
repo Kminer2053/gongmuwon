@@ -1,0 +1,894 @@
+﻿### Page
+- Page URL: http://127.0.0.1:5173/
+- Page Title: 로컬 AI에이전트 워크플레이스 : 공무원
+### Snapshot
+```yaml
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - paragraph [ref=e8]: 공공분야 사무업무자를 위한 보안 걱정 없는 로컬 우선 업무공간
+        - 'heading "로컬 AI에이전트 워크플레이스 : 공무원" [level=1] [ref=e9]'
+        - paragraph [ref=e10]: 대화에서 시작해 일정, 검색, 지식, 문서작성, 실행기록까지 한 워크플로로 묶습니다.
+      - generic [ref=e11]:
+        - img [ref=e1199]
+        - generic [ref=e16]:
+          - strong [ref=e17]: 업무대화
+          - generic [ref=e18]: 업무 요청 라우터
+    - generic "작업 표시 도구" [ref=e19]:
+      - button "화면 축소" [ref=e20] [cursor=pointer]: "-"
+      - generic "현재 배율" [ref=e21]: 100%
+      - button "화면 확대" [ref=e22] [cursor=pointer]: +
+      - button "새로고침" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+      - button "오른쪽 정보 패널 닫기" [expanded] [ref=e25] [cursor=pointer]:
+        - img [ref=e26]
+      - button "업무 엔진 상태" [ref=e28] [cursor=pointer]
+  - complementary [ref=e30]:
+    - navigation "주요 작업 메뉴" [ref=e31]:
+      - button "업무대화" [ref=e32] [cursor=pointer]:
+        - img [ref=e33]
+        - generic [ref=e34]: 업무대화
+      - button "일정" [ref=e35] [cursor=pointer]:
+        - img [ref=e36]
+        - generic [ref=e37]: 일정
+      - button "파일찾기" [ref=e38] [cursor=pointer]:
+        - img [ref=e39]
+        - generic [ref=e40]: 파일찾기
+      - button "문서작성" [ref=e41] [cursor=pointer]:
+        - img [ref=e42]
+        - generic [ref=e43]: 문서작성
+      - button "내 지식폴더" [ref=e44] [cursor=pointer]:
+        - img [ref=e45]
+        - generic [ref=e46]: 내 지식폴더
+      - button "파일정리" [ref=e47] [cursor=pointer]:
+        - img [ref=e48]
+        - generic [ref=e49]: 파일정리
+      - button "도구" [ref=e50] [cursor=pointer]:
+        - img [ref=e51]
+        - generic [ref=e52]: 도구
+      - button "실행기록" [ref=e53] [cursor=pointer]:
+        - img [ref=e54]
+        - generic [ref=e55]: 실행기록
+      - button "기타 환경설정" [ref=e56] [cursor=pointer]:
+        - img [ref=e57]
+        - generic [ref=e58]:
+          - generic [ref=e59]: 기타
+          - generic [ref=e60]: 환경설정
+    - generic [ref=e61]:
+      - generic [ref=e62]:
+        - generic [ref=e63]:
+          - paragraph [ref=e64]: 업무대화 우선
+          - heading "대화 세션" [level=2] [ref=e65]
+        - generic [ref=e67]:
+          - generic [ref=e68]: 59/59개 세션
+          - button "새 세션" [ref=e69] [cursor=pointer]: +
+      - generic [ref=e71]:
+        - generic [ref=e72]:
+          - paragraph [ref=e73]: 왼쪽은 세션을 고르는 곳입니다. 일정 연결은 가운데 대화 화면에서 자연스럽게 이어집니다.
+          - generic [ref=e74]:
+            - text: 세션 검색
+            - textbox "세션 검색" [ref=e75]:
+              - /placeholder: 세션 제목, 일정 제목, 최근 메시지 검색
+        - generic [ref=e155]:
+          - button "???? ???? ?? 1779648814586 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e156] [cursor=pointer]:
+            - generic [ref=e157]:
+              - generic [ref=e158]:
+                - strong [ref=e159]: "???? ???? ?? 1779648814586"
+                - generic "독립 업무 세션" [ref=e160]: 독립
+              - generic [ref=e161]: 독립 업무 세션
+              - paragraph [ref=e162]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e163]:
+                - generic [ref=e164]: 0개 메시지
+                - generic [ref=e165]: 독립 흐름
+          - button "???? ?? ???? ?? 1779648418619 독립 업무 세션 독립 업무 세션 AI ?? ??? ??? ?? ???? 1??? ???? ?? ??? ??. 1개 메시지 독립 흐름" [ref=e166] [cursor=pointer]:
+            - generic [ref=e167]:
+              - generic [ref=e168]:
+                - strong [ref=e169]: "???? ?? ???? ?? 1779648418619"
+                - generic "독립 업무 세션" [ref=e170]: 독립
+              - generic [ref=e171]: 독립 업무 세션
+              - paragraph [ref=e172]: AI ?? ??? ??? ?? ???? 1??? ???? ?? ??? ??.
+              - paragraph [ref=e173]:
+                - generic [ref=e174]: 1개 메시지
+                - generic [ref=e175]: 독립 흐름
+          - button "경량모델 컴퓨터유즈 실제 점검 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항입니다. * 이번 주에 수행할 핵심 업무의 명확한 목표를... 2개 메시지 독립 흐름" [ref=e176] [cursor=pointer]:
+            - generic [ref=e177]:
+              - generic [ref=e178]:
+                - strong [ref=e179]: 경량모델 컴퓨터유즈 실제 점검
+                - generic "독립 업무 세션" [ref=e180]: 독립
+              - generic [ref=e181]: 독립 업무 세션
+              - paragraph [ref=e182]: 이번 주 AI 업무 추진 준비사항입니다. * 이번 주에 수행할 핵심 업무의 명확한 목표를...
+              - paragraph [ref=e183]:
+                - generic [ref=e184]: 2개 메시지
+                - generic [ref=e185]: 독립 흐름
+          - 'button "경량모델 문서작성 스모크 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 경량모델 문서작성 스모크 문서 - 형식: onePa... 3개 메시지 독립 흐름" [ref=e186] [cursor=pointer]':
+            - generic [ref=e187]:
+              - generic [ref=e188]:
+                - strong [ref=e189]: 경량모델 문서작성 스모크
+                - generic "독립 업무 세션" [ref=e190]: 독립
+              - generic [ref=e191]: 독립 업무 세션
+              - paragraph [ref=e192]: "HWPX 문서를 생성했습니다. - 제목: 경량모델 문서작성 스모크 문서 - 형식: onePa..."
+              - paragraph [ref=e193]:
+                - generic [ref=e194]: 3개 메시지
+                - generic [ref=e195]: 독립 흐름
+          - 'button "경량모델 일정 라우팅 스모크 독립 업무 세션 독립 업무 세션 일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00... 2개 메시지 독립 흐름" [ref=e196] [cursor=pointer]':
+            - generic [ref=e197]:
+              - generic [ref=e198]:
+                - strong [ref=e199]: 경량모델 일정 라우팅 스모크
+                - generic "독립 업무 세션" [ref=e200]: 독립
+              - generic [ref=e201]: 독립 업무 세션
+              - paragraph [ref=e202]: "일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00..."
+              - paragraph [ref=e203]:
+                - generic [ref=e204]: 2개 메시지
+                - generic [ref=e205]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **목표 및... 2개 메시지 독립 흐름" [ref=e206] [cursor=pointer]:
+            - generic [ref=e207]:
+              - generic [ref=e208]:
+                - strong [ref=e209]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e210]: 독립
+              - generic [ref=e211]: 독립 업무 세션
+              - paragraph [ref=e212]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **목표 및...
+              - paragraph [ref=e213]:
+                - generic [ref=e214]: 2개 메시지
+                - generic [ref=e215]: 독립 흐름
+          - 'button "경량모델 문서작성 스모크 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 경량모델 문서작성 스모크 문서 - 형식: onePa... 3개 메시지 독립 흐름" [ref=e216] [cursor=pointer]':
+            - generic [ref=e217]:
+              - generic [ref=e218]:
+                - strong [ref=e219]: 경량모델 문서작성 스모크
+                - generic "독립 업무 세션" [ref=e220]: 독립
+              - generic [ref=e221]: 독립 업무 세션
+              - paragraph [ref=e222]: "HWPX 문서를 생성했습니다. - 제목: 경량모델 문서작성 스모크 문서 - 형식: onePa..."
+              - paragraph [ref=e223]:
+                - generic [ref=e224]: 3개 메시지
+                - generic [ref=e225]: 독립 흐름
+          - 'button "경량모델 일정 라우팅 스모크 독립 업무 세션 독립 업무 세션 일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00... 2개 메시지 독립 흐름" [ref=e226] [cursor=pointer]':
+            - generic [ref=e227]:
+              - generic [ref=e228]:
+                - strong [ref=e229]: 경량모델 일정 라우팅 스모크
+                - generic "독립 업무 세션" [ref=e230]: 독립
+              - generic [ref=e231]: 독립 업무 세션
+              - paragraph [ref=e232]: "일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00..."
+              - paragraph [ref=e233]:
+                - generic [ref=e234]: 2개 메시지
+                - generic [ref=e235]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 정리했습니다. * **명확한 목표 설정:... 2개 메시지 독립 흐름" [ref=e236] [cursor=pointer]:
+            - generic [ref=e237]:
+              - generic [ref=e238]:
+                - strong [ref=e239]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e240]: 독립
+              - generic [ref=e241]: 독립 업무 세션
+              - paragraph [ref=e242]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 정리했습니다. * **명확한 목표 설정:...
+              - paragraph [ref=e243]:
+                - generic [ref=e244]: 2개 메시지
+                - generic [ref=e245]: 독립 흐름
+          - 'button "경량모델 문서작성 스모크 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 경량모델 문서작성 스모크 문서 - 형식: onePa... 3개 메시지 독립 흐름" [ref=e246] [cursor=pointer]':
+            - generic [ref=e247]:
+              - generic [ref=e248]:
+                - strong [ref=e249]: 경량모델 문서작성 스모크
+                - generic "독립 업무 세션" [ref=e250]: 독립
+              - generic [ref=e251]: 독립 업무 세션
+              - paragraph [ref=e252]: "HWPX 문서를 생성했습니다. - 제목: 경량모델 문서작성 스모크 문서 - 형식: onePa..."
+              - paragraph [ref=e253]:
+                - generic [ref=e254]: 3개 메시지
+                - generic [ref=e255]: 독립 흐름
+          - 'button "경량모델 일정 라우팅 스모크 독립 업무 세션 독립 업무 세션 일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00... 2개 메시지 독립 흐름" [ref=e256] [cursor=pointer]':
+            - generic [ref=e257]:
+              - generic [ref=e258]:
+                - strong [ref=e259]: 경량모델 일정 라우팅 스모크
+                - generic "독립 업무 세션" [ref=e260]: 독립
+              - generic [ref=e261]: 독립 업무 세션
+              - paragraph [ref=e262]: "일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00..."
+              - paragraph [ref=e263]:
+                - generic [ref=e264]: 2개 메시지
+                - generic [ref=e265]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 정리했습니다. * **명확한 목표 설정:... 2개 메시지 독립 흐름" [ref=e266] [cursor=pointer]:
+            - generic [ref=e267]:
+              - generic [ref=e268]:
+                - strong [ref=e269]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e270]: 독립
+              - generic [ref=e271]: 독립 업무 세션
+              - paragraph [ref=e272]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 정리했습니다. * **명확한 목표 설정:...
+              - paragraph [ref=e273]:
+                - generic [ref=e274]: 2개 메시지
+                - generic [ref=e275]: 독립 흐름
+          - 'button "경량모델 문서작성 스모크 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 경량모델 문서작성 스모크 문서 - 형식: onePa... 3개 메시지 독립 흐름" [ref=e276] [cursor=pointer]':
+            - generic [ref=e277]:
+              - generic [ref=e278]:
+                - strong [ref=e279]: 경량모델 문서작성 스모크
+                - generic "독립 업무 세션" [ref=e280]: 독립
+              - generic [ref=e281]: 독립 업무 세션
+              - paragraph [ref=e282]: "HWPX 문서를 생성했습니다. - 제목: 경량모델 문서작성 스모크 문서 - 형식: onePa..."
+              - paragraph [ref=e283]:
+                - generic [ref=e284]: 3개 메시지
+                - generic [ref=e285]: 독립 흐름
+          - 'button "경량모델 일정 라우팅 스모크 독립 업무 세션 독립 업무 세션 일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00... 2개 메시지 독립 흐름" [ref=e286] [cursor=pointer]':
+            - generic [ref=e287]:
+              - generic [ref=e288]:
+                - strong [ref=e289]: 경량모델 일정 라우팅 스모크
+                - generic "독립 업무 세션" [ref=e290]: 독립
+              - generic [ref=e291]: 독립 업무 세션
+              - paragraph [ref=e292]: "일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00..."
+              - paragraph [ref=e293]:
+                - generic [ref=e294]: 2개 메시지
+                - generic [ref=e295]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **명확한 ... 2개 메시지 독립 흐름" [ref=e296] [cursor=pointer]:
+            - generic [ref=e297]:
+              - generic [ref=e298]:
+                - strong [ref=e299]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e300]: 독립
+              - generic [ref=e301]: 독립 업무 세션
+              - paragraph [ref=e302]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **명확한 ...
+              - paragraph [ref=e303]:
+                - generic [ref=e304]: 2개 메시지
+                - generic [ref=e305]: 독립 흐름
+          - button "경량모델 문서작성 스모크 독립 업무 세션 독립 업무 세션 AI 추진 배경과 향후 조치사항을 정리했습니다. 1개 메시지 독립 흐름" [ref=e306] [cursor=pointer]:
+            - generic [ref=e307]:
+              - generic [ref=e308]:
+                - strong [ref=e309]: 경량모델 문서작성 스모크
+                - generic "독립 업무 세션" [ref=e310]: 독립
+              - generic [ref=e311]: 독립 업무 세션
+              - paragraph [ref=e312]: AI 추진 배경과 향후 조치사항을 정리했습니다.
+              - paragraph [ref=e313]:
+                - generic [ref=e314]: 1개 메시지
+                - generic [ref=e315]: 독립 흐름
+          - 'button "경량모델 일정 라우팅 스모크 독립 업무 세션 독립 업무 세션 일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00... 2개 메시지 독립 흐름" [ref=e316] [cursor=pointer]':
+            - generic [ref=e317]:
+              - generic [ref=e318]:
+                - strong [ref=e319]: 경량모델 일정 라우팅 스모크
+                - generic "독립 업무 세션" [ref=e320]: 독립
+              - generic [ref=e321]: 독립 업무 세션
+              - paragraph [ref=e322]: "일정을 등록했습니다. - 제목: AI 전략회의 - 시간: 2026-05-20T15:00:00..."
+              - paragraph [ref=e323]:
+                - generic [ref=e324]: 2개 메시지
+                - generic [ref=e325]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **명확한 ... 2개 메시지 독립 흐름" [ref=e326] [cursor=pointer]:
+            - generic [ref=e327]:
+              - generic [ref=e328]:
+                - strong [ref=e329]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e330]: 독립
+              - generic [ref=e331]: 독립 업무 세션
+              - paragraph [ref=e332]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **명확한 ...
+              - paragraph [ref=e333]:
+                - generic [ref=e334]: 2개 메시지
+                - generic [ref=e335]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **핵심 목... 2개 메시지 독립 흐름" [ref=e336] [cursor=pointer]:
+            - generic [ref=e337]:
+              - generic [ref=e338]:
+                - strong [ref=e339]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e340]: 독립
+              - generic [ref=e341]: 독립 업무 세션
+              - paragraph [ref=e342]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **핵심 목...
+              - paragraph [ref=e343]:
+                - generic [ref=e344]: 2개 메시지
+                - generic [ref=e345]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **핵심 목... 2개 메시지 독립 흐름" [ref=e346] [cursor=pointer]:
+            - generic [ref=e347]:
+              - generic [ref=e348]:
+                - strong [ref=e349]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e350]: 독립
+              - generic [ref=e351]: 독립 업무 세션
+              - paragraph [ref=e352]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 세 가지로 정리했습니다. * **핵심 목...
+              - paragraph [ref=e353]:
+                - generic [ref=e354]: 2개 메시지
+                - generic [ref=e355]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 정리해 드립니다. * **명확한 목표 설... 2개 메시지 독립 흐름" [ref=e356] [cursor=pointer]:
+            - generic [ref=e357]:
+              - generic [ref=e358]:
+                - strong [ref=e359]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e360]: 독립
+              - generic [ref=e361]: 독립 업무 세션
+              - paragraph [ref=e362]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 정리해 드립니다. * **명확한 목표 설...
+              - paragraph [ref=e363]:
+                - generic [ref=e364]: 2개 메시지
+                - generic [ref=e365]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 이번 주 AI 업무 추진 준비사항을 다음과 같이 정리해 드립니다. * **명확한 목표 설... 2개 메시지 독립 흐름" [ref=e366] [cursor=pointer]:
+            - generic [ref=e367]:
+              - generic [ref=e368]:
+                - strong [ref=e369]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e370]: 독립
+              - generic [ref=e371]: 독립 업무 세션
+              - paragraph [ref=e372]: 이번 주 AI 업무 추진 준비사항을 다음과 같이 정리해 드립니다. * **명확한 목표 설...
+              - paragraph [ref=e373]:
+                - generic [ref=e374]: 2개 메시지
+                - generic [ref=e375]: 독립 흐름
+          - button "Gemma 4 E2B 경량모델 자동 스모크 독립 업무 세션 독립 업무 세션 * **주요 목표 설정:** 이번 주에 달성하고자 하는 핵심 AI 관련 목표를 명확하게 정... 2개 메시지 독립 흐름" [ref=e376] [cursor=pointer]:
+            - generic [ref=e377]:
+              - generic [ref=e378]:
+                - strong [ref=e379]: Gemma 4 E2B 경량모델 자동 스모크
+                - generic "독립 업무 세션" [ref=e380]: 독립
+              - generic [ref=e381]: 독립 업무 세션
+              - paragraph [ref=e382]: "* **주요 목표 설정:** 이번 주에 달성하고자 하는 핵심 AI 관련 목표를 명확하게 정..."
+              - paragraph [ref=e383]:
+                - generic [ref=e384]: 2개 메시지
+                - generic [ref=e385]: 독립 흐름
+          - button "???? ???? ??? 2 독립 업무 세션 독립 업무 세션 어떤 내용에 대해 질문하시는지 구체적으로 말씀해 주시겠어요? 원하시는 내용을 알려주시면, 요... 2개 메시지 독립 흐름" [ref=e386] [cursor=pointer]:
+            - generic [ref=e387]:
+              - generic [ref=e388]:
+                - strong [ref=e389]: "???? ???? ??? 2"
+                - generic "독립 업무 세션" [ref=e390]: 독립
+              - generic [ref=e391]: 독립 업무 세션
+              - paragraph [ref=e392]: 어떤 내용에 대해 질문하시는지 구체적으로 말씀해 주시겠어요? 원하시는 내용을 알려주시면, 요...
+              - paragraph [ref=e393]:
+                - generic [ref=e394]: 2개 메시지
+                - generic [ref=e395]: 독립 흐름
+          - button "???? ???? ??? 독립 업무 세션 독립 업무 세션 어떤 내용에 대해 질문하시는지 명확하게 말씀해 주시겠어요? 제가 도와드릴 수 있도록 구체적인... 2개 메시지 독립 흐름" [ref=e396] [cursor=pointer]:
+            - generic [ref=e397]:
+              - generic [ref=e398]:
+                - strong [ref=e399]: "???? ???? ???"
+                - generic "독립 업무 세션" [ref=e400]: 독립
+              - generic [ref=e401]: 독립 업무 세션
+              - paragraph [ref=e402]: 어떤 내용에 대해 질문하시는지 명확하게 말씀해 주시겠어요? 제가 도와드릴 수 있도록 구체적인...
+              - paragraph [ref=e403]:
+                - generic [ref=e404]: 2개 메시지
+                - generic [ref=e405]: 독립 흐름
+          - button "Gemma E2B ???? ??? 6 독립 업무 세션 독립 업무 세션 요청하신 내용이 명확하지 않습니다. 어떤 작업을 수행하기를 원하시는지 구체적으로 말씀해 주시면... 2개 메시지 독립 흐름" [ref=e406] [cursor=pointer]:
+            - generic [ref=e407]:
+              - generic [ref=e408]:
+                - strong [ref=e409]: Gemma E2B ???? ??? 6
+                - generic "독립 업무 세션" [ref=e410]: 독립
+              - generic [ref=e411]: 독립 업무 세션
+              - paragraph [ref=e412]: 요청하신 내용이 명확하지 않습니다. 어떤 작업을 수행하기를 원하시는지 구체적으로 말씀해 주시면...
+              - paragraph [ref=e413]:
+                - generic [ref=e414]: 2개 메시지
+                - generic [ref=e415]: 독립 흐름
+          - button "Gemma E2B ???? ??? 5 독립 업무 세션 독립 업무 세션 요청하신 내용을 명확하게 이해하기 어렵습니다. 어떤 정보가 필요하신가요? 궁금하신 내용을 구... 2개 메시지 독립 흐름" [ref=e416] [cursor=pointer]:
+            - generic [ref=e417]:
+              - generic [ref=e418]:
+                - strong [ref=e419]: Gemma E2B ???? ??? 5
+                - generic "독립 업무 세션" [ref=e420]: 독립
+              - generic [ref=e421]: 독립 업무 세션
+              - paragraph [ref=e422]: 요청하신 내용을 명확하게 이해하기 어렵습니다. 어떤 정보가 필요하신가요? 궁금하신 내용을 구...
+              - paragraph [ref=e423]:
+                - generic [ref=e424]: 2개 메시지
+                - generic [ref=e425]: 독립 흐름
+          - button "Gemma E2B ???? ??? 4 독립 업무 세션 독립 업무 세션 요청하신 내용이 명확하지 않아 정확한 답변을 드리기 어렵습니다. 어떤 것에 대해 **불릿(b... 2개 메시지 독립 흐름" [ref=e426] [cursor=pointer]:
+            - generic [ref=e427]:
+              - generic [ref=e428]:
+                - strong [ref=e429]: Gemma E2B ???? ??? 4
+                - generic "독립 업무 세션" [ref=e430]: 독립
+              - generic [ref=e431]: 독립 업무 세션
+              - paragraph [ref=e432]: 요청하신 내용이 명확하지 않아 정확한 답변을 드리기 어렵습니다. 어떤 것에 대해 **불릿(b...
+              - paragraph [ref=e433]:
+                - generic [ref=e434]: 2개 메시지
+                - generic [ref=e435]: 독립 흐름
+          - button "Gemma E2B 경량모델 스모크 3 독립 업무 세션 독립 업무 세션 안녕하세요. Gemma 4입니다. 오늘 수행할 업무는 다음과 같습니다. - 제공된 정보를 ... 2개 메시지 독립 흐름" [ref=e436] [cursor=pointer]:
+            - generic [ref=e437]:
+              - generic [ref=e438]:
+                - strong [ref=e439]: Gemma E2B 경량모델 스모크 3
+                - generic "독립 업무 세션" [ref=e440]: 독립
+              - generic [ref=e441]: 독립 업무 세션
+              - paragraph [ref=e442]: 안녕하세요. Gemma 4입니다. 오늘 수행할 업무는 다음과 같습니다. - 제공된 정보를 ...
+              - paragraph [ref=e443]:
+                - generic [ref=e444]: 2개 메시지
+                - generic [ref=e445]: 독립 흐름
+          - button "Gemma E2B 경량모델 스모크 2 독립 업무 세션 독립 업무 세션 안녕하세요. 오늘 수행할 업무는 다음과 같습니다. - 제공된 문서를 바탕으로 질문에 답변합... 2개 메시지 독립 흐름" [ref=e446] [cursor=pointer]:
+            - generic [ref=e447]:
+              - generic [ref=e448]:
+                - strong [ref=e449]: Gemma E2B 경량모델 스모크 2
+                - generic "독립 업무 세션" [ref=e450]: 독립
+              - generic [ref=e451]: 독립 업무 세션
+              - paragraph [ref=e452]: 안녕하세요. 오늘 수행할 업무는 다음과 같습니다. - 제공된 문서를 바탕으로 질문에 답변합...
+              - paragraph [ref=e453]:
+                - generic [ref=e454]: 2개 메시지
+                - generic [ref=e455]: 독립 흐름
+          - button "Gemma E2B 경량모델 스모크 독립 업무 세션 독립 업무 세션 안녕하세요. 저는 Gemma 4입니다. 오늘 제가 할 일은 다음과 같습니다. - 제공된 지... 2개 메시지 독립 흐름" [ref=e456] [cursor=pointer]:
+            - generic [ref=e457]:
+              - generic [ref=e458]:
+                - strong [ref=e459]: Gemma E2B 경량모델 스모크
+                - generic "독립 업무 세션" [ref=e460]: 독립
+              - generic [ref=e461]: 독립 업무 세션
+              - paragraph [ref=e462]: 안녕하세요. 저는 Gemma 4입니다. 오늘 제가 할 일은 다음과 같습니다. - 제공된 지...
+              - paragraph [ref=e463]:
+                - generic [ref=e464]: 2개 메시지
+                - generic [ref=e465]: 독립 흐름
+          - button "전기능 통합검증 세션 정상표기 일정 연결 세션 전기능 통합검증 회의 정상표기 안녕하세요. 오늘 제가 수행할 세 가지 업무는 다음과 같습니다. * 사용자의 질문에 정확... 10개 메시지 일정 연결" [ref=e466] [cursor=pointer]:
+            - generic [ref=e467]:
+              - generic [ref=e468]:
+                - strong [ref=e469]: 전기능 통합검증 세션 정상표기
+                - generic "일정 연결 세션" [ref=e470]: 일정
+              - generic [ref=e471]: 전기능 통합검증 회의 정상표기
+              - paragraph [ref=e472]: 안녕하세요. 오늘 제가 수행할 세 가지 업무는 다음과 같습니다. * 사용자의 질문에 정확...
+              - paragraph [ref=e473]:
+                - generic [ref=e474]: 10개 메시지
+                - generic [ref=e475]: 일정 연결
+          - 'button "??? ???? ?? UTF8 일정 연결 세션 ??? ???? ?? UTF8 요청을 여러 작업으로 나누어 순서대로 처리했습니다. ## 일정 등록 일정을 등록했습니다. ... 2개 메시지 일정 연결" [ref=e476] [cursor=pointer]':
+            - generic [ref=e477]:
+              - generic [ref=e478]:
+                - strong [ref=e479]: "??? ???? ?? UTF8"
+                - generic "일정 연결 세션" [ref=e480]: 일정
+              - generic [ref=e481]: "??? ???? ?? UTF8"
+              - paragraph [ref=e482]: "요청을 여러 작업으로 나누어 순서대로 처리했습니다. ## 일정 등록 일정을 등록했습니다. ..."
+              - paragraph [ref=e483]:
+                - generic [ref=e484]: 2개 메시지
+                - generic [ref=e485]: 일정 연결
+          - 'button "??? ???? ?? 일정 연결 세션 ??? ???? ?? 요청을 여러 작업으로 나누어 순서대로 처리했습니다. ## 일정 등록 일정을 등록했습니다. ... 2개 메시지 일정 연결" [ref=e486] [cursor=pointer]':
+            - generic [ref=e487]:
+              - generic [ref=e488]:
+                - strong [ref=e489]: "??? ???? ??"
+                - generic "일정 연결 세션" [ref=e490]: 일정
+              - generic [ref=e491]: "??? ???? ??"
+              - paragraph [ref=e492]: "요청을 여러 작업으로 나누어 순서대로 처리했습니다. ## 일정 등록 일정을 등록했습니다. ..."
+              - paragraph [ref=e493]:
+                - generic [ref=e494]: 2개 메시지
+                - generic [ref=e495]: 일정 연결
+          - 'button "Full System Integration Review 일정 연결 세션 Full System Integration Review Meeting 요청을 여러 작업으로 나누어 순서대로 처리했습니다. ## 일정 등록 일정을 등록했습니다. ... 2개 메시지 일정 연결" [ref=e496] [cursor=pointer]':
+            - generic [ref=e497]:
+              - generic [ref=e498]:
+                - strong [ref=e499]: Full System Integration Review
+                - generic "일정 연결 세션" [ref=e500]: 일정
+              - generic [ref=e501]: Full System Integration Review Meeting
+              - paragraph [ref=e502]: "요청을 여러 작업으로 나누어 순서대로 처리했습니다. ## 일정 등록 일정을 등록했습니다. ..."
+              - paragraph [ref=e503]:
+                - generic [ref=e504]: 2개 메시지
+                - generic [ref=e505]: 일정 연결
+          - button "????? ??? ?? 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e506] [cursor=pointer]:
+            - generic [ref=e507]:
+              - generic [ref=e508]:
+                - strong [ref=e509]: "????? ??? ??"
+                - generic "독립 업무 세션" [ref=e510]: 독립
+              - generic [ref=e511]: 독립 업무 세션
+              - paragraph [ref=e512]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e513]:
+                - generic [ref=e514]: 0개 메시지
+                - generic [ref=e515]: 독립 흐름
+          - 'button "멀티태스크 라우팅 검증 독립 업무 세션 독립 업무 세션 요청을 여러 작업으로 나누어 순서대로 처리했습니다. ## 일정 등록 일정을 등록했습니다. ... 8개 메시지 독립 흐름" [ref=e516] [cursor=pointer]':
+            - generic [ref=e517]:
+              - generic [ref=e518]:
+                - strong [ref=e519]: 멀티태스크 라우팅 검증
+                - generic "독립 업무 세션" [ref=e520]: 독립
+              - generic [ref=e521]: 독립 업무 세션
+              - paragraph [ref=e522]: "요청을 여러 작업으로 나누어 순서대로 처리했습니다. ## 일정 등록 일정을 등록했습니다. ..."
+              - paragraph [ref=e523]:
+                - generic [ref=e524]: 8개 메시지
+                - generic [ref=e525]: 독립 흐름
+          - 'button "문서작성 품질 검증 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 문서작성 품질 검증 문서 - 형식: onePageR... 4개 메시지 독립 흐름" [ref=e526] [cursor=pointer]':
+            - generic [ref=e527]:
+              - generic [ref=e528]:
+                - strong [ref=e529]: 문서작성 품질 검증
+                - generic "독립 업무 세션" [ref=e530]: 독립
+              - generic [ref=e531]: 독립 업무 세션
+              - paragraph [ref=e532]: "HWPX 문서를 생성했습니다. - 제목: 문서작성 품질 검증 문서 - 형식: onePageR..."
+              - paragraph [ref=e533]:
+                - generic [ref=e534]: 4개 메시지
+                - generic [ref=e535]: 독립 흐름
+          - 'button "??? ?? 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: ??? ?? 문서 - 형식: email - 파일: ... 8개 메시지 독립 흐름" [ref=e536] [cursor=pointer]':
+            - generic [ref=e537]:
+              - generic [ref=e538]:
+                - strong [ref=e539]: "??? ??"
+                - generic "독립 업무 세션" [ref=e540]: 독립
+              - generic [ref=e541]: 독립 업무 세션
+              - paragraph [ref=e542]: "HWPX 문서를 생성했습니다. - 제목: ??? ?? 문서 - 형식: email - 파일: ..."
+              - paragraph [ref=e543]:
+                - generic [ref=e544]: 8개 메시지
+                - generic [ref=e545]: 독립 흐름
+          - button "문서작성 라우팅 실행확인 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e546] [cursor=pointer]:
+            - generic [ref=e547]:
+              - generic [ref=e548]:
+                - strong [ref=e549]: 문서작성 라우팅 실행확인
+                - generic "독립 업무 세션" [ref=e550]: 독립
+              - generic [ref=e551]: 독립 업무 세션
+              - paragraph [ref=e552]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e553]:
+                - generic [ref=e554]: 0개 메시지
+                - generic [ref=e555]: 독립 흐름
+          - 'button "문서작성 라우팅 유니코드 확인 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 문서작성 라우팅 유니코드 확인 문서 - 형식: on... 2개 메시지 독립 흐름" [ref=e556] [cursor=pointer]':
+            - generic [ref=e557]:
+              - generic [ref=e558]:
+                - strong [ref=e559]: 문서작성 라우팅 유니코드 확인
+                - generic "독립 업무 세션" [ref=e560]: 독립
+              - generic [ref=e561]: 독립 업무 세션
+              - paragraph [ref=e562]: "HWPX 문서를 생성했습니다. - 제목: 문서작성 라우팅 유니코드 확인 문서 - 형식: on..."
+              - paragraph [ref=e563]:
+                - generic [ref=e564]: 2개 메시지
+                - generic [ref=e565]: 독립 흐름
+          - button "???? ??? ??? ?? 독립 업무 세션 독립 업무 세션 질문 내용이 깨져서 보입니다. 다시 한번 정확하게 입력해 주시겠어요. 만약 **hwpx 파일... 2개 메시지 독립 흐름" [ref=e566] [cursor=pointer]:
+            - generic [ref=e567]:
+              - generic [ref=e568]:
+                - strong [ref=e569]: "???? ??? ??? ??"
+                - generic "독립 업무 세션" [ref=e570]: 독립
+              - generic [ref=e571]: 독립 업무 세션
+              - paragraph [ref=e572]: 질문 내용이 깨져서 보입니다. 다시 한번 정확하게 입력해 주시겠어요. 만약 **hwpx 파일...
+              - paragraph [ref=e573]:
+                - generic [ref=e574]: 2개 메시지
+                - generic [ref=e575]: 독립 흐름
+          - 'button "문서작성 라우팅 수정확인 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 문서작성 라우팅 수정확인 문서 - 형식: onePa... 6개 메시지 독립 흐름" [ref=e576] [cursor=pointer]':
+            - generic [ref=e577]:
+              - generic [ref=e578]:
+                - strong [ref=e579]: 문서작성 라우팅 수정확인
+                - generic "독립 업무 세션" [ref=e580]: 독립
+              - generic [ref=e581]: 독립 업무 세션
+              - paragraph [ref=e582]: "HWPX 문서를 생성했습니다. - 제목: 문서작성 라우팅 수정확인 문서 - 형식: onePa..."
+              - paragraph [ref=e583]:
+                - generic [ref=e584]: 6개 메시지
+                - generic [ref=e585]: 독립 흐름
+          - 'button "문서작성 라우팅 재확인 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 문서작성 라우팅 재확인 문서 - 형식: onePag... 8개 메시지 독립 흐름" [ref=e586] [cursor=pointer]':
+            - generic [ref=e587]:
+              - generic [ref=e588]:
+                - strong [ref=e589]: 문서작성 라우팅 재확인
+                - generic "독립 업무 세션" [ref=e590]: 독립
+              - generic [ref=e591]: 독립 업무 세션
+              - paragraph [ref=e592]: "HWPX 문서를 생성했습니다. - 제목: 문서작성 라우팅 재확인 문서 - 형식: onePag..."
+              - paragraph [ref=e593]:
+                - generic [ref=e594]: 8개 메시지
+                - generic [ref=e595]: 독립 흐름
+          - 'button "문서작성 라우팅 UTF8 테스트 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 문서작성 라우팅 UTF8 테스트 문서 - 형식: o... 12개 메시지 독립 흐름" [ref=e596] [cursor=pointer]':
+            - generic [ref=e597]:
+              - generic [ref=e598]:
+                - strong [ref=e599]: 문서작성 라우팅 UTF8 테스트
+                - generic "독립 업무 세션" [ref=e600]: 독립
+              - generic [ref=e601]: 독립 업무 세션
+              - paragraph [ref=e602]: "HWPX 문서를 생성했습니다. - 제목: 문서작성 라우팅 UTF8 테스트 문서 - 형식: o..."
+              - paragraph [ref=e603]:
+                - generic [ref=e604]: 12개 메시지
+                - generic [ref=e605]: 독립 흐름
+          - button "???? ??? UTF8 ??? 독립 업무 세션 독립 업무 세션 메시지가 물음표로 표시되어 내용을 파악하기 어렵습니다. **어떤 도움이 필요하신지 구체적으로... 10개 메시지 독립 흐름" [ref=e606] [cursor=pointer]:
+            - generic [ref=e607]:
+              - generic [ref=e608]:
+                - strong [ref=e609]: "???? ??? UTF8 ???"
+                - generic "독립 업무 세션" [ref=e610]: 독립
+              - generic [ref=e611]: 독립 업무 세션
+              - paragraph [ref=e612]: 메시지가 물음표로 표시되어 내용을 파악하기 어렵습니다. **어떤 도움이 필요하신지 구체적으로...
+              - paragraph [ref=e613]:
+                - generic [ref=e614]: 10개 메시지
+                - generic [ref=e615]: 독립 흐름
+          - 'button "문서작성 라우팅 테스트 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 회의 내용 정리 보고서 - 형식: onePageRe... 12개 메시지 독립 흐름" [ref=e616] [cursor=pointer]':
+            - generic [ref=e617]:
+              - generic [ref=e618]:
+                - strong [ref=e619]: 문서작성 라우팅 테스트
+                - generic "독립 업무 세션" [ref=e620]: 독립
+              - generic [ref=e621]: 독립 업무 세션
+              - paragraph [ref=e622]: "HWPX 문서를 생성했습니다. - 제목: 회의 내용 정리 보고서 - 형식: onePageRe..."
+              - paragraph [ref=e623]:
+                - generic [ref=e624]: 12개 메시지
+                - generic [ref=e625]: 독립 흐름
+          - button "???? ??? ??? 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e626] [cursor=pointer]:
+            - generic [ref=e627]:
+              - generic [ref=e628]:
+                - strong [ref=e629]: "???? ??? ???"
+                - generic "독립 업무 세션" [ref=e630]: 독립
+              - generic [ref=e631]: 독립 업무 세션
+              - paragraph [ref=e632]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e633]:
+                - generic [ref=e634]: 0개 메시지
+                - generic [ref=e635]: 독립 흐름
+          - 'button "문서작업 테스트 독립 업무 세션 독립 업무 세션 HWPX 문서를 생성했습니다. - 제목: 문서작업 테스트 문서 - 형식: onePageRep... 10개 메시지 독립 흐름" [ref=e636] [cursor=pointer]':
+            - generic [ref=e637]:
+              - generic [ref=e638]:
+                - strong [ref=e639]: 문서작업 테스트
+                - generic "독립 업무 세션" [ref=e640]: 독립
+              - generic [ref=e641]: 독립 업무 세션
+              - paragraph [ref=e642]: "HWPX 문서를 생성했습니다. - 제목: 문서작업 테스트 문서 - 형식: onePageRep..."
+              - paragraph [ref=e643]:
+                - generic [ref=e644]: 10개 메시지
+                - generic [ref=e645]: 독립 흐름
+          - 'button "목표 검증 세션 독립 업무 세션 독립 업무 세션 일정을 등록했습니다. - 제목: 스트리밍 확인 회의 - 시간: 2026-05-21T17:00... 6개 메시지 독립 흐름" [ref=e646] [cursor=pointer]':
+            - generic [ref=e647]:
+              - generic [ref=e648]:
+                - strong [ref=e649]: 목표 검증 세션
+                - generic "독립 업무 세션" [ref=e650]: 독립
+              - generic [ref=e651]: 독립 업무 세션
+              - paragraph [ref=e652]: "일정을 등록했습니다. - 제목: 스트리밍 확인 회의 - 시간: 2026-05-21T17:00..."
+              - paragraph [ref=e653]:
+                - generic [ref=e654]: 6개 메시지
+                - generic [ref=e655]: 독립 흐름
+          - button "목표 검증 세션 독립 업무 세션 독립 업무 세션 가벼운 농담 하나 해드릴게요! **\"프로그래머가 왜 항상 겨울에 춥다고 할까요?\"** ..... 10개 메시지 독립 흐름" [ref=e656] [cursor=pointer]:
+            - generic [ref=e657]:
+              - generic [ref=e658]:
+                - strong [ref=e659]: 목표 검증 세션
+                - generic "독립 업무 세션" [ref=e660]: 독립
+              - generic [ref=e661]: 독립 업무 세션
+              - paragraph [ref=e662]: 가벼운 농담 하나 해드릴게요! **"프로그래머가 왜 항상 겨울에 춥다고 할까요?"** .....
+              - paragraph [ref=e663]:
+                - generic [ref=e664]: 10개 메시지
+                - generic [ref=e665]: 독립 흐름
+          - button "목표 검증 세션 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e666] [cursor=pointer]:
+            - generic [ref=e667]:
+              - generic [ref=e668]:
+                - strong [ref=e669]: 목표 검증 세션
+                - generic "독립 업무 세션" [ref=e670]: 독립
+              - generic [ref=e671]: 독립 업무 세션
+              - paragraph [ref=e672]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e673]:
+                - generic [ref=e674]: 0개 메시지
+                - generic [ref=e675]: 독립 흐름
+          - button "test 작업 일정 연결 세션 test GraphRAG 검색 결과입니다. 'knowledge rag search ai strateg... 70개 메시지 일정 연결" [ref=e676] [cursor=pointer]:
+            - generic [ref=e677]:
+              - generic [ref=e678]:
+                - strong [ref=e679]: test 작업
+                - generic "일정 연결 세션" [ref=e680]: 일정
+              - generic [ref=e681]: test
+              - paragraph [ref=e682]: GraphRAG 검색 결과입니다. 'knowledge rag search ai strateg...
+              - paragraph [ref=e683]:
+                - generic [ref=e684]: 70개 메시지
+                - generic [ref=e685]: 일정 연결
+          - button "새 업무 세션 1 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e686] [cursor=pointer]:
+            - generic [ref=e687]:
+              - generic [ref=e688]:
+                - strong [ref=e689]: 새 업무 세션 1
+                - generic "독립 업무 세션" [ref=e690]: 독립
+              - generic [ref=e691]: 독립 업무 세션
+              - paragraph [ref=e692]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e693]:
+                - generic [ref=e694]: 0개 메시지
+                - generic [ref=e695]: 독립 흐름
+          - button "새 업무 세션 1 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e696] [cursor=pointer]:
+            - generic [ref=e697]:
+              - generic [ref=e698]:
+                - strong [ref=e699]: 새 업무 세션 1
+                - generic "독립 업무 세션" [ref=e700]: 독립
+              - generic [ref=e701]: 독립 업무 세션
+              - paragraph [ref=e702]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e703]:
+                - generic [ref=e704]: 0개 메시지
+                - generic [ref=e705]: 독립 흐름
+          - button "새 업무 세션 1 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e706] [cursor=pointer]:
+            - generic [ref=e707]:
+              - generic [ref=e708]:
+                - strong [ref=e709]: 새 업무 세션 1
+                - generic "독립 업무 세션" [ref=e710]: 독립
+              - generic [ref=e711]: 독립 업무 세션
+              - paragraph [ref=e712]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e713]:
+                - generic [ref=e714]: 0개 메시지
+                - generic [ref=e715]: 독립 흐름
+          - button "새 업무 세션 1 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e716] [cursor=pointer]:
+            - generic [ref=e717]:
+              - generic [ref=e718]:
+                - strong [ref=e719]: 새 업무 세션 1
+                - generic "독립 업무 세션" [ref=e720]: 독립
+              - generic [ref=e721]: 독립 업무 세션
+              - paragraph [ref=e722]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e723]:
+                - generic [ref=e724]: 0개 메시지
+                - generic [ref=e725]: 독립 흐름
+          - button "테스트 작업 일정 연결 세션 테스트 연결 일정 중심으로 작업을 이어갈 수 있습니다. 0개 메시지 일정 연결" [ref=e726] [cursor=pointer]:
+            - generic [ref=e727]:
+              - generic [ref=e728]:
+                - strong [ref=e729]: 테스트 작업
+                - generic "일정 연결 세션" [ref=e730]: 일정
+              - generic [ref=e731]: 테스트
+              - paragraph [ref=e732]: 연결 일정 중심으로 작업을 이어갈 수 있습니다.
+              - paragraph [ref=e733]:
+                - generic [ref=e734]: 0개 메시지
+                - generic [ref=e735]: 일정 연결
+          - button "두번째 수정테스트 독립 업무 세션 독립 업무 세션 새 요청을 남겨 업무대화를 시작하세요. 0개 메시지 독립 흐름" [ref=e736] [cursor=pointer]:
+            - generic [ref=e737]:
+              - generic [ref=e738]:
+                - strong [ref=e739]: 두번째 수정테스트
+                - generic "독립 업무 세션" [ref=e740]: 독립
+              - generic [ref=e741]: 독립 업무 세션
+              - paragraph [ref=e742]: 새 요청을 남겨 업무대화를 시작하세요.
+              - paragraph [ref=e743]:
+                - generic [ref=e744]: 0개 메시지
+                - generic [ref=e745]: 독립 흐름
+  - main [ref=e79]:
+    - generic [ref=e746]:
+      - heading "???? ???? ?? 1779648814586" [level=2] [ref=e1202]
+      - generic [ref=e751]:
+        - generic [ref=e1203]:
+          - paragraph [ref=e1204]: 아직 대화가 없습니다.
+          - paragraph [ref=e1205]: 입력창에 요청이나 메모를 남기면 이 세션의 대화가 쌓입니다.
+        - generic [ref=e756]:
+          - generic [ref=e1206]:
+            - text: 연결 일정
+            - combobox "연결 일정" [ref=e1207]:
+              - option "선택 안 함"
+              - option "test" [selected]
+              - option "qhrhdd"
+              - option "ㅇㄹㄴㅇㄹㄴ"
+              - option "AI 전략회의"
+              - option "AI 전략회의"
+              - option "AI 전략회의"
+              - option "AI 전략회의"
+              - option "AI 전략회의"
+              - option "ui smoke"
+              - option "목표 검증 회의"
+              - option "목표 검증 회의"
+              - option "스트리밍 확인 회의"
+              - option "테스트"
+              - option "멀티태스크 검증 회의"
+              - option "라우팅 재검증 회의"
+              - option "Full System Integration Review Meeting"
+              - option "통합검증 회의"
+              - option "??? ???? ??"
+              - option "통합검증 회의"
+              - option "??? ???? ?? UTF8"
+              - option "통합검증 회의"
+              - option "전기능 통합검증 회의 정상표기"
+          - button "선택 일정과 연결" [ref=e1208] [cursor=pointer]
+          - button "파일 연결" [ref=e1209] [cursor=pointer]
+          - button "문서작성으로 이어가기" [ref=e1210] [cursor=pointer]
+          - button "연결 파일 1개" [ref=e1211] [cursor=pointer]
+          - button "이 세션 지식 반영" [ref=e1212] [cursor=pointer]
+        - generic [ref=e1213]:
+          - figure "calendar-ui.png" [ref=e1225]:
+            - button "calendar-ui.png 크게 보기" [ref=e1226]:
+              - img "calendar-ui.png 미리보기" [ref=e1227]
+            - button "calendar-ui.png 제거" [ref=e1228] [cursor=pointer]:
+              - img [ref=e1229]
+            - generic [ref=e1232]: calendar-ui.png
+          - generic [ref=e1234]:
+            - generic [ref=e1235]: calendar-ui.png
+            - button "calendar-ui.png 첨부 제거" [ref=e1236] [cursor=pointer]:
+              - img [ref=e1237]
+          - generic [ref=e1214]:
+            - textbox "업무대화 입력" [ref=e1215]:
+              - /placeholder: 코덱스처럼 자유롭게 업무 메모, 지시, 다음 액션을 적어보세요.
+            - generic [ref=e1216]:
+              - generic [ref=e1217]:
+                - generic "파일 첨부" [ref=e1218] [cursor=pointer]:
+                  - img [ref=e1219]
+                - button "세부 설정" [ref=e1220] [cursor=pointer]:
+                  - img [ref=e1221]
+                  - text: 세부 설정
+              - button "보내기" [ref=e1223] [cursor=pointer]
+  - separator "오른쪽 패널 크기 조절" [ref=e82]
+  - complementary [ref=e83]:
+    - generic [ref=e84]:
+      - generic [ref=e85]:
+        - button "현재 컨텍스트" [ref=e86] [cursor=pointer]:
+          - img [ref=e87]
+        - button "승인 요청" [ref=e88] [cursor=pointer]:
+          - img [ref=e89]
+        - button "작업 진행" [ref=e90] [cursor=pointer]:
+          - img [ref=e91]
+        - button "최근 실행" [ref=e92] [cursor=pointer]:
+          - img [ref=e93]
+        - button "가까운 일정" [disabled] [ref=e94]:
+          - img [ref=e95]
+        - button "미리보기" [disabled] [ref=e96]:
+          - img [ref=e97]
+        - button "덤프 뷰어" [disabled] [ref=e98]:
+          - img [ref=e99]
+      - generic [ref=e100]:
+        - generic [ref=e101]:
+          - generic [ref=e102]:
+            - paragraph [ref=e103]: 현재 컨텍스트
+            - heading "선택 상태" [level=2] [ref=e104]
+          - button "현재 컨텍스트 접기" [expanded] [ref=e106] [cursor=pointer]:
+            - img [ref=e107]
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - paragraph [ref=e111]: 선택 일정
+            - paragraph [ref=e112]: test
+          - generic [ref=e113]:
+            - paragraph [ref=e114]: 선택 세션
+            - paragraph [ref=e115]: "???? ???? ?? 1779648814586"
+          - generic [ref=e116]:
+            - paragraph [ref=e117]: 선택 ReferenceSet
+            - paragraph [ref=e118]: files
+      - generic [ref=e119]:
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - paragraph [ref=e122]: 승인 요청
+            - heading "대기 중인 승인" [level=2] [ref=e123]
+          - button "승인 요청 접기" [expanded] [ref=e125] [cursor=pointer]:
+            - img [ref=e126]
+        - generic [ref=e128]:
+          - paragraph [ref=e129]: 대기 중인 승인이 없습니다.
+          - paragraph [ref=e130]: 외부 실행, 파일 변경, 최종 저장 같은 위험 작업은 이 영역에서 승인합니다.
+      - generic [ref=e131]:
+        - generic [ref=e132]:
+          - generic [ref=e133]:
+            - paragraph [ref=e134]: 작업 진행
+            - heading "최근 작업" [level=2] [ref=e135]
+          - button "작업 진행 접기" [expanded] [ref=e137] [cursor=pointer]:
+            - img [ref=e138]
+        - generic [ref=e775]:
+          - article [ref=e776]:
+            - generic [ref=e777]:
+              - generic [ref=e778]:
+                - heading "?? ?? ?? ?? HWPX 생성" [level=3] [ref=e779]
+                - paragraph [ref=e780]: 문서 컨텍스트 수집 실패
+              - generic [ref=e781]: 실패
+            - generic "?? ?? ?? ?? HWPX 생성 진행률 0%" [ref=e782]
+            - generic [ref=e783]:
+              - generic [ref=e784]: 0%
+              - generic [ref=e785]: "작업 #d0a93a5d"
+              - generic [ref=e786]: document_output:expected-failure-1779648817377
+            - button "작업 로그 보기" [ref=e788] [cursor=pointer]
+            - paragraph [ref=e789]: source work session or content base not found
+          - article [ref=e790]:
+            - generic [ref=e791]:
+              - generic [ref=e792]:
+                - heading "AI ?? ?? ?? ?? ??? HWPX 생성" [level=3] [ref=e793]
+                - paragraph [ref=e794]: HWPX 문서 생성 완료
+              - generic [ref=e795]: 완료
+            - generic "AI ?? ?? ?? ?? ??? HWPX 생성 진행률 100%" [ref=e796]
+            - generic [ref=e797]:
+              - generic [ref=e798]: 100%
+              - generic [ref=e799]: "작업 #3b7f3239"
+              - generic [ref=e800]: document_output:ai-work-report-1779648424867
+            - generic [ref=e801]:
+              - button "작업 로그 보기" [ref=e802] [cursor=pointer]
+              - button "결과 열기" [ref=e803] [cursor=pointer]
+              - button "Markdown 열기" [ref=e804] [cursor=pointer]
+          - article [ref=e805]:
+            - generic [ref=e806]:
+              - generic [ref=e807]:
+                - heading "경량모델 컴퓨터유즈 실제 점검 업무대화 응답" [level=3] [ref=e808]
+                - paragraph [ref=e809]: 업무대화 응답 완료
+              - generic [ref=e810]: 완료
+            - generic "경량모델 컴퓨터유즈 실제 점검 업무대화 응답 진행률 100%" [ref=e811]
+            - generic [ref=e812]:
+              - generic [ref=e813]: 100%
+              - generic [ref=e814]: "작업 #3831966c"
+              - generic [ref=e815]: work_session:b4f4771a-9528-4b21-8663-d1cf645a50b5
+            - button "작업 로그 보기" [ref=e817] [cursor=pointer]
+          - article [ref=e818]:
+            - generic [ref=e819]:
+              - generic [ref=e820]:
+                - heading "경량모델 문서작성 스모크 HWPX 생성" [level=3] [ref=e821]
+                - paragraph [ref=e822]: HWPX 문서 생성 완료
+              - generic [ref=e823]: 완료
+            - generic "경량모델 문서작성 스모크 HWPX 생성 진행률 100%" [ref=e824]
+            - generic [ref=e825]:
+              - generic [ref=e826]: 100%
+              - generic [ref=e827]: "작업 #168ea470"
+              - generic [ref=e828]: work_session:a876f06f-380f-4417-85af-0ec85398ae85:document
+            - generic [ref=e829]:
+              - button "작업 로그 보기" [ref=e830] [cursor=pointer]
+              - button "결과 열기" [ref=e831] [cursor=pointer]
+              - button "Markdown 열기" [ref=e832] [cursor=pointer]
+          - article [ref=e833]:
+            - generic [ref=e834]:
+              - generic [ref=e835]:
+                - heading "경량모델 문서작성 스모크 업무대화 응답" [level=3] [ref=e836]
+                - paragraph [ref=e837]: 업무대화 스킬 실행 완료
+              - generic [ref=e838]: 완료
+            - generic "경량모델 문서작성 스모크 업무대화 응답 진행률 100%" [ref=e839]
+            - generic [ref=e840]:
+              - generic [ref=e841]: 100%
+              - generic [ref=e842]: "작업 #cac2d2c7"
+              - generic [ref=e843]: work_session:a876f06f-380f-4417-85af-0ec85398ae85
+            - button "작업 로그 보기" [ref=e845] [cursor=pointer]
+          - article [ref=e846]:
+            - generic [ref=e847]:
+              - generic [ref=e848]:
+                - heading "경량모델 일정 라우팅 스모크 업무대화 응답" [level=3] [ref=e849]
+                - paragraph [ref=e850]: 업무대화 스킬 실행 완료
+              - generic [ref=e851]: 완료
+            - generic "경량모델 일정 라우팅 스모크 업무대화 응답 진행률 100%" [ref=e852]
+            - generic [ref=e853]:
+              - generic [ref=e854]: 100%
+              - generic [ref=e855]: "작업 #d7748222"
+              - generic [ref=e856]: work_session:05e06101-c50c-4620-8380-a56ce4307e01
+            - button "작업 로그 보기" [ref=e858] [cursor=pointer]
+          - article [ref=e859]:
+            - generic [ref=e860]:
+              - generic [ref=e861]:
+                - heading "Gemma 4 E2B 경량모델 자동 스모크 업무대화 응답" [level=3] [ref=e862]
+                - paragraph [ref=e863]: 업무대화 응답 완료
+              - generic [ref=e864]: 완료
+            - generic "Gemma 4 E2B 경량모델 자동 스모크 업무대화 응답 진행률 100%" [ref=e865]
+            - generic [ref=e866]:
+              - generic [ref=e867]: 100%
+              - generic [ref=e868]: "작업 #4002b6a2"
+              - generic [ref=e869]: work_session:6a4e7c21-fffc-4481-bc53-0f9f276b3833
+            - button "작업 로그 보기" [ref=e871] [cursor=pointer]
+          - article [ref=e872]:
+            - generic [ref=e873]:
+              - generic [ref=e874]:
+                - heading "경량모델 문서작성 스모크 HWPX 생성" [level=3] [ref=e875]
+                - paragraph [ref=e876]: HWPX 문서 생성 완료
+              - generic [ref=e877]: 완료
+            - generic "경량모델 문서작성 스모크 HWPX 생성 진행률 100%" [ref=e878]
+            - generic [ref=e879]:
+              - generic [ref=e880]: 100%
+              - generic [ref=e881]: "작업 #b1f8aa9e"
+              - generic [ref=e882]: work_session:6c7e2b9d-13ad-4274-9318-e5036dbebb07:document
+            - generic [ref=e883]:
+              - button "작업 로그 보기" [ref=e884] [cursor=pointer]
+              - button "결과 열기" [ref=e885] [cursor=pointer]
+              - button "Markdown 열기" [ref=e886] [cursor=pointer]
+      - generic [ref=e143]:
+        - generic [ref=e144]:
+          - generic [ref=e145]:
+            - paragraph [ref=e146]: 최근 실행
+            - heading "작업 이력 요약" [level=2] [ref=e147]
+          - button "최근 실행 접기" [expanded] [ref=e149] [cursor=pointer]:
+            - img [ref=e150]
+        - generic [ref=e152]:
+          - paragraph [ref=e153]: 기록이 없습니다.
+          - paragraph [ref=e154]: 이력은 기능 실행 직후 자동 갱신됩니다.
+```
