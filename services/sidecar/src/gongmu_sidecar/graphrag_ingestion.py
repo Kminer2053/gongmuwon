@@ -35,6 +35,7 @@ STRUCTURE_PREVIEW_DEFAULT_SECTIONS = 60
 STRUCTURE_PREVIEW_MAX_SECTIONS = 300
 STRUCTURE_PREVIEW_TEXT_CHARS = 1600
 VECTOR_UPSERT_BATCH_SIZE = 128
+MIN_RETRIEVAL_RAW_SCORE = 25.0
 QUERY_TERM_EXPANSIONS = {
     "프롬프트": ("prompt", "prompting", "prompt engineering", "system prompt"),
     "프롬프트엔지니어링": ("prompt engineering", "prompt", "instruction design"),
@@ -942,7 +943,7 @@ class GraphRAGIngestionManager:
             if (
                 query_embedding is not None
                 and query_embedding.backend == "deterministic"
-                and text_score == 0
+                and text_score < MIN_RETRIEVAL_RAW_SCORE
                 and graph_score == 0
                 and session_context_boost == 0
             ):
@@ -956,6 +957,8 @@ class GraphRAGIngestionManager:
                 + session_context_boost
                 + table_evidence_boost
             )
+            if raw_score < MIN_RETRIEVAL_RAW_SCORE:
+                continue
             quality_penalty = self._retrieval_quality_penalty(
                 quality_score=chunk["document_quality_score"],
                 partial=bool(chunk["document_partial"]),

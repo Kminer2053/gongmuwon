@@ -58,6 +58,18 @@
       "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml"
     ]
   },
+  "routing": {
+    "scheduleAndKnowledgeCombined": true,
+    "fileSearchGuidance": true,
+    "featureHelpGuidance": true,
+    "evidence": [
+      "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+      "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+      "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+      "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+      "actual-input://파일찾기는 어떻게 써?"
+    ]
+  },
   "knowledgeIndexing": {
     "sourceRegistered": true,
     "scanProgressShown": true,
@@ -97,6 +109,7 @@
     "graphNodeClicked": true,
     "tableEvidenceShown": true,
     "sessionKnowledgeSearch": true,
+    "noEvidenceGraceful": true,
     "answerText": "'AI ?? ??? ???'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 표: 🎯 팀 구성 및 역할 팀원 | 역할 | 전문 영역 **Sam** | 프롬프트 아키텍트 | 구조 설계, 컨텍스트 분석, 요구사항 명세 **Jenny** | 기술 도메인 전문가 | 코드 패턴, 기술 스택, 베스트 프랙티스 **Will** | 팀 리더 & 품질 관리 | 최종 검토, 통합, 실행 가능성 검증.\n2. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will) 코딩 AI(Cursor, Claude Code 등)에게 제공할 고품질 프롬프트를 작성하는 전문가 팀 프롬프트를 설계해 드리겠습니다. ---.\n3. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 🔶 2단계: Jenny의 기술적 강화 - React 18 + TypeScript 5 - 상태 관리: useState/useReducer - 드래그앤드롭: react-beautiful-dnd 또는 @dnd-kit/core - 스타일: CSS Modules 또는 Tailwind - 테스트: React Testing Library.\n위 응답은 로컬 문서 chunk와 그래프 관계를 근거로 생성되었습니다.",
     "evidence": [
       "http://127.0.0.1:8765/api/knowledge/ask",
@@ -108,7 +121,8 @@
       "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
       "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
       "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+      "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
     ],
     "rawShape": [
       "query",

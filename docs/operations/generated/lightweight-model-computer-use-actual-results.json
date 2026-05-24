@@ -1,10 +1,10 @@
 {
-  "runId": "computer-use-actual-1779651973492",
+  "runId": "computer-use-actual-1779652698873",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "startedAt": "2026-05-24T19:46:13.492Z",
-  "completedAt": "2026-05-24T19:46:13.492Z",
+  "startedAt": "2026-05-24T19:58:18.873Z",
+  "completedAt": "2026-05-24T19:58:18.873Z",
   "sourceSessionId": "b4f4771a-9528-4b21-8663-d1cf645a50b5",
   "scenarios": [
     {
@@ -419,6 +419,63 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml"
       ],
       "notes": "detail_settings_overlay=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?"
+      ],
+      "notes": "schedule_knowledge_combined=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?"
+      ],
+      "notes": "file_search_guidance=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?"
+      ],
+      "notes": "feature_help=true",
       "blocker": ""
     },
     {
@@ -935,7 +992,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "knowledge_searched=true; source_documents=5",
       "blocker": ""
@@ -959,7 +1017,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "search_result_count=5",
       "blocker": ""
@@ -983,7 +1042,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "grounded_answer_chars=674",
       "blocker": ""
@@ -1007,7 +1067,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "source_document_count=5",
       "blocker": ""
@@ -1031,7 +1092,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "source_path_count=5",
       "blocker": ""
@@ -1055,7 +1117,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "low_quality_warning=true",
       "blocker": ""
@@ -1079,7 +1142,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "relation_drilldown=true",
       "blocker": ""
@@ -1103,7 +1167,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "graph_node_clicked=true",
       "blocker": ""
@@ -1127,7 +1192,8 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "table_evidence=true",
       "blocker": ""
@@ -1151,9 +1217,35 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
       ],
       "notes": "session_knowledge_search=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "no_evidence_graceful=true",
       "blocker": ""
     },
     {

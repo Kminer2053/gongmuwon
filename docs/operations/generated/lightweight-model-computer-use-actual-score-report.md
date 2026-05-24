@@ -1,11 +1,11 @@
 # 경량모델 컴퓨터유즈 실제 점수 리포트
 
-- 실행 ID: computer-use-actual-1779651973492
+- 실행 ID: computer-use-actual-1779652698873
 - 기준 모델: Gemma 4 E2B (gemma4:e2b)
 - 평가 방식: playwright-computer-use
-- 총점: 860 / 1000
-- 실시: 86개
-- 미실시: 14개
+- 총점: 900 / 1000
+- 실시: 90개
+- 미실시: 10개
 - 종합 등급: needs-work
 
 ## 카테고리별 점수
@@ -15,11 +15,11 @@
 | 시작/업무엔진 | 6/10 | 60/100 | release-ready |
 | 모델 설정/Gemma 4 E2B | 9/10 | 90/100 | release-ready |
 | 업무대화 기본 UX | 9/10 | 90/100 | release-ready |
-| 업무대화 도구 라우팅 | 5/10 | 50/100 | release-ready |
+| 업무대화 도구 라우팅 | 8/10 | 80/100 | release-ready |
 | 일정 캘린더 | 10/10 | 100/100 | release-ready |
 | 파일찾기/세션 연결 | 10/10 | 100/100 | release-ready |
 | 지식폴더/GraphRAG 인덱싱 | 10/10 | 100/100 | release-ready |
-| GraphRAG 검색/출처 품질 | 9/10 | 90/100 | release-ready |
+| GraphRAG 검색/출처 품질 | 10/10 | 100/100 | release-ready |
 | 문서작성/HWPX 산출 | 10/10 | 100/100 | release-ready |
 | 실행기록/작업진행/다중작업 | 8/10 | 80/100 | release-ready |
 
@@ -421,6 +421,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-04-05 업무대화 도구 라우팅
 
@@ -433,6 +434,45 @@
   - file://C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\ai-work-report-1779648424867.hwpx
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png
+
+### LMUX-04-06 업무대화 도구 라우팅
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: schedule_knowledge_combined=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide
+  - actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
+  - actual-input://업무대화랑 파일찾기 사용법 안내해줄래?
+  - actual-input://파일찾기는 어떻게 써?
+
+### LMUX-04-07 업무대화 도구 라우팅
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: file_search_guidance=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide
+  - actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
+  - actual-input://업무대화랑 파일찾기 사용법 안내해줄래?
+  - actual-input://파일찾기는 어떻게 써?
+
+### LMUX-04-08 업무대화 도구 라우팅
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: feature_help=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide
+  - actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
+  - actual-input://업무대화랑 파일찾기 사용법 안내해줄래?
+  - actual-input://파일찾기는 어떻게 써?
 
 ### LMUX-05-01 일정 캘린더
 
@@ -913,6 +953,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-08-02 GraphRAG 검색/출처 품질
 
@@ -931,6 +972,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-08-03 GraphRAG 검색/출처 품질
 
@@ -949,6 +991,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-08-04 GraphRAG 검색/출처 품질
 
@@ -967,6 +1010,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-08-05 GraphRAG 검색/출처 품질
 
@@ -985,6 +1029,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-08-06 GraphRAG 검색/출처 품질
 
@@ -1003,6 +1048,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-08-07 GraphRAG 검색/출처 품질
 
@@ -1021,6 +1067,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-08-08 GraphRAG 검색/출처 품질
 
@@ -1039,6 +1086,7 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-08-09 GraphRAG 검색/출처 품질
 
@@ -1057,6 +1105,26 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
+
+### LMUX-08-10 GraphRAG 검색/출처 품질
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: no_evidence_graceful=true
+- 증거:
+  - http://127.0.0.1:8765/api/knowledge/ask
+  - citations:5
+  - source_paths:5
+  - http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png
+  - http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0
 
 ### LMUX-09-01 문서작성/HWPX 산출
 
