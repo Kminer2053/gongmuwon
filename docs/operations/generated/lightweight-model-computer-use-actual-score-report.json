@@ -1,13 +1,13 @@
 {
-  "runId": "computer-use-actual-1779647897673",
+  "runId": "computer-use-actual-1779648503324",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "generatedAt": "2026-05-24T18:38:17.676Z",
-  "totalScore": 130,
+  "generatedAt": "2026-05-24T18:48:23.327Z",
+  "totalScore": 260,
   "totalMaxScore": 1000,
-  "testedCount": 13,
-  "notTestedCount": 87,
+  "testedCount": 26,
+  "notTestedCount": 74,
   "overallGrade": "needs-work",
   "categories": [
     {
@@ -37,16 +37,16 @@
     {
       "category": "업무대화 도구 라우팅",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 5,
+      "score": 50,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     },
     {
       "category": "일정 캘린더",
       "count": 10,
-      "testedCount": 1,
-      "score": 10,
+      "testedCount": 3,
+      "score": 30,
       "maxScore": 100,
       "grade": "release-ready"
     },
@@ -69,16 +69,16 @@
     {
       "category": "GraphRAG 검색과 출처 답변",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 4,
+      "score": 40,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     },
     {
       "category": "문서작성/HWPX 산출",
       "count": 10,
-      "testedCount": 3,
-      "score": 30,
+      "testedCount": 5,
+      "score": 50,
       "maxScore": 100,
       "grade": "release-ready"
     },
@@ -517,61 +517,110 @@
       "id": "LMUX-04-01",
       "category": "업무대화 도구 라우팅",
       "title": "일정 등록 요청 라우팅",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "schedule_created=true; title=AI ?? ?? ?? 1779648418544",
+      "blocker": ""
     },
     {
       "id": "LMUX-04-02",
       "category": "업무대화 도구 라우팅",
       "title": "일정 조회 요청 라우팅",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "schedule_listed=true; count=23",
+      "blocker": ""
     },
     {
       "id": "LMUX-04-03",
       "category": "업무대화 도구 라우팅",
       "title": "일정 삭제 요청 라우팅",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "schedule_deleted=true; title=AI ?? ?? ?? 1779648418544",
+      "blocker": ""
     },
     {
       "id": "LMUX-04-04",
       "category": "업무대화 도구 라우팅",
       "title": "지식폴더 검색 요청 라우팅",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "knowledge_searched=true; source_documents=5",
+      "blocker": ""
     },
     {
       "id": "LMUX-04-05",
       "category": "업무대화 도구 라우팅",
       "title": "문서작성 요청 라우팅",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx"
+      ],
+      "notes": "document_routed=true; format=onePageReport",
+      "blocker": ""
     },
     {
       "id": "LMUX-04-06",
@@ -670,13 +719,23 @@
       "id": "LMUX-05-03",
       "category": "일정 캘린더",
       "title": "일 보기 시간 단위 등록",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "day_time_registration=true; starts_at=2026-05-26T01:00:00.000Z",
+      "blocker": ""
     },
     {
       "id": "LMUX-05-04",
@@ -754,13 +813,23 @@
       "id": "LMUX-05-10",
       "category": "일정 캘린더",
       "title": "일정 삭제 후 목록 반영",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "delete_reflected=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-01",
@@ -1024,49 +1093,89 @@
       "id": "LMUX-08-01",
       "category": "GraphRAG 검색과 출처 답변",
       "title": "지식검색 결과 표시",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "search_result_count=5",
+      "blocker": ""
     },
     {
       "id": "LMUX-08-02",
       "category": "GraphRAG 검색과 출처 답변",
       "title": "근거 답변 생성",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "grounded_answer_chars=674",
+      "blocker": ""
     },
     {
       "id": "LMUX-08-03",
       "category": "GraphRAG 검색과 출처 답변",
       "title": "출처 문서명 표시",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "source_document_count=5",
+      "blocker": ""
     },
     {
       "id": "LMUX-08-04",
       "category": "GraphRAG 검색과 출처 답변",
       "title": "파일 경로 표시",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "source_path_count=5",
+      "blocker": ""
     },
     {
       "id": "LMUX-08-05",
@@ -1267,25 +1376,43 @@
       "id": "LMUX-09-09",
       "category": "문서작성/HWPX 산출",
       "title": "HWPX 산출 경로 표시",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx"
+      ],
+      "notes": "document_generated=true; output_path=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+      "blocker": ""
     },
     {
       "id": "LMUX-09-10",
       "category": "문서작성/HWPX 산출",
       "title": "산출 파일 열기 링크",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx"
+      ],
+      "notes": "open_link=true; output_path=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+      "blocker": ""
     },
     {
       "id": "LMUX-10-01",

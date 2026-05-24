@@ -142,6 +142,79 @@ assert.equal(summary.testedCount, 13);
 assert.equal(summary.totalScore, 130);
 assert.equal(summary.overallGrade, "needs-work");
 
+const workflowResultSheet = buildComputerUseEvidenceResultSheet({
+  scenarioSet,
+  runtimePolicy,
+  session: {
+    id: "session-workflow-001",
+    title: "Lightweight functional workflow check",
+    status: "open",
+  },
+  messages: goodMessages,
+  appTitleObserved: true,
+  engineHealthy: true,
+  responseTimeObserved: true,
+  workProgressObserved: true,
+  recentContextObserved: true,
+  screenshotPath: "output/playwright/workflow.png",
+  snapshotPath: ".playwright-cli/workflow.yml",
+  apiEvidenceBase: "http://127.0.0.1:8765/api/work-sessions/session-workflow-001",
+  workflowEvidence: {
+    schedule: {
+      created: true,
+      listed: true,
+      deleted: true,
+      title: "AI 업무 점검 회의",
+      evidence: [
+        "http://127.0.0.1:8765/api/schedules",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-workflow.png",
+      ],
+    },
+    knowledge: {
+      searched: true,
+      answered: true,
+      sourceDocumentCount: 2,
+      sourcePathCount: 2,
+      answerText: "AI 추진 방향은 현황 점검, 실행과제 정리, 후속 일정 관리가 핵심입니다.",
+      evidence: [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-workflow.png",
+      ],
+    },
+    document: {
+      routed: true,
+      generated: true,
+      format: "onePageReport",
+      outputPath: "runtime-workspace/documents/final/ai-work-report.hwpx",
+      openLink: true,
+      evidence: [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://runtime-workspace/documents/final/ai-work-report.hwpx",
+      ],
+    },
+  },
+});
+
+const workflowIds = workflowResultSheet.scenarios.map((item) => item.id);
+for (const id of [
+  "LMUX-04-01",
+  "LMUX-04-02",
+  "LMUX-04-03",
+  "LMUX-04-04",
+  "LMUX-04-05",
+  "LMUX-05-03",
+  "LMUX-05-10",
+  "LMUX-08-01",
+  "LMUX-08-02",
+  "LMUX-08-03",
+  "LMUX-08-04",
+  "LMUX-09-09",
+  "LMUX-09-10",
+]) {
+  assert.ok(workflowIds.includes(id), `${id} should be scored from workflow evidence`);
+  assert.equal(workflowResultSheet.scenarios.find((item) => item.id === id).status, "pass");
+}
+
 const featureUi = evaluateFeatureUiSnapshots({
   calendar: { snapshotText: "업무일정 캘린더 월 주 일 오늘", snapshotPath: "calendar.yml" },
   fileSearch: { snapshotText: "내장 파일찾기 검색 범위 파일명 인덱스 갱신 파일 검색", snapshotPath: "file.yml" },

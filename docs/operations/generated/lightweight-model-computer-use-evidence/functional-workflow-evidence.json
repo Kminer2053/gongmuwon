@@ -1,0 +1,55 @@
+{
+  "schedule": {
+    "created": true,
+    "listed": true,
+    "deleted": true,
+    "count": 23,
+    "id": "1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+    "title": "AI ?? ?? ?? 1779648418544",
+    "startsAt": "2026-05-26T01:00:00.000Z",
+    "evidence": [
+      "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+      "http://127.0.0.1:8765/api/schedules#listed=true",
+      "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+    ]
+  },
+  "knowledge": {
+    "searched": true,
+    "answered": true,
+    "sourceDocumentCount": 5,
+    "sourcePathCount": 5,
+    "answerText": "'AI ?? ??? ???'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 표: 🎯 팀 구성 및 역할 팀원 | 역할 | 전문 영역 **Sam** | 프롬프트 아키텍트 | 구조 설계, 컨텍스트 분석, 요구사항 명세 **Jenny** | 기술 도메인 전문가 | 코드 패턴, 기술 스택, 베스트 프랙티스 **Will** | 팀 리더 & 품질 관리 | 최종 검토, 통합, 실행 가능성 검증.\n2. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will) 코딩 AI(Cursor, Claude Code 등)에게 제공할 고품질 프롬프트를 작성하는 전문가 팀 프롬프트를 설계해 드리겠습니다. ---.\n3. 코딩 AI 프롬프트 전문가 팀 (Sam, Jenny, Will): 🔶 2단계: Jenny의 기술적 강화 - React 18 + TypeScript 5 - 상태 관리: useState/useReducer - 드래그앤드롭: react-beautiful-dnd 또는 @dnd-kit/core - 스타일: CSS Modules 또는 Tailwind - 테스트: React Testing Library.\n위 응답은 로컬 문서 chunk와 그래프 관계를 근거로 생성되었습니다.",
+    "evidence": [
+      "http://127.0.0.1:8765/api/knowledge/ask",
+      "citations:5",
+      "source_paths:5"
+    ],
+    "rawShape": [
+      "query",
+      "session_id",
+      "answer",
+      "citations",
+      "retrieval_summary",
+      "items"
+    ],
+    "error": ""
+  },
+  "document": {
+    "routed": true,
+    "generated": true,
+    "format": "onePageReport",
+    "outputPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+    "openLink": true,
+    "evidence": [
+      "http://127.0.0.1:8765/api/documents/generate",
+      "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx"
+    ],
+    "rawShape": [
+      "content_base",
+      "finalize",
+      "artifact",
+      "work_job"
+    ],
+    "error": ""
+  }
+}

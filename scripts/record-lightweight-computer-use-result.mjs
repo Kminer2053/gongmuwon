@@ -171,6 +171,168 @@ export function evaluateFeatureUiSnapshots({
   return results;
 }
 
+function workflowEvidenceList(section, fallback = []) {
+  const explicit = Array.isArray(section?.evidence) ? section.evidence : [];
+  return [...explicit, ...fallback].filter(Boolean);
+}
+
+function workflowScenario({
+  id,
+  functional,
+  ux = functional,
+  modelQuality = true,
+  evidence = [],
+  notes,
+  blocker,
+}) {
+  return {
+    id,
+    status: functional && ux && evidence.length > 0 ? "pass" : functional ? "partial" : "fail",
+    scores: passScores({
+      functional,
+      ux,
+      modelQuality,
+      evidence: evidence.length > 0,
+    }),
+    evidence,
+    notes,
+    blocker: functional && ux ? "" : blocker,
+  };
+}
+
+export function evaluateWorkflowEvidence({ schedule = null, knowledge = null, document = null } = {}) {
+  const results = [];
+
+  if (schedule) {
+    const evidence = workflowEvidenceList(schedule);
+    const title = schedule.title || "untitled";
+    results.push(
+      workflowScenario({
+        id: "LMUX-04-01",
+        functional: Boolean(schedule.created),
+        ux: Boolean(schedule.title),
+        evidence,
+        notes: `schedule_created=${Boolean(schedule.created)}; title=${title}`,
+        blocker: "Schedule creation routing was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-04-02",
+        functional: Boolean(schedule.listed),
+        ux: Boolean(schedule.created || schedule.deleted || schedule.count > 0),
+        evidence,
+        notes: `schedule_listed=${Boolean(schedule.listed)}; count=${schedule.count ?? "unknown"}`,
+        blocker: "Schedule list routing was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-04-03",
+        functional: Boolean(schedule.deleted),
+        ux: Boolean(schedule.title || schedule.deletedTitle),
+        evidence,
+        notes: `schedule_deleted=${Boolean(schedule.deleted)}; title=${schedule.deletedTitle || title}`,
+        blocker: "Schedule deletion routing was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-05-03",
+        functional: Boolean(schedule.created),
+        ux: Boolean(schedule.startsAt || schedule.timeSlot || schedule.title),
+        evidence,
+        notes: `day_time_registration=${Boolean(schedule.created)}; starts_at=${schedule.startsAt || "unknown"}`,
+        blocker: "Day-view time-slot schedule registration was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-05-10",
+        functional: Boolean(schedule.deleted && schedule.listed),
+        ux: Boolean(schedule.deleted),
+        evidence,
+        notes: `delete_reflected=${Boolean(schedule.deleted && schedule.listed)}`,
+        blocker: "Schedule deletion and list refresh were not proven together.",
+      }),
+    );
+  }
+
+  if (knowledge) {
+    const evidence = workflowEvidenceList(knowledge);
+    const sourceDocumentCount = Number(knowledge.sourceDocumentCount || 0);
+    const sourcePathCount = Number(knowledge.sourcePathCount || 0);
+    const answerText = String(knowledge.answerText || "");
+    results.push(
+      workflowScenario({
+        id: "LMUX-04-04",
+        functional: Boolean(knowledge.searched),
+        ux: sourceDocumentCount > 0 || answerText.length > 0,
+        evidence,
+        notes: `knowledge_searched=${Boolean(knowledge.searched)}; source_documents=${sourceDocumentCount}`,
+        blocker: "Knowledge-search routing was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-01",
+        functional: Boolean(knowledge.searched && sourceDocumentCount > 0),
+        ux: Boolean(sourceDocumentCount > 0),
+        evidence,
+        notes: `search_result_count=${sourceDocumentCount}`,
+        blocker: "GraphRAG search results were not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-02",
+        functional: Boolean(knowledge.answered && answerText.length >= 20),
+        ux: Boolean(answerText.length >= 20),
+        evidence,
+        notes: `grounded_answer_chars=${answerText.length}`,
+        blocker: "Grounded answer generation was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-03",
+        functional: sourceDocumentCount > 0,
+        ux: sourceDocumentCount > 0,
+        evidence,
+        notes: `source_document_count=${sourceDocumentCount}`,
+        blocker: "Source document names were not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-08-04",
+        functional: sourcePathCount > 0,
+        ux: sourcePathCount > 0,
+        evidence,
+        notes: `source_path_count=${sourcePathCount}`,
+        blocker: "Source file paths were not proven by workflow evidence.",
+      }),
+    );
+  }
+
+  if (document) {
+    const evidence = workflowEvidenceList(document);
+    const outputPath = String(document.outputPath || "");
+    results.push(
+      workflowScenario({
+        id: "LMUX-04-05",
+        functional: Boolean(document.routed || document.generated),
+        ux: Boolean(document.format || outputPath),
+        evidence,
+        notes: `document_routed=${Boolean(document.routed)}; format=${document.format || "unknown"}`,
+        blocker: "Document-authoring routing was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-09-09",
+        functional: Boolean(document.generated && outputPath),
+        ux: Boolean(outputPath.toLowerCase().endsWith(".hwpx") || outputPath.toLowerCase().endsWith(".hwp")),
+        evidence,
+        notes: `document_generated=${Boolean(document.generated)}; output_path=${outputPath || "missing"}`,
+        blocker: "HWPX output path was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-09-10",
+        functional: Boolean(document.openLink && outputPath),
+        ux: Boolean(outputPath),
+        evidence,
+        notes: `open_link=${Boolean(document.openLink)}; output_path=${outputPath || "missing"}`,
+        blocker: "Openable document output link was not proven by workflow evidence.",
+      }),
+    );
+  }
+
+  return results;
+}
+
 function categoryLabelForScenario(id) {
   const prefix = String(id || "").slice(0, 7);
   return CATEGORY_LABEL_BY_PREFIX[prefix] || prefix || "기타";
@@ -351,6 +513,7 @@ export function buildComputerUseEvidenceResultSheet({
   screenshotPath = "",
   snapshotPath = "",
   featureSnapshots = {},
+  workflowEvidence = {},
   apiEvidenceBase = "",
   runId = `computer-use-actual-${Date.now()}`,
   startedAt = nowIso(),
@@ -471,8 +634,9 @@ export function buildComputerUseEvidenceResultSheet({
     },
   ];
   const featureResults = evaluateFeatureUiSnapshots(featureSnapshots);
+  const workflowResults = evaluateWorkflowEvidence(workflowEvidence);
   const existingIds = new Set(scenarioResults.map((item) => item.id));
-  for (const result of featureResults) {
+  for (const result of [...featureResults, ...workflowResults]) {
     if (!existingIds.has(result.id)) {
       scenarioResults.splice(Math.max(0, scenarioResults.length - 1), 0, result);
       existingIds.add(result.id);
@@ -501,6 +665,7 @@ function parseArgs(argv) {
     snapshotPath: "",
     featureSnapshots: {},
     featureScreenshots: {},
+    workflowEvidencePath: "",
     appTitleObserved: true,
     responseTimeObserved: true,
     workProgressObserved: true,
@@ -534,6 +699,9 @@ function parseArgs(argv) {
     } else if (arg === "--feature-screenshot" && next) {
       const [name, ...rest] = next.split("=");
       options.featureScreenshots[name] = rest.join("=");
+      index += 1;
+    } else if (arg === "--workflow-evidence" && next) {
+      options.workflowEvidencePath = next;
       index += 1;
     } else if (arg === "--no-app-title") {
       options.appTitleObserved = false;
@@ -571,6 +739,13 @@ function readFeatureSnapshots({ snapshots = {}, screenshots = {} } = {}) {
     };
   }
   return features;
+}
+
+function readWorkflowEvidence(filePath) {
+  if (!filePath) {
+    return {};
+  }
+  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 }
 
 async function resolveSession(baseUrl, sessionId) {
@@ -614,6 +789,7 @@ async function main() {
       snapshots: options.featureSnapshots,
       screenshots: options.featureScreenshots,
     }),
+    workflowEvidence: readWorkflowEvidence(options.workflowEvidencePath),
     apiEvidenceBase: `${baseUrl}/api/work-sessions/${session.id}`,
   });
   const summary = scoreScenarioRun({ scenarioSet, results: resultSheet });

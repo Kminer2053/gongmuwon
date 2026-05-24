@@ -1,10 +1,10 @@
 {
-  "runId": "computer-use-actual-1779647897673",
+  "runId": "computer-use-actual-1779648503324",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "startedAt": "2026-05-24T18:38:17.673Z",
-  "completedAt": "2026-05-24T18:38:17.673Z",
+  "startedAt": "2026-05-24T18:48:23.324Z",
+  "completedAt": "2026-05-24T18:48:23.324Z",
   "sourceSessionId": "b4f4771a-9528-4b21-8663-d1cf645a50b5",
   "scenarios": [
     {
@@ -204,6 +204,224 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
       ],
       "notes": "document_one_page_template_ui: required=1페이지; ux=문서작성",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "schedule_created=true; title=AI ?? ?? ?? 1779648418544",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "schedule_listed=true; count=23",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "schedule_deleted=true; title=AI ?? ?? ?? 1779648418544",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "day_time_registration=true; starts_at=2026-05-26T01:00:00.000Z",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true"
+      ],
+      "notes": "delete_reflected=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "knowledge_searched=true; source_documents=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "search_result_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "grounded_answer_chars=674",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "source_document_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5"
+      ],
+      "notes": "source_path_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx"
+      ],
+      "notes": "document_routed=true; format=onePageReport",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx"
+      ],
+      "notes": "document_generated=true; output_path=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx"
+      ],
+      "notes": "open_link=true; output_path=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
       "blocker": ""
     },
     {
