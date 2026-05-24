@@ -232,10 +232,15 @@ describe("Schedule editor linked session", () => {
 
     const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
     await user.click(existingTitle.closest("button") as HTMLButtonElement);
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockClear();
     await user.click(screen.getByRole("button", { name: "일정 삭제" }));
 
     await waitFor(() => {
       expect(screen.queryByText("주간 보고 준비")).not.toBeInTheDocument();
     });
+    const requestPaths = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(requestPaths.some((path) => path.includes("/api/knowledge/documents"))).toBe(false);
+    expect(requestPaths.some((path) => path.includes("/api/execution-logs"))).toBe(false);
   });
 });

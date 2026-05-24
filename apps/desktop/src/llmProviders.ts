@@ -74,8 +74,8 @@ export const LLM_PROVIDER_PRESETS: Record<LlmProviderKey, LlmProviderPreset> = {
     label: "Featherless API",
     docsUrl: "https://featherless.ai/docs/api-overview-and-common-options",
     defaultBaseUrl: "https://api.featherless.ai/v1",
-    defaultModel: "GalrionSoftworks/Margnum-12B-v1",
-    modelPlaceholder: "GalrionSoftworks/Margnum-12B-v1 or a Featherless model slug",
+    defaultModel: "google/gemma-4-E2B-it",
+    modelPlaceholder: "google/gemma-4-E2B-it or a Featherless model slug",
     apiKeyLabel: "Featherless API Key",
     apiKeyPlaceholder: "featherless api key",
     helperLines: [

@@ -170,6 +170,8 @@ type DetailCardState =
   | null;
 
 type ContextPanelKey = "context" | "approvals" | "jobs" | "logs" | "upcoming" | "preview" | "dump";
+type ActionRefreshScope = "full" | "shell" | "none";
+type ActionOptions = { revealSection?: ContextPanelKey; refresh: ActionRefreshScope };
 
 type KnowledgeScanActivity = {
   sourceId: string;
@@ -219,6 +221,8 @@ const PROVIDER_OPTION_ORDER: LlmProviderKey[] = [
 
 const EMPTY_SNAPSHOT: WorkspaceSnapshot = {
   health: null,
+  runtimeReady: null,
+  runtimeMetrics: null,
   settings: null,
   schedules: [],
   workSessions: [],
@@ -518,6 +522,20 @@ function describeWorkJobStatus(job: WorkJobItem) {
 
 function isActiveWorkJob(job: WorkJobItem) {
   return ["queued", "blocked", "running", "waiting_approval", "cancel_requested"].includes(job.status);
+}
+
+function workJobResultTargets(job: WorkJobItem) {
+  const result = job.result ?? {};
+  const candidates: Array<[string, unknown]> = [
+    ["결과 열기", result.artifact_path],
+    ["Markdown 열기", result.markdown_path],
+    ["대상 열기", result.destination_path],
+    ["복원 위치 열기", result.restored_path],
+    ["로그 열기", result.log_dump_path],
+  ];
+  return candidates
+    .filter((candidate): candidate is [string, string] => typeof candidate[1] === "string" && candidate[1].trim().length > 0)
+    .map(([label, target]) => ({ label, target }));
 }
 
 function activeKnowledgeIngestionMessage(job: KnowledgeIngestionJobItem | null) {
@@ -1901,6 +1919,16 @@ export function App() {
     }
   }
 
+  function mergeKnowledgeIngestionJob(job: KnowledgeIngestionJobItem) {
+    setSnapshot((current) => ({
+      ...current,
+      knowledgeIngestionJobs: [
+        job,
+        ...current.knowledgeIngestionJobs.filter((currentJob) => currentJob.id !== job.id),
+      ],
+    }));
+  }
+
   async function refreshShellSnapshot(options: { silent?: boolean } = {}) {
     if (!options.silent) {
       setLoading(true);
@@ -2355,18 +2383,18 @@ export function App() {
     revealContextSection("context");
   }
 
-  async function handleAction<T>(
-    action: () => Promise<T>,
-    successMessage: string,
-    options?: { revealSection?: ContextPanelKey },
-  ) {
+  async function handleAction<T>(action: () => Promise<T>, successMessage: string, options: ActionOptions) {
     setSubmitting(true);
     setNotice(null);
     setError(null);
     try {
       const result = await action();
-      await refreshSnapshot();
-      if (options?.revealSection) {
+      if (options.refresh === "shell") {
+        await refreshShellSnapshot({ silent: true });
+      } else if (options.refresh === "full") {
+        await refreshSnapshot();
+      }
+      if (options.revealSection) {
         revealContextSection(options.revealSection);
       }
       setNotice(successMessage);
@@ -2383,7 +2411,7 @@ export function App() {
     await handleAction(
       () => cancelWorkJob(job.id),
       `${job.title} 취소를 요청했습니다.`,
-      { revealSection: "jobs" },
+      { revealSection: "jobs", refresh: "shell" },
     );
   }
 
@@ -2414,7 +2442,7 @@ export function App() {
     try {
       const next = await startDesktopSidecar();
       setRuntimeStatus(next);
-      await refreshSnapshot();
+      await refreshShellSnapshot({ silent: true });
       revealContextSection("context");
       setNotice("업무 엔진 실행 상태를 갱신했습니다.");
     } catch (startError) {
@@ -2431,7 +2459,7 @@ export function App() {
     try {
       const next = await stopDesktopSidecar();
       setRuntimeStatus(next);
-      await refreshSnapshot();
+      await refreshShellSnapshot({ silent: true });
       revealContextSection("context");
       setNotice("업무 엔진 종료 상태를 갱신했습니다.");
     } catch (stopError) {
@@ -2448,7 +2476,7 @@ export function App() {
     try {
       const next = await restartDesktopSidecar();
       setRuntimeStatus(next);
-      await refreshSnapshot();
+      await refreshShellSnapshot({ silent: true });
       revealContextSection("context");
       setNotice(
         autoTriggered
@@ -2482,6 +2510,7 @@ export function App() {
           : createSchedule(payload);
       },
       editingExistingSchedule ? "일정을 수정했습니다." : "일정을 등록했습니다.",
+      { refresh: "none" },
     );
     if (savedSchedule) {
       setSnapshot((current) => ({
@@ -2509,7 +2538,7 @@ export function App() {
     const deleted = await handleAction(
       () => deleteSchedule(selectedScheduleId),
       "일정을 삭제했습니다.",
-      { revealSection: "context" },
+      { revealSection: "context", refresh: "none" },
     );
     if (deleted) {
       setSnapshot((current) => ({
@@ -2539,8 +2568,13 @@ export function App() {
           schedule_id: null,
         }),
       "업무 세션을 만들었습니다.",
+      { refresh: "none" },
     );
     if (created) {
+      setSnapshot((current) => ({
+        ...current,
+        workSessions: [created, ...current.workSessions.filter((session) => session.id !== created.id)],
+      }));
       revealContextSection("context");
       setSelectedSessionId(created.id);
       setSessionForm({ title: "" });
@@ -2669,10 +2703,11 @@ export function App() {
           settings: updated,
           logs: current.logs,
         }));
-        await refreshSnapshot();
+        void refreshShellSnapshot({ silent: true });
+        void refreshDeferredSnapshot("logs");
       },
       "환경설정을 저장했습니다.",
-      { revealSection: "logs" },
+      { revealSection: "logs", refresh: "none" },
     );
   }
 
@@ -2684,8 +2719,13 @@ export function App() {
           schedule_id: null,
         }),
       "독립 업무 세션을 열었습니다.",
+      { refresh: "none" },
     );
     if (created) {
+      setSnapshot((current) => ({
+        ...current,
+        workSessions: [created, ...current.workSessions.filter((session) => session.id !== created.id)],
+      }));
       setSelectedScheduleId("");
       setSelectedSessionId(created.id);
       setActiveMenu("chat");
@@ -2704,7 +2744,8 @@ export function App() {
           logs: current.logs,
         }));
         const result = await testWorkspaceLlmConnection();
-        await refreshSnapshot();
+        await refreshShellSnapshot({ silent: true });
+        void refreshDeferredSnapshot("logs");
         if (result.status === "failed") {
           throw new Error(result.text);
         }
@@ -2712,7 +2753,7 @@ export function App() {
         return result;
       },
       "LLM 연결 테스트가 완료되었습니다.",
-      { revealSection: "logs" },
+      { revealSection: "logs", refresh: "none" },
     );
   }
 
@@ -2819,7 +2860,7 @@ export function App() {
     const deleted = await handleAction(
       () => deleteWorkSessionFileLink(selectedSession.id, link.id),
       "세션 연결 파일을 제거했습니다.",
-      { revealSection: "context" },
+      { revealSection: "context", refresh: "none" },
     );
     if (deleted) {
       await refreshSessionFileLinks(selectedSession.id);
@@ -2830,11 +2871,15 @@ export function App() {
     if (!selectedSession) {
       return;
     }
-    await handleAction(
+    const analyzed = await handleAction(
       () => analyzeWorkSessionPersonalization(selectedSession.id),
       "현재 세션을 지식베이스에 바로 반영했습니다.",
-      { revealSection: "logs" },
+      { revealSection: "logs", refresh: "none" },
     );
+    if (analyzed) {
+      void refreshDeferredSnapshot("knowledge");
+      void refreshDeferredSnapshot("logs");
+    }
   }
 
   async function submitCurrentChatDraft() {
@@ -3064,13 +3109,21 @@ export function App() {
       return;
     }
 
-    await handleAction(
+    const updated = await handleAction(
       () =>
         updateWorkSession(selectedSessionId, {
           schedule_id: selectedScheduleId,
         }),
       "현재 세션을 일정에 연결했습니다.",
+      { refresh: "none" },
     );
+    if (updated) {
+      setSnapshot((current) => ({
+        ...current,
+        workSessions: current.workSessions.map((session) => (session.id === updated.id ? updated : session)),
+      }));
+      revealContextSection("context");
+    }
   }
 
   async function openChatForSchedule(schedule: ScheduleItem) {
@@ -3093,7 +3146,10 @@ export function App() {
         title: `${schedule.title} 작업`,
         schedule_id: schedule.id,
       });
-      await refreshSnapshot();
+      setSnapshot((current) => ({
+        ...current,
+        workSessions: [created, ...current.workSessions.filter((session) => session.id !== created.id)],
+      }));
       setSelectedScheduleId(schedule.id);
       setSelectedSessionId(created.id);
       setActiveMenu("chat");
@@ -3122,9 +3178,13 @@ export function App() {
           ],
         }),
       "참고자료 묶음을 등록했습니다.",
-      { revealSection: "context" },
+      { revealSection: "context", refresh: "none" },
     );
     if (created) {
+      setSnapshot((current) => ({
+        ...current,
+        referenceSets: [created, ...current.referenceSets.filter((item) => item.id !== created.id)],
+      }));
       setSelectedReferenceSetId(created.id);
       setReferenceForm({ title: "", kind: "file", label: "", value: "" });
     }
@@ -3208,7 +3268,7 @@ export function App() {
           ],
         }),
       "파일을 현재 업무대화 세션에 연결했습니다.",
-      { revealSection: "context" },
+      { revealSection: "context", refresh: "none" },
     );
 
     if (linked) {
@@ -3246,9 +3306,14 @@ export function App() {
           root_path: knowledgeSourceForm.root_path,
         }),
       "지식 소스 폴더를 등록했습니다.",
-      { revealSection: "logs" },
+      { revealSection: "logs", refresh: "none" },
     );
     if (created) {
+      setSnapshot((current) =>
+        mergeWorkspaceSnapshot(current, {
+          knowledgeSources: [created, ...current.knowledgeSources.filter((source) => source.id !== created.id)],
+        }),
+      );
       setKnowledgeSourceForm({ label: "", root_path: "" });
     }
   }
@@ -3267,8 +3332,10 @@ export function App() {
     await handleAction(
       () => scanKnowledgeSource(source.id),
       `${source.label} 폴더를 스캔했습니다.`,
-      { revealSection: "logs" },
+      { revealSection: "logs", refresh: "none" },
     );
+    void refreshDeferredSnapshot("knowledge");
+    void refreshDeferredSnapshot("logs");
     setKnowledgeScanActivity(null);
   }
 
@@ -3281,9 +3348,11 @@ export function App() {
     const started = await handleAction(
       () => ingestKnowledgeSource(source.id, true, true),
       `${source.label} GraphRAG 인덱싱 작업을 시작했습니다.`,
-      { revealSection: "dump" },
+      { revealSection: "dump", refresh: "none" },
     );
     if (started) {
+      await refreshDeferredSnapshot("knowledge");
+      mergeKnowledgeIngestionJob(started.job);
       revealContextSection("jobs");
       if (started.work_job) {
         setSnapshot((current) =>
@@ -3305,9 +3374,11 @@ export function App() {
     const started = await handleAction(
       () => reindexKnowledgeSource(source.id, true, true),
       `${source.label} GraphRAG 강제 재색인 작업을 시작했습니다.`,
-      { revealSection: "dump" },
+      { revealSection: "dump", refresh: "none" },
     );
     if (started) {
+      await refreshDeferredSnapshot("knowledge");
+      mergeKnowledgeIngestionJob(started.job);
       revealContextSection("jobs");
       if (started.work_job) {
         setSnapshot((current) =>
@@ -3326,19 +3397,25 @@ export function App() {
       setNotice("이미 실행 중인 GraphRAG ingestion 작업이 있습니다. 현재 작업이 끝난 뒤 실행해 주세요.");
       return;
     }
-    await handleAction(
+    const result = await handleAction(
       () => runKnowledgeIngestionJob(job.id),
       "GraphRAG ingestion 작업을 실행했습니다.",
-      { revealSection: "dump" },
+      { revealSection: "dump", refresh: "shell" },
     );
+    if (result) {
+      mergeKnowledgeIngestionJob(result.job);
+    }
   }
 
   async function cancelQueuedKnowledgeIngestionJob(job: KnowledgeIngestionJobItem) {
-    await handleAction(
+    const result = await handleAction(
       () => cancelKnowledgeIngestionJob(job.id),
       "GraphRAG ingestion 작업 취소를 요청했습니다.",
-      { revealSection: "dump" },
+      { revealSection: "dump", refresh: "shell" },
     );
+    if (result) {
+      mergeKnowledgeIngestionJob(result.job);
+    }
   }
 
   async function submitContentBase(event: FormEvent<HTMLFormElement>) {
@@ -3365,7 +3442,7 @@ export function App() {
           user_template_path: documentForm.user_template_path || null,
         }),
       "콘텐츠 베이스를 생성했습니다.",
-      { revealSection: "logs" },
+      { revealSection: "logs", refresh: "none" },
     );
     if (created) {
       setLastContentBase(created);
@@ -3426,7 +3503,7 @@ export function App() {
         });
       },
       "HWPX 보고서 생성을 완료했습니다.",
-      { revealSection: "jobs" },
+      { revealSection: "jobs", refresh: "none" },
     );
     if (generated) {
       if (generated.work_job) {
@@ -3475,7 +3552,7 @@ export function App() {
           output_name: finalizeForm.output_name.trim() || `${lastContentBase.title}-final`,
         }),
       "최종 저장 승인 요청을 보냈습니다.",
-      { revealSection: "approvals" },
+      { revealSection: "approvals", refresh: "shell" },
     );
     if (created) {
       setLastFinalizeRequest(created);
@@ -3490,7 +3567,7 @@ export function App() {
     const applied = await handleAction(
       () => applyDocumentFinalize(lastFinalizeRequest.approval_ticket.id),
       "최종 저장을 적용했습니다.",
-      { revealSection: "logs" },
+      { revealSection: "logs", refresh: "none" },
     );
     if (applied) {
       setLastFinalizeRequest(applied);
@@ -3498,9 +3575,17 @@ export function App() {
   }
 
   async function submitAnythingLaunch() {
-    await handleAction(() => requestAnythingLaunch(searchQuery), "Anything 실행 요청을 승인 대기열에 등록했습니다.", {
-      revealSection: "approvals",
-    });
+    const requested = await handleAction(
+      () => requestAnythingLaunch(searchQuery),
+      "Anything 실행 요청을 승인 대기열에 등록했습니다.",
+      {
+        revealSection: "approvals",
+        refresh: "shell",
+      },
+    );
+    if (requested) {
+      void refreshDeferredSnapshot("search");
+    }
   }
 
   async function launchAnything(launch: AnythingLaunchItem) {
@@ -3510,7 +3595,7 @@ export function App() {
         : await handleAction(
             () => applyAnythingLaunch(launch.approval_ticket_id),
             "Anything를 여는 준비를 마쳤습니다.",
-            { revealSection: "logs" },
+            { revealSection: "logs", refresh: "none" },
           );
 
     if (!result) {
@@ -3548,6 +3633,7 @@ export function App() {
     await handleAction(
       () => openExternalTarget(ANYTHING_RELEASES_URL),
       "Anything 설치 안내 페이지를 열었습니다.",
+      { refresh: "none" },
     );
   }
 
@@ -3570,10 +3656,17 @@ export function App() {
           paths,
         }),
       "Anything 결과를 Reference Set으로 가져왔습니다.",
-      { revealSection: "context" },
+      { revealSection: "context", refresh: "none" },
     );
 
     if (imported) {
+      setSnapshot((current) => ({
+        ...current,
+        referenceSets: [
+          imported.reference_set,
+          ...current.referenceSets.filter((item) => item.id !== imported.reference_set.id),
+        ],
+      }));
       setSelectedReferenceSetId(imported.reference_set.id);
       setLastImportedAnythingReferenceSetId(imported.reference_set.id);
       setLastImportedAnythingReferenceSet(imported.reference_set);
@@ -3699,7 +3792,7 @@ export function App() {
     const uploaded = await handleAction(
       () => uploadDocumentTemplate(file),
       "사용자 HWPX/HWTX 양식을 업로드했습니다.",
-      { revealSection: "context" },
+      { revealSection: "context", refresh: "none" },
     );
     if (uploaded) {
       setCustomDocumentTemplates((current) => [uploaded.item, ...current.filter((item) => item.path !== uploaded.item.path)]);
@@ -3712,18 +3805,22 @@ export function App() {
 
   async function submitFileProposals(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await handleAction(
+    const created = await handleAction(
       () => createFileProposals(fileOrgTargetPath),
       "파일정리 제안을 생성했습니다.",
-      { revealSection: "logs" },
+      { revealSection: "logs", refresh: "none" },
     );
+    if (created) {
+      void refreshDeferredSnapshot("fileOrganizer");
+      void refreshDeferredSnapshot("logs");
+    }
   }
 
   async function requestProposalApply(proposal: FileProposalItem) {
     await handleAction(
       () => requestFileProposalApply(proposal.id),
       "파일정리 적용 승인 요청을 보냈습니다.",
-      { revealSection: "approvals" },
+      { revealSection: "approvals", refresh: "shell" },
     );
   }
 
@@ -3731,7 +3828,7 @@ export function App() {
     const applied = await handleAction(
       () => commitFileProposalApply(proposal.id),
       "파일정리 적용을 완료했습니다.",
-      { revealSection: "jobs" },
+      { revealSection: "jobs", refresh: "none" },
     );
     if (applied) {
       revealContextSection("jobs");
@@ -3764,7 +3861,7 @@ export function App() {
     const rolledBack = await handleAction(
       () => rollbackFileOperation(operation.id),
       "파일정리 적용을 되돌렸습니다.",
-      { revealSection: "jobs" },
+      { revealSection: "jobs", refresh: "none" },
     );
     if (rolledBack) {
       revealContextSection("jobs");
@@ -3790,9 +3887,9 @@ export function App() {
         decideApproval(ticket.id, {
           status,
           decision_note: status === "approved" ? "UI 확인" : "UI 거절",
-        }),
+      }),
       `승인 요청을 ${status === "approved" ? "승인" : "거절"}했습니다.`,
-      { revealSection: "approvals" },
+      { revealSection: "approvals", refresh: "shell" },
     );
   }
 
@@ -7904,7 +8001,7 @@ export function App() {
               <div>
                 <p className="brand-card__eyebrow">공공분야 사무업무자를 위한 보안 걱정 없는 로컬 우선 업무공간</p>
                 <h1>로컬 AI에이전트 워크플레이스 : 공무원</h1>
-                <p>일정에서 시작해 대화, 검색, 지식, 문서작성, 실행기록까지 한 워크플로로 묶습니다.</p>
+                <p>대화에서 시작해 일정, 검색, 지식, 문서작성, 실행기록까지 한 워크플로로 묶습니다.</p>
               </div>
               <div className="shell-topbar__current" data-testid="shell-topbar-current">
                 <span className="shell-topbar__current-icon"><ActiveMenuIcon size={18} /></span>
@@ -7983,6 +8080,18 @@ export function App() {
               <div className="runtime-popover" data-testid="runtime-popover" ref={runtimePanelRef}>
                 <p className="runtime-popover__title">업무 엔진 상태</p>
                 <p>{runtimeLoading ? "업무 엔진 상태 확인 중" : userFacingRuntimeDetail(runtimeStatus?.detail)}</p>
+                <p className="workspace-header__hint">
+                  준비도 {snapshot.runtimeReady?.status === "ready" ? "정상" : "확인 중"} · 진행 작업{" "}
+                  {snapshot.runtimeMetrics?.jobs.active_count ?? activeWorkJobCount}개 · runner{" "}
+                  {snapshot.runtimeMetrics?.runner.active_count ?? 0}개
+                </p>
+                {(snapshot.runtimeReady?.recovered.work_jobs ?? 0) > 0 ||
+                (snapshot.runtimeReady?.recovered.knowledge_ingestion_jobs ?? 0) > 0 ? (
+                  <p className="workspace-header__hint">
+                    재시작 복구: 작업 {snapshot.runtimeReady?.recovered.work_jobs ?? 0}개 · GraphRAG{" "}
+                    {snapshot.runtimeReady?.recovered.knowledge_ingestion_jobs ?? 0}개
+                  </p>
+                ) : null}
                 {runtimeStatus?.log_path ? (
                   <p className="workspace-header__hint">업무 엔진 로그 파일 준비됨</p>
                 ) : null}
@@ -8160,6 +8269,7 @@ export function App() {
                 <div className="item-list item-list--compact">
                   {visibleWorkJobs.map((job) => {
                     const progress = Math.max(0, Math.min(100, Math.round(job.progress_percent ?? 0)));
+                    const resultTargets = workJobResultTargets(job);
                     return (
                       <article key={job.id} className={`list-card list-card--compact ${isActiveWorkJob(job) ? "is-running" : ""}`}>
                         <div className="list-card__main list-card__main--static">
@@ -8179,10 +8289,23 @@ export function App() {
                           <span>{shortDisplayId(job.id, "작업")}</span>
                           {job.resource_key ? <span>{String(job.resource_key)}</span> : null}
                         </div>
+                        {job.status === "blocked" ? (
+                          <p className="subtle-text">같은 자료를 사용하는 선행 작업이 끝나면 자동으로 이어서 실행됩니다.</p>
+                        ) : null}
                         <div className="inline-actions">
                           <button type="button" className="button-secondary" onClick={() => void toggleWorkJobEvents(job)}>
                             {expandedWorkJobId === job.id ? "작업 로그 접기" : "작업 로그 보기"}
                           </button>
+                          {resultTargets.map((target) => (
+                            <button
+                              key={`${job.id}-${target.label}-${target.target}`}
+                              type="button"
+                              className="button-secondary"
+                              onClick={() => void openExternalTarget(target.target)}
+                            >
+                              {target.label}
+                            </button>
+                          ))}
                         </div>
                         {expandedWorkJobId === job.id ? (
                           <div className="dump-viewer dump-viewer--compact" aria-label={`${job.title} 작업 로그`}>

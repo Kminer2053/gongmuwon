@@ -8,6 +8,28 @@ def _client(tmp_path: Path):
     return app.state.test_client_factory()
 
 
+def test_execution_logs_are_limited_for_runtime_read_model(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    for index in range(6):
+        response = client.post(
+            "/api/schedules",
+            json={
+                "title": f"log schedule {index}",
+                "starts_at": "2026-04-20T09:00:00+09:00",
+                "ends_at": "2026-04-20T10:00:00+09:00",
+                "view": "week",
+            },
+        )
+        assert response.status_code == 201
+
+    logs = client.get("/api/execution-logs?limit=3")
+
+    assert logs.status_code == 200
+    assert len(logs.json()["items"]) == 3
+    assert all(entry["action"] == "schedule.created" for entry in logs.json()["items"])
+
+
 def test_schedule_session_reference_flow(tmp_path: Path) -> None:
     client = _client(tmp_path)
 

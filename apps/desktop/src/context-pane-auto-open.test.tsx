@@ -32,6 +32,7 @@ vi.mock("./runtime", () => ({
 }));
 
 import { App } from "./app";
+import { openExternalTarget } from "./runtime";
 
 const jsonResponse = (payload: unknown, status = 200) =>
   Promise.resolve(
@@ -352,6 +353,8 @@ describe("Context pane auto open", () => {
     expect(await screen.findByText(KOREAN.jobsTitle)).toBeInTheDocument();
     expect(await screen.findByText("source.md 파일정리 적용")).toBeInTheDocument();
     expect(screen.getByText("파일정리 적용 완료")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "대상 열기" }));
+    expect(vi.mocked(openExternalTarget)).toHaveBeenCalledWith("C:/docs/archive/source.md");
     await user.click(screen.getByRole("button", { name: "작업 로그 보기" }));
     expect(await screen.findByLabelText("source.md 파일정리 적용 작업 로그")).toBeInTheDocument();
     expect(screen.queryByText(/쨌/)).not.toBeInTheDocument();

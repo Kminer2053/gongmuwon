@@ -24,6 +24,7 @@ from .embeddings import embed_text
 from .file_organizer import FileOrganizer
 from .graphrag_backends import ChromaVectorBackend
 from .graphrag_ingestion import GraphRAGIngestionManager
+from .job_runner import JobRunner
 from .jobs import JobManager
 from .kordoc_bridge import kordoc_status
 from .knowledge import KnowledgeManager
@@ -198,14 +199,15 @@ class AppServices:
         self._ensure_personalization_root()
         self.db = Database(self.paths)
         self.jobs = JobManager(self.db)
-        self.jobs.recover_interrupted_jobs()
+        self.recovered_work_jobs = self.jobs.recover_interrupted_jobs()
+        self.job_runner = JobRunner(self.jobs)
         self.knowledge = KnowledgeManager(self.paths, self.db)
         self.graphrag = GraphRAGIngestionManager(
             self.db,
             embedding_provider=self._embed_for_graphrag,
             vector_backend=self._create_graphrag_vector_backend(),
         )
-        self.graphrag.recover_interrupted_jobs()
+        self.recovered_knowledge_jobs = self.graphrag.recover_interrupted_jobs()
         self.personalization = PersonalizationManager(self.db)
         self.documents = DocumentManager(self.paths, self.db)
         self.file_organizer = FileOrganizer(self.paths, self.db)
@@ -2690,7 +2692,9 @@ class AppServices:
         return result
 
     def run_knowledge_ingestion_work_job(self, work_job_id: str, ingestion_job_id: str) -> dict[str, Any]:
-        self.jobs.start_job(work_job_id, stage="GraphRAG 인덱싱 실행")
+        started_job = self.jobs.start_job_with_lock(work_job_id, stage="GraphRAG 인덱싱 실행")
+        if started_job["status"] == "blocked":
+            return started_job
         try:
             result = self.graphrag.run_job(ingestion_job_id)
         except Exception as exc:
@@ -2852,6 +2856,60 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             "status": "ok",
             "workspace_root": str(services.paths.root),
             "database": str(services.paths.db_file),
+        }
+
+    @app.get("/ready")
+    def ready() -> dict[str, Any]:
+        workspace_ok = services.paths.root.exists()
+        database_ok = services.paths.db_file.exists()
+        job_counts = services.jobs.status_counts()
+        runner_metrics = services.job_runner.metrics()
+        checks = {
+            "workspace": {"ok": workspace_ok, "path": str(services.paths.root)},
+            "database": {"ok": database_ok, "path": str(services.paths.db_file)},
+            "jobs": {
+                "ok": True,
+                "active_count": job_counts.get("active_count", 0),
+                "runner_active_count": runner_metrics["active_count"],
+            },
+        }
+        ready_status = "ready" if all(check["ok"] for check in checks.values()) else "degraded"
+        return {
+            "status": ready_status,
+            "checks": checks,
+            "recovered": {
+                "work_jobs": services.recovered_work_jobs,
+                "knowledge_ingestion_jobs": services.recovered_knowledge_jobs,
+            },
+        }
+
+    @app.get("/api/runtime/metrics")
+    def runtime_metrics() -> dict[str, Any]:
+        job_counts = services.jobs.status_counts()
+        knowledge_active = services.graphrag.active_job()
+        return {
+            "jobs": {
+                "active_count": job_counts.get("active_count", 0),
+                "terminal_count": job_counts.get("terminal_count", 0),
+                "queued": job_counts.get("queued", 0),
+                "blocked": job_counts.get("blocked", 0),
+                "running": job_counts.get("running", 0),
+                "waiting_approval": job_counts.get("waiting_approval", 0),
+                "cancel_requested": job_counts.get("cancel_requested", 0),
+                "failed": job_counts.get("failed", 0),
+                "succeeded": job_counts.get("succeeded", 0),
+                "partial": job_counts.get("partial", 0),
+                "canceled": job_counts.get("canceled", 0),
+            },
+            "runner": services.job_runner.metrics(),
+            "knowledge": {
+                "active_ingestion_job_id": knowledge_active["id"] if knowledge_active else None,
+                "active_ingestion_status": knowledge_active["status"] if knowledge_active else None,
+            },
+            "recovered": {
+                "work_jobs": services.recovered_work_jobs,
+                "knowledge_ingestion_jobs": services.recovered_knowledge_jobs,
+            },
         }
 
     @app.get("/api/jobs")
@@ -3133,7 +3191,10 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
                 message="백그라운드 인덱싱 작업을 준비했습니다.",
                 payload={"ingestion_job_id": job["id"]},
             )
-            background_tasks.add_task(services.run_knowledge_ingestion_work_job, work_job["id"], job["id"])
+            services.job_runner.submit_existing(
+                work_job["id"],
+                lambda: services.run_knowledge_ingestion_work_job(work_job["id"], job["id"]),
+            )
             return {"job": job, "work_job": services.jobs.require_job(work_job["id"])}
 
         if not payload.run_now:
@@ -3147,7 +3208,9 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             )
             return {"job": job, "work_job": services.jobs.require_job(work_job["id"])}
 
-        services.jobs.start_job(work_job["id"], stage="GraphRAG 인덱싱 실행")
+        started_work_job = services.jobs.start_job_with_lock(work_job["id"], stage="GraphRAG 인덱싱 실행")
+        if started_work_job["status"] == "blocked":
+            return {"job": {}, "work_job": started_work_job}
         job = services.graphrag.ingest_source(payload.source_id, run_now=True, force=force)
         terminal_status = (
             "succeeded"
@@ -3422,7 +3485,9 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             resource_policy="exclusive",
         )
         try:
-            services.jobs.start_job(work_job["id"], stage="문서 컨텍스트 수집")
+            started_job = services.jobs.start_job_with_lock(work_job["id"], stage="문서 컨텍스트 수집")
+            if started_job["status"] == "blocked":
+                return {"status": "blocked", "work_job": started_job}
             result = services.generate_document_from_request(payload)
             completed = services.jobs.complete_job(
                 work_job["id"],
@@ -3619,7 +3684,7 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="file organizer operation not found") from exc
 
     @app.get("/api/execution-logs")
-    def list_execution_logs() -> dict[str, Any]:
-        return {"items": services.db.list_logs()}
+    def list_execution_logs(limit: int = 50) -> dict[str, Any]:
+        return {"items": services.db.list_logs(limit=limit)}
 
     return app

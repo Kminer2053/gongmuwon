@@ -445,7 +445,11 @@ def _extract_gemini_text(payload: dict[str, Any]) -> str | None:
 
 
 def _openai_headers(api_key: str | None, provider: str, settings: SidecarSettings) -> dict[str, str]:
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": "OpenAI/Python 1.0.0 GongmuWorkspace/0.1",
+    }
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     if provider in {"openrouter", "featherless"}:

@@ -86,7 +86,7 @@ def test_featherless_uses_official_openai_compatible_chat_contract(monkeypatch) 
     settings = SidecarSettings(
         llm_mode="external_model",
         llm_provider="featherless",
-        llm_model="GalrionSoftworks/Margnum-12B-v1",
+        llm_model="google/gemma-4-E2B-it",
         llm_api_key="feather-key",
         internal_api_base_url="https://api.featherless.ai/v1",
         llm_site_url="https://gongmu.local",
@@ -96,13 +96,15 @@ def test_featherless_uses_official_openai_compatible_chat_contract(monkeypatch) 
     result = generate_session_reply(settings, [{"role": "user", "text": "Hello"}])
 
     assert result.provider == "featherless"
-    assert result.model == "GalrionSoftworks/Margnum-12B-v1"
+    assert result.model == "google/gemma-4-E2B-it"
     assert result.text == "featherless ok"
     assert captured["url"] == "https://api.featherless.ai/v1/chat/completions"
     assert captured["headers"]["authorization"] == "Bearer feather-key"
+    assert captured["headers"]["accept"] == "application/json"
+    assert captured["headers"]["user-agent"].startswith("OpenAI/Python")
     assert captured["headers"]["http-referer"] == "https://gongmu.local"
     assert captured["headers"]["x-title"] == "Gongmu Workspace"
-    assert captured["body"]["model"] == "GalrionSoftworks/Margnum-12B-v1"
+    assert captured["body"]["model"] == "google/gemma-4-E2B-it"
     assert captured["body"]["messages"] == [{"role": "user", "content": "Hello"}]
 
 

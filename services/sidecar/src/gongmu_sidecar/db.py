@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from collections.abc import Iterator
 from typing import Any
 from uuid import uuid4
+from urllib.parse import quote
 
 from .workspace import WorkspacePaths
 
@@ -407,6 +408,21 @@ CREATE TABLE IF NOT EXISTS file_org_operations (
     created_at TEXT NOT NULL,
     rolled_back_at TEXT
 );
+
+CREATE INDEX IF NOT EXISTS idx_execution_logs_created_at
+ON execution_logs(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_documents_source_updated
+ON knowledge_documents(source_id, updated_at DESC, title ASC);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_document_sections_document
+ON knowledge_document_sections(document_id);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_document_chunks_document
+ON knowledge_document_chunks(document_id);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_table_blocks_document
+ON knowledge_table_blocks(document_id);
 """
 
 
@@ -469,6 +485,17 @@ class Database:
         self._ensure_column("content_bases", "user_template_path", "TEXT")
         self.connection.commit()
 
+    @contextmanager
+    def read_connection(self) -> Iterator[sqlite3.Connection]:
+        db_uri = f"file:{quote(str(self.paths.db_file), safe=':/')}?mode=ro"
+        connection = sqlite3.connect(db_uri, uri=True, check_same_thread=False)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA busy_timeout = 5000")
+        try:
+            yield connection
+        finally:
+            connection.close()
+
     def _ensure_column(self, table: str, column: str, definition: str) -> None:
         with self._lock:
             columns = {
@@ -519,6 +546,16 @@ class Database:
             row = self.connection.execute(query, params).fetchone()
         return dict(row) if row else None
 
+    def fetch_all_readonly(self, query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
+        with self.read_connection() as connection:
+            rows = connection.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
+    def fetch_one_readonly(self, query: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
+        with self.read_connection() as connection:
+            row = connection.execute(query, params).fetchone()
+        return dict(row) if row else None
+
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> None:
         with self._lock:
             self.connection.execute(query, params)
@@ -561,8 +598,9 @@ class Database:
             "created_at": payload["created_at"],
         }
 
-    def list_logs(self) -> list[dict[str, Any]]:
-        rows = self.fetch_all("SELECT * FROM execution_logs ORDER BY created_at DESC")
+    def list_logs(self, limit: int = 50) -> list[dict[str, Any]]:
+        bounded_limit = max(1, min(limit, 500))
+        rows = self.fetch_all_readonly("SELECT * FROM execution_logs ORDER BY created_at DESC LIMIT ?", (bounded_limit,))
         return [
             {
                 "id": row["id"],

@@ -135,6 +135,47 @@ function installFetchStub() {
         });
       }
 
+      if (url.endsWith("/ready")) {
+        return jsonResponse({
+          status: "ready",
+          checks: {
+            workspace: { ok: true, path: "/tmp/gongmu-workspace" },
+            database: { ok: true, path: "/tmp/gongmu-workspace/db/gongmu.db" },
+            jobs: { ok: true, active_count: 2, runner_active_count: 1 },
+          },
+          recovered: { work_jobs: 0, knowledge_ingestion_jobs: 0 },
+        });
+      }
+
+      if (url.endsWith("/api/runtime/metrics")) {
+        return jsonResponse({
+          jobs: {
+            active_count: 2,
+            terminal_count: 4,
+            queued: 1,
+            blocked: 1,
+            running: 0,
+            waiting_approval: 0,
+            cancel_requested: 0,
+            failed: 0,
+            succeeded: 4,
+            partial: 0,
+            canceled: 0,
+          },
+          runner: {
+            active_count: 1,
+            active_job_ids: ["job-1"],
+            queue_depth: 0,
+            submitted_count: 5,
+          },
+          knowledge: {
+            active_ingestion_job_id: "ingestion-1",
+            active_ingestion_status: "running",
+          },
+          recovered: { work_jobs: 0, knowledge_ingestion_jobs: 0 },
+        });
+      }
+
       if (url.endsWith("/api/settings")) {
         return jsonResponse({
           defaults: {
@@ -310,6 +351,9 @@ describe("App shell", () => {
     await user.click(screen.getByTestId("runtime-indicator-toggle"));
 
     expect(screen.getByTestId("runtime-popover")).toHaveTextContent("업무 엔진 상태");
+    expect(screen.getByTestId("runtime-popover")).toHaveTextContent("준비도 정상");
+    expect(screen.getByTestId("runtime-popover")).toHaveTextContent("진행 작업 2개");
+    expect(screen.getByTestId("runtime-popover")).toHaveTextContent("runner 1개");
     expect(screen.getByTestId("runtime-popover")).not.toHaveTextContent("사이드카");
     expect(screen.getByTestId("runtime-popover")).not.toHaveTextContent(/sidecar/i);
   });

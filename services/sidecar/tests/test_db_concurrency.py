@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import threading
+import time
 
 from gongmu_sidecar.db import Database
 from gongmu_sidecar.workspace import ensure_workspace
@@ -58,3 +60,40 @@ def test_database_transaction_rolls_back_grouped_writes(tmp_path: Path) -> None:
     row = db.fetch_one("SELECT * FROM execution_logs WHERE id = ?", ("rolled-back",))
 
     assert row is None
+
+
+def test_readonly_snapshot_does_not_wait_for_long_write_transaction(tmp_path: Path) -> None:
+    db = Database(ensure_workspace(tmp_path))
+    entered = threading.Event()
+    release = threading.Event()
+
+    def hold_write_transaction() -> None:
+        with db.transaction():
+            db.insert(
+                "execution_logs",
+                {
+                    "id": "pending-write",
+                    "feature": "transaction",
+                    "action": "hold",
+                    "status": "pending",
+                    "inputs_json": "{}",
+                    "outputs_json": "{}",
+                    "approval_ticket_id": None,
+                    "created_at": "2026-05-24T00:00:00+00:00",
+                },
+            )
+            entered.set()
+            release.wait(timeout=2)
+
+    thread = threading.Thread(target=hold_write_transaction, daemon=True)
+    thread.start()
+    assert entered.wait(timeout=2)
+
+    started = time.perf_counter()
+    rows = db.fetch_all_readonly("SELECT * FROM execution_logs")
+    elapsed = time.perf_counter() - started
+    release.set()
+    thread.join(timeout=2)
+
+    assert rows == []
+    assert elapsed < 0.5

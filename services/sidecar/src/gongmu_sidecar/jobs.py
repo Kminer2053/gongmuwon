@@ -214,6 +214,19 @@ class JobManager:
         )
         return [self._serialize_job(row) for row in rows]
 
+    def status_counts(self) -> dict[str, int]:
+        rows = self.db.fetch_all_readonly(
+            """
+            SELECT status, COUNT(*) AS count
+            FROM work_jobs
+            GROUP BY status
+            """
+        )
+        counts = {str(row["status"]): int(row["count"]) for row in rows}
+        counts["active_count"] = sum(counts.get(status, 0) for status in ACTIVE_STATUSES)
+        counts["terminal_count"] = sum(counts.get(status, 0) for status in TERMINAL_STATUSES)
+        return counts
+
     def get_job(self, job_id: str) -> dict[str, Any] | None:
         row = self.db.fetch_one("SELECT * FROM work_jobs WHERE id = ?", (job_id,))
         return self._serialize_job(row) if row else None

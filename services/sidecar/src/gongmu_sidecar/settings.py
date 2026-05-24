@@ -37,7 +37,7 @@ def _default_external_provider_profiles() -> dict[str, LlmConnectionProfile]:
         ),
         "featherless": LlmConnectionProfile(
             provider="featherless",
-            model="GalrionSoftworks/Margnum-12B-v1",
+            model="google/gemma-4-E2B-it",
             base_url="https://api.featherless.ai/v1",
         ),
         "anthropic": LlmConnectionProfile(

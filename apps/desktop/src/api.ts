@@ -266,6 +266,45 @@ export type WorkJobEventItem = {
   created_at: string;
 };
 
+export type RuntimeReady = {
+  status: "ready" | "degraded" | string;
+  checks: Record<string, { ok: boolean; [key: string]: unknown }>;
+  recovered: {
+    work_jobs: number;
+    knowledge_ingestion_jobs: number;
+  };
+};
+
+export type RuntimeMetrics = {
+  jobs: {
+    active_count: number;
+    terminal_count: number;
+    queued: number;
+    blocked: number;
+    running: number;
+    waiting_approval: number;
+    cancel_requested: number;
+    failed: number;
+    succeeded: number;
+    partial: number;
+    canceled: number;
+  };
+  runner: {
+    active_count: number;
+    active_job_ids: string[];
+    queue_depth: number;
+    submitted_count: number;
+  };
+  knowledge: {
+    active_ingestion_job_id: string | null;
+    active_ingestion_status: string | null;
+  };
+  recovered: {
+    work_jobs: number;
+    knowledge_ingestion_jobs: number;
+  };
+};
+
 export type PersonalizationCandidateItem = {
   id: string;
   candidate_type: "session_summary_index" | "work_pattern" | "entity_alias" | "document_preference" | "extraction_rule" | string;
@@ -681,7 +720,7 @@ export function createDefaultWorkspaceLlmProfiles(): WorkspaceLlmProfiles {
         },
         featherless: {
           provider: "featherless",
-          model: "GalrionSoftworks/Margnum-12B-v1",
+          model: "google/gemma-4-E2B-it",
           api_key: null,
           base_url: "https://api.featherless.ai/v1",
           site_url: null,
@@ -785,6 +824,8 @@ export type FinalDocumentApplyResult = FinalDocumentRequestResult & {
 
 export type WorkspaceSnapshot = {
   health: WorkspaceHealth | null;
+  runtimeReady: RuntimeReady | null;
+  runtimeMetrics: RuntimeMetrics | null;
   settings: WorkspaceSettings | null;
   schedules: ScheduleItem[];
   workSessions: WorkSessionItem[];
@@ -810,6 +851,8 @@ export type WorkspaceSnapshotPatch = Partial<WorkspaceSnapshot>;
 export function createEmptyWorkspaceSnapshot(): WorkspaceSnapshot {
   return {
     health: null,
+    runtimeReady: null,
+    runtimeMetrics: null,
     settings: null,
     schedules: [],
     workSessions: [],
@@ -1304,6 +1347,8 @@ export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
 export async function loadWorkspaceShellSnapshot(): Promise<WorkspaceSnapshot> {
   const [
     health,
+    runtimeReady,
+    runtimeMetrics,
     settings,
     schedules,
     workSessions,
@@ -1313,6 +1358,8 @@ export async function loadWorkspaceShellSnapshot(): Promise<WorkspaceSnapshot> {
     workJobs,
   ] = await Promise.allSettled([
     requestJson<WorkspaceHealth>("/health"),
+    requestJson<RuntimeReady>("/ready"),
+    requestJson<RuntimeMetrics>("/api/runtime/metrics"),
     requestJson<unknown>("/api/settings"),
     requestJson<{ items: ScheduleItem[] }>("/api/schedules"),
     requestJson<{ items: WorkSessionItem[] }>("/api/work-sessions"),
@@ -1324,6 +1371,8 @@ export async function loadWorkspaceShellSnapshot(): Promise<WorkspaceSnapshot> {
 
   return mergeWorkspaceSnapshot(createEmptyWorkspaceSnapshot(), {
     health: health.status === "fulfilled" ? health.value : null,
+    runtimeReady: runtimeReady.status === "fulfilled" ? runtimeReady.value : null,
+    runtimeMetrics: runtimeMetrics.status === "fulfilled" ? runtimeMetrics.value : null,
     settings: settings.status === "fulfilled" ? parseWorkspaceSettings(settings.value) : null,
     schedules: schedules.status === "fulfilled" ? schedules.value.items : [],
     workSessions: workSessions.status === "fulfilled" ? workSessions.value.items : [],

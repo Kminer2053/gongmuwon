@@ -812,16 +812,29 @@ class GraphRAGIngestionManager:
         rows = self.db.fetch_all(
             f"""
             SELECT d.*,
-                   COUNT(DISTINCT s.id) AS section_count,
-                   COUNT(DISTINCT t.id) AS table_count,
-                   COUNT(DISTINCT c.id) AS chunk_count,
-                   COUNT(DISTINCT CASE WHEN c.text LIKE '표:%' THEN c.id END) AS table_chunk_count
+                   COALESCE(s.section_count, 0) AS section_count,
+                   COALESCE(t.table_count, 0) AS table_count,
+                   COALESCE(c.chunk_count, 0) AS chunk_count,
+                   COALESCE(c.table_chunk_count, 0) AS table_chunk_count
             FROM knowledge_documents d
-            LEFT JOIN knowledge_document_sections s ON s.document_id = d.id
-            LEFT JOIN knowledge_table_blocks t ON t.document_id = d.id
-            LEFT JOIN knowledge_document_chunks c ON c.document_id = d.id
+            LEFT JOIN (
+                SELECT document_id, COUNT(*) AS section_count
+                FROM knowledge_document_sections
+                GROUP BY document_id
+            ) s ON s.document_id = d.id
+            LEFT JOIN (
+                SELECT document_id, COUNT(*) AS table_count
+                FROM knowledge_table_blocks
+                GROUP BY document_id
+            ) t ON t.document_id = d.id
+            LEFT JOIN (
+                SELECT document_id,
+                       COUNT(*) AS chunk_count,
+                       COUNT(CASE WHEN text LIKE '표:%' THEN 1 END) AS table_chunk_count
+                FROM knowledge_document_chunks
+                GROUP BY document_id
+            ) c ON c.document_id = d.id
             {where_clause}
-            GROUP BY d.id
             ORDER BY d.updated_at DESC, d.title ASC
             """,
             params,
