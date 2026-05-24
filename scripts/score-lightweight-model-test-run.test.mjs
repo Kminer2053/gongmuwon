@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 
 import { buildScenarioSet } from "./generate-lightweight-model-test-scenarios.mjs";
 import {
+  createComputerUseRunPack,
   createBlankResultSheet,
+  renderComputerUseRunPack,
   renderScoreReport,
   scoreScenarioRun,
 } from "./score-lightweight-model-test-run.mjs";
@@ -27,6 +29,26 @@ assert.deepEqual(blankSheet.scenarios[0].scores, {
   modelQuality: null,
   evidence: null,
 });
+
+const runPack = createComputerUseRunPack(scenarioSet, {
+  runId: "computer-use-one-turn-001",
+  scenarioLimit: 3,
+});
+
+assert.equal(runPack.runId, "computer-use-one-turn-001");
+assert.equal(runPack.scenarios.length, 3);
+assert.equal(runPack.totalMaxScore, 30);
+assert.ok(runPack.oneTurnInstruction.includes("한 턴"));
+assert.ok(runPack.oneTurnInstruction.includes("컴퓨터유즈"));
+assert.equal(runPack.scenarios[0].id, "LMUX-01-01");
+assert.equal(runPack.scenarios[0].scoring.functional.max, 4);
+assert.ok(runPack.scenarios[0].checkpoints.length >= 3);
+
+const runPackMarkdown = renderComputerUseRunPack(runPack);
+assert.ok(runPackMarkdown.includes("# Gemma 4 E2B 컴퓨터유즈 1턴 실행팩"));
+assert.ok(runPackMarkdown.includes("LMUX-01-01"));
+assert.ok(runPackMarkdown.includes("점수 입력 규칙"));
+assert.ok(runPackMarkdown.includes("functional 0~4"));
 
 const summary = scoreScenarioRun({
   scenarioSet,

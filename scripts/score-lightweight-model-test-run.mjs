@@ -13,6 +13,7 @@ const DEFAULT_SCENARIO_PATH = path.join(
 const DEFAULT_OUT_DIR = path.join("docs", "operations", "generated");
 const RESULT_TEMPLATE_BASENAME = "lightweight-model-test-results-template";
 const SCORE_REPORT_BASENAME = "lightweight-model-test-score-report";
+const RUN_PACK_BASENAME = "lightweight-model-computer-use-run-pack";
 
 const SCORE_LIMITS = {
   functional: 4,
@@ -106,6 +107,123 @@ export function createBlankResultSheet(
       blocker: "",
     })),
   };
+}
+
+export function createComputerUseRunPack(
+  scenarioSet,
+  { runId = `computer-use-run-${Date.now()}`, scenarioLimit = null, createdAt = nowIso() } = {},
+) {
+  const selectedScenarios = Number.isFinite(scenarioLimit)
+    ? scenarioSet.scenarios.slice(0, Math.max(0, scenarioLimit))
+    : scenarioSet.scenarios;
+  const scenarios = selectedScenarios.map((scenario) => ({
+    id: scenario.id,
+    category: scenario.category,
+    title: scenario.title,
+    priority: scenario.priority,
+    lightweightFocus: scenario.lightweightFocus,
+    preconditions: scenario.preconditions,
+    steps: scenario.steps,
+    expected: scenario.expected,
+    checkpoints: scenario.computerUse.checkpoints,
+    scoring: scenario.scoring,
+    resultSlot: {
+      status: "not_tested",
+      scores: {
+        functional: null,
+        ux: null,
+        modelQuality: null,
+        evidence: null,
+      },
+      evidence: [],
+      notes: "",
+      blocker: "",
+    },
+  }));
+
+  return {
+    runId,
+    createdAt,
+    model: scenarioSet.model,
+    modelDisplayName: scenarioSet.modelDisplayName,
+    totalScenarios: scenarios.length,
+    totalMaxScore: scenarios.reduce(
+      (sum, scenario) =>
+        sum +
+        scenario.scoring.functional.max +
+        scenario.scoring.ux.max +
+        scenario.scoring.modelQuality.max +
+        scenario.scoring.evidence.max,
+      0,
+    ),
+    oneTurnInstruction:
+      "이 실행팩을 컴퓨터유즈 한 턴의 작업 지시로 사용한다. 각 시나리오를 순서대로 실제 앱에서 조작하고, 증거와 점수를 결과 템플릿에 기록한다.",
+    scoringRule:
+      "functional 0~4, ux 0~3, modelQuality 0~2, evidence 0~1 기준으로 채점한다.",
+    scenarios,
+  };
+}
+
+export function renderComputerUseRunPack(runPack) {
+  const lines = [
+    `# ${runPack.modelDisplayName} 컴퓨터유즈 1턴 실행팩`,
+    "",
+    `- 실행 ID: ${runPack.runId}`,
+    `- 모델 기준: ${runPack.modelDisplayName} (${runPack.model})`,
+    `- 시나리오 수: ${runPack.totalScenarios}`,
+    `- 총점: ${runPack.totalMaxScore}`,
+    "",
+    "## 실행 지시",
+    "",
+    runPack.oneTurnInstruction,
+    "",
+    "## 점수 입력 규칙",
+    "",
+    "- functional 0~4: 기능이 실제로 동작하는가",
+    "- ux 0~3: 진행상태, 오류, 다음 행동이 이해 가능한가",
+    "- modelQuality 0~2: 경량모델 답변이 구조화, 출처, 보안, 도구 우선 원칙을 지키는가",
+    "- evidence 0~1: 스크린샷, 로그, 산출물 경로 등 검증 증거가 남는가",
+    "",
+    "## 시나리오",
+    "",
+  ];
+
+  for (const scenario of runPack.scenarios) {
+    lines.push(`### ${scenario.id} ${scenario.title}`);
+    lines.push("");
+    lines.push(`- 카테고리: ${scenario.category}`);
+    lines.push(`- 우선순위: ${scenario.priority}`);
+    lines.push(`- 경량모델 초점: ${scenario.lightweightFocus}`);
+    lines.push("");
+    lines.push("#### 사전조건");
+    for (const item of scenario.preconditions) {
+      lines.push(`- ${item}`);
+    }
+    lines.push("");
+    lines.push("#### 실시 절차");
+    for (const item of scenario.steps) {
+      lines.push(`- ${item}`);
+    }
+    lines.push("");
+    lines.push("#### 기대 결과");
+    for (const item of scenario.expected) {
+      lines.push(`- ${item}`);
+    }
+    lines.push("");
+    lines.push("#### 컴퓨터유즈 체크포인트");
+    for (const item of scenario.checkpoints) {
+      lines.push(`- ${item}`);
+    }
+    lines.push("");
+    lines.push("#### 결과 기록 슬롯");
+    lines.push("- status: pass / partial / fail / blocked / skip");
+    lines.push("- scores: functional, ux, modelQuality, evidence");
+    lines.push("- evidence: 스크린샷, 로그, 산출물 경로");
+    lines.push("- notes/blocker: 사용자경험 메모 또는 블로커");
+    lines.push("");
+  }
+
+  return `${lines.join("\n")}\n`;
 }
 
 export function scoreScenarioRun({ scenarioSet, results }) {
@@ -243,6 +361,8 @@ function parseArgs(argv) {
     results: "",
     outDir: DEFAULT_OUT_DIR,
     createTemplate: false,
+    createRunPack: false,
+    scenarioLimit: null,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -258,6 +378,11 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--create-template") {
       options.createTemplate = true;
+    } else if (arg === "--create-run-pack") {
+      options.createRunPack = true;
+    } else if (arg === "--scenario-limit" && next) {
+      options.scenarioLimit = Number.parseInt(next, 10);
+      index += 1;
     }
   }
   return options;
@@ -281,20 +406,44 @@ export function writeScoreArtifacts({ scenarioSet, results, outDir = DEFAULT_OUT
   return { summary, written: [jsonPath, markdownPath] };
 }
 
+export function writeRunPackArtifacts({ scenarioSet, outDir = DEFAULT_OUT_DIR, scenarioLimit = null }) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const runPack = createComputerUseRunPack(scenarioSet, { scenarioLimit });
+  const jsonPath = path.join(outDir, `${RUN_PACK_BASENAME}.json`);
+  const markdownPath = path.join(outDir, `${RUN_PACK_BASENAME}.md`);
+  writeJson(jsonPath, runPack);
+  fs.writeFileSync(markdownPath, renderComputerUseRunPack(runPack), "utf-8");
+  return { runPack, written: [jsonPath, markdownPath] };
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const scenarioSet = readJson(options.scenarios);
   fs.mkdirSync(options.outDir, { recursive: true });
 
-  if (options.createTemplate || !options.results) {
+  const shouldCreateTemplate = options.createTemplate || (!options.results && !options.createRunPack);
+  if (shouldCreateTemplate) {
     const blankSheet = createBlankResultSheet(scenarioSet);
     const templatePath = path.join(options.outDir, `${RESULT_TEMPLATE_BASENAME}.json`);
     writeJson(templatePath, blankSheet);
     console.log(`created result template for ${blankSheet.scenarios.length} scenarios`);
     console.log(templatePath);
-    if (!options.results) {
-      return;
+  }
+
+  if (options.createRunPack) {
+    const { runPack, written } = writeRunPackArtifacts({
+      scenarioSet,
+      outDir: options.outDir,
+      scenarioLimit: options.scenarioLimit,
+    });
+    console.log(`created computer-use run pack for ${runPack.scenarios.length} scenarios`);
+    for (const filePath of written) {
+      console.log(filePath);
     }
+  }
+
+  if (!options.results) {
+    return;
   }
 
   const results = readJson(options.results);

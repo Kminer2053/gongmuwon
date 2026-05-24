@@ -22,7 +22,8 @@
     "release:offline": "node scripts/prepare-offline-release.mjs",
     "release:alpha": "node scripts/prepare-alpha-release.mjs",
     "qa:scenarios:lightweight": "node scripts/generate-lightweight-model-test-scenarios.mjs --model gemma4:e2b --per-category 10 --out-dir docs/operations/generated --format both",
-    "qa:score:lightweight": "node scripts/score-lightweight-model-test-run.mjs --scenarios docs/operations/generated/lightweight-model-test-scenarios.json --out-dir docs/operations/generated --create-template",
+    "qa:score:lightweight": "node scripts/score-lightweight-model-test-run.mjs --scenarios docs/operations/generated/lightweight-model-test-scenarios.json --out-dir docs/operations/generated --create-template --create-run-pack",
+    "qa:runpack:lightweight": "node scripts/score-lightweight-model-test-run.mjs --scenarios docs/operations/generated/lightweight-model-test-scenarios.json --out-dir docs/operations/generated --create-run-pack",
     "qa:test:lightweight": "node scripts/generate-lightweight-model-test-scenarios.test.mjs && node scripts/score-lightweight-model-test-run.test.mjs",
     "verify:all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"
   },

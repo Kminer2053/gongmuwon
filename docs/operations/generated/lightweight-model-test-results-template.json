@@ -1,9 +1,9 @@
 {
-  "runId": "computer-use-1779639971877",
+  "runId": "computer-use-1779640619566",
   "tester": "computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "startedAt": "2026-05-24T16:26:11.877Z",
+  "startedAt": "2026-05-24T16:36:59.566Z",
   "completedAt": null,
   "scoringGuide": {
     "functional": "0~4점: 기능이 실제로 동작하는가",
