@@ -21,6 +21,7 @@
     "sidecar:bundle:windows": "node scripts/portable-run.mjs python -m PyInstaller --noconfirm --clean --distpath release/sidecar/windows-x64 --workpath runtime-workspace/cache/pyinstaller services/sidecar/packaging/gongmu-sidecar.spec",
     "release:offline": "node scripts/prepare-offline-release.mjs",
     "release:alpha": "node scripts/prepare-alpha-release.mjs",
+    "qa:scenarios:lightweight": "node scripts/generate-lightweight-model-test-scenarios.mjs --model gemma4:e2b --per-category 10 --out-dir docs/operations/generated --format both",
     "verify:all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"
   },
   "devDependencies": {

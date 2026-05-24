@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -152,6 +152,7 @@ class WorkspaceSettingsDefaults(BaseModel):
     llm_mode: ModeKey
     llm_provider: str
     llm_model: str
+    llm_runtime_policy: dict[str, Any]
     llm_api_key: str | None
     llm_site_url: str | None
     llm_application_name: str | None

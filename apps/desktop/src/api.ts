@@ -618,11 +618,28 @@ export type WorkspaceHealth = {
   database: string;
 };
 
+export type WorkspaceLlmRuntimePolicy = {
+  provider: string;
+  model: string;
+  model_family: string;
+  is_lightweight: boolean;
+  is_gemma4?: boolean;
+  is_gemma4_e2b: boolean;
+  recommended_reasoning_effort: string;
+  streaming_required: boolean;
+  generate_fallback_enabled: boolean;
+  thinking_supported: boolean;
+  vision_supported: boolean;
+  recommended_options: Record<string, unknown> | null;
+  notes: string[];
+};
+
 export type WorkspaceSettings = {
   defaults: {
     llm_mode: LlmMode;
     llm_provider: string;
     llm_model: string;
+    llm_runtime_policy?: WorkspaceLlmRuntimePolicy;
     llm_api_key: string | null;
     llm_site_url?: string | null;
     llm_application_name?: string | null;

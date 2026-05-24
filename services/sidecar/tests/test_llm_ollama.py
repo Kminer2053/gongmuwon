@@ -5,7 +5,12 @@ from urllib import request
 
 import pytest
 
-from gongmu_sidecar.llm import LLMGenerationError, generate_session_reply, generate_session_reply_streaming
+from gongmu_sidecar.llm import (
+    LLMGenerationError,
+    describe_llm_runtime_policy,
+    generate_session_reply,
+    generate_session_reply_streaming,
+)
 from gongmu_sidecar.settings import SidecarSettings
 
 
@@ -160,6 +165,31 @@ def test_ollama_gemma4_e2b_uses_recommended_chat_options(monkeypatch) -> None:
         "repeat_penalty": 1.0,
         "stop": ["<end_of_turn>", "<start_of_turn>"],
     }
+
+
+def test_describe_llm_runtime_policy_marks_gemma4_e2b_as_lightweight() -> None:
+    policy = describe_llm_runtime_policy(provider="ollama", model="gemma4:e2b")
+
+    assert policy["model_family"] == "gemma4"
+    assert policy["is_lightweight"] is True
+    assert policy["is_gemma4_e2b"] is True
+    assert policy["recommended_reasoning_effort"] == "low"
+    assert policy["streaming_required"] is True
+    assert policy["generate_fallback_enabled"] is False
+    assert policy["thinking_supported"] is True
+    assert policy["vision_supported"] is True
+    assert policy["recommended_options"]["num_ctx"] == 32768
+
+
+def test_describe_llm_runtime_policy_preserves_legacy_qwen_fallback() -> None:
+    policy = describe_llm_runtime_policy(provider="ollama", model="qwen3.6:27b")
+
+    assert policy["model_family"] == "qwen"
+    assert policy["is_lightweight"] is False
+    assert policy["is_gemma4_e2b"] is False
+    assert policy["recommended_reasoning_effort"] == "auto"
+    assert policy["generate_fallback_enabled"] is True
+    assert policy["recommended_options"] is None
 
 
 def test_ollama_gemma4_e2b_keeps_short_replies_fast_when_reasoning_is_low(monkeypatch) -> None:

@@ -34,7 +34,12 @@ from .local_file_search import (
     score_filename,
     search_local_files_by_name,
 )
-from .llm import LLMGenerationError, generate_session_reply, generate_session_reply_streaming
+from .llm import (
+    LLMGenerationError,
+    describe_llm_runtime_policy,
+    generate_session_reply,
+    generate_session_reply_streaming,
+)
 from .personalization import PersonalizationManager
 from .settings import SidecarSettings, WorkspaceSettingsResponse, WorkspaceSettingsUpdate
 from .tools import TOOLS
@@ -436,6 +441,12 @@ class AppServices:
         )
         return {"id": schedule_id, "deleted": True, "schedule": existing}
 
+    def llm_runtime_policy(self) -> dict[str, Any]:
+        return describe_llm_runtime_policy(
+            provider=self.settings.llm_provider,
+            model=self.settings.llm_model,
+        )
+
     def update_settings(self, payload: WorkspaceSettingsUpdate) -> WorkspaceSettingsResponse:
         self.settings = self.settings.apply_update(payload)
         self._ensure_personalization_root()
@@ -470,6 +481,7 @@ class AppServices:
                 "llm_mode": self.settings.llm_mode,
                 "llm_provider": self.settings.llm_provider,
                 "llm_model": self.settings.llm_model,
+                "llm_runtime_policy": self.llm_runtime_policy(),
                 "llm_api_key": self.settings.llm_api_key,
                 "llm_site_url": self.settings.llm_site_url,
                 "llm_application_name": self.settings.llm_application_name,
@@ -2953,6 +2965,7 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
                 "llm_mode": services.settings.llm_mode,
                 "llm_provider": services.settings.llm_provider,
                 "llm_model": services.settings.llm_model,
+                "llm_runtime_policy": services.llm_runtime_policy(),
                 "llm_api_key": services.settings.llm_api_key,
                 "llm_site_url": services.settings.llm_site_url,
                 "llm_application_name": services.settings.llm_application_name,

@@ -634,6 +634,46 @@ def _ollama_options(model: str, reasoning_effort: str | None) -> dict[str, Any] 
     }
 
 
+def describe_llm_runtime_policy(provider: str, model: str) -> dict[str, Any]:
+    normalized_provider = provider.strip().lower().replace("-", "_").replace(" ", "_")
+    normalized_model = model.strip().lower().replace("_", "-")
+    is_gemma4 = _is_gemma4_model(model)
+    is_gemma4_e2b = is_gemma4 and ("e2b" in normalized_model or "2b" in normalized_model)
+    is_qwen = "qwen" in normalized_model
+    is_small_name = any(
+        marker in normalized_model
+        for marker in ["e2b", "e4b", "2b", "3b", "4b", "mini", "small", "edge"]
+    )
+    model_family = "gemma4" if is_gemma4 else "qwen" if is_qwen else "generic"
+    is_lightweight = bool(is_gemma4_e2b or (is_gemma4 and is_small_name and "31b" not in normalized_model))
+    recommended_reasoning_effort = "low" if is_lightweight else "medium" if is_gemma4 else "auto"
+
+    return {
+        "provider": normalized_provider or provider,
+        "model": model,
+        "model_family": model_family,
+        "is_lightweight": is_lightweight,
+        "is_gemma4": is_gemma4,
+        "is_gemma4_e2b": is_gemma4_e2b,
+        "recommended_reasoning_effort": recommended_reasoning_effort,
+        "streaming_required": bool(is_lightweight or normalized_provider == "ollama"),
+        "generate_fallback_enabled": not is_gemma4,
+        "thinking_supported": is_gemma4,
+        "vision_supported": is_gemma4 or any(marker in normalized_model for marker in ["vision", "vl", "multimodal"]),
+        "recommended_options": _ollama_options(model, recommended_reasoning_effort)
+        if normalized_provider in {"ollama", "ollama_native"}
+        else None,
+        "notes": [
+            "Gemma 4 계열은 /api/chat 응답만 신뢰하고 /api/generate plain-text fallback을 사용하지 않습니다."
+            if is_gemma4
+            else "기존 Ollama 모델은 호환성을 위해 reasoning_content와 /api/generate fallback을 유지합니다.",
+            "경량모델은 스트리밍 응답과 짧은 reasoning 기본값을 우선 사용합니다."
+            if is_lightweight
+            else "대형 또는 일반 모델은 현재 사용자 설정을 우선합니다.",
+        ],
+    }
+
+
 def _apply_ollama_model_tuning(
     payload: dict[str, Any],
     *,
