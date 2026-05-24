@@ -1,10 +1,10 @@
 {
-  "runId": "computer-use-actual-1779647340572",
+  "runId": "computer-use-actual-1779647897673",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "startedAt": "2026-05-24T18:29:00.572Z",
-  "completedAt": "2026-05-24T18:29:00.572Z",
+  "startedAt": "2026-05-24T18:38:17.673Z",
+  "completedAt": "2026-05-24T18:38:17.673Z",
   "sourceSessionId": "b4f4771a-9528-4b21-8663-d1cf645a50b5",
   "scenarios": [
     {
@@ -108,6 +108,102 @@
         "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "thought_trace=false; model_meta=false; policy_meta=false",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml"
+      ],
+      "notes": "calendar_ui: required=업무일정, 캘린더; ux=월, 주, 일",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui-snapshot.yml"
+      ],
+      "notes": "file_search_ui: required=내장 파일찾기, 파일명 인덱스 갱신; ux=검색 범위, 파일 검색",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui-snapshot.yml"
+      ],
+      "notes": "knowledge_ui: required=내 지식폴더, GraphRAG; ux=지식 그래프, GraphRAG 검색",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_entry_ui: required=문서작성; ux=시행문, 이메일",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_official_template_ui: required=시행문; ux=문서작성",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_one_page_template_ui: required=1페이지; ux=문서작성",
       "blocker": ""
     },
     {

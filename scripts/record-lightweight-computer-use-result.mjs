@@ -58,6 +58,119 @@ function passScores({ functional = true, ux = true, modelQuality = true, evidenc
   };
 }
 
+function includesAll(text, markers) {
+  const source = String(text || "");
+  return markers.every((marker) => source.includes(marker));
+}
+
+function featureEvidence(feature) {
+  return commonEvidence({
+    screenshotPath: feature?.screenshotPath,
+    snapshotPath: feature?.snapshotPath,
+  });
+}
+
+function featureScenario({
+  id,
+  feature,
+  required,
+  uxRequired = required,
+  noteLabel,
+  blocker,
+}) {
+  const text = String(feature?.snapshotText || "");
+  const functional = includesAll(text, required);
+  const ux = includesAll(text, uxRequired);
+  const evidence = featureEvidence(feature);
+  return {
+    id,
+    status: functional && ux && evidence.length > 0 ? "pass" : functional ? "partial" : "fail",
+    scores: passScores({
+      functional,
+      ux,
+      modelQuality: true,
+      evidence: evidence.length > 0,
+    }),
+    evidence,
+    notes: `${noteLabel}: required=${required.join(", ")}; ux=${uxRequired.join(", ")}`,
+    blocker: functional && ux ? "" : blocker,
+  };
+}
+
+export function evaluateFeatureUiSnapshots({
+  calendar = null,
+  fileSearch = null,
+  knowledge = null,
+  document = null,
+} = {}) {
+  const results = [];
+  if (calendar) {
+    results.push(
+      featureScenario({
+        id: "LMUX-05-01",
+        feature: calendar,
+        required: ["업무일정", "캘린더"],
+        uxRequired: ["월", "주", "일"],
+        noteLabel: "calendar_ui",
+        blocker: "Calendar month/week/day controls were not proven in the UI snapshot.",
+      }),
+    );
+  }
+  if (fileSearch) {
+    results.push(
+      featureScenario({
+        id: "LMUX-06-01",
+        feature: fileSearch,
+        required: ["내장 파일찾기", "파일명 인덱스 갱신"],
+        uxRequired: ["검색 범위", "파일 검색"],
+        noteLabel: "file_search_ui",
+        blocker: "File search index refresh and search UI were not proven in the UI snapshot.",
+      }),
+    );
+  }
+  if (knowledge) {
+    results.push(
+      featureScenario({
+        id: "LMUX-07-02",
+        feature: knowledge,
+        required: ["내 지식폴더", "GraphRAG"],
+        uxRequired: ["지식 그래프", "GraphRAG 검색"],
+        noteLabel: "knowledge_ui",
+        blocker: "Knowledge folder graph/indexing navigation was not proven in the UI snapshot.",
+      }),
+    );
+  }
+  if (document) {
+    results.push(
+      featureScenario({
+        id: "LMUX-09-02",
+        feature: document,
+        required: ["문서작성"],
+        uxRequired: ["시행문", "이메일"],
+        noteLabel: "document_entry_ui",
+        blocker: "Document authoring entry screen was not proven in the UI snapshot.",
+      }),
+      featureScenario({
+        id: "LMUX-09-04",
+        feature: document,
+        required: ["시행문"],
+        uxRequired: ["문서작성"],
+        noteLabel: "document_official_template_ui",
+        blocker: "Official letter output type was not proven in the UI snapshot.",
+      }),
+      featureScenario({
+        id: "LMUX-09-05",
+        feature: document,
+        required: ["1페이지"],
+        uxRequired: ["문서작성"],
+        noteLabel: "document_one_page_template_ui",
+        blocker: "One-page report output type was not proven in the UI snapshot.",
+      }),
+    );
+  }
+  return results;
+}
+
 function categoryLabelForScenario(id) {
   const prefix = String(id || "").slice(0, 7);
   return CATEGORY_LABEL_BY_PREFIX[prefix] || prefix || "기타";
@@ -237,6 +350,7 @@ export function buildComputerUseEvidenceResultSheet({
   recentContextObserved = false,
   screenshotPath = "",
   snapshotPath = "",
+  featureSnapshots = {},
   apiEvidenceBase = "",
   runId = `computer-use-actual-${Date.now()}`,
   startedAt = nowIso(),
@@ -356,6 +470,14 @@ export function buildComputerUseEvidenceResultSheet({
       blocker: evidence.workProgressObserved ? "" : "Right-panel work progress was not observed.",
     },
   ];
+  const featureResults = evaluateFeatureUiSnapshots(featureSnapshots);
+  const existingIds = new Set(scenarioResults.map((item) => item.id));
+  for (const result of featureResults) {
+    if (!existingIds.has(result.id)) {
+      scenarioResults.splice(Math.max(0, scenarioResults.length - 1), 0, result);
+      existingIds.add(result.id);
+    }
+  }
 
   return {
     runId,
@@ -377,6 +499,8 @@ function parseArgs(argv) {
     sessionId: "",
     screenshotPath: "",
     snapshotPath: "",
+    featureSnapshots: {},
+    featureScreenshots: {},
     appTitleObserved: true,
     responseTimeObserved: true,
     workProgressObserved: true,
@@ -403,6 +527,14 @@ function parseArgs(argv) {
     } else if (arg === "--snapshot" && next) {
       options.snapshotPath = next;
       index += 1;
+    } else if (arg === "--feature-snapshot" && next) {
+      const [name, ...rest] = next.split("=");
+      options.featureSnapshots[name] = rest.join("=");
+      index += 1;
+    } else if (arg === "--feature-screenshot" && next) {
+      const [name, ...rest] = next.split("=");
+      options.featureScreenshots[name] = rest.join("=");
+      index += 1;
     } else if (arg === "--no-app-title") {
       options.appTitleObserved = false;
     } else if (arg === "--no-response-time") {
@@ -427,6 +559,18 @@ async function fetchJson(url) {
 
 function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf-8");
+}
+
+function readFeatureSnapshots({ snapshots = {}, screenshots = {} } = {}) {
+  const features = {};
+  for (const [name, snapshotPath] of Object.entries(snapshots)) {
+    features[name] = {
+      snapshotPath,
+      screenshotPath: screenshots[name] || "",
+      snapshotText: fs.readFileSync(snapshotPath, "utf-8"),
+    };
+  }
+  return features;
 }
 
 async function resolveSession(baseUrl, sessionId) {
@@ -466,6 +610,10 @@ async function main() {
     recentContextObserved: options.recentContextObserved,
     screenshotPath: options.screenshotPath,
     snapshotPath: options.snapshotPath,
+    featureSnapshots: readFeatureSnapshots({
+      snapshots: options.featureSnapshots,
+      screenshots: options.featureScreenshots,
+    }),
     apiEvidenceBase: `${baseUrl}/api/work-sessions/${session.id}`,
   });
   const summary = scoreScenarioRun({ scenarioSet, results: resultSheet });

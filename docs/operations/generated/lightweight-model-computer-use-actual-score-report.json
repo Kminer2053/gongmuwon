@@ -1,13 +1,13 @@
 {
-  "runId": "computer-use-actual-1779647340572",
+  "runId": "computer-use-actual-1779647897673",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "generatedAt": "2026-05-24T18:29:00.578Z",
-  "totalScore": 70,
+  "generatedAt": "2026-05-24T18:38:17.676Z",
+  "totalScore": 130,
   "totalMaxScore": 1000,
-  "testedCount": 7,
-  "notTestedCount": 93,
+  "testedCount": 13,
+  "notTestedCount": 87,
   "overallGrade": "needs-work",
   "categories": [
     {
@@ -45,26 +45,26 @@
     {
       "category": "일정 캘린더",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 1,
+      "score": 10,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     },
     {
       "category": "파일찾기와 세션 연결",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 1,
+      "score": 10,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     },
     {
       "category": "지식폴더/GraphRAG 인덱싱",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 1,
+      "score": 10,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     },
     {
       "category": "GraphRAG 검색과 출처 답변",
@@ -77,10 +77,10 @@
     {
       "category": "문서작성/HWPX 산출",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 3,
+      "score": 30,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     },
     {
       "category": "실행기록/작업진행/다중작업",
@@ -637,13 +637,22 @@
       "id": "LMUX-05-01",
       "category": "일정 캘린더",
       "title": "월 보기 일정 색상 구분",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml"
+      ],
+      "notes": "calendar_ui: required=업무일정, 캘린더; ux=월, 주, 일",
+      "blocker": ""
     },
     {
       "id": "LMUX-05-02",
@@ -757,13 +766,22 @@
       "id": "LMUX-06-01",
       "category": "파일찾기와 세션 연결",
       "title": "파일명 인덱스 갱신",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui-snapshot.yml"
+      ],
+      "notes": "file_search_ui: required=내장 파일찾기, 파일명 인덱스 갱신; ux=검색 범위, 파일 검색",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-02",
@@ -889,13 +907,22 @@
       "id": "LMUX-07-02",
       "category": "지식폴더/GraphRAG 인덱싱",
       "title": "색인처리 탭 이동 안내",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui-snapshot.yml"
+      ],
+      "notes": "knowledge_ui: required=내 지식폴더, GraphRAG; ux=지식 그래프, GraphRAG 검색",
+      "blocker": ""
     },
     {
       "id": "LMUX-07-03",
@@ -1129,13 +1156,22 @@
       "id": "LMUX-09-02",
       "category": "문서작성/HWPX 산출",
       "title": "바로작성 시작",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_entry_ui: required=문서작성; ux=시행문, 이메일",
+      "blocker": ""
     },
     {
       "id": "LMUX-09-03",
@@ -1153,25 +1189,43 @@
       "id": "LMUX-09-04",
       "category": "문서작성/HWPX 산출",
       "title": "시행문 유형 선택",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_official_template_ui: required=시행문; ux=문서작성",
+      "blocker": ""
     },
     {
       "id": "LMUX-09-05",
       "category": "문서작성/HWPX 산출",
       "title": "1페이지 보고서 유형 선택",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_one_page_template_ui: required=1페이지; ux=문서작성",
+      "blocker": ""
     },
     {
       "id": "LMUX-09-06",

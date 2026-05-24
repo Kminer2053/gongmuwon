@@ -4,6 +4,7 @@ import { buildScenarioSet } from "./generate-lightweight-model-test-scenarios.mj
 import {
   buildComputerUseEvidenceResultSheet,
   evaluateComputerUseEvidence,
+  evaluateFeatureUiSnapshots,
   renderActualComputerUseCoverageAudit,
   renderActualComputerUseScoreReport,
 } from "./record-lightweight-computer-use-result.mjs";
@@ -89,25 +90,73 @@ const resultSheet = buildComputerUseEvidenceResultSheet({
   snapshotPath: ".playwright-cli/page-example.yml",
   apiEvidenceBase: "http://127.0.0.1:8765/api/work-sessions/session-001",
   runId: "computer-use-actual-001",
+  featureSnapshots: {
+    calendar: {
+      snapshotText: "업무일정 캘린더 월 주 일 오늘",
+      snapshotPath: "docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+      screenshotPath: "docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+    },
+    fileSearch: {
+      snapshotText: "내장 파일찾기 검색 범위 파일명 인덱스 갱신 파일 검색 현재 연결 대상 세션",
+      snapshotPath: "docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui-snapshot.yml",
+      screenshotPath: "docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui.png",
+    },
+    knowledge: {
+      snapshotText: "내 지식폴더 지식 그래프 GraphRAG 설정/상태 색인처리 GraphRAG 검색",
+      snapshotPath: "docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui-snapshot.yml",
+      screenshotPath: "docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui.png",
+    },
+    document: {
+      snapshotText: "문서작성 시행문 1페이지 보고서 풀버전 보고서 이메일 바로작성",
+      snapshotPath: "docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+      screenshotPath: "docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+    },
+  },
 });
 
 assert.equal(resultSheet.runId, "computer-use-actual-001");
 assert.equal(resultSheet.tester, "playwright-computer-use");
 assert.deepEqual(
   resultSheet.scenarios.map((item) => item.id),
-  ["LMUX-01-01", "LMUX-02-01", "LMUX-03-01", "LMUX-03-03", "LMUX-03-04", "LMUX-03-10", "LMUX-10-01"],
+  [
+    "LMUX-01-01",
+    "LMUX-02-01",
+    "LMUX-03-01",
+    "LMUX-03-03",
+    "LMUX-03-04",
+    "LMUX-03-10",
+    "LMUX-05-01",
+    "LMUX-06-01",
+    "LMUX-07-02",
+    "LMUX-09-02",
+    "LMUX-09-04",
+    "LMUX-09-05",
+    "LMUX-10-01",
+  ],
 );
 assert.ok(resultSheet.scenarios.every((item) => item.evidence.length >= 2));
 assert.ok(resultSheet.scenarios.every((item) => item.status === "pass"));
 
 const summary = scoreScenarioRun({ scenarioSet, results: resultSheet });
-assert.equal(summary.testedCount, 7);
-assert.equal(summary.totalScore, 70);
+assert.equal(summary.testedCount, 13);
+assert.equal(summary.totalScore, 130);
 assert.equal(summary.overallGrade, "needs-work");
+
+const featureUi = evaluateFeatureUiSnapshots({
+  calendar: { snapshotText: "업무일정 캘린더 월 주 일 오늘", snapshotPath: "calendar.yml" },
+  fileSearch: { snapshotText: "내장 파일찾기 검색 범위 파일명 인덱스 갱신 파일 검색", snapshotPath: "file.yml" },
+  knowledge: { snapshotText: "내 지식폴더 지식 그래프 GraphRAG 색인처리 GraphRAG 검색", snapshotPath: "knowledge.yml" },
+  document: { snapshotText: "문서작성 시행문 1페이지 보고서 풀버전 보고서 이메일", snapshotPath: "document.yml" },
+});
+assert.deepEqual(
+  featureUi.map((item) => item.id),
+  ["LMUX-05-01", "LMUX-06-01", "LMUX-07-02", "LMUX-09-02", "LMUX-09-04", "LMUX-09-05"],
+);
+assert.ok(featureUi.every((item) => item.status === "pass"));
 
 const readableReport = renderActualComputerUseScoreReport(summary);
 assert.ok(readableReport.includes("# 경량모델 컴퓨터유즈 실제 점수 리포트"));
-assert.ok(readableReport.includes("총점: 70 / 1000"));
+assert.ok(readableReport.includes("총점: 130 / 1000"));
 assert.ok(readableReport.includes("LMUX-03-04"));
 assert.ok(!readableReport.includes("寃쎈웾"));
 
