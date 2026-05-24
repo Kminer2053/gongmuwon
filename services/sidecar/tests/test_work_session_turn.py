@@ -722,6 +722,8 @@ def test_work_session_turn_injects_lightweight_model_format_guardrails(
     assert "답변 항목으로 쓰지 마세요" in guardrail
     assert "사용자 업무 관점" in guardrail
     assert "모델 수행 항목" in guardrail
+    assert "정보가 부족하더라도" in guardrail
+    assert "일반적인 기준" in guardrail
 
 
 def test_work_session_turn_removes_lightweight_model_meta_policy_from_reply(

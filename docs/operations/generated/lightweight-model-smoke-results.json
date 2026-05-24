@@ -1,0 +1,55 @@
+{
+  "runId": "lightweight-smoke-1779643520622",
+  "tester": "computer-use-assisted-smoke",
+  "model": "gemma4:e2b",
+  "modelDisplayName": "Gemma 4 E2B",
+  "startedAt": "2026-05-24T17:25:20.622Z",
+  "completedAt": "2026-05-24T17:25:20.622Z",
+  "scenarios": [
+    {
+      "id": "LMUX-02-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings"
+      ],
+      "notes": "런타임 정책 감지: provider=featherless; model=google/gemma-4-E2B-it; lightweight=true; gemma4_e2b=true; reasoning=low",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/a29844ef-bff2-4c73-bfd3-9032920ddf9f/messages"
+      ],
+      "notes": "Markdown 목록 스모크: provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/a29844ef-bff2-4c73-bfd3-9032920ddf9f/messages"
+      ],
+      "notes": "내부추론/모델 메타 미노출 스모크: provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
+      "blocker": ""
+    }
+  ]
+}
