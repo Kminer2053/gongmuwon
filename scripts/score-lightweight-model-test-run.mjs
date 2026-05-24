@@ -1,0 +1,315 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { scoreScenarioResult } from "./generate-lightweight-model-test-scenarios.mjs";
+
+const DEFAULT_SCENARIO_PATH = path.join(
+  "docs",
+  "operations",
+  "generated",
+  "lightweight-model-test-scenarios.json",
+);
+const DEFAULT_OUT_DIR = path.join("docs", "operations", "generated");
+const RESULT_TEMPLATE_BASENAME = "lightweight-model-test-results-template";
+const SCORE_REPORT_BASENAME = "lightweight-model-test-score-report";
+
+const SCORE_LIMITS = {
+  functional: 4,
+  ux: 3,
+  modelQuality: 2,
+  evidence: 1,
+};
+
+function nowIso() {
+  return new Date().toISOString();
+}
+
+function clampStatus(status) {
+  const value = String(status || "").trim();
+  if (["pass", "partial", "fail", "blocked", "skip", "not_tested"].includes(value)) {
+    return value;
+  }
+  return "partial";
+}
+
+function validateScores(scores, scenarioId) {
+  const normalized = {};
+  for (const [key, max] of Object.entries(SCORE_LIMITS)) {
+    const value = scores?.[key];
+    if (!Number.isFinite(value) || value < 0 || value > max) {
+      throw new Error(`${scenarioId}: ${key} must be between 0 and ${max}`);
+    }
+    normalized[key] = value;
+  }
+  return normalized;
+}
+
+function gradeFromRatio(score, maxScore) {
+  if (maxScore <= 0) {
+    return "not-tested";
+  }
+  const ratio = score / maxScore;
+  if (ratio >= 0.9) {
+    return "release-ready";
+  }
+  if (ratio >= 0.7) {
+    return "minor polish";
+  }
+  if (ratio >= 0.5) {
+    return "needs-work";
+  }
+  return "blocker";
+}
+
+function overallGradeFromRun({ testedScore, testedMaxScore, notTestedCount }) {
+  if (testedMaxScore <= 0) {
+    return "not-tested";
+  }
+  const testedGrade = gradeFromRatio(testedScore, testedMaxScore);
+  if (notTestedCount > 0) {
+    return testedGrade === "blocker" ? "blocker" : "needs-work";
+  }
+  return testedGrade;
+}
+
+export function createBlankResultSheet(
+  scenarioSet,
+  { runId = `computer-use-${Date.now()}`, tester = "computer-use", startedAt = nowIso() } = {},
+) {
+  return {
+    runId,
+    tester,
+    model: scenarioSet.model,
+    modelDisplayName: scenarioSet.modelDisplayName,
+    startedAt,
+    completedAt: null,
+    scoringGuide: {
+      functional: "0~4점: 기능이 실제로 동작하는가",
+      ux: "0~3점: 진행상태, 오류, 다음 행동이 이해 가능한가",
+      modelQuality: "0~2점: 경량모델 답변이 구조화, 출처, 보안, 도구 우선 원칙을 지키는가",
+      evidence: "0~1점: 스크린샷, 로그, 산출물 경로 등 검증 증거가 남는가",
+    },
+    scenarios: scenarioSet.scenarios.map((scenario) => ({
+      id: scenario.id,
+      category: scenario.category,
+      title: scenario.title,
+      status: "not_tested",
+      scores: {
+        functional: null,
+        ux: null,
+        modelQuality: null,
+        evidence: null,
+      },
+      evidence: [],
+      notes: "",
+      blocker: "",
+    })),
+  };
+}
+
+export function scoreScenarioRun({ scenarioSet, results }) {
+  const resultById = new Map((results.scenarios || []).map((item) => [item.id, item]));
+  const categories = new Map();
+  const scenarios = scenarioSet.scenarios.map((scenario) => {
+    const result = resultById.get(scenario.id);
+    if (!categories.has(scenario.category)) {
+      categories.set(scenario.category, {
+        category: scenario.category,
+        count: 0,
+        testedCount: 0,
+        score: 0,
+        maxScore: 0,
+        grade: "not-tested",
+      });
+    }
+    const category = categories.get(scenario.category);
+    category.count += 1;
+    category.maxScore += scenario.maxScore;
+
+    if (!result || result.status === "not_tested") {
+      return {
+        id: scenario.id,
+        category: scenario.category,
+        title: scenario.title,
+        status: "not_tested",
+        score: 0,
+        maxScore: scenario.maxScore,
+        grade: "not-tested",
+        scores: null,
+        evidence: [],
+        notes: "",
+      };
+    }
+
+    const scores = validateScores(result.scores, scenario.id);
+    const scored = scoreScenarioResult(scores);
+    category.testedCount += 1;
+    category.score += scored.score;
+    return {
+      id: scenario.id,
+      category: scenario.category,
+      title: scenario.title,
+      status: clampStatus(result.status),
+      score: scored.score,
+      maxScore: scenario.maxScore,
+      grade: scored.grade,
+      scores,
+      evidence: Array.isArray(result.evidence) ? result.evidence : [],
+      notes: String(result.notes || ""),
+      blocker: String(result.blocker || ""),
+    };
+  });
+
+  const categorySummaries = Array.from(categories.values()).map((category) => ({
+    ...category,
+    grade: category.testedCount > 0 ? gradeFromRatio(category.score, category.testedCount * 10) : "not-tested",
+  }));
+  const totalScore = scenarios.reduce((sum, scenario) => sum + scenario.score, 0);
+  const totalMaxScore = scenarios.reduce((sum, scenario) => sum + scenario.maxScore, 0);
+  const testedCount = scenarios.filter((scenario) => scenario.status !== "not_tested").length;
+  const testedMaxScore = testedCount * 10;
+  const notTestedCount = scenarios.length - testedCount;
+
+  return {
+    runId: results.runId || `computer-use-${Date.now()}`,
+    tester: results.tester || "computer-use",
+    model: results.model || scenarioSet.model,
+    modelDisplayName: scenarioSet.modelDisplayName,
+    generatedAt: nowIso(),
+    totalScore,
+    totalMaxScore,
+    testedCount,
+    notTestedCount,
+    overallGrade: overallGradeFromRun({ testedScore: totalScore, testedMaxScore, notTestedCount }),
+    categories: categorySummaries,
+    scenarios,
+  };
+}
+
+export function renderScoreReport(summary) {
+  const lines = [
+    "# 경량모델 UX/성능 컴퓨터유즈 점수 리포트",
+    "",
+    `- 실행 ID: ${summary.runId}`,
+    `- 모델 기준: ${summary.modelDisplayName} (${summary.model})`,
+    `- 평가자: ${summary.tester}`,
+    `- 총점: ${summary.totalScore} / ${summary.totalMaxScore}`,
+    `- 실시: ${summary.testedCount}개`,
+    `- 미실시: ${summary.notTestedCount}개`,
+    `- 종합 등급: ${summary.overallGrade}`,
+    "",
+    "## 카테고리 점수",
+    "",
+    "| 카테고리 | 실시 | 점수 | 등급 |",
+    "| --- | ---: | ---: | --- |",
+  ];
+
+  for (const category of summary.categories) {
+    lines.push(
+      `| ${category.category} | ${category.testedCount}/${category.count} | ${category.score}/${category.maxScore} | ${category.grade} |`,
+    );
+  }
+
+  lines.push("", "## 시나리오별 결과", "");
+  for (const scenario of summary.scenarios) {
+    lines.push(`### ${scenario.id} ${scenario.title}`);
+    lines.push("");
+    lines.push(`- 카테고리: ${scenario.category}`);
+    lines.push(`- 상태: ${scenario.status}`);
+    lines.push(`- 점수: ${scenario.score} / ${scenario.maxScore}`);
+    lines.push(`- 등급: ${scenario.grade}`);
+    if (scenario.notes) {
+      lines.push(`- 메모: ${scenario.notes}`);
+    }
+    if (scenario.blocker) {
+      lines.push(`- 블로커: ${scenario.blocker}`);
+    }
+    if (scenario.evidence.length > 0) {
+      lines.push("- 증거:");
+      for (const evidence of scenario.evidence) {
+        lines.push(`  - ${evidence}`);
+      }
+    }
+    lines.push("");
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function parseArgs(argv) {
+  const options = {
+    scenarios: DEFAULT_SCENARIO_PATH,
+    results: "",
+    outDir: DEFAULT_OUT_DIR,
+    createTemplate: false,
+  };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    const next = argv[index + 1];
+    if (arg === "--scenarios" && next) {
+      options.scenarios = next;
+      index += 1;
+    } else if (arg === "--results" && next) {
+      options.results = next;
+      index += 1;
+    } else if (arg === "--out-dir" && next) {
+      options.outDir = next;
+      index += 1;
+    } else if (arg === "--create-template") {
+      options.createTemplate = true;
+    }
+  }
+  return options;
+}
+
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+}
+
+function writeJson(filePath, data) {
+  fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf-8");
+}
+
+export function writeScoreArtifacts({ scenarioSet, results, outDir = DEFAULT_OUT_DIR }) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const summary = scoreScenarioRun({ scenarioSet, results });
+  const jsonPath = path.join(outDir, `${SCORE_REPORT_BASENAME}.json`);
+  const markdownPath = path.join(outDir, `${SCORE_REPORT_BASENAME}.md`);
+  writeJson(jsonPath, summary);
+  fs.writeFileSync(markdownPath, renderScoreReport(summary), "utf-8");
+  return { summary, written: [jsonPath, markdownPath] };
+}
+
+function main() {
+  const options = parseArgs(process.argv.slice(2));
+  const scenarioSet = readJson(options.scenarios);
+  fs.mkdirSync(options.outDir, { recursive: true });
+
+  if (options.createTemplate || !options.results) {
+    const blankSheet = createBlankResultSheet(scenarioSet);
+    const templatePath = path.join(options.outDir, `${RESULT_TEMPLATE_BASENAME}.json`);
+    writeJson(templatePath, blankSheet);
+    console.log(`created result template for ${blankSheet.scenarios.length} scenarios`);
+    console.log(templatePath);
+    if (!options.results) {
+      return;
+    }
+  }
+
+  const results = readJson(options.results);
+  const { summary, written } = writeScoreArtifacts({
+    scenarioSet,
+    results,
+    outDir: options.outDir,
+  });
+  console.log(`scored ${summary.testedCount}/${summary.scenarios.length} scenarios`);
+  console.log(`${summary.totalScore}/${summary.totalMaxScore} ${summary.overallGrade}`);
+  for (const filePath of written) {
+    console.log(filePath);
+  }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}
