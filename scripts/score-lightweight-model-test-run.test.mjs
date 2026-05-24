@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 import { buildScenarioSet } from "./generate-lightweight-model-test-scenarios.mjs";
 import {
   auditComputerUseCoverage,
+  createComputerUseBatchRunPacks,
   createComputerUseRunPack,
   createBlankResultSheet,
+  mergeComputerUseResultSheets,
+  renderComputerUseBatchIndex,
   renderComputerUseRunPack,
   renderScoreReport,
   scoreScenarioRun,
@@ -50,6 +53,66 @@ assert.ok(runPackMarkdown.includes("# Gemma 4 E2B 컴퓨터유즈 1턴 실행팩
 assert.ok(runPackMarkdown.includes("LMUX-01-01"));
 assert.ok(runPackMarkdown.includes("점수 입력 규칙"));
 assert.ok(runPackMarkdown.includes("functional 0~4"));
+
+const batchPacks = createComputerUseBatchRunPacks(scenarioSet, {
+  runIdPrefix: "computer-use-batch",
+  by: "category",
+});
+
+assert.equal(batchPacks.length, 10);
+assert.equal(batchPacks[0].runId, "computer-use-batch-01");
+assert.equal(batchPacks[0].totalScenarios, 1);
+assert.equal(batchPacks[0].scenarios[0].category, "앱 시작과 업무엔진");
+assert.equal(batchPacks[9].runId, "computer-use-batch-10");
+assert.equal(batchPacks[9].scenarios[0].category, "실행기록/작업진행/다중작업");
+
+const batchIndexMarkdown = renderComputerUseBatchIndex({
+  modelDisplayName: scenarioSet.modelDisplayName,
+  model: scenarioSet.model,
+  batches: batchPacks,
+});
+assert.ok(batchIndexMarkdown.includes("# Gemma 4 E2B 컴퓨터유즈 배치 실행 인덱스"));
+assert.ok(batchIndexMarkdown.includes("computer-use-batch-01"));
+assert.ok(batchIndexMarkdown.includes("앱 시작과 업무엔진"));
+
+const mergedResults = mergeComputerUseResultSheets({
+  scenarioSet,
+  sheets: [
+    {
+      runId: "batch-01-result",
+      tester: "computer-use",
+      scenarios: [
+        {
+          id: "LMUX-01-01",
+          status: "pass",
+          scores: { functional: 4, ux: 3, modelQuality: 2, evidence: 1 },
+          evidence: ["screenshot://01.png"],
+          notes: "첫 배치 성공",
+        },
+      ],
+    },
+    {
+      runId: "batch-02-result",
+      tester: "computer-use",
+      scenarios: [
+        {
+          id: "LMUX-02-01",
+          status: "partial",
+          scores: { functional: 3, ux: 2, modelQuality: 1, evidence: 1 },
+          evidence: ["screenshot://02.png"],
+          notes: "두 번째 배치 일부 보완 필요",
+        },
+      ],
+    },
+  ],
+});
+
+assert.equal(mergedResults.runId, "computer-use-merged");
+assert.equal(mergedResults.scenarios.length, 10);
+assert.equal(mergedResults.scenarios[0].status, "pass");
+assert.equal(mergedResults.scenarios[1].status, "partial");
+assert.equal(mergedResults.scenarios[2].status, "not_tested");
+assert.equal(mergedResults.sourceRuns.length, 2);
 
 const summary = scoreScenarioRun({
   scenarioSet,

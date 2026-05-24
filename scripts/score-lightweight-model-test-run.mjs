@@ -15,6 +15,7 @@ const RESULT_TEMPLATE_BASENAME = "lightweight-model-test-results-template";
 const SCORE_REPORT_BASENAME = "lightweight-model-test-score-report";
 const RUN_PACK_BASENAME = "lightweight-model-computer-use-run-pack";
 const COVERAGE_AUDIT_BASENAME = "lightweight-model-computer-use-coverage-audit";
+const BATCH_INDEX_BASENAME = "lightweight-model-computer-use-batch-index";
 
 const SCORE_LIMITS = {
   functional: 4,
@@ -162,6 +163,139 @@ export function createComputerUseRunPack(
     scoringRule:
       "functional 0~4, ux 0~3, modelQuality 0~2, evidence 0~1 기준으로 채점한다.",
     scenarios,
+  };
+}
+
+function scenarioMaxScore(scenario) {
+  return (
+    scenario.scoring.functional.max +
+    scenario.scoring.ux.max +
+    scenario.scoring.modelQuality.max +
+    scenario.scoring.evidence.max
+  );
+}
+
+function runPackFromScenarios({
+  scenarioSet,
+  scenarios,
+  runId,
+  createdAt = nowIso(),
+  oneTurnInstruction = "이 배치 실행팩을 컴퓨터유즈 한 턴의 작업 지시로 사용한다. 배치에 포함된 시나리오만 실제 앱에서 조작하고, 증거와 점수를 결과 템플릿에 기록한다.",
+} = {}) {
+  const scenarioIds = new Set(scenarios.map((scenario) => scenario.id));
+  const fullRunPack = createComputerUseRunPack(scenarioSet, {
+    runId,
+    createdAt,
+  });
+  const selected = fullRunPack.scenarios.filter((scenario) => scenarioIds.has(scenario.id));
+  return {
+    ...fullRunPack,
+    runId,
+    createdAt,
+    totalScenarios: selected.length,
+    totalMaxScore: selected.reduce((sum, scenario) => sum + scenarioMaxScore(scenario), 0),
+    oneTurnInstruction,
+    scenarios: selected,
+  };
+}
+
+export function createComputerUseBatchRunPacks(
+  scenarioSet,
+  { runIdPrefix = `computer-use-batch-${Date.now()}`, by = "category", batchSize = 10 } = {},
+) {
+  if (by === "category") {
+    const categoryNames = Array.isArray(scenarioSet.categories)
+      ? scenarioSet.categories.map((item) =>
+          typeof item === "string" ? item : String(item?.category || ""),
+        ).filter(Boolean)
+      : [...new Set(scenarioSet.scenarios.map((scenario) => scenario.category))];
+    return categoryNames.map((category, index) => {
+      const scenarios = scenarioSet.scenarios.filter((scenario) => scenario.category === category);
+      return runPackFromScenarios({
+        scenarioSet,
+        scenarios,
+        runId: `${runIdPrefix}-${String(index + 1).padStart(2, "0")}`,
+      });
+    });
+  }
+
+  const size = Math.max(1, Number.isFinite(batchSize) ? batchSize : 10);
+  const batches = [];
+  for (let index = 0; index < scenarioSet.scenarios.length; index += size) {
+    batches.push(
+      runPackFromScenarios({
+        scenarioSet,
+        scenarios: scenarioSet.scenarios.slice(index, index + size),
+        runId: `${runIdPrefix}-${String(batches.length + 1).padStart(2, "0")}`,
+      }),
+    );
+  }
+  return batches;
+}
+
+export function renderComputerUseBatchIndex({ modelDisplayName, model, batches }) {
+  const lines = [
+    `# ${modelDisplayName} 컴퓨터유즈 배치 실행 인덱스`,
+    "",
+    `- 모델 기준: ${modelDisplayName} (${model})`,
+    `- 배치 수: ${batches.length}`,
+    `- 총 시나리오: ${batches.reduce((sum, batch) => sum + batch.totalScenarios, 0)}`,
+    "",
+    "## 배치 목록",
+    "",
+    "| 배치 | 시나리오 | 카테고리 | 총점 |",
+    "| --- | ---: | --- | ---: |",
+  ];
+
+  for (const batch of batches) {
+    const categories = [...new Set(batch.scenarios.map((scenario) => scenario.category))].join(", ");
+    lines.push(`| ${batch.runId} | ${batch.totalScenarios} | ${categories} | ${batch.totalMaxScore} |`);
+  }
+
+  lines.push(
+    "",
+    "## 사용법",
+    "",
+    "- 각 배치 Markdown을 컴퓨터유즈 한 턴의 지시문으로 사용한다.",
+    "- 배치별 결과 JSON을 만든 뒤 `--merge-results`로 합산한다.",
+    "- 최종 합산 결과에 `--audit-coverage --fail-on-incomplete`를 적용해 완료 가능 여부를 판정한다.",
+  );
+
+  return `${lines.join("\n")}\n`;
+}
+
+export function mergeComputerUseResultSheets({
+  scenarioSet,
+  sheets,
+  runId = "computer-use-merged",
+  tester = "computer-use",
+  startedAt = nowIso(),
+  completedAt = nowIso(),
+} = {}) {
+  const resultById = new Map();
+  const sourceRuns = [];
+  for (const sheet of sheets || []) {
+    sourceRuns.push(sheet.runId || "unknown");
+    for (const result of sheet.scenarios || []) {
+      if (!result?.id) {
+        continue;
+      }
+      if (result.status === "not_tested" && resultById.has(result.id)) {
+        continue;
+      }
+      resultById.set(result.id, result);
+    }
+  }
+
+  const blank = createBlankResultSheet(scenarioSet, { runId, tester, startedAt });
+  return {
+    ...blank,
+    completedAt,
+    sourceRuns,
+    scenarios: blank.scenarios.map((scenario) => ({
+      ...scenario,
+      ...(resultById.get(scenario.id) || {}),
+    })),
   };
 }
 
@@ -486,8 +620,10 @@ function parseArgs(argv) {
     outDir: DEFAULT_OUT_DIR,
     createTemplate: false,
     createRunPack: false,
+    createBatches: false,
     auditCoverage: false,
     failOnIncomplete: false,
+    mergeResults: [],
     minTestedCount: null,
     scenarioLimit: null,
   };
@@ -507,6 +643,8 @@ function parseArgs(argv) {
       options.createTemplate = true;
     } else if (arg === "--create-run-pack") {
       options.createRunPack = true;
+    } else if (arg === "--create-batches") {
+      options.createBatches = true;
     } else if (arg === "--audit-coverage") {
       options.auditCoverage = true;
     } else if (arg === "--fail-on-incomplete") {
@@ -516,6 +654,9 @@ function parseArgs(argv) {
       index += 1;
     } else if (arg === "--scenario-limit" && next) {
       options.scenarioLimit = Number.parseInt(next, 10);
+      index += 1;
+    } else if (arg === "--merge-results" && next) {
+      options.mergeResults.push(next);
       index += 1;
     }
   }
@@ -565,12 +706,57 @@ export function writeRunPackArtifacts({ scenarioSet, outDir = DEFAULT_OUT_DIR, s
   return { runPack, written: [jsonPath, markdownPath] };
 }
 
+export function writeBatchRunPackArtifacts({ scenarioSet, outDir = DEFAULT_OUT_DIR }) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const batches = createComputerUseBatchRunPacks(scenarioSet, { runIdPrefix: "computer-use-batch" });
+  const batchDir = path.join(outDir, "lightweight-model-computer-use-batches");
+  fs.mkdirSync(batchDir, { recursive: true });
+  const written = [];
+  for (const batch of batches) {
+    const jsonPath = path.join(batchDir, `${batch.runId}.json`);
+    const markdownPath = path.join(batchDir, `${batch.runId}.md`);
+    writeJson(jsonPath, batch);
+    fs.writeFileSync(markdownPath, renderComputerUseRunPack(batch), "utf-8");
+    written.push(jsonPath, markdownPath);
+  }
+  const index = {
+    model: scenarioSet.model,
+    modelDisplayName: scenarioSet.modelDisplayName,
+    generatedAt: nowIso(),
+    batchCount: batches.length,
+    totalScenarios: batches.reduce((sum, batch) => sum + batch.totalScenarios, 0),
+    batches: batches.map((batch) => ({
+      runId: batch.runId,
+      totalScenarios: batch.totalScenarios,
+      totalMaxScore: batch.totalMaxScore,
+      categories: [...new Set(batch.scenarios.map((scenario) => scenario.category))],
+      json: path.join("lightweight-model-computer-use-batches", `${batch.runId}.json`),
+      markdown: path.join("lightweight-model-computer-use-batches", `${batch.runId}.md`),
+    })),
+  };
+  const indexJsonPath = path.join(outDir, `${BATCH_INDEX_BASENAME}.json`);
+  const indexMarkdownPath = path.join(outDir, `${BATCH_INDEX_BASENAME}.md`);
+  writeJson(indexJsonPath, index);
+  fs.writeFileSync(
+    indexMarkdownPath,
+    renderComputerUseBatchIndex({
+      model: scenarioSet.model,
+      modelDisplayName: scenarioSet.modelDisplayName,
+      batches,
+    }),
+    "utf-8",
+  );
+  written.push(indexJsonPath, indexMarkdownPath);
+  return { batches, written };
+}
+
 function main() {
   const options = parseArgs(process.argv.slice(2));
   const scenarioSet = readJson(options.scenarios);
   fs.mkdirSync(options.outDir, { recursive: true });
 
-  const shouldCreateTemplate = options.createTemplate || (!options.results && !options.createRunPack);
+  const shouldCreateTemplate =
+    options.createTemplate || (!options.results && !options.createRunPack && !options.createBatches);
   if (shouldCreateTemplate) {
     const blankSheet = createBlankResultSheet(scenarioSet);
     const templatePath = path.join(options.outDir, `${RESULT_TEMPLATE_BASENAME}.json`);
@@ -589,6 +775,27 @@ function main() {
     for (const filePath of written) {
       console.log(filePath);
     }
+  }
+
+  if (options.createBatches) {
+    const { batches, written } = writeBatchRunPackArtifacts({
+      scenarioSet,
+      outDir: options.outDir,
+    });
+    console.log(`created ${batches.length} computer-use batch run packs`);
+    for (const filePath of written) {
+      console.log(filePath);
+    }
+  }
+
+  if (options.mergeResults.length > 0) {
+    const sheets = options.mergeResults.map((filePath) => readJson(filePath));
+    const merged = mergeComputerUseResultSheets({ scenarioSet, sheets });
+    const mergedPath = path.join(options.outDir, "lightweight-model-merged-computer-use-results.json");
+    writeJson(mergedPath, merged);
+    options.results = mergedPath;
+    console.log(`merged ${sheets.length} result sheets`);
+    console.log(mergedPath);
   }
 
   if (!options.results) {
