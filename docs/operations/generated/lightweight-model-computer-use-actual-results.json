@@ -1,11 +1,11 @@
 {
-  "runId": "computer-use-actual-1779652698873",
+  "runId": "computer-use-actual-1779654561326",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "startedAt": "2026-05-24T19:58:18.873Z",
-  "completedAt": "2026-05-24T19:58:18.873Z",
-  "sourceSessionId": "b4f4771a-9528-4b21-8663-d1cf645a50b5",
+  "startedAt": "2026-05-24T20:29:21.327Z",
+  "completedAt": "2026-05-24T20:29:21.327Z",
+  "sourceSessionId": "e82374ff-a853-4f7e-b11a-dd837f54caf7",
   "scenarios": [
     {
       "id": "LMUX-01-01",
@@ -19,7 +19,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
       ],
       "notes": "app_title=true; engine_healthy=true",
       "blocker": ""
@@ -36,7 +36,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7",
         "http://127.0.0.1:8765/api/settings"
       ],
       "notes": "runtime_policy=provider=featherless; model=google/gemma-4-E2B-it; lightweight=true; gemma4_e2b=true; reasoning=low",
@@ -54,9 +54,9 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
       ],
-      "notes": "session=b4f4771a-9528-4b21-8663-d1cf645a50b5; user_turn=true; assistant_turn=true; recent_context=true",
+      "notes": "session=e82374ff-a853-4f7e-b11a-dd837f54caf7; user_turn=true; assistant_turn=true; recent_context=true",
       "blocker": ""
     },
     {
@@ -71,9 +71,9 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
       ],
-      "notes": "latency_ms=8723; response_time_observed=true",
+      "notes": "latency_ms=6; response_time_observed=true",
       "blocker": ""
     },
     {
@@ -88,9 +88,9 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
       ],
-      "notes": "markdown_render=provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
+      "notes": "markdown_render=provider=gongmu-skill; model=help.guide; bullet_count=8; model_meta=false; policy_meta=false; thought_trace=false",
       "blocker": ""
     },
     {
@@ -105,7 +105,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
       ],
       "notes": "thought_trace=false; model_meta=false; policy_meta=false",
       "blocker": ""
@@ -207,6 +207,56 @@
       "blocker": ""
     },
     {
+      "id": "LMUX-01-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "offline_guidance=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "manual_restart=true",
+      "blocker": ""
+    },
+    {
       "id": "LMUX-01-04",
       "status": "pass",
       "scores": {
@@ -221,9 +271,39 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
       ],
       "notes": "refresh_session_retained=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "small_window_layout=true",
       "blocker": ""
     },
     {
@@ -241,7 +321,12 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
       ],
       "notes": "status_popover=true",
       "blocker": ""
@@ -261,9 +346,39 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
       ],
       "notes": "long_job_recovered=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "relaunch_session_restored=true",
       "blocker": ""
     },
     {
@@ -281,7 +396,12 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
       ],
       "notes": "understandable_error=true",
       "blocker": ""
@@ -301,7 +421,12 @@
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
-        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png"
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
       ],
       "notes": "compact_toolbar=true",
       "blocker": ""
@@ -324,7 +449,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
-        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml"
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
       ],
       "notes": "streaming_observed=true",
       "blocker": ""
@@ -347,7 +473,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
-        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml"
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
       ],
       "notes": "scroll_bottom_preserved=true",
       "blocker": ""
@@ -370,7 +497,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
-        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml"
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
       ],
       "notes": "image_thumbnail=true",
       "blocker": ""
@@ -393,7 +521,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
-        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml"
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
       ],
       "notes": "attachment_cancel=true; large_preview=true",
       "blocker": ""
@@ -416,9 +545,34 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
-        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml"
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
       ],
       "notes": "detail_settings_overlay=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/*/turn/stream",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
+      ],
+      "notes": "sensitive_masked=true",
       "blocker": ""
     },
     {
@@ -435,7 +589,9 @@
         "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
         "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
         "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
-        "actual-input://파일찾기는 어떻게 써?"
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
       ],
       "notes": "schedule_knowledge_combined=true",
       "blocker": ""
@@ -454,7 +610,9 @@
         "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
         "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
         "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
-        "actual-input://파일찾기는 어떻게 써?"
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
       ],
       "notes": "file_search_guidance=true",
       "blocker": ""
@@ -473,9 +631,53 @@
         "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
         "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
         "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
-        "actual-input://파일찾기는 어떻게 써?"
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
       ],
       "notes": "feature_help=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
+      ],
+      "notes": "tool_failure_recovery=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
+      ],
+      "notes": "general_chat_separated=true",
       "blocker": ""
     },
     {
@@ -1569,7 +1771,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
         "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
-        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
       ],
       "notes": "ollama_base_url_saved=true",
       "blocker": ""
@@ -1589,7 +1792,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
         "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
-        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
       ],
       "notes": "reasoning_low_recommended=true",
       "blocker": ""
@@ -1609,9 +1813,31 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
         "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
-        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
       ],
       "notes": "thinking_trace_clean=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "gemma_no_response_guidance=true",
       "blocker": ""
     },
     {
@@ -1629,7 +1855,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
         "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
-        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
       ],
       "notes": "featherless_active=true; active_matches_saved=true",
       "blocker": ""
@@ -1649,7 +1876,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
         "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
-        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
       ],
       "notes": "openrouter_profile_preserved=true",
       "blocker": ""
@@ -1669,7 +1897,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
         "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
-        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
       ],
       "notes": "api_key_masked=true; ui_masked=true; ui_key_not_visible=true",
       "blocker": ""
@@ -1689,7 +1918,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
         "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
-        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
       ],
       "notes": "connection_test_completed=true",
       "blocker": ""
@@ -1709,7 +1939,8 @@
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
         "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
         "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
-        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
       ],
       "notes": "active_provider_matches_saved=true",
       "blocker": ""
@@ -1726,7 +1957,9 @@
       "evidence": [
         "http://127.0.0.1:8765/api/jobs?limit=30",
         "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
-        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
       ],
       "notes": "job_detail=true",
       "blocker": ""
@@ -1743,7 +1976,9 @@
       "evidence": [
         "http://127.0.0.1:8765/api/jobs?limit=30",
         "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
-        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
       ],
       "notes": "long_job_navigation_safe=true",
       "blocker": ""
@@ -1760,9 +1995,49 @@
       "evidence": [
         "http://127.0.0.1:8765/api/jobs?limit=30",
         "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
-        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
       ],
       "notes": "parallel_different_resources=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "duplicate_same_session_blocked=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "cancel_button=true",
       "blocker": ""
     },
     {
@@ -1777,7 +2052,9 @@
       "evidence": [
         "http://127.0.0.1:8765/api/jobs?limit=30",
         "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
-        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
       ],
       "notes": "retry_guidance=true",
       "blocker": ""
@@ -1794,7 +2071,9 @@
       "evidence": [
         "http://127.0.0.1:8765/api/jobs?limit=30",
         "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
-        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
       ],
       "notes": "artifact_openable=true",
       "blocker": ""
@@ -1811,7 +2090,9 @@
       "evidence": [
         "http://127.0.0.1:8765/api/jobs?limit=30",
         "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
-        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
       ],
       "notes": "log_copied=true",
       "blocker": ""
@@ -1828,7 +2109,9 @@
       "evidence": [
         "http://127.0.0.1:8765/api/jobs?limit=30",
         "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
-        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
       ],
       "notes": "right_panel_stable=true",
       "blocker": ""
@@ -1845,7 +2128,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
       ],
       "notes": "work_progress_observed=true",
       "blocker": ""

@@ -1,27 +1,27 @@
 # 경량모델 컴퓨터유즈 실제 점수 리포트
 
-- 실행 ID: computer-use-actual-1779652698873
+- 실행 ID: computer-use-actual-1779654561326
 - 기준 모델: Gemma 4 E2B (gemma4:e2b)
 - 평가 방식: playwright-computer-use
-- 총점: 900 / 1000
-- 실시: 90개
-- 미실시: 10개
-- 종합 등급: needs-work
+- 총점: 1000 / 1000
+- 실시: 100개
+- 미실시: 0개
+- 종합 등급: release-ready
 
 ## 카테고리별 점수
 
 | 카테고리 | 실시 | 점수 | 등급 |
 | --- | ---: | ---: | --- |
-| 시작/업무엔진 | 6/10 | 60/100 | release-ready |
-| 모델 설정/Gemma 4 E2B | 9/10 | 90/100 | release-ready |
-| 업무대화 기본 UX | 9/10 | 90/100 | release-ready |
-| 업무대화 도구 라우팅 | 8/10 | 80/100 | release-ready |
+| 시작/업무엔진 | 10/10 | 100/100 | release-ready |
+| 모델 설정/Gemma 4 E2B | 10/10 | 100/100 | release-ready |
+| 업무대화 기본 UX | 10/10 | 100/100 | release-ready |
+| 업무대화 도구 라우팅 | 10/10 | 100/100 | release-ready |
 | 일정 캘린더 | 10/10 | 100/100 | release-ready |
 | 파일찾기/세션 연결 | 10/10 | 100/100 | release-ready |
 | 지식폴더/GraphRAG 인덱싱 | 10/10 | 100/100 | release-ready |
 | GraphRAG 검색/출처 품질 | 10/10 | 100/100 | release-ready |
 | 문서작성/HWPX 산출 | 10/10 | 100/100 | release-ready |
-| 실행기록/작업진행/다중작업 | 8/10 | 80/100 | release-ready |
+| 실행기록/작업진행/다중작업 | 10/10 | 100/100 | release-ready |
 
 ## 실시 시나리오
 
@@ -34,7 +34,45 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7
+
+### LMUX-01-02 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: offline_guidance=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
+
+### LMUX-01-03 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: manual_restart=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
 
 ### LMUX-01-04 시작/업무엔진
 
@@ -49,6 +87,30 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
+
+### LMUX-01-05 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: small_window_layout=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
 
 ### LMUX-01-06 시작/업무엔진
 
@@ -63,6 +125,11 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
 
 ### LMUX-01-07 시작/업무엔진
 
@@ -77,6 +144,30 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
+
+### LMUX-01-08 시작/업무엔진
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: relaunch_session_restored=true
+- 증거:
+  - http://127.0.0.1:8765/health#status=ok
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
 
 ### LMUX-01-09 시작/업무엔진
 
@@ -91,6 +182,11 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
 
 ### LMUX-01-10 시작/업무엔진
 
@@ -105,6 +201,11 @@
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png
+  - vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover
+  - vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png
 
 ### LMUX-02-01 모델 설정/Gemma 4 E2B
 
@@ -115,7 +216,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7
   - http://127.0.0.1:8765/api/settings
 
 ### LMUX-02-02 모델 설정/Gemma 4 E2B
@@ -131,6 +232,7 @@
   - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
   - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
 
 ### LMUX-02-03 모델 설정/Gemma 4 E2B
 
@@ -145,6 +247,7 @@
   - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
   - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
 
 ### LMUX-02-04 모델 설정/Gemma 4 E2B
 
@@ -159,6 +262,22 @@
   - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
   - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
+
+### LMUX-02-05 모델 설정/Gemma 4 E2B
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: gemma_no_response_guidance=true
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png
+  - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
+  - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
 
 ### LMUX-02-06 모델 설정/Gemma 4 E2B
 
@@ -173,6 +292,7 @@
   - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
   - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
 
 ### LMUX-02-07 모델 설정/Gemma 4 E2B
 
@@ -187,6 +307,7 @@
   - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
   - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
 
 ### LMUX-02-08 모델 설정/Gemma 4 E2B
 
@@ -201,6 +322,7 @@
   - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
   - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
 
 ### LMUX-02-09 모델 설정/Gemma 4 E2B
 
@@ -215,6 +337,7 @@
   - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
   - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
 
 ### LMUX-02-10 모델 설정/Gemma 4 E2B
 
@@ -229,17 +352,18 @@
   - http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy
   - docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10
   - http://127.0.0.1:8765/api/settings/llm-test#status=200
+  - pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message
 
 ### LMUX-03-01 업무대화 기본 UX
 
 - 상태: 통과
 - 점수: 10 / 10
 - 등급: release-ready
-- 메모: session=b4f4771a-9528-4b21-8663-d1cf645a50b5; user_turn=true; assistant_turn=true; recent_context=true
+- 메모: session=e82374ff-a853-4f7e-b11a-dd837f54caf7; user_turn=true; assistant_turn=true; recent_context=true
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7
 
 ### LMUX-03-02 업무대화 기본 UX
 
@@ -257,28 +381,29 @@
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply
 
 ### LMUX-03-03 업무대화 기본 UX
 
 - 상태: 통과
 - 점수: 10 / 10
 - 등급: release-ready
-- 메모: latency_ms=8723; response_time_observed=true
+- 메모: latency_ms=6; response_time_observed=true
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7
 
 ### LMUX-03-04 업무대화 기본 UX
 
 - 상태: 통과
 - 점수: 10 / 10
 - 등급: release-ready
-- 메모: markdown_render=provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false
+- 메모: markdown_render=provider=gongmu-skill; model=help.guide; bullet_count=8; model_meta=false; policy_meta=false; thought_trace=false
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7
 
 ### LMUX-03-05 업무대화 기본 UX
 
@@ -296,6 +421,7 @@
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply
 
 ### LMUX-03-06 업무대화 기본 UX
 
@@ -313,6 +439,7 @@
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply
 
 ### LMUX-03-07 업무대화 기본 UX
 
@@ -330,6 +457,7 @@
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply
 
 ### LMUX-03-08 업무대화 기본 UX
 
@@ -347,6 +475,25 @@
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply
+
+### LMUX-03-09 업무대화 기본 UX
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: sensitive_masked=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/*/turn/stream
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml
+  - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png
+  - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply
 
 ### LMUX-03-10 업무대화 기본 UX
 
@@ -357,7 +504,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7
 
 ### LMUX-04-01 업무대화 도구 라우팅
 
@@ -447,6 +594,8 @@
   - actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
   - actual-input://업무대화랑 파일찾기 사용법 안내해줄래?
   - actual-input://파일찾기는 어떻게 써?
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails
 
 ### LMUX-04-07 업무대화 도구 라우팅
 
@@ -460,6 +609,8 @@
   - actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
   - actual-input://업무대화랑 파일찾기 사용법 안내해줄래?
   - actual-input://파일찾기는 어떻게 써?
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails
 
 ### LMUX-04-08 업무대화 도구 라우팅
 
@@ -473,6 +624,38 @@
   - actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
   - actual-input://업무대화랑 파일찾기 사용법 안내해줄래?
   - actual-input://파일찾기는 어떻게 써?
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails
+
+### LMUX-04-09 업무대화 도구 라우팅
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: tool_failure_recovery=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide
+  - actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
+  - actual-input://업무대화랑 파일찾기 사용법 안내해줄래?
+  - actual-input://파일찾기는 어떻게 써?
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails
+
+### LMUX-04-10 업무대화 도구 라우팅
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: general_chat_separated=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide
+  - actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
+  - actual-input://업무대화랑 파일찾기 사용법 안내해줄래?
+  - actual-input://파일찾기는 어떻게 써?
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails
 
 ### LMUX-05-01 일정 캘린더
 
@@ -1249,7 +1432,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7
 
 ### LMUX-10-02 실행기록/작업진행/다중작업
 
@@ -1261,6 +1444,8 @@
   - http://127.0.0.1:8765/api/jobs?limit=30
   - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
   - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
 
 ### LMUX-10-03 실행기록/작업진행/다중작업
 
@@ -1272,6 +1457,21 @@
   - http://127.0.0.1:8765/api/jobs?limit=30
   - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
   - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
+
+### LMUX-10-04 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: duplicate_same_session_blocked=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
 
 ### LMUX-10-05 실행기록/작업진행/다중작업
 
@@ -1283,6 +1483,21 @@
   - http://127.0.0.1:8765/api/jobs?limit=30
   - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
   - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
+
+### LMUX-10-06 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: cancel_button=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
 
 ### LMUX-10-07 실행기록/작업진행/다중작업
 
@@ -1294,6 +1509,8 @@
   - http://127.0.0.1:8765/api/jobs?limit=30
   - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
   - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
 
 ### LMUX-10-08 실행기록/작업진행/다중작업
 
@@ -1305,6 +1522,8 @@
   - http://127.0.0.1:8765/api/jobs?limit=30
   - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
   - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
 
 ### LMUX-10-09 실행기록/작업진행/다중작업
 
@@ -1316,6 +1535,8 @@
   - http://127.0.0.1:8765/api/jobs?limit=30
   - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
   - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
 
 ### LMUX-10-10 실행기록/작업진행/다중작업
 
@@ -1327,6 +1548,8 @@
   - http://127.0.0.1:8765/api/jobs?limit=30
   - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
   - http://127.0.0.1:8765/api/execution-logs?limit=20
+  - pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response
+  - vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs
 
 ## 해석
 

@@ -74,11 +74,23 @@ class JobRunner:
 
     def metrics(self) -> dict[str, Any]:
         with self._lock:
-            active_job_ids = sorted(self._active_job_ids)
+            active_job_ids = set(self._active_job_ids)
             submitted_count = self._submitted_count
+        stale_job_ids: set[str] = set()
+        live_job_ids: list[str] = []
+        for job_id in active_job_ids:
+            job = self.jobs.get_job(job_id)
+            if job is None or job["status"] in TERMINAL_STATUSES:
+                stale_job_ids.add(job_id)
+                continue
+            live_job_ids.append(job_id)
+        if stale_job_ids:
+            with self._lock:
+                self._active_job_ids.difference_update(stale_job_ids)
+        live_job_ids.sort()
         return {
-            "active_count": len(active_job_ids),
-            "active_job_ids": active_job_ids,
+            "active_count": len(live_job_ids),
+            "active_job_ids": live_job_ids,
             "queue_depth": 0,
             "submitted_count": submitted_count,
         }

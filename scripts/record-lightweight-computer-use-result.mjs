@@ -201,9 +201,13 @@ function workflowScenario({
 }
 
 const OPTIONAL_WORKFLOW_SCENARIO_FIELDS = {
+  "LMUX-01-02": { section: "engine", fields: ["offlineGuidanceShown"] },
+  "LMUX-01-03": { section: "engine", fields: ["manualRestartShown"] },
   "LMUX-01-04": { section: "engine", fields: ["refreshSessionRetained"] },
+  "LMUX-01-05": { section: "engine", fields: ["smallWindowLayoutPreserved"] },
   "LMUX-01-06": { section: "engine", fields: ["statusPopoverShown"] },
   "LMUX-01-07": { section: "engine", fields: ["longJobRecovered"] },
+  "LMUX-01-08": { section: "engine", fields: ["relaunchSessionRestored"] },
   "LMUX-01-09": { section: "engine", fields: ["understandableErrorShown"] },
   "LMUX-01-10": { section: "engine", fields: ["compactToolbarShown"] },
   "LMUX-03-02": { section: "chat", fields: ["streamingObserved"] },
@@ -276,12 +280,36 @@ export function evaluateWorkflowEvidence({
     const evidence = workflowEvidenceList(engine);
     results.push(
       workflowScenario({
+        id: "LMUX-01-02",
+        functional: Boolean(engine.offlineGuidanceShown),
+        ux: Boolean(engine.offlineGuidanceShown),
+        evidence,
+        notes: `offline_guidance=${Boolean(engine.offlineGuidanceShown)}`,
+        blocker: "Engine offline guidance was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-01-03",
+        functional: Boolean(engine.manualRestartShown),
+        ux: Boolean(engine.manualRestartShown),
+        evidence,
+        notes: `manual_restart=${Boolean(engine.manualRestartShown)}`,
+        blocker: "Manual engine restart flow was not proven by workflow evidence.",
+      }),
+      workflowScenario({
         id: "LMUX-01-04",
         functional: Boolean(engine.refreshSessionRetained),
         ux: Boolean(engine.refreshSessionRetained),
         evidence,
         notes: `refresh_session_retained=${Boolean(engine.refreshSessionRetained)}`,
         blocker: "Session state after refresh was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-01-05",
+        functional: Boolean(engine.smallWindowLayoutPreserved),
+        ux: Boolean(engine.smallWindowLayoutPreserved),
+        evidence,
+        notes: `small_window_layout=${Boolean(engine.smallWindowLayoutPreserved)}`,
+        blocker: "Small-window layout preservation was not proven by workflow evidence.",
       }),
       workflowScenario({
         id: "LMUX-01-06",
@@ -298,6 +326,14 @@ export function evaluateWorkflowEvidence({
         evidence,
         notes: `long_job_recovered=${Boolean(engine.longJobRecovered)}`,
         blocker: "Engine state after long-running work was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-01-08",
+        functional: Boolean(engine.relaunchSessionRestored),
+        ux: Boolean(engine.relaunchSessionRestored),
+        evidence,
+        notes: `relaunch_session_restored=${Boolean(engine.relaunchSessionRestored)}`,
+        blocker: "Session restoration after app relaunch was not proven by workflow evidence.",
       }),
       workflowScenario({
         id: "LMUX-01-09",

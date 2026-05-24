@@ -201,6 +201,35 @@ def test_work_session_turn_does_not_persist_waiting_placeholder_after_completion
     assert "준비" not in payload["assistant_message"]["text"]
 
 
+def test_work_session_turn_keeps_general_chat_out_of_tool_routing(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fake_generate_reply(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text="일반 대화로 답변했습니다.",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "일반 대화 분리 테스트"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "오늘은 업무 시작 전에 가볍게 이야기 좀 하자"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assistant_message"]["provider"] == "ollama"
+    assert payload["assistant_message"]["model"] == "gemma4:e2b"
+    assert payload["assistant_message"]["text"] == "일반 대화로 답변했습니다."
+    assert "skill_actions" not in payload["context_summary"]
+
+
 def test_work_session_turn_routes_feature_usage_questions_to_local_guide(tmp_path: Path, monkeypatch) -> None:
     def fail_if_llm_called(settings, messages, **kwargs):
         raise AssertionError("feature usage guide should not call the LLM")
@@ -224,6 +253,40 @@ def test_work_session_turn_routes_feature_usage_questions_to_local_guide(tmp_pat
     assert "업무대화" in payload["assistant_message"]["text"]
     assert "파일찾기" in payload["assistant_message"]["text"]
     assert "문서작성" in payload["assistant_message"]["text"]
+
+
+def test_work_session_turn_blocks_duplicate_same_session_response(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fail_if_llm_called(settings, messages, **kwargs):
+        raise AssertionError("blocked same-session response must not call the LLM")
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "중복 응답 차단 테스트"})
+    session_id = session.json()["id"]
+    services = client.app.state.services
+    running = services.jobs.create_job(
+        kind="work_session.turn",
+        title="already running",
+        input={"session_id": session_id},
+        resource_key=f"work_session:{session_id}",
+        resource_policy="exclusive",
+    )
+    services.jobs.start_job_with_lock(running["id"], stage="running")
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "앞 요청이 끝나기 전에 다시 물어봅니다."},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["work_job"]["status"] == "blocked"
+    assert payload["context_summary"]["job_status"] == "blocked"
+    assert payload["assistant_message"]["provider"] == "gongmu-system"
+    assert payload["assistant_message"]["model"] == "work_session.turn.blocked"
 
 
 def test_work_session_turn_records_failed_assistant_message(tmp_path: Path, monkeypatch) -> None:
@@ -454,6 +517,37 @@ def test_work_session_turn_executes_knowledge_skill_with_sources_and_file_links(
     assert "파일 열기:" in assistant_message["text"]
     assert "폴더 열기:" in assistant_message["text"]
     assert response.json()["context_summary"]["skill_actions"] == ["knowledge.search"]
+
+
+def test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fail_if_llm_called(settings, messages, **kwargs):
+        raise AssertionError("knowledge tool failure must be handled without generic LLM fallback")
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+
+    client = _client(tmp_path)
+    monkeypatch.setattr(
+        client.app.state.services.graphrag,
+        "ask",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("index database is locked")),
+    )
+    session = client.post("/api/work-sessions", json={"title": "도구 실패 복구 테스트"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "지식폴더에서 AI 전략 자료 찾아줘"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assistant_message"]["provider"] == "gongmu-skill"
+    assert payload["context_summary"]["skill_actions"] == ["knowledge.search.failed"]
+    assert "GraphRAG" in payload["assistant_message"]["text"]
+    assert "다시 시도" in payload["assistant_message"]["text"]
+    assert "index database is locked" in payload["assistant_message"]["text"]
 
 
 def test_work_session_turn_creates_schedule_from_chat_instruction(tmp_path: Path, monkeypatch) -> None:

@@ -1,0 +1,51 @@
+scenario: LMUX-01-05 small window layout
+tool: playwright
+url: http://127.0.0.1:5174
+viewport: 900x700
+passed: true
+has_horizontal_overflow: false
+main_visible: true
+rail_visible: true
+context_visible_or_collapsed: true
+metrics:
+  {
+    "viewportWidth": 900,
+    "viewportHeight": 700,
+    "documentScrollWidth": 900,
+    "documentScrollHeight": 700,
+    "hasHorizontalOverflow": false,
+    "shell": {
+      "x": 0,
+      "y": 0,
+      "width": 900,
+      "height": 700
+    },
+    "topbar": {
+      "x": 16,
+      "y": 16,
+      "width": 868,
+      "height": 233
+    },
+    "rail": {
+      "x": 16,
+      "y": 265,
+      "width": 868,
+      "height": 0
+    },
+    "main": {
+      "x": 16,
+      "y": 281,
+      "width": 868,
+      "height": 194
+    },
+    "context": {
+      "x": 16,
+      "y": 490,
+      "width": 868,
+      "height": 194
+    },
+    "contextCollapsed": false,
+    "mainVisible": true,
+    "railVisible": true,
+    "contextVisibleOrCollapsed": true
+  }

@@ -103,5 +103,6 @@ def test_work_session_turn_returns_readable_korean_failure_message(tmp_path: Pat
     assert response.status_code == 201
     assistant_message = response.json()["assistant_message"]
     assert assistant_message["status"] == "failed"
-    assert assistant_message["text"].startswith("LLM 응답 생성에 실패했습니다.")
     assert "LLM server returned no assistant text." in assistant_message["text"]
+    assert "Gemma 4" in assistant_message["text"]
+    assert "reasoning" in assistant_message["text"]

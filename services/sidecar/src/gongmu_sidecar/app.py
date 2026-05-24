@@ -978,6 +978,22 @@ class AppServices:
     def _prepare_assistant_stream_text(self, text: str) -> str:
         return self._strip_assistant_reasoning_trace(self._redact_sensitive_text(text), trim=False)
 
+    def _format_llm_generation_error_message(self, exc: LLMGenerationError) -> str:
+        error_text = str(exc)
+        model_name = (self.settings.llm_model or "").strip()
+        normalized_model = model_name.lower().replace("_", "-")
+        is_gemma4 = "gemma4" in normalized_model or "gemma-4" in normalized_model
+        is_no_text_error = "no assistant text" in error_text.lower()
+        if is_gemma4 and is_no_text_error:
+            return (
+                "Gemma 4 모델이 응답 본문을 반환하지 않았습니다.\n\n"
+                "- 모델이 실행 중인지 확인해 주세요.\n"
+                "- reasoning 설정을 낮음으로 두고 다시 시도해 주세요.\n"
+                "- 같은 오류가 반복되면 모델 설정에서 공급자 또는 모델을 전환해 주세요.\n\n"
+                f"원인: {error_text}"
+            )
+        return f"LLM 응답 생성에 실패했습니다.\n\n{error_text}"
+
     @staticmethod
     def _chat_guardrail_prompt(runtime_policy: dict[str, Any] | None = None) -> str:
         lines = [
@@ -1290,7 +1306,24 @@ class AppServices:
         )
 
     def _run_knowledge_search_skill(self, *, session_id: str, query: str) -> dict[str, Any]:
-        result = self.graphrag.ask(query=query, session_id=session_id, limit=5)
+        try:
+            result = self.graphrag.ask(query=query, session_id=session_id, limit=5)
+        except Exception as exc:  # Keep chat usable when the local retrieval tool is temporarily busy.
+            error_text = str(exc)
+            lines = [
+                "GraphRAG 검색 도구가 지금 요청을 완료하지 못했습니다.",
+                "",
+                "- 색인 작업이 진행 중이면 완료 후 다시 시도해 주세요.",
+                "- 지식폴더 화면에서 최근 색인 상태와 오류 로그를 확인해 주세요.",
+                "- 같은 문제가 반복되면 업무 엔진을 재시작한 뒤 다시 검색해 주세요.",
+                "",
+                f"원인: {error_text}",
+            ]
+            return {
+                "actions": ["knowledge.search.failed"],
+                "results": [{"query": query, "error": error_text}],
+                "text": "\n".join(lines),
+            }
         citations = [citation for citation in result.get("citations", []) if isinstance(citation, dict)]
         lines = [
             "GraphRAG 검색 결과입니다.",
@@ -1949,9 +1982,10 @@ class AppServices:
             )
         except LLMGenerationError as exc:
             duration_ms = int((perf_counter() - turn_started) * 1000)
+            failure_text = self._format_llm_generation_error_message(exc)
             assistant_message = self.update_work_session_message(
                 assistant_message["id"],
-                text=f"LLM 응답 생성에 실패했습니다.\n\n{exc}",
+                text=failure_text,
                 status="failed",
                 provider=self.settings.llm_provider,
                 model=self.settings.llm_model,
@@ -1959,7 +1993,7 @@ class AppServices:
             )
             assistant_message = self.update_work_session_message(
                 assistant_message["id"],
-                text=f"LLM 응답 생성에 실패했습니다.\n\n{exc}",
+                text=failure_text,
                 status="failed",
                 provider=self.settings.llm_provider,
                 model=self.settings.llm_model,

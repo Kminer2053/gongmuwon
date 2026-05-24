@@ -180,6 +180,10 @@ const workflowResultSheet = buildComputerUseEvidenceResultSheet({
     engine: {
       statusPopoverShown: true,
       compactToolbarShown: true,
+      offlineGuidanceShown: true,
+      manualRestartShown: true,
+      smallWindowLayoutPreserved: true,
+      relaunchSessionRestored: true,
       refreshSessionRetained: true,
       longJobRecovered: true,
       understandableErrorShown: true,
@@ -317,9 +321,13 @@ const workflowResultSheet = buildComputerUseEvidenceResultSheet({
 
 const workflowIds = workflowResultSheet.scenarios.map((item) => item.id);
 for (const id of [
+  "LMUX-01-02",
+  "LMUX-01-03",
   "LMUX-01-04",
+  "LMUX-01-05",
   "LMUX-01-06",
   "LMUX-01-07",
+  "LMUX-01-08",
   "LMUX-01-09",
   "LMUX-01-10",
   "LMUX-03-02",
