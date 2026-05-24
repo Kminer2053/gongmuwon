@@ -1,11 +1,11 @@
 # 경량모델 UX/성능 컴퓨터유즈 점수 리포트
 
-- 실행 ID: lightweight-smoke-1779643520622
+- 실행 ID: lightweight-smoke-1779644623484
 - 모델 기준: Gemma 4 E2B (gemma4:e2b)
 - 평가자: computer-use-assisted-smoke
-- 총점: 30 / 1000
-- 실시: 3개
-- 미실시: 97개
+- 총점: 70 / 1000
+- 실시: 7개
+- 미실시: 93개
 - 종합 등급: needs-work
 
 ## 카테고리 점수
@@ -15,13 +15,13 @@
 | 앱 시작과 업무엔진 | 0/10 | 0/100 | not-tested |
 | 모델 설정과 Gemma 4 E2B | 1/10 | 10/100 | release-ready |
 | 업무대화 기본 UX | 2/10 | 20/100 | release-ready |
-| 업무대화 도구 라우팅 | 0/10 | 0/100 | not-tested |
+| 업무대화 도구 라우팅 | 2/10 | 20/100 | release-ready |
 | 일정 캘린더 | 0/10 | 0/100 | not-tested |
 | 파일찾기와 세션 연결 | 0/10 | 0/100 | not-tested |
 | 지식폴더/GraphRAG 인덱싱 | 0/10 | 0/100 | not-tested |
 | GraphRAG 검색과 출처 답변 | 0/10 | 0/100 | not-tested |
-| 문서작성/HWPX 산출 | 0/10 | 0/100 | not-tested |
-| 실행기록/작업진행/다중작업 | 0/10 | 0/100 | not-tested |
+| 문서작성/HWPX 산출 | 1/10 | 10/100 | release-ready |
+| 실행기록/작업진행/다중작업 | 1/10 | 10/100 | release-ready |
 
 ## 시나리오별 결과
 
@@ -197,7 +197,7 @@
 - 등급: release-ready
 - 메모: Markdown 목록 스모크: provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false
 - 증거:
-  - http://127.0.0.1:8765/api/work-sessions/a29844ef-bff2-4c73-bfd3-9032920ddf9f/messages
+  - http://127.0.0.1:8765/api/work-sessions/bb579d3c-e47b-49e1-adfc-cb8cc9656ab2/messages
 
 ### LMUX-03-05 긴 답변 후 마지막 위치 유지
 
@@ -242,14 +242,17 @@
 - 등급: release-ready
 - 메모: 내부추론/모델 메타 미노출 스모크: provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false
 - 증거:
-  - http://127.0.0.1:8765/api/work-sessions/a29844ef-bff2-4c73-bfd3-9032920ddf9f/messages
+  - http://127.0.0.1:8765/api/work-sessions/bb579d3c-e47b-49e1-adfc-cb8cc9656ab2/messages
 
 ### LMUX-04-01 일정 등록 요청 라우팅
 
 - 카테고리: 업무대화 도구 라우팅
-- 상태: not_tested
-- 점수: 0 / 10
-- 등급: not-tested
+- 상태: pass
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: 일정 등록 라우팅 스모크: expected_action=schedule.create; skill_actions=schedule.create; feedback=true; generic_refusal=false
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/9d03c22e-1ae0-4035-ac70-87daae352976/messages
 
 ### LMUX-04-02 일정 조회 요청 라우팅
 
@@ -275,9 +278,12 @@
 ### LMUX-04-05 문서작성 요청 라우팅
 
 - 카테고리: 업무대화 도구 라우팅
-- 상태: not_tested
-- 점수: 0 / 10
-- 등급: not-tested
+- 상태: pass
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: 문서작성/HWPX 스모크: expected_action=document.create; skill_actions=document.create; feedback=true; generic_refusal=false; artifact=C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\경량모델 문서작성 스모크 문서-3.hwpx; markdown=C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\경량모델 문서작성 스모크 문서-3.md; work_job=succeeded; open_links=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/6c7e2b9d-13ad-4274-9318-e5036dbebb07/messages
 
 ### LMUX-04-06 일정과 지식검색 복합 요청
 
@@ -625,9 +631,12 @@
 ### LMUX-09-05 1페이지 보고서 유형 선택
 
 - 카테고리: 문서작성/HWPX 산출
-- 상태: not_tested
-- 점수: 0 / 10
-- 등급: not-tested
+- 상태: pass
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: 문서작성/HWPX 스모크: expected_action=document.create; skill_actions=document.create; feedback=true; generic_refusal=false; artifact=C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\경량모델 문서작성 스모크 문서-3.hwpx; markdown=C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\runtime-workspace\documents\outputs\경량모델 문서작성 스모크 문서-3.md; work_job=succeeded; open_links=true
+- 증거:
+  - http://127.0.0.1:8765/api/work-sessions/6c7e2b9d-13ad-4274-9318-e5036dbebb07/messages
 
 ### LMUX-09-06 풀버전 보고서 유형 선택
 
@@ -667,9 +676,12 @@
 ### LMUX-10-01 최근실행 한글 표시
 
 - 카테고리: 실행기록/작업진행/다중작업
-- 상태: not_tested
-- 점수: 0 / 10
-- 등급: not-tested
+- 상태: pass
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: 실행기록 스모크: log_count=50; readable_action=true; successful_work=true
+- 증거:
+  - http://127.0.0.1:8765/api/execution-logs
 
 ### LMUX-10-02 작업상세 이벤트 확인
 

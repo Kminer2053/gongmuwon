@@ -1,10 +1,10 @@
 {
-  "runId": "lightweight-smoke-1779643520622",
+  "runId": "lightweight-smoke-1779644623484",
   "tester": "computer-use-assisted-smoke",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "startedAt": "2026-05-24T17:25:20.622Z",
-  "completedAt": "2026-05-24T17:25:20.622Z",
+  "startedAt": "2026-05-24T17:43:43.484Z",
+  "completedAt": "2026-05-24T17:43:43.484Z",
   "scenarios": [
     {
       "id": "LMUX-02-01",
@@ -31,7 +31,7 @@
         "evidence": 1
       },
       "evidence": [
-        "http://127.0.0.1:8765/api/work-sessions/a29844ef-bff2-4c73-bfd3-9032920ddf9f/messages"
+        "http://127.0.0.1:8765/api/work-sessions/bb579d3c-e47b-49e1-adfc-cb8cc9656ab2/messages"
       ],
       "notes": "Markdown 목록 스모크: provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
       "blocker": ""
@@ -46,9 +46,69 @@
         "evidence": 1
       },
       "evidence": [
-        "http://127.0.0.1:8765/api/work-sessions/a29844ef-bff2-4c73-bfd3-9032920ddf9f/messages"
+        "http://127.0.0.1:8765/api/work-sessions/bb579d3c-e47b-49e1-adfc-cb8cc9656ab2/messages"
       ],
       "notes": "내부추론/모델 메타 미노출 스모크: provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/9d03c22e-1ae0-4035-ac70-87daae352976/messages"
+      ],
+      "notes": "일정 등록 라우팅 스모크: expected_action=schedule.create; skill_actions=schedule.create; feedback=true; generic_refusal=false",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/6c7e2b9d-13ad-4274-9318-e5036dbebb07/messages"
+      ],
+      "notes": "문서작성/HWPX 스모크: expected_action=document.create; skill_actions=document.create; feedback=true; generic_refusal=false; artifact=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\경량모델 문서작성 스모크 문서-3.hwpx; markdown=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\경량모델 문서작성 스모크 문서-3.md; work_job=succeeded; open_links=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/6c7e2b9d-13ad-4274-9318-e5036dbebb07/messages"
+      ],
+      "notes": "문서작성/HWPX 스모크: expected_action=document.create; skill_actions=document.create; feedback=true; generic_refusal=false; artifact=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\경량모델 문서작성 스모크 문서-3.hwpx; markdown=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\경량모델 문서작성 스모크 문서-3.md; work_job=succeeded; open_links=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/execution-logs"
+      ],
+      "notes": "실행기록 스모크: log_count=50; readable_action=true; successful_work=true",
       "blocker": ""
     }
   ]

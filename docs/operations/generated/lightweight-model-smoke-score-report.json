@@ -1,13 +1,13 @@
 {
-  "runId": "lightweight-smoke-1779643520622",
+  "runId": "lightweight-smoke-1779644623484",
   "tester": "computer-use-assisted-smoke",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "generatedAt": "2026-05-24T17:25:20.624Z",
-  "totalScore": 30,
+  "generatedAt": "2026-05-24T17:43:43.487Z",
+  "totalScore": 70,
   "totalMaxScore": 1000,
-  "testedCount": 3,
-  "notTestedCount": 97,
+  "testedCount": 7,
+  "notTestedCount": 93,
   "overallGrade": "needs-work",
   "categories": [
     {
@@ -37,10 +37,10 @@
     {
       "category": "업무대화 도구 라우팅",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 2,
+      "score": 20,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     },
     {
       "category": "일정 캘린더",
@@ -77,18 +77,18 @@
     {
       "category": "문서작성/HWPX 산출",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 1,
+      "score": 10,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     },
     {
       "category": "실행기록/작업진행/다중작업",
       "count": 10,
-      "testedCount": 0,
-      "score": 0,
+      "testedCount": 1,
+      "score": 10,
       "maxScore": 100,
-      "grade": "not-tested"
+      "grade": "release-ready"
     }
   ],
   "scenarios": [
@@ -391,7 +391,7 @@
         "evidence": 1
       },
       "evidence": [
-        "http://127.0.0.1:8765/api/work-sessions/a29844ef-bff2-4c73-bfd3-9032920ddf9f/messages"
+        "http://127.0.0.1:8765/api/work-sessions/bb579d3c-e47b-49e1-adfc-cb8cc9656ab2/messages"
       ],
       "notes": "Markdown 목록 스모크: provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
       "blocker": ""
@@ -471,7 +471,7 @@
         "evidence": 1
       },
       "evidence": [
-        "http://127.0.0.1:8765/api/work-sessions/a29844ef-bff2-4c73-bfd3-9032920ddf9f/messages"
+        "http://127.0.0.1:8765/api/work-sessions/bb579d3c-e47b-49e1-adfc-cb8cc9656ab2/messages"
       ],
       "notes": "내부추론/모델 메타 미노출 스모크: provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
       "blocker": ""
@@ -480,13 +480,21 @@
       "id": "LMUX-04-01",
       "category": "업무대화 도구 라우팅",
       "title": "일정 등록 요청 라우팅",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/9d03c22e-1ae0-4035-ac70-87daae352976/messages"
+      ],
+      "notes": "일정 등록 라우팅 스모크: expected_action=schedule.create; skill_actions=schedule.create; feedback=true; generic_refusal=false",
+      "blocker": ""
     },
     {
       "id": "LMUX-04-02",
@@ -528,13 +536,21 @@
       "id": "LMUX-04-05",
       "category": "업무대화 도구 라우팅",
       "title": "문서작성 요청 라우팅",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/6c7e2b9d-13ad-4274-9318-e5036dbebb07/messages"
+      ],
+      "notes": "문서작성/HWPX 스모크: expected_action=document.create; skill_actions=document.create; feedback=true; generic_refusal=false; artifact=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\경량모델 문서작성 스모크 문서-3.hwpx; markdown=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\경량모델 문서작성 스모크 문서-3.md; work_job=succeeded; open_links=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-04-06",
@@ -1128,13 +1144,21 @@
       "id": "LMUX-09-05",
       "category": "문서작성/HWPX 산출",
       "title": "1페이지 보고서 유형 선택",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/6c7e2b9d-13ad-4274-9318-e5036dbebb07/messages"
+      ],
+      "notes": "문서작성/HWPX 스모크: expected_action=document.create; skill_actions=document.create; feedback=true; generic_refusal=false; artifact=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\경량모델 문서작성 스모크 문서-3.hwpx; markdown=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\경량모델 문서작성 스모크 문서-3.md; work_job=succeeded; open_links=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-09-06",
@@ -1200,13 +1224,21 @@
       "id": "LMUX-10-01",
       "category": "실행기록/작업진행/다중작업",
       "title": "최근실행 한글 표시",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/execution-logs"
+      ],
+      "notes": "실행기록 스모크: log_count=50; readable_action=true; successful_work=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-10-02",

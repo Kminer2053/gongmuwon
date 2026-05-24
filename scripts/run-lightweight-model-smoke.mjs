@@ -125,19 +125,209 @@ export function evaluateChatSmoke(chatResult) {
   };
 }
 
+export function evaluateSkillRoutingSmoke({
+  status,
+  text,
+  skillActions = [],
+  expectedAction,
+  evidenceLabel = "도구 실행",
+} = {}) {
+  const responseText = String(text || "");
+  const completed = status === "completed" && responseText.trim().length > 0;
+  const usedExpectedAction = Array.isArray(skillActions) && skillActions.includes(expectedAction);
+  const hasActionFeedback = hasAny(responseText, [evidenceLabel, "등록했습니다", "생성했습니다", "완료"]);
+  const hasGenericRefusal = hasAny(responseText, ["할 수 없습니다", "기능이 없습니다", "직접 수행할 수 없습니다"]);
+  return {
+    status: completed && usedExpectedAction && !hasGenericRefusal ? "pass" : completed ? "partial" : "fail",
+    scores: {
+      functional: completed && usedExpectedAction ? 4 : completed ? 2 : 0,
+      ux: hasActionFeedback ? 3 : completed ? 1 : 0,
+      modelQuality: !hasGenericRefusal && usedExpectedAction ? 2 : 0,
+      evidence: 1,
+    },
+    detected: {
+      status,
+      expectedAction,
+      skillActions,
+      hasActionFeedback,
+      hasGenericRefusal,
+    },
+    notes: [
+      `expected_action=${expectedAction}`,
+      `skill_actions=${Array.isArray(skillActions) ? skillActions.join(",") : ""}`,
+      `feedback=${hasActionFeedback}`,
+      `generic_refusal=${hasGenericRefusal}`,
+    ].join("; "),
+  };
+}
+
+export function evaluateDocumentSmoke({
+  status,
+  text,
+  skillActions = [],
+  artifactPath = "",
+  markdownPath = "",
+  workJobStatus = "",
+} = {}) {
+  const base = evaluateSkillRoutingSmoke({
+    status,
+    text,
+    skillActions,
+    expectedAction: "document.create",
+    evidenceLabel: "HWPX 문서",
+  });
+  const hasArtifact = String(artifactPath || "").toLowerCase().endsWith(".hwpx");
+  const hasMarkdown = String(markdownPath || "").toLowerCase().endsWith(".md");
+  const succeeded = workJobStatus === "succeeded";
+  const hasOpenLinks = hasAny(text, ["파일 열기:", "폴더 열기:"]);
+  const pass = base.status === "pass" && hasArtifact && hasMarkdown && succeeded && hasOpenLinks;
+  return {
+    status: pass ? "pass" : base.status === "fail" ? "fail" : "partial",
+    scores: {
+      functional: hasArtifact && succeeded ? 4 : base.scores.functional,
+      ux: hasOpenLinks ? 3 : base.scores.ux,
+      modelQuality: base.scores.modelQuality,
+      evidence: 1,
+    },
+    detected: {
+      ...base.detected,
+      artifactPath,
+      markdownPath,
+      workJobStatus,
+      hasArtifact,
+      hasMarkdown,
+      hasOpenLinks,
+    },
+    notes: [
+      base.notes,
+      `artifact=${artifactPath || "missing"}`,
+      `markdown=${markdownPath || "missing"}`,
+      `work_job=${workJobStatus || "unknown"}`,
+      `open_links=${hasOpenLinks}`,
+    ].join("; "),
+  };
+}
+
+export function evaluateExecutionLogSmoke({ items = [] } = {}) {
+  const logs = Array.isArray(items) ? items : [];
+  const hasLogs = logs.length > 0;
+  const hasReadableAction = logs.some((item) => String(item?.action || "").trim().length > 0);
+  const hasSuccessfulWork = logs.some((item) =>
+    ["success", "succeeded", "completed"].some((marker) =>
+      String(item?.status || item?.action || "").toLowerCase().includes(marker),
+    ),
+  );
+  return {
+    status: hasLogs && hasReadableAction ? "pass" : hasLogs ? "partial" : "fail",
+    scores: {
+      functional: hasLogs ? 4 : 0,
+      ux: hasReadableAction ? 3 : hasLogs ? 1 : 0,
+      modelQuality: hasSuccessfulWork ? 2 : hasLogs ? 1 : 0,
+      evidence: 1,
+    },
+    detected: {
+      count: logs.length,
+      hasReadableAction,
+      hasSuccessfulWork,
+    },
+    notes: `log_count=${logs.length}; readable_action=${hasReadableAction}; successful_work=${hasSuccessfulWork}`,
+  };
+}
+
 export function buildLightweightSmokeResultSheet({
   scenarioSet,
   runtimePolicy,
   chatResult,
+  scheduleResult = null,
+  documentResult = null,
+  executionLogResult = null,
   evidenceBase = "runtime://lightweight-smoke",
   runtimeEvidence = null,
   chatEvidence = null,
+  scheduleEvidence = null,
+  documentEvidence = null,
+  executionLogEvidence = null,
   runId = `lightweight-smoke-${Date.now()}`,
   startedAt = nowIso(),
   completedAt = nowIso(),
 } = {}) {
   const runtimeEvaluation = evaluateRuntimePolicySmoke(runtimePolicy);
   const chatEvaluation = evaluateChatSmoke(chatResult);
+  const scenarioResults = [
+    {
+      id: "LMUX-02-01",
+      status: runtimeEvaluation.status,
+      scores: runtimeEvaluation.scores,
+      evidence: [runtimeEvidence || `${evidenceBase}/settings`],
+      notes: `런타임 정책 감지: ${runtimeEvaluation.notes}`,
+      blocker: "",
+    },
+    {
+      id: "LMUX-03-04",
+      status: chatEvaluation.status,
+      scores: chatEvaluation.scores,
+      evidence: [chatEvidence || `${evidenceBase}/messages`],
+      notes: `Markdown 목록 스모크: ${chatEvaluation.notes}`,
+      blocker: chatEvaluation.status === "pass" ? "" : "목록 구조 또는 경량모델 메타 응답 보완 필요",
+    },
+    {
+      id: "LMUX-03-10",
+      status: chatEvaluation.detected.hasThoughtTrace || chatEvaluation.detected.hasModelMeta ? "partial" : "pass",
+      scores: {
+        functional: chatEvaluation.scores.functional,
+        ux: chatEvaluation.scores.ux,
+        modelQuality: chatEvaluation.scores.modelQuality,
+        evidence: chatEvaluation.scores.evidence,
+      },
+      evidence: [chatEvidence || `${evidenceBase}/messages`],
+      notes: `내부추론/모델 메타 미노출 스모크: ${chatEvaluation.notes}`,
+      blocker:
+        chatEvaluation.detected.hasThoughtTrace || chatEvaluation.detected.hasModelMeta
+          ? "내부추론 또는 모델 자기설명 노출"
+          : "",
+    },
+  ];
+
+  if (scheduleResult) {
+    const scheduleEvaluation = evaluateSkillRoutingSmoke({
+      ...scheduleResult,
+      expectedAction: "schedule.create",
+      evidenceLabel: "일정",
+    });
+    scenarioResults.push({
+      id: "LMUX-04-01",
+      status: scheduleEvaluation.status,
+      scores: scheduleEvaluation.scores,
+      evidence: [scheduleEvidence || `${evidenceBase}/schedule`],
+      notes: `일정 등록 라우팅 스모크: ${scheduleEvaluation.notes}`,
+      blocker: scheduleEvaluation.status === "pass" ? "" : "일정 도구 라우팅 보완 필요",
+    });
+  }
+
+  if (documentResult) {
+    const documentEvaluation = evaluateDocumentSmoke(documentResult);
+    const documentScenario = {
+      status: documentEvaluation.status,
+      scores: documentEvaluation.scores,
+      evidence: [documentEvidence || `${evidenceBase}/document`],
+      notes: `문서작성/HWPX 스모크: ${documentEvaluation.notes}`,
+      blocker: documentEvaluation.status === "pass" ? "" : "문서작성 도구 라우팅 또는 HWPX 산출 보완 필요",
+    };
+    scenarioResults.push({ id: "LMUX-04-05", ...documentScenario });
+    scenarioResults.push({ id: "LMUX-09-05", ...documentScenario });
+  }
+
+  if (executionLogResult) {
+    const executionLogEvaluation = evaluateExecutionLogSmoke(executionLogResult);
+    scenarioResults.push({
+      id: "LMUX-10-01",
+      status: executionLogEvaluation.status,
+      scores: executionLogEvaluation.scores,
+      evidence: [executionLogEvidence || `${evidenceBase}/execution-logs`],
+      notes: `실행기록 스모크: ${executionLogEvaluation.notes}`,
+      blocker: executionLogEvaluation.status === "pass" ? "" : "최근 실행 기록 표시 보완 필요",
+    });
+  }
 
   return {
     runId,
@@ -146,40 +336,7 @@ export function buildLightweightSmokeResultSheet({
     modelDisplayName: scenarioSet.modelDisplayName,
     startedAt,
     completedAt,
-    scenarios: [
-      {
-        id: "LMUX-02-01",
-        status: runtimeEvaluation.status,
-        scores: runtimeEvaluation.scores,
-        evidence: [runtimeEvidence || `${evidenceBase}/settings`],
-        notes: `런타임 정책 감지: ${runtimeEvaluation.notes}`,
-        blocker: "",
-      },
-      {
-        id: "LMUX-03-04",
-        status: chatEvaluation.status,
-        scores: chatEvaluation.scores,
-        evidence: [chatEvidence || `${evidenceBase}/messages`],
-        notes: `Markdown 목록 스모크: ${chatEvaluation.notes}`,
-        blocker: chatEvaluation.status === "pass" ? "" : "목록 구조 또는 경량모델 메타 응답 보완 필요",
-      },
-      {
-        id: "LMUX-03-10",
-        status: chatEvaluation.detected.hasThoughtTrace || chatEvaluation.detected.hasModelMeta ? "partial" : "pass",
-        scores: {
-          functional: chatEvaluation.scores.functional,
-          ux: chatEvaluation.scores.ux,
-          modelQuality: chatEvaluation.scores.modelQuality,
-          evidence: chatEvaluation.scores.evidence,
-        },
-        evidence: [chatEvidence || `${evidenceBase}/messages`],
-        notes: `내부추론/모델 메타 미노출 스모크: ${chatEvaluation.notes}`,
-        blocker:
-          chatEvaluation.detected.hasThoughtTrace || chatEvaluation.detected.hasModelMeta
-            ? "내부추론 또는 모델 자기설명 노출"
-            : "",
-      },
-    ],
+    scenarios: scenarioResults,
   };
 }
 
@@ -230,6 +387,49 @@ async function runLiveSmoke(options) {
     method: "POST",
     body: { text: options.prompt, reasoning_effort: "low" },
   });
+  const scheduleSession = await fetchJson(`${baseUrl}/api/work-sessions`, {
+    method: "POST",
+    body: { title: "경량모델 일정 라우팅 스모크" },
+  });
+  const scheduleTurn = await fetchJson(`${baseUrl}/api/work-sessions/${scheduleSession.id}/turn`, {
+    method: "POST",
+    body: { text: "2026-05-20 15:00 AI 전략회의 일정 등록해줘" },
+  });
+
+  fs.mkdirSync(options.outDir, { recursive: true });
+  const linkedFilePath = path.resolve(options.outDir, "lightweight-model-smoke-reference.md");
+  fs.writeFileSync(
+    linkedFilePath,
+    "AI 추진 배경과 향후 조치사항을 정리했습니다.\n보안형 로컬 자동화 중심으로 AI 실행계획을 수립하고, 부서별 책임자와 추진기한을 명시해야 합니다.\n",
+    "utf-8",
+  );
+  const documentSession = await fetchJson(`${baseUrl}/api/work-sessions`, {
+    method: "POST",
+    body: { title: "경량모델 문서작성 스모크" },
+  });
+  await fetchJson(`${baseUrl}/api/work-sessions/${documentSession.id}/messages`, {
+    method: "POST",
+    body: { role: "user", text: "AI 추진 배경과 향후 조치사항을 정리했습니다." },
+  });
+  await fetchJson(`${baseUrl}/api/work-sessions/${documentSession.id}/file-links`, {
+    method: "POST",
+    body: {
+      items: [
+        {
+          file_path: linkedFilePath,
+          label: "AI 실행계획 근거",
+          source: "manual",
+        },
+      ],
+    },
+  });
+  const documentTurn = await fetchJson(`${baseUrl}/api/work-sessions/${documentSession.id}/turn`, {
+    method: "POST",
+    body: { text: "이 세션 내용으로 1페이지 보고서 HWPX 문서작성 해줘" },
+  });
+  const documentSkillResult = documentTurn?.context_summary?.skill_results?.[0] || {};
+  const executionLogs = await fetchJson(`${baseUrl}/api/execution-logs`);
+
   return {
     runtimePolicy,
     chatResult: {
@@ -238,9 +438,28 @@ async function runLiveSmoke(options) {
       model: turn?.assistant_message?.model,
       text: turn?.assistant_message?.text,
     },
+    scheduleResult: {
+      status: scheduleTurn?.assistant_message?.status,
+      text: scheduleTurn?.assistant_message?.text,
+      skillActions: scheduleTurn?.context_summary?.skill_actions || [],
+    },
+    documentResult: {
+      status: documentTurn?.assistant_message?.status,
+      text: documentTurn?.assistant_message?.text,
+      skillActions: documentTurn?.context_summary?.skill_actions || [],
+      artifactPath: documentSkillResult.artifact_path || "",
+      markdownPath: documentSkillResult.markdown_path || "",
+      workJobStatus: documentSkillResult.work_job_status || "",
+    },
+    executionLogResult: {
+      items: executionLogs?.items || [],
+    },
     evidenceBase: `${baseUrl}/api/work-sessions/${session.id}`,
     runtimeEvidence: `${baseUrl}/api/settings`,
     chatEvidence: `${baseUrl}/api/work-sessions/${session.id}/messages`,
+    scheduleEvidence: `${baseUrl}/api/work-sessions/${scheduleSession.id}/messages`,
+    documentEvidence: `${baseUrl}/api/work-sessions/${documentSession.id}/messages`,
+    executionLogEvidence: `${baseUrl}/api/execution-logs`,
   };
 }
 
