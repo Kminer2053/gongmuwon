@@ -1,13 +1,13 @@
 {
-  "runId": "computer-use-actual-1779648503324",
+  "runId": "computer-use-actual-1779649078253",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "generatedAt": "2026-05-24T18:48:23.327Z",
-  "totalScore": 260,
+  "generatedAt": "2026-05-24T18:57:58.261Z",
+  "totalScore": 461,
   "totalMaxScore": 1000,
-  "testedCount": 26,
-  "notTestedCount": 74,
+  "testedCount": 47,
+  "notTestedCount": 53,
   "overallGrade": "needs-work",
   "categories": [
     {
@@ -21,10 +21,10 @@
     {
       "category": "모델 설정과 Gemma 4 E2B",
       "count": 10,
-      "testedCount": 1,
-      "score": 10,
+      "testedCount": 6,
+      "score": 51,
       "maxScore": 100,
-      "grade": "release-ready"
+      "grade": "minor polish"
     },
     {
       "category": "업무대화 기본 UX",
@@ -53,8 +53,8 @@
     {
       "category": "파일찾기와 세션 연결",
       "count": 10,
-      "testedCount": 1,
-      "score": 10,
+      "testedCount": 10,
+      "score": 100,
       "maxScore": 100,
       "grade": "release-ready"
     },
@@ -85,8 +85,8 @@
     {
       "category": "실행기록/작업진행/다중작업",
       "count": 10,
-      "testedCount": 1,
-      "score": 10,
+      "testedCount": 8,
+      "score": 80,
       "maxScore": 100,
       "grade": "release-ready"
     }
@@ -109,7 +109,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "app_title=true; engine_healthy=true",
       "blocker": ""
@@ -239,7 +239,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5",
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5",
         "http://127.0.0.1:8765/api/settings"
       ],
       "notes": "runtime_policy=provider=featherless; model=google/gemma-4-E2B-it; lightweight=true; gemma4_e2b=true; reasoning=low",
@@ -297,61 +297,106 @@
       "id": "LMUX-02-06",
       "category": "모델 설정과 Gemma 4 E2B",
       "title": "Featherless 외부 모델 전환",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "featherless_active=true; active_matches_saved=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-02-07",
       "category": "모델 설정과 Gemma 4 E2B",
       "title": "OpenRouter 프로필 보존",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "openrouter_profile_preserved=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-02-08",
       "category": "모델 설정과 Gemma 4 E2B",
       "title": "API Key 저장 상태 마스킹",
-      "status": "not_tested",
-      "score": 0,
+      "status": "fail",
+      "score": 1,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "blocker",
+      "scores": {
+        "functional": 0,
+        "ux": 0,
+        "modelQuality": 0,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "api_key_masked=false",
+      "blocker": "API key masking was not proven by workflow evidence."
     },
     {
       "id": "LMUX-02-09",
       "category": "모델 설정과 Gemma 4 E2B",
       "title": "모델 연결 테스트 결과 표시",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "connection_test_completed=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-02-10",
       "category": "모델 설정과 Gemma 4 E2B",
       "title": "프로필 전환 후 활성 공급자 일치",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "active_provider_matches_saved=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-03-01",
@@ -370,7 +415,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "session=b4f4771a-9528-4b21-8663-d1cf645a50b5; user_turn=true; assistant_turn=true; recent_context=true",
       "blocker": ""
@@ -404,7 +449,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "latency_ms=8723; response_time_observed=true",
       "blocker": ""
@@ -426,7 +471,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "markdown_render=provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
       "blocker": ""
@@ -508,7 +553,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "thought_trace=false; model_meta=false; policy_meta=false",
       "blocker": ""
@@ -856,109 +901,208 @@
       "id": "LMUX-06-02",
       "category": "파일찾기와 세션 연결",
       "title": "정확한 파일명 검색",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "exact_search=true; result_count=5",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-03",
       "category": "파일찾기와 세션 연결",
       "title": "부분 파일명 검색",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "partial_search=true; result_count=5",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-04",
       "category": "파일찾기와 세션 연결",
       "title": "검색결과 카드 선택",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "result_selected=true; preview=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-05",
       "category": "파일찾기와 세션 연결",
       "title": "우측 미리보기 표시",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "preview_shown=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-06",
       "category": "파일찾기와 세션 연결",
       "title": "경로 복사 토스트",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "path_copied=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-07",
       "category": "파일찾기와 세션 연결",
       "title": "현재 세션에 파일 연결",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_to_session=true; linked_file_count=1",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-08",
       "category": "파일찾기와 세션 연결",
       "title": "연결 파일 수 표시",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_file_count=1",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-09",
       "category": "파일찾기와 세션 연결",
       "title": "연결 파일 목록 닫기",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_list_closable=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-06-10",
       "category": "파일찾기와 세션 연결",
       "title": "검색결과 없음 안내",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "empty_state=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-07-01",
@@ -1431,7 +1575,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "work_progress_observed=true",
       "blocker": ""
@@ -1440,25 +1584,45 @@
       "id": "LMUX-10-02",
       "category": "실행기록/작업진행/다중작업",
       "title": "작업상세 이벤트 확인",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "job_detail=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-10-03",
       "category": "실행기록/작업진행/다중작업",
       "title": "긴 작업 중 다른 메뉴 이동",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "long_job_navigation_safe=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-10-04",
@@ -1476,13 +1640,23 @@
       "id": "LMUX-10-05",
       "category": "실행기록/작업진행/다중작업",
       "title": "다른 리소스 작업 병렬 진행",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "parallel_different_resources=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-10-06",
@@ -1500,49 +1674,89 @@
       "id": "LMUX-10-07",
       "category": "실행기록/작업진행/다중작업",
       "title": "실패 작업 재시도 안내",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "retry_guidance=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-10-08",
       "category": "실행기록/작업진행/다중작업",
       "title": "완료 작업 산출물 열기",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "artifact_openable=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-10-09",
       "category": "실행기록/작업진행/다중작업",
       "title": "작업 로그 복사",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "log_copied=true",
+      "blocker": ""
     },
     {
       "id": "LMUX-10-10",
       "category": "실행기록/작업진행/다중작업",
       "title": "다중작업 후 우측패널 상태",
-      "status": "not_tested",
-      "score": 0,
+      "status": "pass",
+      "score": 10,
       "maxScore": 10,
-      "grade": "not-tested",
-      "scores": null,
-      "evidence": [],
-      "notes": ""
+      "grade": "release-ready",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "right_panel_stable=true",
+      "blocker": ""
     }
   ]
 }

@@ -51,5 +51,57 @@
       "work_job"
     ],
     "error": ""
+  },
+  "fileSearch": {
+    "exactSearch": true,
+    "partialSearch": true,
+    "resultSelected": true,
+    "previewShown": true,
+    "pathCopied": true,
+    "linkedToSession": true,
+    "linkedFileCount": 1,
+    "linkedListClosable": true,
+    "emptyStateShown": true,
+    "resultCount": 5,
+    "selectedPath": "C:\\Users\\USER\\AppData\\Local\\Temp\\pytest-of-USER\\pytest-528\\test_work_session_turn_returns1\\db\\gongmu.db",
+    "selectedTitle": "gongmu.db",
+    "evidence": [
+      "http://127.0.0.1:8766/api/files/search?query=gongmu",
+      "http://127.0.0.1:8766/api/files/search?query=read",
+      "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+      "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+    ],
+    "noResultCount": 0
+  },
+  "settings": {
+    "featherlessActive": true,
+    "activeProviderMatchesSaved": true,
+    "openRouterProfilePreserved": true,
+    "apiKeyMasked": false,
+    "connectionTestCompleted": true,
+    "activeProvider": "featherless",
+    "model": "google/gemma-4-E2B-it",
+    "llmTestStatus": 200,
+    "evidence": [
+      "http://127.0.0.1:8765/api/settings",
+      "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+    ]
+  },
+  "operations": {
+    "jobDetailShown": true,
+    "longJobNavigationSafe": true,
+    "parallelDifferentResources": true,
+    "failedJobRetryGuidance": true,
+    "artifactOpenable": true,
+    "logCopied": true,
+    "rightPanelStable": true,
+    "jobCount": 30,
+    "eventCount": 3,
+    "logCount": 20,
+    "evidence": [
+      "http://127.0.0.1:8765/api/jobs?limit=30",
+      "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+      "http://127.0.0.1:8765/api/execution-logs?limit=20"
+    ]
   }
 }

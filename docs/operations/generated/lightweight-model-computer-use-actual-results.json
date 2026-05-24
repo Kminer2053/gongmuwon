@@ -1,10 +1,10 @@
 {
-  "runId": "computer-use-actual-1779648503324",
+  "runId": "computer-use-actual-1779649078253",
   "tester": "playwright-computer-use",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
-  "startedAt": "2026-05-24T18:48:23.324Z",
-  "completedAt": "2026-05-24T18:48:23.324Z",
+  "startedAt": "2026-05-24T18:57:58.253Z",
+  "completedAt": "2026-05-24T18:57:58.253Z",
   "sourceSessionId": "b4f4771a-9528-4b21-8663-d1cf645a50b5",
   "scenarios": [
     {
@@ -19,7 +19,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "app_title=true; engine_healthy=true",
       "blocker": ""
@@ -36,7 +36,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5",
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5",
         "http://127.0.0.1:8765/api/settings"
       ],
       "notes": "runtime_policy=provider=featherless; model=google/gemma-4-E2B-it; lightweight=true; gemma4_e2b=true; reasoning=low",
@@ -54,7 +54,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "session=b4f4771a-9528-4b21-8663-d1cf645a50b5; user_turn=true; assistant_turn=true; recent_context=true",
       "blocker": ""
@@ -71,7 +71,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "latency_ms=8723; response_time_observed=true",
       "blocker": ""
@@ -88,7 +88,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "markdown_render=provider=featherless; model=google/gemma-4-E2B-it; bullet_count=3; model_meta=false; policy_meta=false; thought_trace=false",
       "blocker": ""
@@ -105,7 +105,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "thought_trace=false; model_meta=false; policy_meta=false",
       "blocker": ""
@@ -425,6 +425,367 @@
       "blocker": ""
     },
     {
+      "id": "LMUX-06-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "exact_search=true; result_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "partial_search=true; result_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "result_selected=true; preview=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "preview_shown=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "path_copied=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_to_session=true; linked_file_count=1",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_file_count=1",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_list_closable=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "empty_state=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "featherless_active=true; active_matches_saved=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "openrouter_profile_preserved=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-08",
+      "status": "fail",
+      "scores": {
+        "functional": 0,
+        "ux": 0,
+        "modelQuality": 0,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "api_key_masked=false",
+      "blocker": "API key masking was not proven by workflow evidence."
+    },
+    {
+      "id": "LMUX-02-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "connection_test_completed=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200"
+      ],
+      "notes": "active_provider_matches_saved=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "job_detail=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "long_job_navigation_safe=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "parallel_different_resources=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "retry_guidance=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "artifact_openable=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "log_copied=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20"
+      ],
+      "notes": "right_panel_stable=true",
+      "blocker": ""
+    },
+    {
       "id": "LMUX-10-01",
       "status": "pass",
       "scores": {
@@ -436,7 +797,7 @@
       "evidence": [
         "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
         "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
-        "http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
+        "http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5"
       ],
       "notes": "work_progress_observed=true",
       "blocker": ""

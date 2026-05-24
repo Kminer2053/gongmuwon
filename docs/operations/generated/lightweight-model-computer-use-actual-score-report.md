@@ -1,11 +1,11 @@
 # 경량모델 컴퓨터유즈 실제 점수 리포트
 
-- 실행 ID: computer-use-actual-1779648503324
+- 실행 ID: computer-use-actual-1779649078253
 - 기준 모델: Gemma 4 E2B (gemma4:e2b)
 - 평가 방식: playwright-computer-use
-- 총점: 260 / 1000
-- 실시: 26개
-- 미실시: 74개
+- 총점: 461 / 1000
+- 실시: 47개
+- 미실시: 53개
 - 종합 등급: needs-work
 
 ## 카테고리별 점수
@@ -13,15 +13,15 @@
 | 카테고리 | 실시 | 점수 | 등급 |
 | --- | ---: | ---: | --- |
 | 시작/업무엔진 | 1/10 | 10/100 | release-ready |
-| 모델 설정/Gemma 4 E2B | 1/10 | 10/100 | release-ready |
+| 모델 설정/Gemma 4 E2B | 6/10 | 51/100 | minor polish |
 | 업무대화 기본 UX | 4/10 | 40/100 | release-ready |
 | 업무대화 도구 라우팅 | 5/10 | 50/100 | release-ready |
 | 일정 캘린더 | 3/10 | 30/100 | release-ready |
-| 파일찾기/세션 연결 | 1/10 | 10/100 | release-ready |
+| 파일찾기/세션 연결 | 10/10 | 100/100 | release-ready |
 | 지식폴더/GraphRAG 인덱싱 | 1/10 | 10/100 | release-ready |
 | GraphRAG 검색/출처 품질 | 4/10 | 40/100 | release-ready |
 | 문서작성/HWPX 산출 | 5/10 | 50/100 | release-ready |
-| 실행기록/작업진행/다중작업 | 1/10 | 10/100 | release-ready |
+| 실행기록/작업진행/다중작업 | 8/10 | 80/100 | release-ready |
 
 ## 실시 시나리오
 
@@ -34,7 +34,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-02-01 모델 설정/Gemma 4 E2B
 
@@ -45,8 +45,59 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
   - http://127.0.0.1:8765/api/settings
+
+### LMUX-02-06 모델 설정/Gemma 4 E2B
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: featherless_active=true; active_matches_saved=true
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
+
+### LMUX-02-07 모델 설정/Gemma 4 E2B
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: openrouter_profile_preserved=true
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
+
+### LMUX-02-08 모델 설정/Gemma 4 E2B
+
+- 상태: 실패
+- 점수: 1 / 10
+- 등급: blocker
+- 메모: api_key_masked=false
+- 남은 문제: API key masking was not proven by workflow evidence.
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
+
+### LMUX-02-09 모델 설정/Gemma 4 E2B
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: connection_test_completed=true
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
+
+### LMUX-02-10 모델 설정/Gemma 4 E2B
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: active_provider_matches_saved=true
+- 증거:
+  - http://127.0.0.1:8765/api/settings
+  - http://127.0.0.1:8765/api/settings/llm-test#status=200
 
 ### LMUX-03-01 업무대화 기본 UX
 
@@ -57,7 +108,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-03-03 업무대화 기본 UX
 
@@ -68,7 +119,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-03-04 업무대화 기본 UX
 
@@ -79,7 +130,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-03-10 업무대화 기본 UX
 
@@ -90,7 +141,7 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
 
 ### LMUX-04-01 업무대화 도구 라우팅
 
@@ -187,6 +238,114 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui-snapshot.yml
+
+### LMUX-06-02 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: exact_search=true; result_count=5
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
+
+### LMUX-06-03 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: partial_search=true; result_count=5
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
+
+### LMUX-06-04 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: result_selected=true; preview=true
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
+
+### LMUX-06-05 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: preview_shown=true
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
+
+### LMUX-06-06 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: path_copied=true
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
+
+### LMUX-06-07 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: linked_to_session=true; linked_file_count=1
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
+
+### LMUX-06-08 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: linked_file_count=1
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
+
+### LMUX-06-09 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: linked_list_closable=true
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
+
+### LMUX-06-10 파일찾기/세션 연결
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: empty_state=true
+- 증거:
+  - http://127.0.0.1:8766/api/files/search?query=gongmu
+  - http://127.0.0.1:8766/api/files/search?query=read
+  - http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097
+  - http://127.0.0.1:8766/api/work-sessions/*/file-links
 
 ### LMUX-07-02 지식폴더/GraphRAG 인덱싱
 
@@ -301,7 +460,84 @@
 - 증거:
   - screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png
   - snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml
-  - http://127.0.0.1:8765/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+  - http://127.0.0.1:8766/api/work-sessions/b4f4771a-9528-4b21-8663-d1cf645a50b5
+
+### LMUX-10-02 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: job_detail=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
+
+### LMUX-10-03 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: long_job_navigation_safe=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
+
+### LMUX-10-05 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: parallel_different_resources=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
+
+### LMUX-10-07 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: retry_guidance=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
+
+### LMUX-10-08 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: artifact_openable=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
+
+### LMUX-10-09 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: log_copied=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
+
+### LMUX-10-10 실행기록/작업진행/다중작업
+
+- 상태: 통과
+- 점수: 10 / 10
+- 등급: release-ready
+- 메모: right_panel_stable=true
+- 증거:
+  - http://127.0.0.1:8765/api/jobs?limit=30
+  - http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events
+  - http://127.0.0.1:8765/api/execution-logs?limit=20
 
 ## 해석
 

@@ -200,7 +200,14 @@ function workflowScenario({
   };
 }
 
-export function evaluateWorkflowEvidence({ schedule = null, knowledge = null, document = null } = {}) {
+export function evaluateWorkflowEvidence({
+  schedule = null,
+  knowledge = null,
+  document = null,
+  fileSearch = null,
+  settings = null,
+  operations = null,
+} = {}) {
   const results = [];
 
   if (schedule) {
@@ -326,6 +333,195 @@ export function evaluateWorkflowEvidence({ schedule = null, knowledge = null, do
         evidence,
         notes: `open_link=${Boolean(document.openLink)}; output_path=${outputPath || "missing"}`,
         blocker: "Openable document output link was not proven by workflow evidence.",
+      }),
+    );
+  }
+
+  if (fileSearch) {
+    const evidence = workflowEvidenceList(fileSearch);
+    const linkedFileCount = Number(fileSearch.linkedFileCount || 0);
+    const resultCount = Number(fileSearch.resultCount || 0);
+    results.push(
+      workflowScenario({
+        id: "LMUX-06-02",
+        functional: Boolean(fileSearch.exactSearch && resultCount > 0),
+        ux: Boolean(fileSearch.resultSelected || fileSearch.previewShown),
+        evidence,
+        notes: `exact_search=${Boolean(fileSearch.exactSearch)}; result_count=${resultCount}`,
+        blocker: "Exact filename search was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-06-03",
+        functional: Boolean(fileSearch.partialSearch && resultCount > 0),
+        ux: Boolean(fileSearch.resultSelected || fileSearch.previewShown),
+        evidence,
+        notes: `partial_search=${Boolean(fileSearch.partialSearch)}; result_count=${resultCount}`,
+        blocker: "Partial filename search was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-06-04",
+        functional: Boolean(fileSearch.resultSelected),
+        ux: Boolean(fileSearch.previewShown),
+        evidence,
+        notes: `result_selected=${Boolean(fileSearch.resultSelected)}; preview=${Boolean(fileSearch.previewShown)}`,
+        blocker: "File-search result card selection was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-06-05",
+        functional: Boolean(fileSearch.previewShown),
+        ux: Boolean(fileSearch.resultSelected),
+        evidence,
+        notes: `preview_shown=${Boolean(fileSearch.previewShown)}`,
+        blocker: "Right-panel file preview was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-06-06",
+        functional: Boolean(fileSearch.pathCopied),
+        ux: Boolean(fileSearch.pathCopied),
+        evidence,
+        notes: `path_copied=${Boolean(fileSearch.pathCopied)}`,
+        blocker: "Copy-path feedback/toast was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-06-07",
+        functional: Boolean(fileSearch.linkedToSession && linkedFileCount > 0),
+        ux: Boolean(linkedFileCount > 0),
+        evidence,
+        notes: `linked_to_session=${Boolean(fileSearch.linkedToSession)}; linked_file_count=${linkedFileCount}`,
+        blocker: "File-to-session linking was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-06-08",
+        functional: linkedFileCount > 0,
+        ux: linkedFileCount > 0,
+        evidence,
+        notes: `linked_file_count=${linkedFileCount}`,
+        blocker: "Linked file count display was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-06-09",
+        functional: Boolean(fileSearch.linkedListClosable),
+        ux: Boolean(fileSearch.linkedListClosable),
+        evidence,
+        notes: `linked_list_closable=${Boolean(fileSearch.linkedListClosable)}`,
+        blocker: "Linked-file list close action was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-06-10",
+        functional: Boolean(fileSearch.emptyStateShown),
+        ux: Boolean(fileSearch.emptyStateShown),
+        evidence,
+        notes: `empty_state=${Boolean(fileSearch.emptyStateShown)}`,
+        blocker: "No-result guidance was not proven by workflow evidence.",
+      }),
+    );
+  }
+
+  if (settings) {
+    const evidence = workflowEvidenceList(settings);
+    results.push(
+      workflowScenario({
+        id: "LMUX-02-06",
+        functional: Boolean(settings.featherlessActive),
+        ux: Boolean(settings.activeProviderMatchesSaved),
+        evidence,
+        notes: `featherless_active=${Boolean(settings.featherlessActive)}; active_matches_saved=${Boolean(settings.activeProviderMatchesSaved)}`,
+        blocker: "Featherless external-provider activation was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-02-07",
+        functional: Boolean(settings.openRouterProfilePreserved),
+        ux: Boolean(settings.openRouterProfilePreserved),
+        evidence,
+        notes: `openrouter_profile_preserved=${Boolean(settings.openRouterProfilePreserved)}`,
+        blocker: "OpenRouter profile preservation was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-02-08",
+        functional: Boolean(settings.apiKeyMasked),
+        ux: Boolean(settings.apiKeyMasked),
+        modelQuality: Boolean(settings.apiKeyMasked),
+        evidence,
+        notes: `api_key_masked=${Boolean(settings.apiKeyMasked)}`,
+        blocker: "API key masking was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-02-09",
+        functional: Boolean(settings.connectionTestCompleted),
+        ux: Boolean(settings.connectionTestCompleted),
+        evidence,
+        notes: `connection_test_completed=${Boolean(settings.connectionTestCompleted)}`,
+        blocker: "Model connection-test result was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-02-10",
+        functional: Boolean(settings.activeProviderMatchesSaved),
+        ux: Boolean(settings.activeProviderMatchesSaved),
+        evidence,
+        notes: `active_provider_matches_saved=${Boolean(settings.activeProviderMatchesSaved)}`,
+        blocker: "Active provider did not match saved profile evidence.",
+      }),
+    );
+  }
+
+  if (operations) {
+    const evidence = workflowEvidenceList(operations);
+    results.push(
+      workflowScenario({
+        id: "LMUX-10-02",
+        functional: Boolean(operations.jobDetailShown),
+        ux: Boolean(operations.jobDetailShown),
+        evidence,
+        notes: `job_detail=${Boolean(operations.jobDetailShown)}`,
+        blocker: "Work-job detail events were not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-10-03",
+        functional: Boolean(operations.longJobNavigationSafe),
+        ux: Boolean(operations.longJobNavigationSafe),
+        evidence,
+        notes: `long_job_navigation_safe=${Boolean(operations.longJobNavigationSafe)}`,
+        blocker: "Navigation during long-running work was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-10-05",
+        functional: Boolean(operations.parallelDifferentResources),
+        ux: Boolean(operations.parallelDifferentResources),
+        evidence,
+        notes: `parallel_different_resources=${Boolean(operations.parallelDifferentResources)}`,
+        blocker: "Parallel work on different resources was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-10-07",
+        functional: Boolean(operations.failedJobRetryGuidance),
+        ux: Boolean(operations.failedJobRetryGuidance),
+        evidence,
+        notes: `retry_guidance=${Boolean(operations.failedJobRetryGuidance)}`,
+        blocker: "Failed-job retry guidance was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-10-08",
+        functional: Boolean(operations.artifactOpenable),
+        ux: Boolean(operations.artifactOpenable),
+        evidence,
+        notes: `artifact_openable=${Boolean(operations.artifactOpenable)}`,
+        blocker: "Completed-work artifact opening was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-10-09",
+        functional: Boolean(operations.logCopied),
+        ux: Boolean(operations.logCopied),
+        evidence,
+        notes: `log_copied=${Boolean(operations.logCopied)}`,
+        blocker: "Work log copy action was not proven by workflow evidence.",
+      }),
+      workflowScenario({
+        id: "LMUX-10-10",
+        functional: Boolean(operations.rightPanelStable),
+        ux: Boolean(operations.rightPanelStable),
+        evidence,
+        notes: `right_panel_stable=${Boolean(operations.rightPanelStable)}`,
+        blocker: "Right-panel state after multiple jobs was not proven by workflow evidence.",
       }),
     );
   }

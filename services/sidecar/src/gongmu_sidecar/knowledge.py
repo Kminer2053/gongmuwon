@@ -761,7 +761,7 @@ class KnowledgeManager:
             score += body_overlap * 10
             if "본문" not in reasons:
                 reasons.append("본문")
-        if file_record.get("status") == "indexed":
+        if score > 0 and file_record.get("status") == "indexed":
             score += 2
 
         return score, reasons
