@@ -23,6 +23,10 @@ assert.ok(scenarioSet.scenarios.every((item) => item.scoring.ux.max === 3));
 assert.ok(scenarioSet.scenarios.every((item) => item.scoring.modelQuality.max === 2));
 assert.ok(scenarioSet.scenarios.every((item) => item.scoring.evidence.max === 1));
 assert.ok(scenarioSet.scenarios.every((item) => item.computerUse.checkpoints.length >= 3));
+assert.ok(scenarioSet.scenarios.every((item) => item.computerUse.performanceThresholds.feedbackMs <= 1000));
+assert.ok(scenarioSet.scenarios.every((item) => item.computerUse.performanceThresholds.completionMs > 0));
+assert.ok(scenarioSet.scenarios.every((item) => item.computerUse.checkpoints.some((line) => line.includes("반응속도"))));
+assert.ok(scenarioSet.scenarios.every((item) => item.computerUse.checkpoints.some((line) => line.includes("라우팅"))));
 assert.ok(scenarioSet.scenarios.every((item) => item.steps.length >= 5));
 
 const ids = new Set(scenarioSet.scenarios.map((item) => item.id));

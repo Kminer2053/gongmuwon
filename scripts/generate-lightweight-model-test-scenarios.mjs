@@ -244,8 +244,16 @@ function buildExpected(categoryIndex, title) {
 function buildComputerUse(category, title) {
   return {
     surface: "Codex in-app Browser 또는 Tauri 창",
+    performanceThresholds: {
+      feedbackMs: 1000,
+      navigationMs: 1500,
+      completionMs: category.includes("문서작성") || category.includes("GraphRAG") ? 10000 : 3000,
+      routingPreviewMs: 500,
+    },
     checkpoints: [
       "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+      "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+      "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
       "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
       "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가",
     ],

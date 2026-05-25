@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-24T16:35:46.183Z",
+  "generatedAt": "2026-05-25T07:33:36.092Z",
   "purpose": "경량모델을 사용하는 경우에도 성능과 사용경험이 떨어지지 않는지 컴퓨터유즈 기반으로 점수화한다.",
   "model": "gemma4:e2b",
   "modelDisplayName": "Gemma 4 E2B",
@@ -70,8 +70,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -129,8 +137,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -188,8 +204,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -247,8 +271,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -306,8 +338,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -365,8 +405,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -424,8 +472,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -483,8 +539,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -542,8 +606,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -601,8 +673,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -661,8 +741,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -721,8 +809,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -781,8 +877,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -841,8 +945,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -901,8 +1013,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -961,8 +1081,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1021,8 +1149,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1081,8 +1217,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1141,8 +1285,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1201,8 +1353,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1261,8 +1421,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1321,8 +1489,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1381,8 +1557,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1441,8 +1625,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1501,8 +1693,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1561,8 +1761,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1621,8 +1829,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1681,8 +1897,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1741,8 +1965,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1801,8 +2033,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1862,8 +2102,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1923,8 +2171,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -1984,8 +2240,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2045,8 +2309,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2106,8 +2378,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2167,8 +2447,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2228,8 +2516,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2289,8 +2585,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2350,8 +2654,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2411,8 +2723,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2470,8 +2790,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2529,8 +2857,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2588,8 +2924,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2647,8 +2991,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2706,8 +3058,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2765,8 +3125,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2824,8 +3192,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2883,8 +3259,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -2942,8 +3326,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3001,8 +3393,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3060,8 +3460,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3119,8 +3527,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3178,8 +3594,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3237,8 +3661,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3296,8 +3728,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3355,8 +3795,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3414,8 +3862,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3473,8 +3929,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3532,8 +3996,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3591,8 +4063,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3650,8 +4130,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3709,8 +4197,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3768,8 +4264,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3827,8 +4331,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3886,8 +4398,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -3945,8 +4465,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4004,8 +4532,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4063,8 +4599,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4122,8 +4666,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4181,8 +4733,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4242,8 +4802,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4303,8 +4871,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4364,8 +4940,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4425,8 +5009,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4486,8 +5078,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4547,8 +5147,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4608,8 +5216,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4669,8 +5285,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4730,8 +5354,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4791,8 +5423,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4852,8 +5492,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4913,8 +5561,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -4974,8 +5630,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5035,8 +5699,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5096,8 +5768,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5157,8 +5837,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5218,8 +5906,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5279,8 +5975,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5340,8 +6044,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5401,8 +6113,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 10000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5460,8 +6180,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5519,8 +6247,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5578,8 +6314,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5637,8 +6381,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5696,8 +6448,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5755,8 +6515,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5814,8 +6582,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5873,8 +6649,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5932,8 +6716,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],
@@ -5991,8 +6783,16 @@
       },
       "computerUse": {
         "surface": "Codex in-app Browser 또는 Tauri 창",
+        "performanceThresholds": {
+          "feedbackMs": 1000,
+          "navigationMs": 1500,
+          "completionMs": 3000,
+          "routingPreviewMs": 500
+        },
         "checkpoints": [
           "화면 전환 또는 버튼 클릭 후 1초 이내 사용자가 다음 상태를 이해할 수 있는가",
+          "반응속도 측정: 첫 피드백, 화면 전환, 완료 응답을 각각 기록하고 기준 이내인지 확인한다.",
+          "라우팅 측정: 다양한 업무대화 문장이 일정/지식/문서/도움말/일반대화 중 의도한 경로로 분기되는지 확인한다.",
           "우측 패널 또는 작업진행에서 상세 증거를 열 수 있는가",
           "오류가 발생해도 사용자가 같은 흐름을 계속할 수 있는가"
         ],

@@ -28,7 +28,8 @@
     "qa:audit:lightweight": "node scripts/score-lightweight-model-test-run.mjs --scenarios docs/operations/generated/lightweight-model-test-scenarios.json --results docs/operations/generated/lightweight-model-test-results-template.json --out-dir docs/operations/generated --audit-coverage",
     "qa:smoke:lightweight": "node scripts/run-lightweight-model-smoke.mjs --base-url http://127.0.0.1:8765 --out-dir docs/operations/generated",
     "qa:record:lightweight": "node scripts/record-lightweight-computer-use-result.mjs --base-url http://127.0.0.1:8765 --out-dir docs/operations/generated",
-    "qa:test:lightweight": "node scripts/generate-lightweight-model-test-scenarios.test.mjs && node scripts/score-lightweight-model-test-run.test.mjs && node scripts/run-lightweight-model-smoke.test.mjs && node scripts/record-lightweight-computer-use-result.test.mjs",
+    "qa:measure:lightweight": "node scripts/measure-lightweight-ux-quality.mjs --base-url http://127.0.0.1:8765 --out-dir docs/operations/generated",
+    "qa:test:lightweight": "node scripts/generate-lightweight-model-test-scenarios.test.mjs && node scripts/score-lightweight-model-test-run.test.mjs && node scripts/run-lightweight-model-smoke.test.mjs && node scripts/record-lightweight-computer-use-result.test.mjs && node scripts/measure-lightweight-ux-quality.test.mjs",
     "verify:all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"
   },
   "devDependencies": {

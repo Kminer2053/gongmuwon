@@ -1,0 +1,584 @@
+{
+  "runId": "lightweight-ux-quality-1779694297940",
+  "generatedAt": "2026-05-25T07:31:39.450Z",
+  "model": "gemma4:e2b",
+  "baseUrl": "http://127.0.0.1:8766",
+  "maxScore": 1000,
+  "overallScore": 1000,
+  "overallGrade": "release-ready",
+  "latency": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "passRate": 1,
+    "score": 1000,
+    "grade": "release-ready",
+    "items": [
+      {
+        "label": "health",
+        "thresholdMs": 500,
+        "samplesMs": [
+          51,
+          6,
+          4,
+          3,
+          3
+        ],
+        "avgMs": 13,
+        "p95Ms": 51,
+        "status": "pass",
+        "error": ""
+      },
+      {
+        "label": "ready",
+        "thresholdMs": 800,
+        "samplesMs": [
+          6,
+          5,
+          5,
+          5,
+          5
+        ],
+        "avgMs": 5,
+        "p95Ms": 6,
+        "status": "pass",
+        "error": ""
+      },
+      {
+        "label": "runtime-metrics",
+        "thresholdMs": 800,
+        "samplesMs": [
+          5,
+          4,
+          4,
+          4,
+          4
+        ],
+        "avgMs": 4,
+        "p95Ms": 5,
+        "status": "pass",
+        "error": ""
+      },
+      {
+        "label": "settings",
+        "thresholdMs": 1000,
+        "samplesMs": [
+          5,
+          3,
+          3,
+          3,
+          3
+        ],
+        "avgMs": 3,
+        "p95Ms": 5,
+        "status": "pass",
+        "error": ""
+      },
+      {
+        "label": "work-sessions",
+        "thresholdMs": 1000,
+        "samplesMs": [
+          11,
+          11,
+          11,
+          10,
+          13
+        ],
+        "avgMs": 11,
+        "p95Ms": 13,
+        "status": "pass",
+        "error": ""
+      },
+      {
+        "label": "schedules",
+        "thresholdMs": 1000,
+        "samplesMs": [
+          3,
+          2,
+          2,
+          3,
+          2
+        ],
+        "avgMs": 2,
+        "p95Ms": 3,
+        "status": "pass",
+        "error": ""
+      },
+      {
+        "label": "file-search-empty",
+        "thresholdMs": 1500,
+        "samplesMs": [
+          523,
+          352,
+          344
+        ],
+        "avgMs": 406,
+        "p95Ms": 523,
+        "status": "pass",
+        "error": ""
+      }
+    ]
+  },
+  "routing": {
+    "total": 30,
+    "passed": 30,
+    "failed": 0,
+    "successRate": 1,
+    "actionHitRate": 1,
+    "score": 1000,
+    "grade": "release-ready",
+    "failedCases": [],
+    "items": [
+      {
+        "id": "route-schedule-create-01",
+        "text": "내일 오후 2시에 AI 점검 회의 일정 등록해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.create"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.create"
+        ],
+        "latencyMs": 7,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-create-02",
+        "text": "오늘 16시에 부서 검토 미팅 캘린더에 넣어줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.create"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.create"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-create-03",
+        "text": "2026-05-28 14:00 자료검토 회의 잡아줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.create"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.create"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-list-01",
+        "text": "오늘 일정 보여줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.list"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.list"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-list-02",
+        "text": "등록된 일정 확인해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.list"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.list"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-list-03",
+        "text": "이번 주 calendar view 보여줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.list"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.list"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-delete-01",
+        "text": "AI 점검 회의 일정 삭제해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.delete"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.delete"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-delete-02",
+        "text": "오늘 잡힌 검토 일정 취소해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.delete"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.delete"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-knowledge-01",
+        "text": "지식폴더에서 AI 추진 방향 근거 찾아줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "knowledge.search"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "knowledge.search"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-knowledge-02",
+        "text": "GraphRAG로 예산 관련 출처 보여줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "knowledge.search"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "knowledge.search"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-knowledge-03",
+        "text": "내 자료에서 프롬프트 관련 문서 찾아줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "knowledge.search"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "knowledge.search"
+        ],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-document-01",
+        "text": "이 세션 내용으로 1페이지 보고서 hwpx 만들어줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "documents.generate"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "documents.generate"
+        ],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-document-02",
+        "text": "첨부자료 기반으로 시행문 작성해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "documents.generate"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "documents.generate"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-document-03",
+        "text": "회의 결과를 이메일 문안으로 정리해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "documents.generate"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "documents.generate"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-help-01",
+        "text": "파일찾기 사용법 알려줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "help.guide"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "help.guide"
+        ],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-help-02",
+        "text": "업무대화 기능 어떻게 써?",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "help.guide"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "help.guide"
+        ],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-help-03",
+        "text": "지식폴더 GraphRAG 사용법 안내해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "help.guide"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "help.guide"
+        ],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-multi-01",
+        "text": "내일 오후 2시 회의 일정 등록하고 지식폴더에서 AI 자료 찾아줘",
+        "expectedRoute": "multi_intent",
+        "expectedActions": [
+          "intent.plan",
+          "schedule.create",
+          "knowledge.search"
+        ],
+        "actualRoute": "multi_intent",
+        "actualActions": [
+          "intent.plan",
+          "schedule.create",
+          "knowledge.search"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-multi-02",
+        "text": "AI 자료 근거 찾아서 1페이지 보고서로 만들어줘",
+        "expectedRoute": "multi_intent",
+        "expectedActions": [
+          "intent.plan",
+          "knowledge.search",
+          "documents.generate"
+        ],
+        "actualRoute": "multi_intent",
+        "actualActions": [
+          "intent.plan",
+          "knowledge.search",
+          "documents.generate"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-multi-03",
+        "text": "오늘 일정 확인하고 회의자료도 지식폴더에서 찾아줘",
+        "expectedRoute": "multi_intent",
+        "expectedActions": [
+          "intent.plan",
+          "schedule.list",
+          "knowledge.search"
+        ],
+        "actualRoute": "multi_intent",
+        "actualActions": [
+          "intent.plan",
+          "schedule.list",
+          "knowledge.search"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-general-01",
+        "text": "오늘은 가볍게 안부부터 이야기하자",
+        "expectedRoute": "llm.chat",
+        "expectedActions": [],
+        "actualRoute": "llm.chat",
+        "actualActions": [],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-general-02",
+        "text": "점심 뭐 먹으면 좋을까?",
+        "expectedRoute": "llm.chat",
+        "expectedActions": [],
+        "actualRoute": "llm.chat",
+        "actualActions": [],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-general-03",
+        "text": "한국어로 간단히 인사해줘",
+        "expectedRoute": "llm.chat",
+        "expectedActions": [],
+        "actualRoute": "llm.chat",
+        "actualActions": [],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-document-04",
+        "text": "공문 형태의 hwp 파일로 만들어줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "documents.generate"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "documents.generate"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-knowledge-04",
+        "text": "출처 있는 자료를 찾아서 알려줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "knowledge.search"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "knowledge.search"
+        ],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-list-04",
+        "text": "schedule list를 확인해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.list"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.list"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-schedule-delete-03",
+        "text": "calendar에서 검토 미팅 remove 해줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "schedule.delete"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "schedule.delete"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-help-04",
+        "text": "문서작성 guide 보여줘",
+        "expectedRoute": "tool",
+        "expectedActions": [
+          "help.guide"
+        ],
+        "actualRoute": "tool",
+        "actualActions": [
+          "help.guide"
+        ],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-general-04",
+        "text": "이 문장을 더 자연스럽게 다듬어줘",
+        "expectedRoute": "llm.chat",
+        "expectedActions": [],
+        "actualRoute": "llm.chat",
+        "actualActions": [],
+        "latencyMs": 2,
+        "status": "pass",
+        "actionHitRate": 1
+      },
+      {
+        "id": "route-multi-04",
+        "text": "오늘 일정 조회하고 그 결과를 이메일로 정리해줘",
+        "expectedRoute": "multi_intent",
+        "expectedActions": [
+          "intent.plan",
+          "schedule.list",
+          "documents.generate"
+        ],
+        "actualRoute": "multi_intent",
+        "actualActions": [
+          "intent.plan",
+          "schedule.list",
+          "documents.generate"
+        ],
+        "latencyMs": 3,
+        "status": "pass",
+        "actionHitRate": 1
+      }
+    ]
+  }
+}

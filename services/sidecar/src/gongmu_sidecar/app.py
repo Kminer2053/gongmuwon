@@ -88,6 +88,10 @@ class WorkSessionTurnRequest(BaseModel):
     reasoning_effort: Literal["auto", "minimal", "low", "medium", "high"] = "auto"
 
 
+class WorkSessionRoutingPreviewRequest(BaseModel):
+    text: str
+
+
 class WorkSessionFileLinkInput(BaseModel):
     file_path: str
     label: str | None = None
@@ -1107,6 +1111,60 @@ class AppServices:
             return self._run_knowledge_search_skill(session_id=session_id, query=normalized)
         return None
 
+    def preview_work_session_routing(self, text: str) -> dict[str, Any]:
+        normalized = text.strip()
+        if not normalized:
+            return {
+                "route": "none",
+                "actions": [],
+                "planned_intents": [],
+                "parseable_schedule": False,
+            }
+
+        feature_usage = self._looks_like_feature_usage_request(normalized)
+        planned_intents = self._plan_work_session_intents(normalized)
+        parseable_schedule = self._parse_schedule_request(normalized) is not None
+
+        if feature_usage:
+            route = "tool"
+            actions = ["help.guide"]
+        elif len(planned_intents) > 1:
+            route = "multi_intent"
+            actions = ["intent.plan", *planned_intents]
+        elif self._looks_like_schedule_delete_request(normalized):
+            route = "tool"
+            actions = ["schedule.delete"]
+        elif self._looks_like_schedule_create_request(normalized) and parseable_schedule:
+            route = "tool"
+            actions = ["schedule.create"]
+        elif self._looks_like_schedule_list_request(normalized):
+            route = "tool"
+            actions = ["schedule.list"]
+        elif self._looks_like_document_create_request(normalized):
+            route = "tool"
+            actions = ["documents.generate"]
+        elif self._looks_like_knowledge_request(normalized):
+            route = "tool"
+            actions = ["knowledge.search"]
+        else:
+            route = "llm.chat"
+            actions = []
+
+        return {
+            "route": route,
+            "actions": list(dict.fromkeys(actions)),
+            "planned_intents": planned_intents,
+            "parseable_schedule": parseable_schedule,
+            "signals": {
+                "feature_usage": feature_usage,
+                "schedule_create": self._looks_like_schedule_create_request(normalized),
+                "schedule_delete": self._looks_like_schedule_delete_request(normalized),
+                "schedule_list": self._looks_like_schedule_list_request(normalized),
+                "knowledge": self._looks_like_knowledge_request(normalized),
+                "document": self._looks_like_document_create_request(normalized),
+            },
+        }
+
     def _plan_work_session_intents(self, text: str) -> list[str]:
         planned: list[str] = []
         if self._looks_like_schedule_delete_request(text):
@@ -1219,7 +1277,7 @@ class AppServices:
     def _looks_like_knowledge_request(text: str) -> bool:
         lowered = text.lower()
         knowledge_markers = ["지식폴더", "graphrag", "그래프rag", "근거", "출처", "자료", "knowledge", "rag", "source"]
-        action_markers = ["찾", "알려", "검색", "알아", "무엇", "뭐", "search", "find", "lookup", "show"]
+        action_markers = ["찾", "알려", "보여", "검색", "알아", "무엇", "뭐", "search", "find", "lookup", "show"]
         return any(marker in lowered for marker in knowledge_markers) and any(
             marker in lowered for marker in action_markers
         )
@@ -1227,7 +1285,7 @@ class AppServices:
     @staticmethod
     def _looks_like_schedule_create_request(text: str) -> bool:
         lowered = text.lower()
-        action_marker = any(token in text for token in ["등록", "추가", "생성", "만들", "잡아", "예약"]) or any(
+        action_marker = any(token in text for token in ["등록", "추가", "생성", "만들", "잡아", "예약", "넣어"]) or any(
             token in lowered for token in ["add", "create", "register", "book", "schedule"]
         )
         has_schedule_marker = (
@@ -3110,6 +3168,10 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     @app.get("/api/work-sessions")
     def list_work_sessions() -> dict[str, Any]:
         return {"items": services.list_work_sessions()}
+
+    @app.post("/api/work-sessions/routing-preview")
+    def preview_work_session_routing(payload: WorkSessionRoutingPreviewRequest) -> dict[str, Any]:
+        return services.preview_work_session_routing(payload.text)
 
     @app.patch("/api/work-sessions/{session_id}")
     def update_work_session(session_id: str, payload: WorkSessionUpdate) -> dict[str, Any]:
