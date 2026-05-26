@@ -168,7 +168,20 @@ ${modelStatus}
 
 ## 설치 방법
 
-PowerShell을 관리자 권한 또는 일반 권한으로 열고 아래 명령을 실행합니다.
+가장 쉬운 방법은 압축을 푼 뒤 아래 파일을 더블클릭하는 것입니다.
+
+\`\`\`text
+START_INSTALL.bat
+\`\`\`
+
+아래 파일들도 같은 작업을 수행합니다.
+
+\`\`\`text
+설치_시작.bat
+install-gongmu-ai.bat
+\`\`\`
+
+직접 PowerShell에서 실행하려면 관리자 권한 또는 일반 권한 PowerShell을 열고 아래 명령을 실행합니다.
 
 \`\`\`powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
@@ -453,6 +466,46 @@ async function writeInstallScript(path) {
   await writeTextFile(path, `\uFEFF${installScriptContent()}`);
 }
 
+function batchScriptContent() {
+  return `@echo off
+chcp 65001 > nul
+title Gongmu AI Pack Installer
+cd /d "%~dp0"
+echo.
+echo ============================================================
+echo  Gongmu AI Pack Installer
+echo  Ollama + GEMMA4 E2B IT Multimodal Setup
+echo ============================================================
+echo.
+echo Do not close this window until setup finishes.
+echo If setup fails, check install-gongmu-ai.log in this folder.
+echo.
+if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
+  echo Dry run mode: launcher syntax is OK.
+  exit /b 0
+)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-gongmu-ai.ps1"
+set EXIT_CODE=%ERRORLEVEL%
+echo.
+if not "%EXIT_CODE%"=="0" (
+  echo Setup or validation failed. Error code: %EXIT_CODE%
+  echo Check install-gongmu-ai.log, then run this file again.
+) else (
+  echo Setup and basic validation completed.
+)
+echo.
+pause
+exit /b %EXIT_CODE%
+`;
+}
+
+async function writeBatchLaunchers(packageDir) {
+  const content = batchScriptContent();
+  await writeTextFile(join(packageDir, "START_INSTALL.bat"), content);
+  await writeTextFile(join(packageDir, "install-gongmu-ai.bat"), content);
+  await writeTextFile(join(packageDir, "설치_시작.bat"), content);
+}
+
 async function writeShaSums(packageDir) {
   const files = await listFiles(packageDir);
   const lines = [];
@@ -556,6 +609,7 @@ export async function prepareOllamaAiPack(options = {}) {
   }
 
   await writeInstallScript(join(packageDir, "install-gongmu-ai.ps1"));
+  await writeBatchLaunchers(packageDir);
   await writePackageReadme(join(packageDir, "README.md"), { hasModelStore, hasOllamaInstaller, hasGongmuInstaller });
   await writeThirdPartyNotices(join(packageDir, "THIRD_PARTY_NOTICES.md"));
   await writeLicenseFiles(packageDir);

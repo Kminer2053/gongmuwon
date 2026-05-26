@@ -58,10 +58,21 @@ async function main() {
     assert.match(installScript, /settings\.json/);
     assert.match(installScript, /업무엔진/);
 
+    const batchScript = await readFile(join(result.packageDir, "install-gongmu-ai.bat"), "utf8");
+    assert.match(batchScript, /powershell\.exe/);
+    assert.match(batchScript, /ExecutionPolicy Bypass/);
+    assert.match(batchScript, /install-gongmu-ai\.ps1/);
+    assert.match(batchScript, /GONGMU_AI_PACK_DRY_RUN/);
+    assert.match(batchScript, /pause/);
+    assert.equal(await exists(join(result.packageDir, "START_INSTALL.bat")), true);
+    assert.equal(await exists(join(result.packageDir, "설치_시작.bat")), true);
+
     const readme = await readFile(join(result.packageDir, "README.md"), "utf8");
     assert.match(readme, /GEMMA4 E2B IT/);
     assert.match(readme, /멀티모달/);
     assert.match(readme, /폐쇄망/);
+    assert.match(readme, /START_INSTALL\.bat/);
+    assert.match(readme, /설치_시작\.bat/);
 
     const notices = await readFile(join(result.packageDir, "THIRD_PARTY_NOTICES.md"), "utf8");
     assert.match(notices, /Ollama/);
