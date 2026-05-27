@@ -128,7 +128,7 @@ import {
   analyzeWorkSessionPersonalization,
 } from "./api";
 import { buildChatContextEvidence } from "./chatContextSummary";
-import { getVisibleMessageText } from "./chatMessageDisplay";
+import { getAssistantSourceLabel, getVisibleMessageText } from "./chatMessageDisplay";
 import { buildExecutionLogDisplay } from "./executionLogDisplay";
 import { LLM_PROVIDER_PRESETS, normalizeProviderKey, type LlmProviderKey } from "./llmProviders";
 import {
@@ -5037,9 +5037,9 @@ export function App() {
                         {message.role === "user" ? <span className="chat-message__eyebrow">You</span> : null}
                       </div>
                       </div>
-                      {message.role === "assistant" && (message.provider || message.model) ? (
+                      {message.role === "assistant" && getAssistantSourceLabel(message) ? (
                         <p className="subtle-text chat-message__provider">
-                          {[message.provider, message.model].filter(Boolean).join(" / ")}
+                          {getAssistantSourceLabel(message)}
                         </p>
                       ) : null}
                       {message.role === "assistant" ? (

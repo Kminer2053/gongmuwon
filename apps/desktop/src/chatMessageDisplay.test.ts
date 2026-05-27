@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getVisibleMessageText } from "./chatMessageDisplay";
+import { getAssistantSourceLabel, getVisibleMessageText } from "./chatMessageDisplay";
 import type { WorkSessionMessageItem } from "./api";
 
 function message(overrides: Partial<WorkSessionMessageItem>): WorkSessionMessageItem {
@@ -36,5 +36,29 @@ describe("getVisibleMessageText", () => {
         }),
       ),
     ).toBe("최종 답변입니다.");
+  });
+});
+
+describe("getAssistantSourceLabel", () => {
+  it("shows user-friendly tool names instead of internal skill ids", () => {
+    expect(
+      getAssistantSourceLabel(
+        message({
+          provider: "gongmu-skill",
+          model: "schedule.create",
+        }),
+      ),
+    ).toBe("공무 도구 / 일정 등록");
+  });
+
+  it("summarizes multi-step tool execution without exposing route ids", () => {
+    expect(
+      getAssistantSourceLabel(
+        message({
+          provider: "gongmu-skill",
+          model: "intent.plan, schedule.create, knowledge.search",
+        }),
+      ),
+    ).toBe("공무 도구 / 여러 작업 처리 · 일정 등록 · 지식폴더 검색");
   });
 });

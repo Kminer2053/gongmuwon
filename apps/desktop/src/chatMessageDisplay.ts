@@ -17,6 +17,54 @@ export function getVisibleMessageText(message: WorkSessionMessageItem) {
   return stripStaleWaitingCopy(message.text);
 }
 
+const PROVIDER_LABELS: Record<string, string> = {
+  "gongmu-skill": "공무 도구",
+  "gongmu-system": "공무 알림",
+};
+
+const MODEL_LABELS: Record<string, string> = {
+  "help.guide": "사용법 안내",
+  "intent.plan": "여러 작업 처리",
+  "schedule.create": "일정 등록",
+  "schedule.delete": "일정 삭제",
+  "schedule.list": "일정 조회",
+  "knowledge.search": "지식폴더 검색",
+  "knowledge.search.failed": "지식폴더 검색 오류",
+  "documents.generate": "문서작성",
+  "document.create": "문서작성",
+  "work_session.turn.blocked": "진행 중인 작업 안내",
+};
+
+export function getAssistantSourceLabel(message: WorkSessionMessageItem) {
+  if (message.role !== "assistant") {
+    return "";
+  }
+
+  const provider = message.provider?.trim() || "";
+  const model = message.model?.trim() || "";
+  if (!provider && !model) {
+    return "";
+  }
+
+  const providerLabel = PROVIDER_LABELS[provider] ?? provider;
+  const modelLabel = formatAssistantModelLabel(model);
+  return [providerLabel, modelLabel].filter(Boolean).join(" / ");
+}
+
+function formatAssistantModelLabel(model: string) {
+  if (!model) {
+    return "";
+  }
+
+  return model
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => MODEL_LABELS[item] ?? item)
+    .filter((item, index, items) => items.indexOf(item) === index)
+    .join(" · ");
+}
+
 export function stripStaleWaitingCopy(text: string) {
   return WAITING_COPY_PATTERNS.reduce(
     (current, pattern) => current.replace(pattern, "").trimStart(),

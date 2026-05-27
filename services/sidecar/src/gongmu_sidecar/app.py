@@ -1087,29 +1087,99 @@ class AppServices:
         normalized = text.strip()
         if not normalized:
             return None
+        skill_result: dict[str, Any] | None = None
         if self._looks_like_feature_usage_request(normalized):
-            return self._run_feature_usage_guide(normalized)
+            skill_result = self._run_feature_usage_guide(normalized)
+            return self._with_user_friendly_skill_explanation(skill_result)
         planned_intents = self._plan_work_session_intents(normalized)
         if len(planned_intents) > 1:
-            return self._run_work_session_intent_plan(
+            skill_result = self._run_work_session_intent_plan(
                 session_id=session_id,
                 session=session,
                 text=normalized,
                 intents=planned_intents,
             )
+            return self._with_user_friendly_skill_explanation(skill_result)
         if self._looks_like_schedule_delete_request(normalized):
-            return self._run_schedule_delete_skill(normalized)
+            skill_result = self._run_schedule_delete_skill(normalized)
+            return self._with_user_friendly_skill_explanation(skill_result)
         if self._looks_like_schedule_create_request(normalized):
             schedule_result = self._run_schedule_create_skill(normalized)
             if schedule_result is not None:
-                return schedule_result
+                return self._with_user_friendly_skill_explanation(schedule_result)
         if self._looks_like_schedule_list_request(normalized):
-            return self._run_schedule_list_skill()
+            skill_result = self._run_schedule_list_skill()
+            return self._with_user_friendly_skill_explanation(skill_result)
         if self._looks_like_document_create_request(normalized):
-            return self._run_document_create_skill(session_id=session_id, session=session, text=normalized)
+            skill_result = self._run_document_create_skill(
+                session_id=session_id,
+                session=session,
+                text=normalized,
+            )
+            return self._with_user_friendly_skill_explanation(skill_result)
         if self._looks_like_knowledge_request(normalized):
-            return self._run_knowledge_search_skill(session_id=session_id, query=normalized)
+            skill_result = self._run_knowledge_search_skill(session_id=session_id, query=normalized)
+            return self._with_user_friendly_skill_explanation(skill_result)
         return None
+
+    @staticmethod
+    def _friendly_skill_action_label(action: str) -> str:
+        return {
+            "help.guide": "사용법 안내",
+            "intent.plan": "여러 작업 처리",
+            "schedule.create": "일정 등록",
+            "schedule.delete": "일정 삭제",
+            "schedule.list": "일정 조회",
+            "knowledge.search": "지식폴더 검색",
+            "knowledge.search.failed": "지식폴더 검색",
+            "documents.generate": "문서작성",
+            "document.create": "문서작성",
+        }.get(action, "업무 처리")
+
+    def _with_user_friendly_skill_explanation(self, result: dict[str, Any] | None) -> dict[str, Any] | None:
+        if result is None:
+            return None
+        text = str(result.get("text") or "").strip()
+        if not text or "이렇게 이해했어요" in text:
+            return result
+
+        raw_actions = [str(action) for action in result.get("actions", []) if str(action).strip()]
+        action_set = set(raw_actions)
+        user_actions = [
+            action
+            for action in raw_actions
+            if action != "intent.plan" and not action.endswith(".failed")
+        ]
+        if not user_actions and "knowledge.search.failed" in action_set:
+            user_actions = ["knowledge.search.failed"]
+
+        explanation: str | None
+        if len(user_actions) > 1:
+            labels = [self._friendly_skill_action_label(action) for action in user_actions]
+            explanation = f"요청 안에 {', '.join(labels)}이 함께 보여 순서대로 처리했습니다."
+        elif "help.guide" in action_set:
+            explanation = "기능 사용법을 묻는 요청으로 이해해 공무원 사용 안내를 먼저 보여드립니다."
+        elif "schedule.create" in action_set:
+            explanation = "날짜와 시간, 일정 등록 요청이 함께 보여 업무일정 캘린더에 새 항목을 추가했습니다."
+        elif "schedule.delete" in action_set:
+            explanation = "일정 삭제 요청으로 이해해 등록된 업무일정에서 맞는 항목을 찾았습니다."
+        elif "schedule.list" in action_set:
+            explanation = "등록된 일정을 확인하려는 요청으로 이해해 업무일정 목록을 조회했습니다."
+        elif "knowledge.search" in action_set:
+            explanation = "자료를 찾아달라는 요청으로 이해해 지식폴더와 로컬 근거를 먼저 검색했습니다."
+        elif "knowledge.search.failed" in action_set:
+            explanation = "지식폴더 검색 요청으로 이해해 로컬 근거 검색을 시도했지만 완료하지 못했습니다."
+        elif "document.create" in action_set or "documents.generate" in action_set:
+            explanation = "보고서나 HWPX 파일로 정리해 달라는 요청으로 이해해 문서작성 기능을 실행했습니다."
+        else:
+            explanation = None
+
+        if not explanation:
+            return result
+
+        friendly_result = dict(result)
+        friendly_result["text"] = f"이렇게 이해했어요\n- {explanation}\n\n{text}"
+        return friendly_result
 
     def preview_work_session_routing(self, text: str) -> dict[str, Any]:
         normalized = text.strip()
