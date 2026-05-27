@@ -5,6 +5,7 @@ import pytest
 from hwpx import HwpxDocument
 
 from gongmu_sidecar.app import create_app
+from gongmu_sidecar.hwpx_writer import build_public_document_payload, render_public_document_lines
 
 
 def _client(tmp_path: Path):
@@ -26,6 +27,57 @@ def _extract_hwpx_text(path: Path) -> str:
             if name.lower().endswith(".xml") or name == "Preview/PrvText.txt":
                 chunks.append(archive.read(name).decode("utf-8", errors="ignore"))
     return "\n".join(chunks)
+
+
+def test_onepage_report_payload_prioritizes_session_context_over_empty_state_text() -> None:
+    markdown = """
+# 오늘 대화세션 보고서
+
+## 업무대화 세션
+- 세션 제목: 업무대화 테스트
+- 연결 일정: 없음
+
+## 업무대화 기록
+- 사용자: 내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘
+- 어시스턴트: 일정을 등록했습니다. 제목: 회의 시간: 2026-05-27T14:00:00+09:00 ~ 2026-05-27T15:00:00+09:00
+- 어시스턴트: GraphRAG 검색 결과입니다. The Art of Prompt Engineering_Beginner, claude-master-guide 문서를 근거로 프롬프트 작성 원칙과 사고 강도 조절 방법을 제시했습니다.
+- 사용자: 업무대화랑 파일찾기 사용법 안내해줄래?
+- 어시스턴트: 업무대화는 일정 등록, 지식폴더 검색, 문서작성 같은 연계 기능을 먼저 시도합니다. 파일찾기는 현재 세션에 관련 파일을 연결해 이후 대화와 문서작성 근거로 사용합니다.
+- 사용자: 이번달 등록된 일정확인해줘
+- 어시스턴트: 등록된 일정입니다. AI 전략회의, 목표 검증 회의 등 일정 목록을 제공했습니다.
+- 어시스턴트: LLM 응답 생성에 실패했습니다. LLM request failed (403): Featherless API subscription plan does not have API access enabled.
+- 어시스턴트: 현재까지의 대화 세션 내용을 요약했습니다. 일정 등록, 프롬프트 자료 검색, 기능 안내, 일정 조회를 중심으로 진행되었습니다.
+
+## 세션 연결 파일
+- 아직 연결된 파일이 없습니다.
+
+## 참고자료
+- 참고자료가 아직 연결되지 않았습니다.
+"""
+    payload = build_public_document_payload(
+        title="오늘 대화세션 1페이지 보고서",
+        purpose="업무대화 세션 맥락을 보고서로 압축",
+        template_key="report",
+        content_markdown=markdown,
+        document_format="onePageReport",
+        requested_action="프롬프트 자료 검토 및 Featherless API 권한 확인",
+    )
+
+    rendered = "\n".join(render_public_document_lines(payload))
+
+    assert not any(item.startswith("사용자:") or item.startswith("어시스턴트:") for item in payload.summary[:3])
+    assert any("지식폴더 GraphRAG" in item for item in payload.summary)
+    assert any("Featherless API 권한" in item for item in payload.issues + payload.actions + payload.requested_action)
+    assert "아직 연결된 파일이 없습니다" not in rendered
+    assert "참고자료가 아직 연결되지 않았습니다" not in rendered
+    assert "Content Base 내용을 기준으로 정리합니다" not in rendered
+    assert "일정 등록" in rendered
+    assert "GraphRAG" in rendered
+    assert "프롬프트" in rendered
+    assert "The Art of Prompt Engineering_Beginner" in rendered
+    assert "claude-master-guide" in rendered
+    assert "Featherless API" in rendered
+    assert "회의" in rendered
 
 
 def _seed_session_with_schedule_and_files(client, tmp_path: Path) -> dict[str, str]:

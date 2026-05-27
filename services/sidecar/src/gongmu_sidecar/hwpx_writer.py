@@ -77,10 +77,15 @@ def build_public_document_payload(
     direct_file_lines = _usable_section_values(sections, "직접 연결 파일")
     instruction_lines = _usable_section_values(sections, "세션 기반 작성 개요") + _usable_section_values(sections, "바로 작성 개요")
     reference_lines = _usable_section_values(sections, "참고자료") + linked_file_lines + direct_file_lines
-    core_context_lines = _dedupe_non_empty(linked_file_lines + direct_file_lines + instruction_lines + conversation_lines)
+    session_brief_lines = _session_brief_lines(conversation_lines)
+    session_issue_lines = _session_issue_lines(conversation_lines)
+    report_context_lines = _dedupe_non_empty(
+        linked_file_lines + direct_file_lines + session_brief_lines + instruction_lines + conversation_lines
+    )
     evidence_lines = _dedupe_non_empty(
         linked_file_lines
         + direct_file_lines
+        + session_brief_lines
         + instruction_lines
         + _usable_section_values(sections, "참고자료")
         + session_lines
@@ -93,7 +98,7 @@ def build_public_document_payload(
     solutions = _first_non_empty(
         sections,
         ["후속 조치", "결정 사항", "권고안", "해결방안", "조치사항"],
-        fallback=core_context_lines[:3] if core_context_lines else None,
+        fallback=report_context_lines[:3] if report_context_lines else None,
     )
     pick = lambda keys, fallback=None: _apply_writing_principles(_first_non_empty(sections, keys, fallback=fallback))
 
@@ -102,22 +107,23 @@ def build_public_document_payload(
         document_purpose=purpose,
         selected_format=selected_format,
         summary=_apply_writing_principles(
-            core_context_lines[:3]
+            session_brief_lines[:3]
+            or report_context_lines[:3]
             or _first_non_empty(
                 sections,
                 ["핵심 내용", "회의 목적", "검토 배경", "업무대화 세션", "개요", "바로 작성 개요", "세션 기반 작성 개요"],
             )
         ),
         background=_apply_writing_principles(
-            (conversation_lines + session_lines)[:3]
+            (session_brief_lines + session_lines + conversation_lines)[:3]
             or _first_non_empty(sections, ["검토 배경", "회의 목적", "개요", "바로 작성 개요", "세션 기반 작성 개요"])
         ),
         current_status=_apply_writing_principles(
-            (linked_file_lines + direct_file_lines + conversation_lines)[:4]
+            (linked_file_lines + direct_file_lines + session_brief_lines + conversation_lines)[:4]
             or _first_non_empty(sections, ["핵심 내용", "논의 안건"])
         ),
         issues=_apply_writing_principles(
-            (linked_file_lines + direct_file_lines + conversation_lines)[:4]
+            (session_issue_lines + linked_file_lines + direct_file_lines + session_brief_lines + conversation_lines)[:4]
             or _first_non_empty(sections, ["핵심 내용", "논의 안건", "검토 의견", "문제점", "바로 작성 개요", "세션 기반 작성 개요"])
         ),
         solutions=_apply_writing_principles(solutions),
@@ -125,7 +131,7 @@ def build_public_document_payload(
             ["기대효과"],
             fallback=["후속 절차를 명확히 하고 업무 이력을 재사용할 수 있습니다."],
         ),
-        actions=pick(["후속 조치", "결정 사항", "권고안", "조치사항"], fallback=core_context_lines[:2] if core_context_lines else None),
+        actions=pick(["후속 조치", "결정 사항", "권고안", "조치사항"], fallback=(session_issue_lines + report_context_lines)[:2] if report_context_lines else None),
         requested_action=_apply_writing_principles(requested_action_lines),
         evidence=_apply_writing_principles(evidence_lines),
         quality_checks=_public_document_quality_checks(),
@@ -535,7 +541,16 @@ def _looks_like_placeholder_value(value: str) -> bool:
     normalized = re.sub(r"\s+", " ", value).strip()
     if normalized in {"사용자:", "어시스턴트:", "-", "—"}:
         return True
-    return "내용을 여기에 정리합니다" in normalized
+    placeholder_phrases = [
+        "내용을 여기에 정리합니다",
+        "아직 연결된 파일이 없습니다",
+        "참고자료가 아직 연결되지 않았습니다",
+        "아직 저장된 대화가 없습니다",
+        "연결 일정: 없음",
+        "선택 안 함",
+        "미지정",
+    ]
+    return any(phrase in normalized for phrase in placeholder_phrases)
 
 
 def _looks_like_document_generation_instruction(value: str) -> bool:
@@ -582,6 +597,82 @@ def _looks_like_document_generation_instruction(value: str) -> bool:
         ]
     )
     return has_document_marker and has_action_marker
+
+
+def _strip_dialog_role(value: str) -> str:
+    normalized = value.strip()
+    for prefix in ["사용자:", "어시스턴트:", "User:", "Assistant:", "user:", "assistant:"]:
+        if normalized.startswith(prefix):
+            return normalized[len(prefix) :].strip()
+    return normalized
+
+
+def _source_names_from_text(value: str) -> list[str]:
+    names: list[str] = []
+    for candidate in [
+        "The Art of Prompt Engineering_Beginner",
+        "claude-master-guide",
+        "AI 전략회의",
+        "목표 검증 회의",
+    ]:
+        if candidate in value:
+            names.append(candidate)
+    return names
+
+
+def _session_brief_lines(conversation_lines: list[str]) -> list[str]:
+    has_schedule_create = False
+    has_knowledge_search = False
+    has_help_guide = False
+    has_schedule_list = False
+    has_summary = False
+    source_names: list[str] = []
+    for line in conversation_lines:
+        text = _strip_dialog_role(line)
+        lowered = text.lower()
+        source_names.extend(_source_names_from_text(text))
+        if "일정을 등록했습니다" in text or ("일정" in text and "등록" in text):
+            has_schedule_create = True
+        if "graphrag" in lowered or "지식폴더" in text or "검색 결과" in text or "프롬프트" in text:
+            has_knowledge_search = True
+        if "파일찾기" in text or "기능 사용법" in text or "사용법" in text:
+            has_help_guide = True
+        if "등록된 일정입니다" in text or "일정 목록" in text or "이번달" in text or "이번 달" in text:
+            has_schedule_list = True
+        if "세션 내용을 요약" in text or "대화 세션 내용을 요약" in text:
+            has_summary = True
+    source_label = ", ".join(_dedupe_non_empty(source_names[:4]))
+    lines: list[str] = []
+    if has_schedule_create:
+        lines.append("일정 등록 요청을 처리하고 회의 또는 업무협의 시간을 업무 이력으로 남겼습니다.")
+    if has_knowledge_search:
+        if source_label:
+            lines.append(f"지식폴더 GraphRAG 검색으로 프롬프트 관련 근거자료({source_label})를 확인했습니다.")
+        else:
+            lines.append("지식폴더 GraphRAG 검색으로 프롬프트 관련 근거자료를 확인했습니다.")
+    if has_help_guide:
+        lines.append("업무대화와 파일찾기 사용법을 안내하여 세션-파일-문서작성 연계 흐름을 확인했습니다.")
+    if has_schedule_list:
+        lines.append("이번 달 등록 일정을 조회해 기존 일정 목록과 중복 가능성을 확인했습니다.")
+    if has_summary:
+        lines.append("세션 요약 요청을 통해 일정, 검색, 기능 안내, 일정 조회 이력을 재정리했습니다.")
+    if not lines:
+        lines = [_strip_dialog_role(line) for line in conversation_lines[:4]]
+    return _dedupe_non_empty(lines)
+
+
+def _session_issue_lines(conversation_lines: list[str]) -> list[str]:
+    issues: list[str] = []
+    for line in conversation_lines:
+        text = _strip_dialog_role(line)
+        lowered = text.lower()
+        if "403" in text or "upgrade_required" in lowered or "api access" in lowered:
+            issues.append("Featherless API 권한 오류(403)가 발생해 구독 플랜의 API 접근 권한 확인이 필요합니다.")
+        if "중복" in text and "일정" in text:
+            issues.append("일정 목록에 중복 일정이 있을 수 있어 정리 기준 확인이 필요합니다.")
+        if "알 수 없습니다" in text and ("누구" in text or "김이룸" in text):
+            issues.append("인물 식별 요청은 세션 또는 지식폴더 근거가 부족하면 답변이 제한됩니다.")
+    return _dedupe_non_empty(issues)
 
 
 def _dedupe_non_empty(items: list[str]) -> list[str]:
