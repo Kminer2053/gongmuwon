@@ -218,7 +218,7 @@ class AppServices:
         )
         self.recovered_knowledge_jobs = self.graphrag.recover_interrupted_jobs()
         self.personalization = PersonalizationManager(self.db)
-        self.documents = DocumentManager(self.paths, self.db)
+        self.documents = DocumentManager(self.paths, self.db, graphrag=self.graphrag)
         self.file_organizer = FileOrganizer(self.paths, self.db)
 
     @property

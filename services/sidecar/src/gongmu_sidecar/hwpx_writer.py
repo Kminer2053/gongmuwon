@@ -71,20 +71,39 @@ def build_public_document_payload(
         template_key=template_key,
         document_format=document_format,
     )
+    brief_lines = _usable_section_values(sections, "WorkSessionBrief")
+    plan_lines = _usable_section_values(sections, "DocumentPlan")
+    core_lines = _usable_section_values(sections, "핵심 내용")
+    status_issue_lines = _usable_section_values(sections, "현황 및 쟁점")
+    solution_section_lines = _usable_section_values(sections, "조치안")
+    effect_request_lines = _usable_section_values(sections, "기대효과 및 요청")
+    evidence_section_lines = _usable_section_values(sections, "수집 근거")
+    quality_section_lines = _usable_section_values(sections, "작성 품질 점검")
     session_lines = sections.get("업무대화 세션", [])
     conversation_lines = _usable_section_values(sections, "업무대화 기록")
     linked_file_lines = _usable_section_values(sections, "세션 연결 파일")
     direct_file_lines = _usable_section_values(sections, "직접 연결 파일")
     instruction_lines = _usable_section_values(sections, "세션 기반 작성 개요") + _usable_section_values(sections, "바로 작성 개요")
-    reference_lines = _usable_section_values(sections, "참고자료") + linked_file_lines + direct_file_lines
+    reference_lines = evidence_section_lines + _usable_section_values(sections, "참고자료") + linked_file_lines + direct_file_lines
     session_brief_lines = _session_brief_lines(conversation_lines)
     session_issue_lines = _session_issue_lines(conversation_lines)
     report_context_lines = _dedupe_non_empty(
-        linked_file_lines + direct_file_lines + session_brief_lines + instruction_lines + conversation_lines
+        core_lines
+        + brief_lines
+        + status_issue_lines
+        + solution_section_lines
+        + effect_request_lines
+        + linked_file_lines
+        + direct_file_lines
+        + session_brief_lines
+        + instruction_lines
+        + conversation_lines
     )
     evidence_lines = _dedupe_non_empty(
-        linked_file_lines
+        evidence_section_lines
+        + linked_file_lines
         + direct_file_lines
+        + plan_lines
         + session_brief_lines
         + instruction_lines
         + _usable_section_values(sections, "참고자료")
@@ -93,11 +112,11 @@ def build_public_document_payload(
     )
     requested_action_lines = [requested_action] if requested_action.strip() else _first_non_empty(
         sections,
-        ["후속 조치", "결정 사항", "권고안", "요청사항", "작성 슬롯"],
+        ["기대효과 및 요청", "후속 조치", "결정 사항", "권고안", "요청사항", "작성 슬롯"],
     )
     solutions = _first_non_empty(
         sections,
-        ["후속 조치", "결정 사항", "권고안", "해결방안", "조치사항"],
+        ["조치안", "후속 조치", "결정 사항", "권고안", "해결방안", "조치사항"],
         fallback=report_context_lines[:3] if report_context_lines else None,
     )
     pick = lambda keys, fallback=None: _apply_writing_principles(_first_non_empty(sections, keys, fallback=fallback))
@@ -107,7 +126,8 @@ def build_public_document_payload(
         document_purpose=purpose,
         selected_format=selected_format,
         summary=_apply_writing_principles(
-            session_brief_lines[:3]
+            core_lines[:4]
+            or session_brief_lines[:3]
             or report_context_lines[:3]
             or _first_non_empty(
                 sections,
@@ -115,26 +135,26 @@ def build_public_document_payload(
             )
         ),
         background=_apply_writing_principles(
-            (session_brief_lines + session_lines + conversation_lines)[:3]
+            (brief_lines + session_brief_lines + session_lines + conversation_lines)[:4]
             or _first_non_empty(sections, ["검토 배경", "회의 목적", "개요", "바로 작성 개요", "세션 기반 작성 개요"])
         ),
         current_status=_apply_writing_principles(
-            (linked_file_lines + direct_file_lines + session_brief_lines + conversation_lines)[:4]
+            (status_issue_lines + linked_file_lines + direct_file_lines + session_brief_lines + conversation_lines)[:5]
             or _first_non_empty(sections, ["핵심 내용", "논의 안건"])
         ),
         issues=_apply_writing_principles(
-            (session_issue_lines + linked_file_lines + direct_file_lines + session_brief_lines + conversation_lines)[:4]
+            (status_issue_lines + session_issue_lines + linked_file_lines + direct_file_lines + session_brief_lines + conversation_lines)[:5]
             or _first_non_empty(sections, ["핵심 내용", "논의 안건", "검토 의견", "문제점", "바로 작성 개요", "세션 기반 작성 개요"])
         ),
         solutions=_apply_writing_principles(solutions),
         expected_effects=pick(
-            ["기대효과"],
+            ["기대효과 및 요청", "기대효과"],
             fallback=["후속 절차를 명확히 하고 업무 이력을 재사용할 수 있습니다."],
         ),
-        actions=pick(["후속 조치", "결정 사항", "권고안", "조치사항"], fallback=(session_issue_lines + report_context_lines)[:2] if report_context_lines else None),
+        actions=pick(["조치안", "후속 조치", "결정 사항", "권고안", "조치사항"], fallback=(session_issue_lines + report_context_lines)[:2] if report_context_lines else None),
         requested_action=_apply_writing_principles(requested_action_lines),
         evidence=_apply_writing_principles(evidence_lines),
-        quality_checks=_public_document_quality_checks(),
+        quality_checks=quality_section_lines or _public_document_quality_checks(),
         related="; ".join(reference_lines) if reference_lines else "Content Base 초안",
         recipient=audience_type or "관련 부서",
         sender="공무 워크스페이스",

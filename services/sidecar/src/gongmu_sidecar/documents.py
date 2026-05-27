@@ -8,6 +8,7 @@ from typing import Any
 from uuid import uuid4
 
 from .db import Database, now_iso
+from .document_planning import build_document_plan, compile_document_brief, render_brief_markdown
 from .hwpx_writer import write_public_hwpx_document
 from .workspace import WorkspacePaths
 
@@ -39,9 +40,10 @@ TEMPLATE_EXTENSIONS = {".hwpx", ".hwtx"}
 
 
 class DocumentManager:
-    def __init__(self, paths: WorkspacePaths, db: Database) -> None:
+    def __init__(self, paths: WorkspacePaths, db: Database, graphrag: Any | None = None) -> None:
         self.paths = paths
         self.db = db
+        self.graphrag = graphrag
 
     def create_content_base(
         self,
@@ -82,6 +84,26 @@ class DocumentManager:
             "deadline": deadline,
             "security_level": security_level,
         }
+        knowledge_items = self._document_knowledge_items(
+            title=title,
+            purpose=purpose,
+            outline=outline,
+            source_session_id=source_session_id,
+            session_context=session_context,
+        )
+        brief = compile_document_brief(
+            title=title,
+            purpose=purpose,
+            outline=outline,
+            document_format=document_format,
+            session_context=session_context,
+            references=references,
+            direct_file_paths=direct_paths,
+            slots=slots,
+            file_excerpt_reader=self._safe_file_excerpt,
+            knowledge_items=knowledge_items,
+        )
+        plan = build_document_plan(brief)
         body = self._render_markdown(
             title=title,
             purpose=purpose,
@@ -93,6 +115,8 @@ class DocumentManager:
             slots=slots,
             direct_file_paths=direct_paths,
             user_template_path=selected_template_path,
+            brief=brief,
+            plan=plan,
         )
         base_path.write_text(body, encoding="utf-8")
         preview_path.write_text(self._render_html(body), encoding="utf-8")
@@ -356,6 +380,37 @@ class DocumentManager:
 
         return [f"- {item['label']} ({item['kind']}): {item['value']}" for item in items]
 
+    def _document_knowledge_items(
+        self,
+        *,
+        title: str,
+        purpose: str,
+        outline: str,
+        source_session_id: str | None,
+        session_context: dict[str, Any] | None,
+    ) -> list[dict[str, Any]]:
+        if self.graphrag is None:
+            return []
+        query_parts = [outline, purpose, title]
+        for message in (session_context or {}).get("messages") or []:
+            query_parts.append(str(message.get("text", "")))
+        query = re.sub(r"\s+", " ", " ".join(part for part in query_parts if part)).strip()
+        if not query:
+            return []
+        query = query[:2000]
+        try:
+            result = self.graphrag.retrieve(query=query, session_id=source_session_id, limit=5)
+        except TypeError:
+            result = self.graphrag.retrieve(query=query, limit=5)
+        except Exception:
+            return []
+        if isinstance(result, dict):
+            items = result.get("items") or []
+            return [item for item in items if isinstance(item, dict)]
+        if isinstance(result, list):
+            return [item for item in result if isinstance(item, dict)]
+        return []
+
     def _render_markdown(
         self,
         *,
@@ -369,6 +424,8 @@ class DocumentManager:
         slots: dict[str, str],
         direct_file_paths: list[str],
         user_template_path: str | None,
+        brief: Any,
+        plan: Any,
     ) -> str:
         lines = [f"# {title}", ""]
         lines += [
@@ -378,6 +435,7 @@ class DocumentManager:
             f"- 사용자 양식: {user_template_path or '선택 안 함'}",
             "",
         ]
+        lines += render_brief_markdown(brief, plan)
         lines += self._slot_lines(slots)
 
         if session_context:

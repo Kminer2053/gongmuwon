@@ -203,6 +203,163 @@ def test_content_base_uses_work_session_schedule_files_and_reference_set(tmp_pat
     assert "요청 조치: 후속 회의 일정 확정" in content
 
 
+def test_content_base_compiles_instruction_aware_worksession_brief_with_graphrag(
+    tmp_path: Path, monkeypatch
+) -> None:
+    client = _client(tmp_path)
+    schedule = client.post(
+        "/api/schedules",
+        json={
+            "title": "프롬프트 활용 검토회의",
+            "starts_at": "2026-05-28T14:00:00+09:00",
+            "ends_at": "2026-05-28T15:00:00+09:00",
+            "view": "month",
+        },
+    )
+    assert schedule.status_code == 201
+    session = client.post(
+        "/api/work-sessions",
+        json={"title": "프롬프트 자료 검토 세션", "schedule_id": schedule.json()["id"]},
+    )
+    assert session.status_code == 201
+    session_id = session.json()["id"]
+
+    for role, text in [
+        ("user", "내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘"),
+        (
+            "assistant",
+            "일정 등록을 완료했고 GraphRAG에서 The Art of Prompt Engineering_Beginner와 "
+            "claude-master-guide를 근거로 찾았습니다.",
+        ),
+        ("user", "오늘 대화세션 내용을 1페이지 보고서로 만들어줘"),
+    ]:
+        posted = client.post(f"/api/work-sessions/{session_id}/messages", json={"role": role, "text": text})
+        assert posted.status_code == 201
+
+    linked_file = tmp_path / "prompt-action-plan.md"
+    linked_file.write_text(
+        "프롬프트 활용계획: 목적, 맥락, 제약조건, 출력형식을 명확히 적고 민감정보는 보호한다.",
+        encoding="utf-8",
+    )
+    linked = client.post(
+        f"/api/work-sessions/{session_id}/file-links",
+        json={
+            "items": [
+                {
+                    "file_path": str(linked_file),
+                    "label": "프롬프트 활용계획",
+                    "source": "manual",
+                }
+            ]
+        },
+    )
+    assert linked.status_code == 201
+    reference_set = client.post(
+        "/api/reference-sets",
+        json={
+            "title": "프롬프트 참고자료",
+            "session_id": session_id,
+            "items": [
+                {
+                    "kind": "file",
+                    "label": "The Art of Prompt Engineering_Beginner",
+                    "value": r"C:\Users\USER\Documents\AI자료모음\The Art of Prompt Engineering_Beginner.pdf",
+                }
+            ],
+        },
+    )
+    assert reference_set.status_code == 201
+
+    def fake_retrieve(**kwargs):
+        assert kwargs["session_id"] == session_id
+        assert "프롬프트" in kwargs["query"] or "보고서" in kwargs["query"]
+        return {
+            "items": [
+                {
+                    "document": {
+                        "title": "The Art of Prompt Engineering_Beginner",
+                        "file_path": r"C:\Users\USER\Documents\AI자료모음\The Art of Prompt Engineering_Beginner.pdf",
+                    },
+                    "text": "프롬프트 품질은 맥락, 구체성, 제약조건, 원하는 출력 형식이 좌우한다.",
+                    "evidence_type": "section",
+                    "relations": [{"relation": "REFERENCES", "target_label": "프롬프트 작성 원칙"}],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(client.app.state.services.graphrag, "retrieve", fake_retrieve)
+
+    content_base = client.post(
+        "/api/documents/content-bases",
+        json={
+            "title": "프롬프트 자료 검토 1페이지 보고",
+            "purpose": "대화세션과 지식폴더 근거를 종합해 회의 보고자료 작성",
+            "reference_set_id": reference_set.json()["id"],
+            "template_key": "report",
+            "source_session_id": session_id,
+            "outline": "오늘 대화세션 내용을 1페이지 보고서로 만들어줘",
+            "document_format": "onePageReport",
+            "audience_type": "부서장",
+            "expected_length": "1쪽",
+            "requested_action": "프롬프트 활용 방향 검토",
+            "direct_file_paths": [],
+            "user_template_path": None,
+        },
+    )
+
+    assert content_base.status_code == 201
+    content = content_base.json()["content"]
+    assert "## WorkSessionBrief" in content
+    assert "## DocumentPlan" in content
+    assert "## 핵심 내용" in content
+    assert "## 현황 및 쟁점" in content
+    assert "## 조치안" in content
+    assert "## 수집 근거" in content
+    assert "프롬프트 활용 검토회의" in content
+    assert "프롬프트 활용계획" in content
+    assert "프롬프트 품질은 맥락" in content
+    assert "The Art of Prompt Engineering_Beginner" in content
+    assert "두괄식" in content
+    assert "개조식" in content
+
+
+def test_document_generate_direct_request_uses_worksession_brief_and_document_plan(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    evidence_file = tmp_path / "local-ai-policy.md"
+    evidence_file.write_text(
+        "로컬 AI 업무환경은 폐쇄망 보안, 파일검색, GraphRAG, 문서작성 자동화를 함께 고려해야 한다.",
+        encoding="utf-8",
+    )
+
+    generated = client.post(
+        "/api/documents/generate",
+        json={
+            "title": "로컬 AI 업무환경 검토보고",
+            "purpose": "첨부 자료를 바탕으로 의사결정용 1페이지 보고서 작성",
+            "template_key": "report",
+            "source_session_id": None,
+            "outline": "첨부 자료 기반으로 폐쇄망용 로컬 AI 업무환경 도입 필요성과 조치안을 정리해줘",
+            "document_format": "onePageReport",
+            "audience_type": "부서장",
+            "expected_length": "1쪽",
+            "requested_action": "도입 검토",
+            "direct_file_paths": [str(evidence_file)],
+            "user_template_path": None,
+            "output_name": "local-ai-policy-report",
+        },
+    )
+
+    assert generated.status_code == 201
+    content = generated.json()["content_base"]["content"]
+    review_text = Path(generated.json()["artifact"]["markdown_path"]).read_text(encoding="utf-8")
+    assert "## WorkSessionBrief" in content
+    assert "## DocumentPlan" in content
+    assert "로컬 AI 업무환경은 폐쇄망 보안" in content
+    assert "로컬 AI 업무환경은 폐쇄망 보안" in review_text
+    assert "도입 검토" in review_text
+    assert "두괄식" in review_text
+
+
 def test_final_hwpx_contains_session_and_file_context(tmp_path: Path) -> None:
     client = _client(tmp_path)
     seeded = _seed_session_with_schedule_and_files(client, tmp_path)
