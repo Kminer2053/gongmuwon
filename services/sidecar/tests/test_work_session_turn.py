@@ -601,6 +601,34 @@ def test_work_session_turn_creates_schedule_from_korean_natural_datetime(tmp_pat
     assert schedules[0]["starts_at"].startswith("2026-05-21T16:00:00")
 
 
+def test_work_session_turn_prioritizes_schedule_when_document_word_is_event_title(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fail_if_llm_called(settings, messages, **kwargs):
+        raise AssertionError("schedule title containing document words must not route to document generation")
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "문서작성법 세미나 일정 테스트"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "문서작성법 사내강의가 6.5일 오후 3시에 다목적홀에서 열린데, 일정에 등록좀 해줘"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assistant_message"]["provider"] == "gongmu-skill"
+    assert payload["context_summary"]["skill_actions"] == ["schedule.create"]
+    assert "일정을 등록했습니다" in payload["assistant_message"]["text"]
+    assert "HWPX 문서를 생성했습니다" not in payload["assistant_message"]["text"]
+
+    schedules = client.get("/api/schedules").json()["items"]
+    assert schedules[0]["title"] == "문서작성법 사내강의가 다목적홀에서 열린데"
+    assert schedules[0]["starts_at"].startswith("2026-06-05T15:00:00")
+
+
 def test_work_session_turn_accepts_english_schedule_command(tmp_path: Path, monkeypatch) -> None:
     def fail_if_llm_called(settings, messages, **kwargs):
         raise AssertionError("english schedule skill should create schedule without generic LLM fallback")

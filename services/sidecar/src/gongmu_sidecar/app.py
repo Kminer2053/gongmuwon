@@ -1323,10 +1323,11 @@ class AppServices:
     @staticmethod
     def _looks_like_document_create_request(text: str) -> bool:
         lowered = text.lower()
+        if AppServices._looks_like_schedule_create_request(text) and AppServices._parse_schedule_request(text) is not None:
+            return False
         has_document_marker = any(
             token in lowered
             for token in [
-                "문서작성",
                 "문서",
                 "보고서",
                 "보고서를",
@@ -1341,7 +1342,7 @@ class AppServices:
                 "report",
                 "email",
             ]
-        )
+        ) or bool(re.search(r"문서작성(?!법|교육|강의|세미나|방법)", text))
         if not has_document_marker:
             return False
         return any(
@@ -1486,7 +1487,7 @@ class AppServices:
     @staticmethod
     def _parse_schedule_request(text: str) -> dict[str, str] | None:
         date_match = re.search(
-            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일",
+            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|(?P<short_month>\d{1,2})[.\/](?P<short_day>\d{1,2})\s*일?",
             text,
         )
         today = datetime.now(timezone(timedelta(hours=9)))
@@ -1494,6 +1495,10 @@ class AppServices:
             if date_match.group("date"):
                 date_text = date_match.group("date").replace(".", "-")
                 year, month, day = [int(part) for part in date_text.split("-")]
+            elif date_match.group("short_month"):
+                year = today.year
+                month = int(date_match.group("short_month"))
+                day = int(date_match.group("short_day"))
             else:
                 year = int(date_match.group("year") or today.year)
                 month = int(date_match.group("month"))
@@ -1524,17 +1529,17 @@ class AppServices:
         ends_at = starts_at + timedelta(hours=1)
         raw_title = text
         raw_title = re.sub(
-            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|오늘|내일",
+            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|(?P<short_month>\d{1,2})[.\/](?P<short_day>\d{1,2})\s*일?|오늘|내일",
             " ",
             raw_title,
         )
         raw_title = re.sub(
-            r"(오전|오후|아침|저녁|밤)?\s*\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}\s*분?)?)",
+            r"(오전|오후|아침|저녁|밤)?\s*\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}\s*분?)?)(?:\s*(?:에|부터))?",
             " ",
             raw_title,
         )
         raw_title = re.sub(
-            r"(업무일정|일정|스케줄|schedule|calendar)?\s*(등록|추가|생성|만들어?줘?|잡아줘?|예약해줘?|add|create|register|book).*",
+            r"(업무일정|일정|스케줄|schedule|calendar)?(?:에|으로|로)?\s*(등록|추가|생성|만들어?줘?|잡아줘?|예약해줘?|add|create|register|book).*",
             "",
             raw_title,
             flags=re.IGNORECASE,
