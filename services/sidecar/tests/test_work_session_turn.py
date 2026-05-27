@@ -629,7 +629,33 @@ def test_work_session_turn_prioritizes_schedule_when_document_word_is_event_titl
     assert "HWPX 문서를 생성했습니다" not in payload["assistant_message"]["text"]
 
     schedules = client.get("/api/schedules").json()["items"]
-    assert schedules[0]["title"] == "문서작성법 사내강의가 다목적홀에서 열린데"
+    assert schedules[0]["title"] == "문서작성법 사내강의"
+    assert schedules[0]["starts_at"].startswith("2026-06-05T15:00:00")
+
+
+def test_work_session_turn_uses_event_phrase_before_date_as_schedule_title(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fail_if_llm_called(settings, messages, **kwargs):
+        raise AssertionError("clear schedule request should use the local schedule parser")
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "행사 일정 제목 테스트"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "문서작성법 사내강의가 6.5월 오후 3시에 다목적홀에서 열린데, 일정에 등록좀 해줘"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["context_summary"]["skill_actions"] == ["schedule.create"]
+    assert "HWPX 문서를 생성했습니다" not in payload["assistant_message"]["text"]
+
+    schedules = client.get("/api/schedules").json()["items"]
+    assert schedules[0]["title"] == "문서작성법 사내강의"
     assert schedules[0]["starts_at"].startswith("2026-06-05T15:00:00")
 
 

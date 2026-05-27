@@ -1557,10 +1557,15 @@ class AppServices:
     @staticmethod
     def _parse_schedule_request(text: str) -> dict[str, str] | None:
         date_match = re.search(
-            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|(?P<short_month>\d{1,2})[.\/](?P<short_day>\d{1,2})\s*일?",
+            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|(?P<short_month>\d{1,2})[.\/](?P<short_day>\d{1,2})\s*[월일]?",
             text,
         )
         today = datetime.now(timezone(timedelta(hours=9)))
+        title_before_date = (
+            AppServices._clean_schedule_title_candidate(text[: date_match.start()])
+            if date_match
+            else None
+        )
         if date_match:
             if date_match.group("date"):
                 date_text = date_match.group("date").replace(".", "-")
@@ -1599,7 +1604,7 @@ class AppServices:
         ends_at = starts_at + timedelta(hours=1)
         raw_title = text
         raw_title = re.sub(
-            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|(?P<short_month>\d{1,2})[.\/](?P<short_day>\d{1,2})\s*일?|오늘|내일",
+            r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|(?P<short_month>\d{1,2})[.\/](?P<short_day>\d{1,2})\s*[월일]?|오늘|내일",
             " ",
             raw_title,
         )
@@ -1617,12 +1622,20 @@ class AppServices:
         raw_title = re.sub(r"\b(업무일정|일정|스케줄|등록|추가|생성|만들|잡아|예약)\b", " ", raw_title)
         raw_title = re.sub(r"\s+", " ", raw_title).strip(" .,-:")
         raw_title = re.sub(r"^(에|에서)\s+", "", raw_title).strip(" .,-:")
-        title = raw_title or "새 일정"
+        title = title_before_date or raw_title or "새 일정"
         return {
             "title": title,
             "starts_at": starts_at.isoformat(),
             "ends_at": ends_at.isoformat(),
         }
+
+    @staticmethod
+    def _clean_schedule_title_candidate(text: str) -> str | None:
+        candidate = re.sub(r"\s+", " ", text).strip(" .,-:")
+        candidate = re.sub(r"(?:이|가|은|는)$", "", candidate).strip(" .,-:")
+        candidate = re.sub(r"\b(업무일정|일정|스케줄|등록|추가|생성|만들|잡아|예약)\b", " ", candidate)
+        candidate = re.sub(r"\s+", " ", candidate).strip(" .,-:")
+        return candidate or None
 
     @staticmethod
     def _schedule_delete_query(text: str) -> str:
