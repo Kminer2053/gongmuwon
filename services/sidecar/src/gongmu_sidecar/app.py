@@ -1090,6 +1090,7 @@ class AppServices:
         skill_result: dict[str, Any] | None = None
         pending_confirmation = self._run_pending_work_session_tool_confirmation(
             session_id=session_id,
+            session=session,
             text=normalized,
         )
         if pending_confirmation is not None:
@@ -1120,15 +1121,26 @@ class AppServices:
             skill_result = self._run_schedule_list_skill()
             return self._with_user_friendly_skill_explanation(skill_result)
         if self._looks_like_document_create_request(normalized):
-            skill_result = self._run_document_create_skill(
+            return self._request_work_session_tool_confirmation(
                 session_id=session_id,
-                session=session,
-                text=normalized,
+                user_message_id=user_message["id"],
+                action="document.create",
+                original_text=normalized,
             )
-            return self._with_user_friendly_skill_explanation(skill_result)
+        if self._looks_like_file_search_request(normalized):
+            return self._request_work_session_tool_confirmation(
+                session_id=session_id,
+                user_message_id=user_message["id"],
+                action="file.search",
+                original_text=normalized,
+            )
         if self._looks_like_knowledge_request(normalized):
-            skill_result = self._run_knowledge_search_skill(session_id=session_id, query=normalized)
-            return self._with_user_friendly_skill_explanation(skill_result)
+            return self._request_work_session_tool_confirmation(
+                session_id=session_id,
+                user_message_id=user_message["id"],
+                action="knowledge.search",
+                original_text=normalized,
+            )
         return None
 
     def _request_work_session_tool_confirmation(
@@ -1168,11 +1180,18 @@ class AppServices:
             outputs={"confirmation_id": confirmation["id"], "action": action},
         )
         label = self._friendly_skill_action_label(action)
+        particle = self._korean_instrumental_particle(label)
+        confirmation_action = {
+            "schedule.create": "schedule.confirm.request",
+            "document.create": "document.confirm.request",
+            "knowledge.search": "knowledge.confirm.request",
+            "file.search": "file.confirm.request",
+        }.get(action, "tool.confirm.request")
         return {
-            "actions": ["schedule.confirm.request" if action == "schedule.create" else "tool.confirm.request"],
+            "actions": [confirmation_action],
             "results": [{"confirmation_id": confirmation["id"], "action": action}],
             "text": (
-                f"{label}으로 처리할까요?\n\n"
+                f"{label}{particle} 처리할까요?\n\n"
                 "제가 이해한 내용\n"
                 f"- 처리할 일: {label}\n"
                 f"- 원문: {original_text}\n\n"
@@ -1198,6 +1217,7 @@ class AppServices:
         self,
         *,
         session_id: str,
+        session: dict[str, Any],
         text: str,
     ) -> dict[str, Any] | None:
         pending = self._latest_pending_work_session_tool_confirmation(session_id)
@@ -1224,7 +1244,41 @@ class AppServices:
                 status="accepted",
                 extracted=extracted if isinstance(extracted, dict) else {},
             )
-            return result
+            return self._with_user_friendly_skill_explanation(result) or result
+        if pending["action"] == "document.create":
+            result = self._run_confirmed_document_create_skill(
+                session_id=session_id,
+                session=session,
+                text=str(pending["original_text"]),
+            )
+            extracted = result["results"][0].get("extracted", {}) if result.get("results") else {}
+            self._complete_work_session_tool_confirmation(
+                pending["id"],
+                status="accepted",
+                extracted=extracted if isinstance(extracted, dict) else {},
+            )
+            return self._with_user_friendly_skill_explanation(result) or result
+        if pending["action"] == "knowledge.search":
+            result = self._run_confirmed_knowledge_search_skill(
+                session_id=session_id,
+                text=str(pending["original_text"]),
+            )
+            extracted = result["results"][0].get("extracted", {}) if result.get("results") else {}
+            self._complete_work_session_tool_confirmation(
+                pending["id"],
+                status="accepted",
+                extracted=extracted if isinstance(extracted, dict) else {},
+            )
+            return self._with_user_friendly_skill_explanation(result) or result
+        if pending["action"] == "file.search":
+            result = self._run_confirmed_file_search_skill(text=str(pending["original_text"]))
+            extracted = result["results"][0].get("extracted", {}) if result.get("results") else {}
+            self._complete_work_session_tool_confirmation(
+                pending["id"],
+                status="accepted",
+                extracted=extracted if isinstance(extracted, dict) else {},
+            )
+            return self._with_user_friendly_skill_explanation(result) or result
         return None
 
     def _complete_work_session_tool_confirmation(
@@ -1276,12 +1330,28 @@ class AppServices:
             "schedule.create.failed": "일정 등록 오류",
             "schedule.delete": "일정 삭제",
             "schedule.list": "일정 조회",
+            "document.confirm.request": "문서작성 확인",
+            "knowledge.confirm.request": "지식폴더 검색 확인",
+            "file.confirm.request": "파일찾기 확인",
             "tool.confirm.rejected": "도구 실행 취소",
             "knowledge.search": "지식폴더 검색",
             "knowledge.search.failed": "지식폴더 검색",
+            "file.search": "파일찾기",
+            "file.search.failed": "파일찾기",
             "documents.generate": "문서작성",
             "document.create": "문서작성",
         }.get(action, "업무 처리")
+
+    @staticmethod
+    def _korean_instrumental_particle(label: str) -> str:
+        stripped = label.strip()
+        if not stripped:
+            return "으로"
+        last = stripped[-1]
+        if not ("가" <= last <= "힣"):
+            return "으로"
+        jong = (ord(last) - ord("가")) % 28
+        return "로" if jong in {0, 8} else "으로"
 
     def _with_user_friendly_skill_explanation(self, result: dict[str, Any] | None) -> dict[str, Any] | None:
         if result is None:
@@ -1316,6 +1386,10 @@ class AppServices:
             explanation = "자료를 찾아달라는 요청으로 이해해 지식폴더와 로컬 근거를 먼저 검색했습니다."
         elif "knowledge.search.failed" in action_set:
             explanation = "지식폴더 검색 요청으로 이해해 로컬 근거 검색을 시도했지만 완료하지 못했습니다."
+        elif "file.search" in action_set:
+            explanation = "로컬 파일을 찾아달라는 요청으로 이해해 파일찾기 인덱스와 지식폴더 파일을 검색했습니다."
+        elif "file.search.failed" in action_set:
+            explanation = "파일찾기 요청으로 이해해 로컬 검색을 시도했지만 완료하지 못했습니다."
         elif "document.create" in action_set or "documents.generate" in action_set:
             explanation = "보고서나 HWPX 파일로 정리해 달라는 요청으로 이해해 문서작성 기능을 실행했습니다."
         else:
@@ -1360,6 +1434,9 @@ class AppServices:
         elif self._looks_like_document_create_request(normalized):
             route = "tool"
             actions = ["documents.generate"]
+        elif self._looks_like_file_search_request(normalized):
+            route = "tool"
+            actions = ["file.search"]
         elif self._looks_like_knowledge_request(normalized):
             route = "tool"
             actions = ["knowledge.search"]
@@ -1378,6 +1455,7 @@ class AppServices:
                 "schedule_delete": self._looks_like_schedule_delete_request(normalized),
                 "schedule_list": self._looks_like_schedule_list_request(normalized),
                 "knowledge": self._looks_like_knowledge_request(normalized),
+                "file_search": self._looks_like_file_search_request(normalized),
                 "document": self._looks_like_document_create_request(normalized),
             },
         }
@@ -1390,6 +1468,8 @@ class AppServices:
             planned.append("schedule.create")
         elif self._looks_like_schedule_list_request(text):
             planned.append("schedule.list")
+        if self._looks_like_file_search_request(text):
+            planned.append("file.search")
         if self._looks_like_knowledge_request(text):
             planned.append("knowledge.search")
         if self._looks_like_document_create_request(text):
@@ -1416,6 +1496,8 @@ class AppServices:
                 skill_result = self._run_schedule_create_skill(text)
             elif intent == "schedule.list":
                 skill_result = self._run_schedule_list_skill()
+            elif intent == "file.search":
+                skill_result = self._run_file_search_skill(query=text)
             elif intent == "knowledge.search":
                 skill_result = self._run_knowledge_search_skill(session_id=session_id, query=text)
             elif intent == "documents.generate":
@@ -1431,6 +1513,7 @@ class AppServices:
                 "schedule.delete": "일정 삭제",
                 "schedule.create": "일정 등록",
                 "schedule.list": "일정 조회",
+                "file.search": "파일찾기",
                 "knowledge.search": "지식폴더 검색",
                 "documents.generate": "문서작성",
             }.get(intent, intent)
@@ -1500,6 +1583,28 @@ class AppServices:
         )
 
     @staticmethod
+    def _looks_like_file_search_request(text: str) -> bool:
+        lowered = text.lower()
+        file_markers = [
+            "파일찾기",
+            "파일 찾기",
+            "파일검색",
+            "파일 검색",
+            "로컬파일",
+            "로컬 파일",
+            "파일명",
+            "file search",
+            "local file",
+        ]
+        has_file_marker = any(marker in lowered for marker in file_markers) or (
+            "파일" in text and any(marker in text for marker in ["찾", "검색", "어디", "보여"])
+        )
+        has_action_marker = any(marker in text for marker in ["찾", "검색", "보여", "열어", "어디"]) or any(
+            marker in lowered for marker in ["find", "search", "lookup", "show", "open"]
+        )
+        return has_file_marker and has_action_marker
+
+    @staticmethod
     def _looks_like_schedule_create_request(text: str) -> bool:
         lowered = text.lower()
         action_marker = any(token in text for token in ["등록", "추가", "생성", "만들", "잡아", "예약", "넣어"]) or any(
@@ -1561,6 +1666,33 @@ class AppServices:
             ]
         ) or bool(re.search(r"문서작성(?!법|교육|강의|세미나|방법)", text))
         if not has_document_marker:
+            return False
+        advice_question_markers = [
+            "뭐가 중요",
+            "무엇이 중요",
+            "중요할까",
+            "중요해",
+            "방법",
+            "요령",
+            "팁",
+            "설명",
+            "알려줘",
+        ]
+        explicit_output_markers = [
+            "hwpx",
+            "hwp",
+            "파일로",
+            "생성",
+            "만들",
+            "산출",
+            "제작",
+            "create",
+            "generate",
+            "export",
+        ]
+        if any(marker in text for marker in advice_question_markers) and not any(
+            marker in lowered for marker in explicit_output_markers
+        ):
             return False
         return any(
             token in lowered
@@ -1638,6 +1770,122 @@ class AppServices:
             ],
             "text": "\n".join(lines).strip(),
         }
+
+    def _run_confirmed_knowledge_search_skill(self, *, session_id: str, text: str) -> dict[str, Any]:
+        extracted = self._extract_query_slots_with_llm(
+            text,
+            tool_name="지식폴더 검색",
+            fallback_query=self._fallback_knowledge_query(text),
+        )
+        query = str(extracted.get("query") or self._fallback_knowledge_query(text)).strip()
+        result = self._run_knowledge_search_skill(session_id=session_id, query=query or text)
+        if result.get("results"):
+            result["results"][0]["extracted"] = extracted
+        return result
+
+    def _run_confirmed_file_search_skill(self, *, text: str) -> dict[str, Any]:
+        extracted = self._extract_query_slots_with_llm(
+            text,
+            tool_name="파일찾기",
+            fallback_query=self._fallback_file_search_query(text),
+        )
+        query = str(extracted.get("query") or self._fallback_file_search_query(text)).strip()
+        limit = self._safe_search_limit(extracted.get("limit"), default=5)
+        result = self._run_file_search_skill(query=query or text, limit=limit)
+        if result.get("results"):
+            result["results"][0]["extracted"] = extracted
+        return result
+
+    def _run_file_search_skill(self, *, query: str, limit: int = 5) -> dict[str, Any]:
+        try:
+            search = self.search_files(query=query, limit=limit)
+        except Exception as exc:
+            error_text = str(exc)
+            return {
+                "actions": ["file.search.failed"],
+                "results": [{"query": query, "error": error_text}],
+                "text": (
+                    "파일찾기 검색을 완료하지 못했습니다.\n\n"
+                    "- 파일명 인덱스 갱신 중이면 완료 후 다시 시도해 주세요.\n"
+                    "- 같은 문제가 반복되면 업무 엔진을 재시작한 뒤 다시 검색해 주세요.\n\n"
+                    f"원인: {error_text}"
+                ),
+            }
+        items = [item for item in search.get("items", []) if isinstance(item, dict)]
+        lines = ["파일찾기 검색 결과입니다.", ""]
+        if not items:
+            lines.append(f"`{query}`와 일치하는 로컬 파일을 찾지 못했습니다.")
+        for index, item in enumerate(items[:limit], start=1):
+            file_info = item.get("file") if isinstance(item.get("file"), dict) else {}
+            title = str(file_info.get("title") or Path(str(file_info.get("file_path") or "")).name or "파일")
+            file_path = str(file_info.get("file_path") or "")
+            folder_path = str(Path(file_path).parent) if file_path else ""
+            reasons = [str(reason) for reason in item.get("match_reasons", []) if str(reason).strip()]
+            lines.append(f"{index}. {title}")
+            if reasons:
+                lines.append(f"   - 일치 이유: {', '.join(reasons[:3])}")
+            if file_path:
+                lines.append(f"   - 파일 열기: {file_path}")
+                lines.append(f"   - 폴더 열기: {folder_path}")
+        return {
+            "actions": ["file.search"],
+            "results": [
+                {
+                    "query": query,
+                    "count": len(items),
+                    "local_index_count": search.get("local_index_count"),
+                    "knowledge_index_count": search.get("knowledge_index_count"),
+                    "items": items[:limit],
+                }
+            ],
+            "text": "\n".join(lines).strip(),
+        }
+
+    def _extract_query_slots_with_llm(self, text: str, *, tool_name: str, fallback_query: str) -> dict[str, Any]:
+        fallback_payload = {"query": fallback_query or text, "limit": 5}
+        prompt = (
+            f"당신은 공공분야 업무 도구 '{tool_name}' 실행 전 입력값 정리 보조자입니다.\n"
+            "사용자 원문에서 도구 실행에 필요한 검색어만 JSON 객체로 추출하세요.\n"
+            "반드시 JSON만 출력하세요. 설명, 마크다운, 코드블록은 금지합니다.\n"
+            "필드: query, limit, confidence, missing_fields.\n"
+            "query에는 '찾아줘', '검색해줘', '지식폴더에서', '파일찾기에서' 같은 실행 지시어를 빼고 핵심 검색어만 남기세요.\n"
+            f"규칙 기반 초안: {json.dumps(fallback_payload, ensure_ascii=False)}"
+        )
+        try:
+            result = generate_session_reply(
+                self.settings,
+                [
+                    {"role": "system", "text": prompt, "status": "completed"},
+                    {"role": "user", "text": text, "status": "completed"},
+                ],
+                reasoning_effort="minimal",
+            )
+            extracted = self._parse_llm_json_object(result.text)
+        except (LLMGenerationError, ValueError, TypeError, json.JSONDecodeError):
+            extracted = {}
+        merged = dict(fallback_payload)
+        merged.update({key: value for key, value in extracted.items() if value not in (None, "")})
+        merged["limit"] = self._safe_search_limit(merged.get("limit"), default=5)
+        return merged
+
+    @staticmethod
+    def _safe_search_limit(value: Any, *, default: int = 5) -> int:
+        try:
+            return max(1, min(int(value), 10))
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _fallback_knowledge_query(text: str) -> str:
+        query = re.sub(r"(지식폴더|그래프RAG|graphrag|rag|knowledge|source)", " ", text, flags=re.IGNORECASE)
+        query = re.sub(r"(에서|으로|관련|자료|근거|출처|찾아줘|찾아봐|검색해줘|알려줘|보여줘|알아봐)", " ", query)
+        return re.sub(r"\s+", " ", query).strip() or text.strip()
+
+    @staticmethod
+    def _fallback_file_search_query(text: str) -> str:
+        query = re.sub(r"(파일찾기|파일\s*찾기|파일검색|파일\s*검색|로컬파일|로컬\s*파일)", " ", text, flags=re.IGNORECASE)
+        query = re.sub(r"(에서|으로|관련|파일|찾아줘|찾아봐|검색해줘|보여줘|열어줘|어디)", " ", query)
+        return re.sub(r"\s+", " ", query).strip() or text.strip()
 
     def _run_schedule_list_skill(self) -> dict[str, Any]:
         schedules = self.list_schedules()
@@ -1811,6 +2059,68 @@ class AppServices:
             "text": f"일정을 삭제했습니다.\n\n- 제목: {schedule['title']}",
         }
 
+    def _run_confirmed_document_create_skill(
+        self,
+        *,
+        session_id: str,
+        session: dict[str, Any],
+        text: str,
+    ) -> dict[str, Any]:
+        extracted = self._extract_document_create_slots_with_llm(text, session=session)
+        result = self._run_document_create_skill(
+            session_id=session_id,
+            session=session,
+            text=text,
+            document_request=extracted,
+        )
+        if result.get("results"):
+            result["results"][0]["extracted"] = extracted
+        return result
+
+    def _extract_document_create_slots_with_llm(
+        self,
+        text: str,
+        *,
+        session: dict[str, Any],
+    ) -> dict[str, Any]:
+        fallback_payload = {
+            "title": f"{session['title']} 문서",
+            "document_format": self._document_format_from_text(text),
+            "purpose": "업무대화 세션 기반 자동 문서작성",
+            "instructions": text,
+            "confidence": 0.5,
+        }
+        prompt = (
+            "당신은 공공분야 문서작성 도구 실행 전 입력값 정리 보조자입니다.\n"
+            "사용자 원문에서 HWPX 문서작성에 필요한 값만 JSON 객체로 추출하세요.\n"
+            "반드시 JSON만 출력하세요. 설명, 마크다운, 코드블록은 금지합니다.\n"
+            "필드: title, document_format, purpose, instructions, audience_type, expected_length, "
+            "requested_action, deadline, security_level, confidence, missing_fields.\n"
+            "document_format은 officialMemo, onePageReport, fullReport, email, auto 중 하나입니다.\n"
+            "title은 보고서 제목만 간결히 쓰고, '문서작성해줘' 같은 실행 지시어는 넣지 마세요.\n"
+            "instructions에는 문서에 반영해야 할 작성 방향을 정리하되 도구 실행 명령 자체는 제외하세요.\n"
+            f"세션 제목: {session['title']}\n"
+            f"규칙 기반 초안: {json.dumps(fallback_payload, ensure_ascii=False)}"
+        )
+        try:
+            result = generate_session_reply(
+                self.settings,
+                [
+                    {"role": "system", "text": prompt, "status": "completed"},
+                    {"role": "user", "text": text, "status": "completed"},
+                ],
+                reasoning_effort="minimal",
+            )
+            extracted = self._parse_llm_json_object(result.text)
+        except (LLMGenerationError, ValueError, TypeError, json.JSONDecodeError):
+            extracted = {}
+        merged = dict(fallback_payload)
+        merged.update({key: value for key, value in extracted.items() if value not in (None, "")})
+        merged["document_format"] = self._normalize_document_format(
+            str(merged.get("document_format") or fallback_payload["document_format"])
+        )
+        return merged
+
     @staticmethod
     def _parse_schedule_request(text: str) -> dict[str, str] | None:
         date_match = re.search(
@@ -1907,8 +2217,22 @@ class AppServices:
         session_id: str,
         session: dict[str, Any],
         text: str,
+        document_request: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        document_format = self._document_format_from_text(text)
+        document_request = document_request or {}
+        document_format = self._normalize_document_format(
+            str(document_request.get("document_format") or self._document_format_from_text(text))
+        )
+        title = str(document_request.get("title") or f"{session['title']} 문서").strip() or f"{session['title']} 문서"
+        purpose = str(document_request.get("purpose") or "업무대화 세션 기반 자동 문서작성").strip()
+        outline = str(document_request.get("instructions") or text).strip() or text
+        audience_type = str(document_request.get("audience_type") or "관련 부서").strip()
+        expected_length = str(
+            document_request.get("expected_length") or ("1페이지" if document_format == "onePageReport" else "자동")
+        ).strip()
+        requested_action = str(document_request.get("requested_action") or "검토 및 후속 조치").strip()
+        deadline = str(document_request.get("deadline") or "기한 미정").strip()
+        security_level = str(document_request.get("security_level") or "내부").strip()
         direct_paths = [
             row["file_path"]
             for row in self.list_work_session_file_links(session_id)
@@ -1928,21 +2252,21 @@ class AppServices:
         )
         self.jobs.start_job(work_job["id"], stage="업무대화 컨텍스트 수집")
         content_base = self.documents.create_content_base(
-            title=f"{session['title']} 문서",
-            purpose="업무대화 세션 기반 자동 문서작성",
+            title=title,
+            purpose=purpose,
             template_key="report",
             reference_set_id=self._latest_reference_set_id_for_session(session_id),
             source_session_id=session_id,
-            outline=text,
+            outline=outline,
             document_format=document_format,
-            audience_type="관련 부서",
-            expected_length="1페이지" if document_format == "onePageReport" else "자동",
+            audience_type=audience_type,
+            expected_length=expected_length,
             urgency_level="보통",
             needs_traceability="필요",
             requires_official_form="필요",
-            requested_action="검토 및 후속 조치",
-            deadline="기한 미정",
-            security_level="내부",
+            requested_action=requested_action,
+            deadline=deadline,
+            security_level=security_level,
             direct_file_paths=direct_paths,
         )
         finalize = self.documents.request_final_document_output(
@@ -2093,6 +2417,23 @@ class AppServices:
             },
             "artifact": applied["artifact"],
         }
+
+    @staticmethod
+    def _normalize_document_format(value: str) -> Literal["auto", "officialMemo", "onePageReport", "fullReport", "email"]:
+        normalized = value.strip()
+        allowed = {"auto", "officialMemo", "onePageReport", "fullReport", "email"}
+        if normalized in allowed:
+            return normalized  # type: ignore[return-value]
+        lowered = normalized.lower()
+        if "official" in lowered or "memo" in lowered or "공문" in normalized or "시행문" in normalized:
+            return "officialMemo"
+        if "one" in lowered or "1" in lowered or "페이지" in normalized:
+            return "onePageReport"
+        if "full" in lowered or "상세" in normalized:
+            return "fullReport"
+        if "email" in lowered or "메일" in normalized:
+            return "email"
+        return "auto"
 
     @staticmethod
     def _document_format_from_text(text: str) -> Literal["auto", "officialMemo", "onePageReport", "fullReport", "email"]:

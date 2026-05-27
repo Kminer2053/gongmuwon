@@ -392,7 +392,7 @@ class DocumentManager:
         if self.graphrag is None:
             return []
         query_parts = [outline, purpose, title]
-        for message in (session_context or {}).get("messages") or []:
+        for message in self._document_context_messages((session_context or {}).get("messages") or []):
             query_parts.append(str(message.get("text", "")))
         query = re.sub(r"\s+", " ", " ".join(part for part in query_parts if part)).strip()
         if not query:
@@ -506,8 +506,9 @@ class DocumentManager:
         lines.append("")
 
         lines.append("## 업무대화 기록")
-        if messages:
-            for message in messages:
+        document_messages = self._document_context_messages(messages)
+        if document_messages:
+            for message in document_messages:
                 role = "사용자" if message["role"] == "user" else "어시스턴트"
                 text = str(message["text"]).replace("\n", " ").strip()
                 lines.append(f"- {role}: {text}")
@@ -527,6 +528,20 @@ class DocumentManager:
             lines.append("- 아직 연결된 파일이 없습니다.")
         lines.append("")
         return lines
+
+    @staticmethod
+    def _document_context_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [message for message in messages if not DocumentManager._is_tool_confirmation_message(message)]
+
+    @staticmethod
+    def _is_tool_confirmation_message(message: dict[str, Any]) -> bool:
+        if message.get("role") != "assistant":
+            return False
+        model = str(message.get("model") or "")
+        if model.endswith(".confirm.request") or model == "tool.confirm.rejected":
+            return True
+        text = str(message.get("text") or "")
+        return "처리할까요?" in text and "제가 이해한 내용" in text
 
     def _file_context_lines(self, file_paths: list[str]) -> list[str]:
         lines: list[str] = []

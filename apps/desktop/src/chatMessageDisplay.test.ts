@@ -62,6 +62,17 @@ describe("getAssistantSourceLabel", () => {
     ).toBe("공무 도구 / 일정 등록 확인");
   });
 
+  it("shows readable pending labels for document, knowledge, and file tools", () => {
+    expect(
+      getAssistantSourceLabel(
+        message({
+          provider: "gongmu-skill",
+          model: "document.confirm.request, knowledge.confirm.request, file.confirm.request",
+        }),
+      ),
+    ).toBe("공무 도구 / 문서작성 확인 · 지식폴더 검색 확인 · 파일찾기 확인");
+  });
+
   it("summarizes multi-step tool execution without exposing route ids", () => {
     expect(
       getAssistantSourceLabel(

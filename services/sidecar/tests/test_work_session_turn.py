@@ -471,16 +471,23 @@ def test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply(tmp_
 def test_work_session_turn_executes_knowledge_skill_with_sources_and_file_links(
     tmp_path: Path, monkeypatch
 ) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("knowledge skill should answer from GraphRAG without generic LLM fallback")
+    llm_calls: list[list[dict]] = []
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    def fake_extract_knowledge_query(settings, messages, **kwargs):
+        llm_calls.append(messages)
+        return LLMGenerationResult(
+            text='{"query":"AI 전략 방향성","confidence":0.94}',
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_knowledge_query)
 
     client = _client(tmp_path)
 
     def fake_ask(**kwargs):
         assert kwargs["session_id"]
-        assert kwargs["query"] == "지식폴더에서 AI 전략 방향성 찾아봐"
+        assert kwargs["query"] == "AI 전략 방향성"
         return {
             "answer": "AI 전략은 내부 지식과 실행 근거를 함께 사용하는 방향입니다.",
             "citations": [
@@ -510,6 +517,17 @@ def test_work_session_turn_executes_knowledge_skill_with_sources_and_file_links(
 
     assert response.status_code == 201
     assistant_message = response.json()["assistant_message"]
+    assert "지식폴더 검색으로 처리할까요?" in assistant_message["text"]
+    assert response.json()["context_summary"]["skill_actions"] == ["knowledge.confirm.request"]
+    assert len(llm_calls) == 0
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "네 검색해줘"},
+    )
+
+    assert response.status_code == 201
+    assistant_message = response.json()["assistant_message"]
     assert assistant_message["status"] == "completed"
     assert "GraphRAG 검색 결과" in assistant_message["text"]
     assert "AI 전략은 내부 지식과 실행 근거" in assistant_message["text"]
@@ -517,15 +535,20 @@ def test_work_session_turn_executes_knowledge_skill_with_sources_and_file_links(
     assert "파일 열기:" in assistant_message["text"]
     assert "폴더 열기:" in assistant_message["text"]
     assert response.json()["context_summary"]["skill_actions"] == ["knowledge.search"]
+    assert len(llm_calls) == 1
 
 
 def test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails(
     tmp_path: Path, monkeypatch
 ) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("knowledge tool failure must be handled without generic LLM fallback")
+    def fake_extract_knowledge_query(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text='{"query":"AI 전략 자료","confidence":0.9}',
+            provider="ollama",
+            model="gemma4:e2b",
+        )
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_knowledge_query)
 
     client = _client(tmp_path)
     monkeypatch.setattr(
@@ -539,6 +562,13 @@ def test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails(
     response = client.post(
         f"/api/work-sessions/{session_id}/turn",
         json={"text": "지식폴더에서 AI 전략 자료 찾아줘"},
+    )
+    assert response.status_code == 201
+    assert response.json()["context_summary"]["skill_actions"] == ["knowledge.confirm.request"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "좋아 진행해"},
     )
 
     assert response.status_code == 201
@@ -797,11 +827,133 @@ def test_work_session_turn_deletes_schedule_from_chat_instruction(tmp_path: Path
     assert client.get("/api/schedules").json()["items"] == []
 
 
-def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path: Path, monkeypatch) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("document skill should create HWPX without generic LLM fallback")
+def test_work_session_turn_keeps_document_advice_questions_out_of_document_creation(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fake_generate_reply(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text="문서작성에서는 목적, 독자, 근거, 결론을 먼저 정리하는 것이 중요합니다.",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+    client = _client(tmp_path)
+    session = client.post("/api/work-sessions", json={"title": "문서작성 조언 테스트"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "문서작성에는 뭐가 중요할까?"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assistant_message"]["provider"] == "ollama"
+    assert "문서작성에서는 목적" in payload["assistant_message"]["text"]
+    assert payload["context_summary"].get("skill_actions", []) == []
+
+
+def test_work_session_turn_confirms_and_runs_file_search_from_chat(
+    tmp_path: Path, monkeypatch
+) -> None:
+    llm_calls: list[list[dict]] = []
+    search_calls: list[tuple[str, int]] = []
+    result_file = tmp_path / "예산검토보고서.pdf"
+    result_file.write_text("검색 테스트", encoding="utf-8")
+
+    def fake_extract_file_query(settings, messages, **kwargs):
+        llm_calls.append(messages)
+        return LLMGenerationResult(
+            text='{"query":"예산검토 보고서","limit":5,"confidence":0.92}',
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    def fake_search_files(query: str, limit: int = 20):
+        search_calls.append((query, limit))
+        return {
+            "query": query,
+            "items": [
+                {
+                    "file": {
+                        "id": "file-1",
+                        "source_id": "local-file-index",
+                        "file_path": str(result_file),
+                        "relative_path": "예산검토보고서.pdf",
+                        "file_hash": "file-1",
+                        "size_bytes": 123,
+                        "modified_at": "2026-05-27T09:00:00+09:00",
+                        "status": "filename_index_match",
+                        "title": "예산검토보고서.pdf",
+                        "mime_type": None,
+                        "text_excerpt": None,
+                        "extracted_text_path": None,
+                        "created_at": "2026-05-27T09:00:00+09:00",
+                        "updated_at": "2026-05-27T09:00:00+09:00",
+                    },
+                    "score": 340,
+                    "match_reasons": ["파일명 인덱스"],
+                    "search_root": str(tmp_path),
+                }
+            ],
+            "knowledge_index_count": 0,
+            "local_index_count": 1,
+            "local_index_total_count": 1,
+            "partial": False,
+        }
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_file_query)
+    client = _client(tmp_path)
+    monkeypatch.setattr(client.app.state.services, "search_files", fake_search_files)
+    session = client.post("/api/work-sessions", json={"title": "파일찾기 라우팅 테스트"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "파일찾기에서 예산검토 보고서 찾아줘"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert "파일찾기로 처리할까요?" in payload["assistant_message"]["text"]
+    assert payload["context_summary"]["skill_actions"] == ["file.confirm.request"]
+    assert search_calls == []
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "응 찾아줘"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assistant_text = payload["assistant_message"]["text"]
+    assert "파일찾기 검색 결과" in assistant_text
+    assert "예산검토보고서.pdf" in assistant_text
+    assert "파일 열기:" in assistant_text
+    assert "폴더 열기:" in assistant_text
+    assert payload["context_summary"]["skill_actions"] == ["file.search"]
+    assert search_calls == [("예산검토 보고서", 5)]
+    assert len(llm_calls) == 1
+
+
+def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path: Path, monkeypatch) -> None:
+    llm_calls: list[list[dict]] = []
+
+    def fake_extract_document_request(settings, messages, **kwargs):
+        llm_calls.append(messages)
+        return LLMGenerationResult(
+            text=(
+                '{"title":"AI 실행계획 1페이지 보고서","document_format":"onePageReport",'
+                '"purpose":"업무대화와 연결 파일을 근거로 AI 실행계획을 1페이지 보고서로 정리",'
+                '"instructions":"AI 추진 배경, 실행 방향, 후속 조치사항을 두괄식과 개조식으로 정리",'
+                '"confidence":0.93}'
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_document_request)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "문서작성 테스트"})
     session_id = session.json()["id"]
@@ -836,15 +988,27 @@ def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path:
     assert response.status_code == 201
     assistant_message = response.json()["assistant_message"]
     assert assistant_message["status"] == "completed"
+    assert "문서작성으로 처리할까요?" in assistant_message["text"]
+    assert response.json()["context_summary"]["skill_actions"] == ["document.confirm.request"]
+    assert len(llm_calls) == 0
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "네 만들어줘"},
+    )
+
+    assert response.status_code == 201
+    assistant_message = response.json()["assistant_message"]
     assert "HWPX 문서를 생성했습니다" in assistant_message["text"]
     assert "이렇게 이해했어요" in assistant_message["text"]
     assert "문서작성" in assistant_message["text"]
     assert "document.create" not in assistant_message["text"]
     assert "rule" not in assistant_message["text"].lower()
-    assert "문서작성 테스트 문서" in assistant_message["text"]
+    assert "AI 실행계획 1페이지 보고서" in assistant_message["text"]
     assert "파일 열기:" in assistant_message["text"]
     assert "폴더 열기:" in assistant_message["text"]
     assert response.json()["context_summary"]["skill_actions"] == ["document.create"]
+    assert len(llm_calls) == 1
 
     skill_result = response.json()["context_summary"]["skill_results"][0]
     content_base_id = skill_result["content_base_id"]
@@ -862,16 +1026,20 @@ def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path:
     assert "두괄식" in review_markdown
     assert "개조식" in review_markdown
     hwpx_text = _extract_hwpx_text(output_path)
-    assert "문서작성 테스트 문서" in hwpx_text
+    assert "AI 실행계획 1페이지 보고서" in hwpx_text
     assert "AI 추진 배경과 향후 조치사항" in hwpx_text
     assert "보안형 로컬 자동화 중심" in hwpx_text
 
 
 def test_work_session_turn_routes_plain_hwpx_requests_to_document_skill(tmp_path: Path, monkeypatch) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("plain HWPX request should use the document generation skill")
+    def fake_extract_document_request(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text='{"title":"One page HWPX report","document_format":"onePageReport","confidence":0.9}',
+            provider="ollama",
+            model="gemma4:e2b",
+        )
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_document_request)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "Plain document skill session"})
     session_id = session.json()["id"]
@@ -879,6 +1047,16 @@ def test_work_session_turn_routes_plain_hwpx_requests_to_document_skill(tmp_path
     response = client.post(
         f"/api/work-sessions/{session_id}/turn",
         json={"text": "Use the document creation feature and make a one page hwpx report."},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assistant_message"]["provider"] == "gongmu-skill"
+    assert payload["context_summary"]["skill_actions"] == ["document.confirm.request"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "yes proceed"},
     )
 
     assert response.status_code == 201
@@ -904,10 +1082,17 @@ def test_work_session_turn_routes_plain_hwpx_requests_to_document_skill(tmp_path
 def test_work_session_turn_routes_natural_korean_report_requests_to_document_skill(
     tmp_path: Path, monkeypatch, instruction: str, expected_format: str
 ) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("natural Korean report requests should use the document generation skill")
+    def fake_extract_document_request(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text=(
+                '{"title":"보고서 자연어 라우팅 문서",'
+                f'"document_format":"{expected_format}","confidence":0.91}}'
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_document_request)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "보고서 자연어 라우팅"})
     session_id = session.json()["id"]
@@ -915,6 +1100,16 @@ def test_work_session_turn_routes_natural_korean_report_requests_to_document_ski
     response = client.post(
         f"/api/work-sessions/{session_id}/turn",
         json={"text": instruction},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assistant_message"]["provider"] == "gongmu-skill"
+    assert payload["context_summary"]["skill_actions"] == ["document.confirm.request"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "네 진행해"},
     )
 
     assert response.status_code == 201
