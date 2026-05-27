@@ -6,6 +6,7 @@ import type {
   ExecutionLogItem,
   ReferenceSetItem,
   ScheduleItem,
+  WorkJobItem,
   WorkSessionItem,
 } from "./api";
 import type { DesktopRuntimeStatus } from "./runtime";
@@ -107,6 +108,27 @@ function installFetchStub() {
   ];
 
   const approvalTickets: ApprovalTicketItem[] = [];
+  let workJobs: WorkJobItem[] = [
+    {
+      id: "job-active-1",
+      kind: "documents.generate",
+      title: "보고서 생성 작업",
+      status: "running",
+      priority: 0,
+      resource_key: "work_session:session-1",
+      resource_policy: "exclusive",
+      progress_percent: 42,
+      current_stage: "보고서 내용을 정리하는 중",
+      cancel_requested: false,
+      input: {},
+      result: {},
+      error_message: null,
+      created_at: "2026-04-20T00:00:00+09:00",
+      queued_at: "2026-04-20T00:00:00+09:00",
+      started_at: "2026-04-20T00:01:00+09:00",
+      completed_at: null,
+    },
+  ];
   const logs: ExecutionLogItem[] = [
     {
       id: "log-1",
@@ -174,6 +196,26 @@ function installFetchStub() {
           },
           recovered: { work_jobs: 0, knowledge_ingestion_jobs: 0 },
         });
+      }
+
+      if (url.includes("/api/jobs?")) {
+        return jsonResponse({ items: workJobs });
+      }
+
+      const workJobCancelMatch = url.match(/\/api\/jobs\/([^/]+)\/cancel$/);
+      if (workJobCancelMatch && method === "POST") {
+        const jobId = workJobCancelMatch[1];
+        workJobs = workJobs.map((job) =>
+          job.id === jobId
+            ? { ...job, status: "cancel_requested", cancel_requested: true, current_stage: "취소 요청됨" }
+            : job,
+        );
+        return jsonResponse(workJobs.find((job) => job.id === jobId));
+      }
+
+      const workJobEventsMatch = url.match(/\/api\/jobs\/([^/]+)\/events$/);
+      if (workJobEventsMatch) {
+        return jsonResponse({ items: [] });
       }
 
       if (url.endsWith("/api/settings")) {
@@ -307,6 +349,7 @@ beforeEach(() => {
     detail: "managed sidecar running",
   };
   vi.unstubAllGlobals();
+  window.localStorage.clear();
   loadDesktopRuntimeStatusMock.mockClear();
   startDesktopSidecarMock.mockClear();
   stopDesktopSidecarMock.mockClear();
@@ -329,6 +372,20 @@ describe("App shell", () => {
 
     expect(screen.getByTestId("session-rail")).toBeInTheDocument();
     expect(within(screen.getByTestId("session-rail")).getByRole("button", { name: /주간 보고 작업/ })).toBeInTheDocument();
+  });
+
+  it("restores the last selected session after remount", async () => {
+    const user = userEvent.setup();
+    const firstRender = render(<App />);
+
+    const sessionRail = await screen.findByTestId("session-rail");
+    await user.click(await within(sessionRail).findByRole("button", { name: /독립 검토 세션/ }));
+    expect(await screen.findByRole("heading", { name: /독립 검토 세션/ })).toBeInTheDocument();
+
+    firstRender.unmount();
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: /독립 검토 세션/ })).toBeInTheDocument();
   });
 
   it("uses only the top-right toggle when the right info pane is collapsed", async () => {
@@ -356,6 +413,46 @@ describe("App shell", () => {
     expect(screen.getByTestId("runtime-popover")).toHaveTextContent("runner 1개");
     expect(screen.getByTestId("runtime-popover")).not.toHaveTextContent("사이드카");
     expect(screen.getByTestId("runtime-popover")).not.toHaveTextContent(/sidecar/i);
+  });
+
+  it("shows offline engine guidance from the compact runtime popover", async () => {
+    runtimeState.status = {
+      ...runtimeState.status,
+      running: false,
+      managed: true,
+      detail: "start available",
+    };
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByTestId("runtime-indicator-toggle");
+    await user.click(screen.getByTestId("runtime-indicator-toggle"));
+
+    const popover = await screen.findByTestId("runtime-popover");
+    expect(popover).toHaveTextContent("업무 엔진을 시작할 수 있습니다.");
+    expect(within(popover).getByRole("button", { name: /시작/ })).toBeInTheDocument();
+  });
+
+  it("lets the user manually restart the managed engine from the compact runtime popover", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByTestId("runtime-indicator-toggle");
+    await user.click(screen.getByTestId("runtime-indicator-toggle"));
+    await user.click(screen.getByRole("button", { name: "재시작" }));
+
+    expect(restartDesktopSidecarMock).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("업무 엔진 재시작 상태를 갱신했습니다.")).toBeInTheDocument();
+  });
+
+  it("shows a cancel request button for active work jobs", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const cancelButton = await screen.findByRole("button", { name: "취소 요청" });
+    await user.click(cancelButton);
+
+    await screen.findByText("보고서 생성 작업 취소를 요청했습니다.");
   });
 
   it("uses bundled image icon files for compact topbar actions", async () => {

@@ -29,7 +29,11 @@ def test_settings_endpoint_exposes_runtime_contract(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["defaults"]["llm_mode"] == "local_first"
     assert payload["defaults"]["llm_provider"] == "ollama"
-    assert payload["defaults"]["llm_model"] == "qwen3.6:27b"
+    assert payload["defaults"]["llm_model"] == "gemma4:e2b"
+    assert payload["defaults"]["profiles"]["local_first"]["model"] == "gemma4:e2b"
+    assert payload["defaults"]["llm_runtime_policy"]["is_lightweight"] is True
+    assert payload["defaults"]["llm_runtime_policy"]["is_gemma4_e2b"] is True
+    assert payload["defaults"]["llm_runtime_policy"]["recommended_reasoning_effort"] == "low"
     assert payload["defaults"]["llm_site_url"] is None
     assert payload["defaults"]["llm_application_name"] is None
     assert payload["defaults"]["anything_launch_mode"] == "external_app_preferred"

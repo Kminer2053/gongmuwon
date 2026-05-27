@@ -1,0 +1,109 @@
+{
+  "model": "gemma4:e2b",
+  "modelDisplayName": "Gemma 4 E2B",
+  "generatedAt": "2026-05-24T18:11:04.032Z",
+  "batchCount": 10,
+  "totalScenarios": 100,
+  "batches": [
+    {
+      "runId": "computer-use-batch-01",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "앱 시작과 업무엔진"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-01.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-01.md"
+    },
+    {
+      "runId": "computer-use-batch-02",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "모델 설정과 Gemma 4 E2B"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-02.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-02.md"
+    },
+    {
+      "runId": "computer-use-batch-03",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "업무대화 기본 UX"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-03.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-03.md"
+    },
+    {
+      "runId": "computer-use-batch-04",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "업무대화 도구 라우팅"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-04.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-04.md"
+    },
+    {
+      "runId": "computer-use-batch-05",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "일정 캘린더"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-05.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-05.md"
+    },
+    {
+      "runId": "computer-use-batch-06",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "파일찾기와 세션 연결"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-06.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-06.md"
+    },
+    {
+      "runId": "computer-use-batch-07",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "지식폴더/GraphRAG 인덱싱"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-07.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-07.md"
+    },
+    {
+      "runId": "computer-use-batch-08",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "GraphRAG 검색과 출처 답변"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-08.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-08.md"
+    },
+    {
+      "runId": "computer-use-batch-09",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "문서작성/HWPX 산출"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-09.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-09.md"
+    },
+    {
+      "runId": "computer-use-batch-10",
+      "totalScenarios": 10,
+      "totalMaxScore": 100,
+      "categories": [
+        "실행기록/작업진행/다중작업"
+      ],
+      "json": "lightweight-model-computer-use-batches\\computer-use-batch-10.json",
+      "markdown": "lightweight-model-computer-use-batches\\computer-use-batch-10.md"
+    }
+  ]
+}

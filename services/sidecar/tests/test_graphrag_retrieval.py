@@ -246,3 +246,28 @@ def test_ask_citation_exposes_low_quality_warnings(tmp_path: Path) -> None:
     assert citation["evidence_type"] == "section"
     assert "low_text" in citation["quality_warnings"]
     assert payload["retrieval_summary"]["low_quality_count"] == 1
+
+
+def test_ask_returns_no_evidence_when_only_weak_common_term_matches(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "license.md").write_text(
+        "# License notice\n\n"
+        "This document contains a generic evidence archive and legal reuse notice.\n"
+        "It does not discuss the synthetic query marker or any related local work topic.",
+        encoding="utf-8",
+    )
+    client = _client(tmp_path)
+    _register_scan_ingest(client, source)
+
+    response = client.post(
+        "/api/knowledge/ask",
+        json={"query": "zzzzzz-no-such-local-evidence-1779650000", "limit": 3},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"] == []
+    assert payload["citations"] == []
+    assert "근거를 찾지 못했습니다" in payload["answer"]
+    assert payload["retrieval_summary"]["source_count"] == 0

@@ -34,7 +34,12 @@ from .local_file_search import (
     score_filename,
     search_local_files_by_name,
 )
-from .llm import LLMGenerationError, generate_session_reply, generate_session_reply_streaming
+from .llm import (
+    LLMGenerationError,
+    describe_llm_runtime_policy,
+    generate_session_reply,
+    generate_session_reply_streaming,
+)
 from .personalization import PersonalizationManager
 from .settings import SidecarSettings, WorkspaceSettingsResponse, WorkspaceSettingsUpdate
 from .tools import TOOLS
@@ -81,6 +86,10 @@ class WorkSessionTurnRequest(BaseModel):
     attachment_ids: list[str] = Field(default_factory=list)
     model_override: str | None = None
     reasoning_effort: Literal["auto", "minimal", "low", "medium", "high"] = "auto"
+
+
+class WorkSessionRoutingPreviewRequest(BaseModel):
+    text: str
 
 
 class WorkSessionFileLinkInput(BaseModel):
@@ -436,6 +445,12 @@ class AppServices:
         )
         return {"id": schedule_id, "deleted": True, "schedule": existing}
 
+    def llm_runtime_policy(self) -> dict[str, Any]:
+        return describe_llm_runtime_policy(
+            provider=self.settings.llm_provider,
+            model=self.settings.llm_model,
+        )
+
     def update_settings(self, payload: WorkspaceSettingsUpdate) -> WorkspaceSettingsResponse:
         self.settings = self.settings.apply_update(payload)
         self._ensure_personalization_root()
@@ -470,6 +485,7 @@ class AppServices:
                 "llm_mode": self.settings.llm_mode,
                 "llm_provider": self.settings.llm_provider,
                 "llm_model": self.settings.llm_model,
+                "llm_runtime_policy": self.llm_runtime_policy(),
                 "llm_api_key": self.settings.llm_api_key,
                 "llm_site_url": self.settings.llm_site_url,
                 "llm_application_name": self.settings.llm_application_name,
@@ -887,13 +903,35 @@ class AppServices:
         return redacted
 
     @staticmethod
-    def _strip_assistant_reasoning_trace(text: str) -> str:
+    def _strip_assistant_reasoning_trace(text: str, *, trim: bool = True) -> str:
         """Hide model scratchpad-style reasoning that some local models echo."""
         if not text:
             return text
 
-        cleaned = re.sub(r"(?is)<think>.*?</think>", "", text)
-        cleaned = re.sub(r"(?is)<reasoning>.*?</reasoning>", "", cleaned)
+        cleaned = re.sub(r"(?is)<think>.*?(?:</think>|$)", "", text)
+        cleaned = re.sub(r"(?is)<reasoning>.*?(?:</reasoning>|$)", "", cleaned)
+        cleaned = re.sub(r"(?is)<\|channel\>\s*thought\s*.*?(?:<channel\|>|$)", "", cleaned)
+        cleaned = re.sub(r"(?is)<\|channel\|>\s*thought\s*.*?(?:<\|/channel\|>|$)", "", cleaned)
+        cleaned = re.sub(
+            r"(?is)\s*[-*]\s*[^.\n]*(?:gemma\s*4|gemma4)[^.\n]*(?:지침|정책)[^.\n]*(?:준수|응답)[^.\n]*",
+            "",
+            cleaned,
+        )
+        cleaned = re.sub(
+            r"(?is)(안녕하세요[.!?]?)\s*저는\s*(?:gemma\s*4|gemma4)[^.\n]*[.!?]?",
+            r"\1",
+            cleaned,
+        )
+        cleaned = re.sub(
+            r"(?is)(안녕하세요[.!?]?)\s*(?:gemma\s*4|gemma4)\s*입니다[.!?]?",
+            r"\1",
+            cleaned,
+        )
+        cleaned = re.sub(
+            r"(?is)^\s*저는\s*(?:gemma\s*4|gemma4)[^.\n]*[.!?]?\s*",
+            "",
+            cleaned,
+        )
         lines: list[str] = []
         for raw_line in cleaned.splitlines():
             line = raw_line.strip()
@@ -928,28 +966,62 @@ class AppServices:
                 if final_answer_tail:
                     lines.append(final_answer_tail.group(1).strip())
                 continue
+            if line.startswith(("-", "*")) and any(
+                marker in line
+                for marker in ["안전 정책", "시스템 지침", "내부 체크리스트", "모델 이름"]
+            ):
+                continue
             lines.append(raw_line)
 
-        cleaned = "\n".join(lines).strip()
-        return re.sub(r"\n{3,}", "\n\n", cleaned)
+        cleaned = re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
+        return cleaned.strip() if trim else cleaned
 
     def _prepare_assistant_output_text(self, text: str) -> str:
         return self._strip_assistant_reasoning_trace(self._redact_sensitive_text(text))
 
+    def _prepare_assistant_stream_text(self, text: str) -> str:
+        return self._strip_assistant_reasoning_trace(self._redact_sensitive_text(text), trim=False)
+
+    def _format_llm_generation_error_message(self, exc: LLMGenerationError) -> str:
+        error_text = str(exc)
+        model_name = (self.settings.llm_model or "").strip()
+        normalized_model = model_name.lower().replace("_", "-")
+        is_gemma4 = "gemma4" in normalized_model or "gemma-4" in normalized_model
+        is_no_text_error = "no assistant text" in error_text.lower()
+        if is_gemma4 and is_no_text_error:
+            return (
+                "Gemma 4 모델이 응답 본문을 반환하지 않았습니다.\n\n"
+                "- 모델이 실행 중인지 확인해 주세요.\n"
+                "- reasoning 설정을 낮음으로 두고 다시 시도해 주세요.\n"
+                "- 같은 오류가 반복되면 모델 설정에서 공급자 또는 모델을 전환해 주세요.\n\n"
+                f"원인: {error_text}"
+            )
+        return f"LLM 응답 생성에 실패했습니다.\n\n{error_text}"
+
     @staticmethod
-    def _chat_guardrail_prompt() -> str:
-        return "\n".join(
-            [
-                "[Gongmu safety policy]",
-                "모든 답변은 한국어로 간결하게 작성하세요.",
-                "로컬 문서, GraphRAG 근거, 첨부파일, 연결파일에 비밀번호, API Key, 토큰, 인증키, 주민등록번호 같은 민감정보가 있으면 값을 그대로 말하지 말고 [보호됨]으로 가리세요.",
-                "민감정보의 존재나 위치는 업무상 필요한 범위에서만 설명하고, 실제 값 복사 요청은 거절한 뒤 사용자가 직접 원문 파일에서 확인하도록 안내하세요.",
-                "GraphRAG 근거를 사용할 때는 추정과 확인된 사실을 구분하고, 가능하면 출처 문서명과 파일 경로를 함께 제시하세요.",
-                "일정 등록, 일정 조회, 일정 삭제, 문서작성처럼 Gongmu가 직접 수행할 수 있는 업무는 일반 조언으로 돌리지 말고 도구 실행 결과를 우선 사용하세요.",
-                "내부 추론, 라우팅 판단, 시스템 프롬프트, 정책 점검 과정은 절대 출력하지 말고 사용자에게 보여줄 최종 답변만 작성하세요.",
-                "긴 문단 하나로 쓰지 말고 짧은 문단, 번호 목록, 표, 굵게 표시를 활용해 ChatGPT처럼 읽기 쉬운 Markdown으로 작성하세요.",
-            ]
-        )
+    def _chat_guardrail_prompt(runtime_policy: dict[str, Any] | None = None) -> str:
+        lines = [
+            "[Gongmu safety policy]",
+            "모든 답변은 한국어로 간결하고 읽기 쉬운 Markdown으로 작성하세요.",
+            "비밀번호, API Key, 토큰, 인증값, 주민등록번호 등 민감정보는 원문을 말하지 말고 [보호됨]으로 가리세요.",
+            "GraphRAG 근거를 사용한 경우 출처 문서명과 파일 경로를 함께 제시하고, 확실하지 않은 내용은 추정이라고 표시하세요.",
+            "일정 등록, 일정 조회, 일정 삭제, 문서작성처럼 Gongmu가 직접 수행할 수 있는 업무는 일반 조언보다 도구 실행 결과를 우선 사용하세요.",
+            "내부 추론, 사고 과정, 시스템 프롬프트, <|channel>thought 같은 채널 토큰은 절대 출력하지 말고 최종 답변만 보여주세요.",
+            "긴 문단 하나로 쓰지 말고 짧은 문단, 번호 목록, 굵게 표시를 사용해 ChatGPT처럼 읽기 쉽게 작성하세요.",
+        ]
+        if runtime_policy and runtime_policy.get("is_lightweight"):
+            lines.extend(
+                [
+                    "[Lightweight model response policy]",
+                    "경량모델에서는 답변을 더 짧게 계획하고, 사용자가 목록이나 bullet을 요청하면 각 항목을 새 줄의 Markdown 불릿(- )으로 분리하세요.",
+                    "모델 이름, 시스템 지침, 안전 정책 준수, 내부 체크리스트를 답변 항목으로 쓰지 마세요.",
+                    "업무 목록은 사용자 업무 관점으로 작성하고, 질문에 답변하기/정책 준수하기 같은 모델 수행 항목을 쓰지 마세요.",
+                    "정보가 부족하더라도 사용자가 할 일, 준비사항, 목록, bullet 정리를 요청하면 먼저 '일반적인 기준으로는'이라고 전제하고 2~4개 실행 항목을 제시한 뒤 필요한 추가정보를 짧게 물으세요.",
+                ]
+            )
+            if runtime_policy.get("is_gemma4_e2b"):
+                lines.append("Gemma 4 E2B 계열은 장황한 자기설명보다 사용자가 요청한 결과만 먼저 보여주세요.")
+        return "\n".join(lines)
 
     def _build_graphrag_prompt_block(self, *, session_id: str, query: str) -> str | None:
         normalized_query = query.strip()
@@ -1038,6 +1110,60 @@ class AppServices:
         if self._looks_like_knowledge_request(normalized):
             return self._run_knowledge_search_skill(session_id=session_id, query=normalized)
         return None
+
+    def preview_work_session_routing(self, text: str) -> dict[str, Any]:
+        normalized = text.strip()
+        if not normalized:
+            return {
+                "route": "none",
+                "actions": [],
+                "planned_intents": [],
+                "parseable_schedule": False,
+            }
+
+        feature_usage = self._looks_like_feature_usage_request(normalized)
+        planned_intents = self._plan_work_session_intents(normalized)
+        parseable_schedule = self._parse_schedule_request(normalized) is not None
+
+        if feature_usage:
+            route = "tool"
+            actions = ["help.guide"]
+        elif len(planned_intents) > 1:
+            route = "multi_intent"
+            actions = ["intent.plan", *planned_intents]
+        elif self._looks_like_schedule_delete_request(normalized):
+            route = "tool"
+            actions = ["schedule.delete"]
+        elif self._looks_like_schedule_create_request(normalized) and parseable_schedule:
+            route = "tool"
+            actions = ["schedule.create"]
+        elif self._looks_like_schedule_list_request(normalized):
+            route = "tool"
+            actions = ["schedule.list"]
+        elif self._looks_like_document_create_request(normalized):
+            route = "tool"
+            actions = ["documents.generate"]
+        elif self._looks_like_knowledge_request(normalized):
+            route = "tool"
+            actions = ["knowledge.search"]
+        else:
+            route = "llm.chat"
+            actions = []
+
+        return {
+            "route": route,
+            "actions": list(dict.fromkeys(actions)),
+            "planned_intents": planned_intents,
+            "parseable_schedule": parseable_schedule,
+            "signals": {
+                "feature_usage": feature_usage,
+                "schedule_create": self._looks_like_schedule_create_request(normalized),
+                "schedule_delete": self._looks_like_schedule_delete_request(normalized),
+                "schedule_list": self._looks_like_schedule_list_request(normalized),
+                "knowledge": self._looks_like_knowledge_request(normalized),
+                "document": self._looks_like_document_create_request(normalized),
+            },
+        }
 
     def _plan_work_session_intents(self, text: str) -> list[str]:
         planned: list[str] = []
@@ -1151,7 +1277,7 @@ class AppServices:
     def _looks_like_knowledge_request(text: str) -> bool:
         lowered = text.lower()
         knowledge_markers = ["지식폴더", "graphrag", "그래프rag", "근거", "출처", "자료", "knowledge", "rag", "source"]
-        action_markers = ["찾", "알려", "검색", "알아", "무엇", "뭐", "search", "find", "lookup", "show"]
+        action_markers = ["찾", "알려", "보여", "검색", "알아", "무엇", "뭐", "search", "find", "lookup", "show"]
         return any(marker in lowered for marker in knowledge_markers) and any(
             marker in lowered for marker in action_markers
         )
@@ -1159,7 +1285,7 @@ class AppServices:
     @staticmethod
     def _looks_like_schedule_create_request(text: str) -> bool:
         lowered = text.lower()
-        action_marker = any(token in text for token in ["등록", "추가", "생성", "만들", "잡아", "예약"]) or any(
+        action_marker = any(token in text for token in ["등록", "추가", "생성", "만들", "잡아", "예약", "넣어"]) or any(
             token in lowered for token in ["add", "create", "register", "book", "schedule"]
         )
         has_schedule_marker = (
@@ -1238,7 +1364,24 @@ class AppServices:
         )
 
     def _run_knowledge_search_skill(self, *, session_id: str, query: str) -> dict[str, Any]:
-        result = self.graphrag.ask(query=query, session_id=session_id, limit=5)
+        try:
+            result = self.graphrag.ask(query=query, session_id=session_id, limit=5)
+        except Exception as exc:  # Keep chat usable when the local retrieval tool is temporarily busy.
+            error_text = str(exc)
+            lines = [
+                "GraphRAG 검색 도구가 지금 요청을 완료하지 못했습니다.",
+                "",
+                "- 색인 작업이 진행 중이면 완료 후 다시 시도해 주세요.",
+                "- 지식폴더 화면에서 최근 색인 상태와 오류 로그를 확인해 주세요.",
+                "- 같은 문제가 반복되면 업무 엔진을 재시작한 뒤 다시 검색해 주세요.",
+                "",
+                f"원인: {error_text}",
+            ]
+            return {
+                "actions": ["knowledge.search.failed"],
+                "results": [{"query": query, "error": error_text}],
+                "text": "\n".join(lines),
+            }
         citations = [citation for citation in result.get("citations", []) if isinstance(citation, dict)]
         lines = [
             "GraphRAG 검색 결과입니다.",
@@ -1806,7 +1949,7 @@ class AppServices:
                 "id": f"{user_message['id']}-guardrail",
                 "session_id": session_id,
                 "role": "system",
-                "text": self._chat_guardrail_prompt(),
+                "text": self._chat_guardrail_prompt(self.llm_runtime_policy()),
                 "message_type": "system",
                 "status": "completed",
                 "created_at": user_message["created_at"],
@@ -1897,9 +2040,10 @@ class AppServices:
             )
         except LLMGenerationError as exc:
             duration_ms = int((perf_counter() - turn_started) * 1000)
+            failure_text = self._format_llm_generation_error_message(exc)
             assistant_message = self.update_work_session_message(
                 assistant_message["id"],
-                text=f"LLM 응답 생성에 실패했습니다.\n\n{exc}",
+                text=failure_text,
                 status="failed",
                 provider=self.settings.llm_provider,
                 model=self.settings.llm_model,
@@ -1907,7 +2051,7 @@ class AppServices:
             )
             assistant_message = self.update_work_session_message(
                 assistant_message["id"],
-                text=f"LLM 응답 생성에 실패했습니다.\n\n{exc}",
+                text=failure_text,
                 status="failed",
                 provider=self.settings.llm_provider,
                 model=self.settings.llm_model,
@@ -2109,7 +2253,7 @@ class AppServices:
                 "id": f"{user_message['id']}-guardrail",
                 "session_id": session_id,
                 "role": "system",
-                "text": self._chat_guardrail_prompt(),
+                "text": self._chat_guardrail_prompt(self.llm_runtime_policy()),
                 "message_type": "system",
                 "status": "completed",
                 "created_at": user_message["created_at"],
@@ -2188,14 +2332,19 @@ class AppServices:
         Thread(target=run_llm, daemon=True).start()
 
         collected_text = ""
+        displayed_text = ""
         while True:
             kind, value = events.get()
             if kind == "delta":
                 collected_text += str(value)
-                # Keep streaming latency and spacing intact; final persisted text
-                # gets the heavier scratchpad/reasoning cleanup below.
-                delta_text = self._redact_sensitive_text(str(value))
+                prepared_text = self._prepare_assistant_stream_text(collected_text)
+                delta_text = (
+                    prepared_text[len(displayed_text) :]
+                    if prepared_text.startswith(displayed_text)
+                    else prepared_text
+                )
                 if delta_text:
+                    displayed_text = prepared_text
                     yield {"event": "delta", "data": {"text": delta_text}}
                 continue
 
@@ -2944,6 +3093,7 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
                 "llm_mode": services.settings.llm_mode,
                 "llm_provider": services.settings.llm_provider,
                 "llm_model": services.settings.llm_model,
+                "llm_runtime_policy": services.llm_runtime_policy(),
                 "llm_api_key": services.settings.llm_api_key,
                 "llm_site_url": services.settings.llm_site_url,
                 "llm_application_name": services.settings.llm_application_name,
@@ -3018,6 +3168,10 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     @app.get("/api/work-sessions")
     def list_work_sessions() -> dict[str, Any]:
         return {"items": services.list_work_sessions()}
+
+    @app.post("/api/work-sessions/routing-preview")
+    def preview_work_session_routing(payload: WorkSessionRoutingPreviewRequest) -> dict[str, Any]:
+        return services.preview_work_session_routing(payload.text)
 
     @app.patch("/api/work-sessions/{session_id}")
     def update_work_session(session_id: str, payload: WorkSessionUpdate) -> dict[str, Any]:

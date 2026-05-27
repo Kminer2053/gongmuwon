@@ -3,7 +3,14 @@ from pathlib import Path
 from typing import Any
 from urllib import request
 
-from gongmu_sidecar.llm import generate_session_reply, generate_session_reply_streaming
+import pytest
+
+from gongmu_sidecar.llm import (
+    LLMGenerationError,
+    describe_llm_runtime_policy,
+    generate_session_reply,
+    generate_session_reply_streaming,
+)
 from gongmu_sidecar.settings import SidecarSettings
 
 
@@ -129,6 +136,116 @@ def test_ollama_enables_thinking_only_for_high_reasoning(monkeypatch) -> None:
     assert captured["body"]["think"] is True
 
 
+def test_ollama_gemma4_e2b_uses_recommended_chat_options(monkeypatch) -> None:
+    captured = _capture_request(
+        monkeypatch,
+        {"message": {"role": "assistant", "content": "gemma ok"}},
+    )
+    settings = SidecarSettings(
+        llm_mode="local_first",
+        llm_provider="ollama",
+        llm_model="gemma4:e2b",
+        internal_api_base_url="http://127.0.0.1:11434",
+    )
+
+    result = generate_session_reply(
+        settings,
+        [{"role": "user", "text": "보고서 방향 정리해줘"}],
+        reasoning_effort="medium",
+    )
+
+    assert result.text == "gemma ok"
+    assert captured["body"]["think"] is True
+    assert captured["body"]["options"] == {
+        "num_ctx": 32768,
+        "num_predict": 2560,
+        "temperature": 1.0,
+        "top_k": 65,
+        "top_p": 0.95,
+        "repeat_penalty": 1.0,
+        "stop": ["<end_of_turn>", "<start_of_turn>"],
+    }
+
+
+def test_describe_llm_runtime_policy_marks_gemma4_e2b_as_lightweight() -> None:
+    policy = describe_llm_runtime_policy(provider="ollama", model="gemma4:e2b")
+
+    assert policy["model_family"] == "gemma4"
+    assert policy["is_lightweight"] is True
+    assert policy["is_gemma4_e2b"] is True
+    assert policy["recommended_reasoning_effort"] == "low"
+    assert policy["streaming_required"] is True
+    assert policy["generate_fallback_enabled"] is False
+    assert policy["thinking_supported"] is True
+    assert policy["vision_supported"] is True
+    assert policy["recommended_options"]["num_ctx"] == 32768
+
+
+def test_describe_llm_runtime_policy_preserves_legacy_qwen_fallback() -> None:
+    policy = describe_llm_runtime_policy(provider="ollama", model="qwen3.6:27b")
+
+    assert policy["model_family"] == "qwen"
+    assert policy["is_lightweight"] is False
+    assert policy["is_gemma4_e2b"] is False
+    assert policy["recommended_reasoning_effort"] == "auto"
+    assert policy["generate_fallback_enabled"] is True
+    assert policy["recommended_options"] is None
+
+
+def test_describe_llm_runtime_policy_marks_generic_small_models_as_lightweight() -> None:
+    policy = describe_llm_runtime_policy(provider="openrouter", model="meta-llama/llama-3.2-3b-instruct")
+
+    assert policy["model_family"] == "generic"
+    assert policy["is_lightweight"] is True
+    assert policy["is_gemma4"] is False
+    assert policy["is_gemma4_e2b"] is False
+    assert policy["recommended_reasoning_effort"] == "low"
+    assert policy["streaming_required"] is True
+    assert policy["generate_fallback_enabled"] is True
+    assert policy["recommended_options"] is None
+
+
+@pytest.mark.parametrize(
+    ("model", "expected_lightweight"),
+    [
+        ("meta-llama/llama-3.2-3b-instruct", True),
+        ("microsoft/phi-4-mini-instruct", True),
+        ("google/gemma-4-E2B-it", True),
+        ("mistralai/mistral-nemo-12b-instruct", False),
+        ("qwen/qwen2.5-14b-instruct", False),
+        ("qwen3.6:32b", False),
+    ],
+)
+def test_describe_llm_runtime_policy_uses_model_size_boundaries(
+    model: str, expected_lightweight: bool
+) -> None:
+    policy = describe_llm_runtime_policy(provider="openrouter", model=model)
+
+    assert policy["is_lightweight"] is expected_lightweight
+
+
+def test_ollama_gemma4_e2b_keeps_short_replies_fast_when_reasoning_is_low(monkeypatch) -> None:
+    captured = _capture_request(
+        monkeypatch,
+        {"message": {"role": "assistant", "content": "짧은 답변"}},
+    )
+    settings = SidecarSettings(
+        llm_mode="local_first",
+        llm_provider="ollama",
+        llm_model="google/gemma-4-E2B-it",
+        internal_api_base_url="http://127.0.0.1:11434",
+    )
+
+    generate_session_reply(
+        settings,
+        [{"role": "user", "text": "한 문장으로 답해줘"}],
+        reasoning_effort="low",
+    )
+
+    assert captured["body"]["think"] is False
+    assert captured["body"]["options"]["num_predict"] == 1536
+
+
 def test_ollama_qwen_native_response_uses_reasoning_fallback_when_content_is_empty(monkeypatch) -> None:
     captured = _capture_request(
         monkeypatch,
@@ -146,6 +263,50 @@ def test_ollama_qwen_native_response_uses_reasoning_fallback_when_content_is_emp
     assert result.provider == "ollama"
     assert result.model == "qwen3.6:27b"
     assert result.text == "qwen fallback ok"
+    assert captured["url"] == "http://127.0.0.1:11434/api/chat"
+
+
+def test_ollama_gemma4_e2b_does_not_fallback_to_generate_prompt(monkeypatch) -> None:
+    captured: list[dict[str, Any]] = []
+
+    def fake_urlopen(req: request.Request, timeout: int = 180) -> _FakeResponse:
+        captured.append(
+            {
+                "url": req.full_url,
+                "body": json.loads(req.data.decode("utf-8")),
+            }
+        )
+        return _FakeResponse({"message": {"role": "assistant", "content": ""}})
+
+    monkeypatch.setattr(request, "urlopen", fake_urlopen)
+    settings = SidecarSettings(
+        llm_mode="local_first",
+        llm_provider="ollama",
+        llm_model="gemma4:e2b",
+        internal_api_base_url="http://127.0.0.1:11434",
+    )
+
+    with pytest.raises(LLMGenerationError, match="/api/chat"):
+        generate_session_reply(settings, [{"role": "user", "text": "hello"}])
+
+    assert [item["url"] for item in captured] == ["http://127.0.0.1:11434/api/chat"]
+
+
+def test_ollama_gemma4_e2b_does_not_treat_thinking_field_as_answer(monkeypatch) -> None:
+    captured = _capture_request(
+        monkeypatch,
+        {"message": {"role": "assistant", "content": "", "thinking": "internal thought only"}},
+    )
+    settings = SidecarSettings(
+        llm_mode="local_first",
+        llm_provider="ollama",
+        llm_model="gemma4:e2b",
+        internal_api_base_url="http://127.0.0.1:11434",
+    )
+
+    with pytest.raises(LLMGenerationError, match="/api/chat"):
+        generate_session_reply(settings, [{"role": "user", "text": "hello"}])
+
     assert captured["url"] == "http://127.0.0.1:11434/api/chat"
 
 

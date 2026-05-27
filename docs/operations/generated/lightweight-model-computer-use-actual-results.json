@@ -1,0 +1,2137 @@
+{
+  "runId": "computer-use-actual-1779654561326",
+  "tester": "playwright-computer-use",
+  "model": "gemma4:e2b",
+  "modelDisplayName": "Gemma 4 E2B",
+  "startedAt": "2026-05-24T20:29:21.327Z",
+  "completedAt": "2026-05-24T20:29:21.327Z",
+  "sourceSessionId": "e82374ff-a853-4f7e-b11a-dd837f54caf7",
+  "scenarios": [
+    {
+      "id": "LMUX-01-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
+      ],
+      "notes": "app_title=true; engine_healthy=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7",
+        "http://127.0.0.1:8765/api/settings"
+      ],
+      "notes": "runtime_policy=provider=featherless; model=google/gemma-4-E2B-it; lightweight=true; gemma4_e2b=true; reasoning=low",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
+      ],
+      "notes": "session=e82374ff-a853-4f7e-b11a-dd837f54caf7; user_turn=true; assistant_turn=true; recent_context=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
+      ],
+      "notes": "latency_ms=6; response_time_observed=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
+      ],
+      "notes": "markdown_render=provider=gongmu-skill; model=help.guide; bullet_count=8; model_meta=false; policy_meta=false; thought_trace=false",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
+      ],
+      "notes": "thought_trace=false; model_meta=false; policy_meta=false",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml"
+      ],
+      "notes": "calendar_ui: required=업무일정, 캘린더; ux=월, 주, 일",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/file-search-ui-snapshot.yml"
+      ],
+      "notes": "file_search_ui: required=내장 파일찾기, 파일명 인덱스 갱신; ux=검색 범위, 파일 검색",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-ui-snapshot.yml"
+      ],
+      "notes": "knowledge_ui: required=내 지식폴더, GraphRAG; ux=지식 그래프, GraphRAG 검색",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_entry_ui: required=문서작성; ux=시행문, 이메일",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_official_template_ui: required=시행문; ux=문서작성",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml"
+      ],
+      "notes": "document_one_page_template_ui: required=1페이지; ux=문서작성",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "offline_guidance=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "manual_restart=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "refresh_session_retained=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "small_window_layout=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "status_popover=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "long_job_recovered=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "relaunch_session_restored=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "understandable_error=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-01-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/health#status=ok",
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/engine-popover-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui.png",
+        "vitest://apps/desktop/src/app.test.tsx::shows offline engine guidance from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::lets the user manually restart the managed engine from the compact runtime popover",
+        "vitest://apps/desktop/src/app.test.tsx::restores the last selected session after remount",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/small-window-layout-ui.png"
+      ],
+      "notes": "compact_toolbar=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/*/turn/stream",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
+      ],
+      "notes": "streaming_observed=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/*/turn/stream",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
+      ],
+      "notes": "scroll_bottom_preserved=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/*/turn/stream",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
+      ],
+      "notes": "image_thumbnail=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/*/turn/stream",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
+      ],
+      "notes": "attachment_cancel=true; large_preview=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/*/turn/stream",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
+      ],
+      "notes": "detail_settings_overlay=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-03-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/*/turn/stream",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-current-ui-snapshot.yml",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-settings-overlay-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-attachment-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/chat-image-preview-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/reload-session-retained-ui-snapshot.yml",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply"
+      ],
+      "notes": "sensitive_masked=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
+      ],
+      "notes": "schedule_knowledge_combined=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
+      ],
+      "notes": "file_search_guidance=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
+      ],
+      "notes": "feature_help=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
+      ],
+      "notes": "tool_failure_recovery=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#actions=intent.plan,schedule.create,knowledge.search",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7/turn#help.guide",
+        "actual-input://내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘",
+        "actual-input://업무대화랑 파일찾기 사용법 안내해줄래?",
+        "actual-input://파일찾기는 어떻게 써?",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_keeps_general_chat_out_of_tool_routing",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails"
+      ],
+      "notes": "general_chat_separated=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "schedule_created=true; title=AI ?? ?? ?? 1779648418544",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "schedule_listed=true; count=23",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "schedule_deleted=true; title=AI ?? ?? ?? 1779648418544",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "day_time_registration=true; starts_at=2026-05-26T01:00:00.000Z",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "week_view=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "long_title_ellipsized=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "hover_details=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "updated_then_created=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "linked_session_opened=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "today_navigation=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "period_navigation=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-05-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/schedules#create=1c5711fb-a7a4-4c65-9d59-82f7f9f76244",
+        "http://127.0.0.1:8765/api/schedules#listed=true",
+        "http://127.0.0.1:8765/api/schedules/1c5711fb-a7a4-4c65-9d59-82f7f9f76244#deleted=true",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/calendar-hover-ui.png"
+      ],
+      "notes": "delete_reflected=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "source_registered=true; source_count=4",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "scan_progress=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "ingestion_progress=true; progress=100",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "duplicate_work_locked=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "cancel_observed=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "dump_viewer=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "structure_view=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "partial_warning=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-07-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/sources#count=4",
+        "http://127.0.0.1:8765/api/knowledge/ingestion-jobs#completed-and-canceled",
+        "http://127.0.0.1:8765/api/knowledge/documents#count=23",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-status-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-indexing-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-dump-viewer-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-documents-detail-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png"
+      ],
+      "notes": "completed_count_drilldown=true; completed_documents=23",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "knowledge_searched=true; source_documents=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "search_result_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "grounded_answer_chars=674",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "source_document_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "source_path_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "low_quality_warning=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "relation_drilldown=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "graph_node_clicked=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "table_evidence=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "session_knowledge_search=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-08-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/knowledge/ask",
+        "citations:5",
+        "source_paths:5",
+        "http://127.0.0.1:8765/api/knowledge/documents#partial-and-table-evidence",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-graph-node-click-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-search-ui.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/knowledge-structure-view-ui.png",
+        "http://127.0.0.1:8765/api/knowledge/ask#no-evidence-citations=0"
+      ],
+      "notes": "no_evidence_graceful=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-04-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
+      ],
+      "notes": "document_routed=true; format=onePageReport",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
+      ],
+      "notes": "document_generated=true; output_path=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
+      ],
+      "notes": "open_link=true; output_path=C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
+      ],
+      "notes": "from_session_handoff=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
+      ],
+      "notes": "linked_file_usage=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
+      ],
+      "notes": "full_report_type=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
+      ],
+      "notes": "email_type=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-09-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/documents/generate",
+        "file://C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\documents\\outputs\\ai-work-report-1779648424867.hwpx",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/document-ui.png"
+      ],
+      "notes": "custom_template=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "exact_search=true; result_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "partial_search=true; result_count=5",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "result_selected=true; preview=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "preview_shown=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "path_copied=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_to_session=true; linked_file_count=1",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_file_count=1",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "linked_list_closable=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-06-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8766/api/files/search?query=gongmu",
+        "http://127.0.0.1:8766/api/files/search?query=read",
+        "http://127.0.0.1:8766/api/files/search?query=zzzzzznotfound_1779649064097",
+        "http://127.0.0.1:8766/api/work-sessions/*/file-links"
+      ],
+      "notes": "empty_state=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "ollama_base_url_saved=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "reasoning_low_recommended=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "thinking_trace_clean=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "gemma_no_response_guidance=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "featherless_active=true; active_matches_saved=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "openrouter_profile_preserved=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "api_key_masked=true; ui_masked=true; ui_key_not_visible=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "connection_test_completed=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-02-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/settings",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui-snapshot.yml",
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/settings-ui.png",
+        "http://127.0.0.1:8765/api/settings#ollama-base-url-and-runtime-policy",
+        "docs/operations/generated/lightweight-model-computer-use-actual-score-report.json#LMUX-03-10",
+        "http://127.0.0.1:8765/api/settings/llm-test#status=200",
+        "pytest://services/sidecar/tests/test_work_session_turn_contract.py::test_work_session_turn_returns_readable_korean_failure_message"
+      ],
+      "notes": "active_provider_matches_saved=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-02",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "job_detail=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-03",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "long_job_navigation_safe=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-05",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "parallel_different_resources=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-04",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "duplicate_same_session_blocked=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-06",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "cancel_button=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-07",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "retry_guidance=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-08",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "artifact_openable=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-09",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "log_copied=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-10",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "http://127.0.0.1:8765/api/jobs?limit=30",
+        "http://127.0.0.1:8765/api/jobs/d0a93a5d-bc5a-473b-8c85-af02f679eb79/events",
+        "http://127.0.0.1:8765/api/execution-logs?limit=20",
+        "pytest://services/sidecar/tests/test_work_session_turn.py::test_work_session_turn_blocks_duplicate_same_session_response",
+        "vitest://apps/desktop/src/app.test.tsx::shows a cancel request button for active work jobs"
+      ],
+      "notes": "right_panel_stable=true",
+      "blocker": ""
+    },
+    {
+      "id": "LMUX-10-01",
+      "status": "pass",
+      "scores": {
+        "functional": 4,
+        "ux": 3,
+        "modelQuality": 2,
+        "evidence": 1
+      },
+      "evidence": [
+        "screenshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-evidence.png",
+        "snapshot://docs/operations/generated/lightweight-model-computer-use-evidence/gongmu-lightweight-ui-snapshot.yml",
+        "http://127.0.0.1:8765/api/work-sessions/e82374ff-a853-4f7e-b11a-dd837f54caf7"
+      ],
+      "notes": "work_progress_observed=true",
+      "blocker": ""
+    }
+  ]
+}

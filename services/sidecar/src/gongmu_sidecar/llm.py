@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -346,27 +347,29 @@ def _extract_chat_completion_text(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def _extract_ollama_text(payload: dict[str, Any]) -> str | None:
+def _extract_ollama_text(payload: dict[str, Any], *, allow_reasoning_fallback: bool = True) -> str | None:
     message = payload.get("message")
     if isinstance(message, dict):
         content = message.get("content")
         if isinstance(content, str) and content.strip():
             return content.strip()
-        for key in ("reasoning_content", "reasoning", "thinking", "text"):
-            text_value = message.get(key)
-            if isinstance(text_value, str) and text_value.strip():
-                return text_value.strip()
+        if allow_reasoning_fallback:
+            for key in ("reasoning_content", "reasoning", "thinking", "text"):
+                text_value = message.get(key)
+                if isinstance(text_value, str) and text_value.strip():
+                    return text_value.strip()
 
     response = payload.get("response")
     if isinstance(response, str) and response.strip():
         return response.strip()
 
-    for key in ("reasoning_content", "reasoning", "thinking", "text"):
-        text_value = payload.get(key)
-        if isinstance(text_value, str) and text_value.strip():
-            return text_value.strip()
+    if allow_reasoning_fallback:
+        for key in ("reasoning_content", "reasoning", "thinking", "text"):
+            text_value = payload.get(key)
+            if isinstance(text_value, str) and text_value.strip():
+                return text_value.strip()
 
-    return _extract_chat_completion_text(payload)
+    return _extract_chat_completion_text(payload) if allow_reasoning_fallback else None
 
 
 def _extract_chat_completion_delta(payload: dict[str, Any]) -> str | None:
@@ -388,20 +391,21 @@ def _extract_chat_completion_delta(payload: dict[str, Any]) -> str | None:
     return _extract_chat_completion_text(payload)
 
 
-def _extract_ollama_delta(payload: dict[str, Any]) -> str | None:
+def _extract_ollama_delta(payload: dict[str, Any], *, allow_reasoning_fallback: bool = True) -> str | None:
     message = payload.get("message")
     if isinstance(message, dict):
         content = message.get("content")
         if isinstance(content, str) and content:
             return content
-        for key in ("reasoning_content", "reasoning", "thinking", "text"):
-            text_value = message.get(key)
-            if isinstance(text_value, str) and text_value:
-                return text_value
+        if allow_reasoning_fallback:
+            for key in ("reasoning_content", "reasoning", "thinking", "text"):
+                text_value = message.get(key)
+                if isinstance(text_value, str) and text_value:
+                    return text_value
     response = payload.get("response")
     if isinstance(response, str) and response:
         return response
-    return _extract_ollama_text(payload)
+    return _extract_ollama_text(payload, allow_reasoning_fallback=allow_reasoning_fallback)
 
 
 def _extract_anthropic_text(payload: dict[str, Any]) -> str | None:
@@ -598,6 +602,95 @@ def _looks_like_ollama_native(base_url: str) -> bool:
     return "11434" in base_url and not base_url.rstrip("/").endswith("/v1")
 
 
+def _is_gemma4_model(model: str) -> bool:
+    normalized = model.strip().lower().replace("_", "-")
+    return "gemma4" in normalized or "gemma-4" in normalized
+
+
+def _ollama_think_enabled(model: str, reasoning_effort: str | None) -> bool:
+    if _is_gemma4_model(model):
+        return reasoning_effort in {"medium", "high"}
+    return reasoning_effort in {"medium", "high"}
+
+
+def _ollama_num_predict(reasoning_effort: str | None) -> int:
+    return {
+        "low": 1536,
+        "medium": 2560,
+        "high": 4096,
+    }.get(reasoning_effort or "auto", 1024)
+
+
+def _ollama_options(model: str, reasoning_effort: str | None) -> dict[str, Any] | None:
+    if not _is_gemma4_model(model):
+        return None
+    return {
+        "num_ctx": 32768,
+        "num_predict": _ollama_num_predict(reasoning_effort),
+        "temperature": 1.0,
+        "top_k": 65,
+        "top_p": 0.95,
+        "repeat_penalty": 1.0,
+        "stop": ["<end_of_turn>", "<start_of_turn>"],
+    }
+
+
+def describe_llm_runtime_policy(provider: str, model: str) -> dict[str, Any]:
+    normalized_provider = provider.strip().lower().replace("-", "_").replace(" ", "_")
+    normalized_model = model.strip().lower().replace("_", "-")
+    is_gemma4 = _is_gemma4_model(model)
+    model_sizes = [
+        float(match.group(1))
+        for match in re.finditer(r"(?<!\d)(?:e)?(\d+(?:\.\d+)?)b(?![a-z0-9])", normalized_model)
+    ]
+    small_name = re.search(r"(^|[^a-z0-9])(mini|small|edge|nano|flash)([^a-z0-9]|$)", normalized_model)
+    is_gemma4_e2b = is_gemma4 and any(size == 2 for size in model_sizes)
+    is_qwen = "qwen" in normalized_model
+    is_small_name = bool(small_name or any(0 < size <= 4 for size in model_sizes))
+    is_large_name = any(size >= 8 for size in model_sizes)
+    model_family = "gemma4" if is_gemma4 else "qwen" if is_qwen else "generic"
+    is_lightweight = bool(is_gemma4_e2b or (is_small_name and not is_large_name))
+    recommended_reasoning_effort = "low" if is_lightweight else "medium" if is_gemma4 else "auto"
+
+    return {
+        "provider": normalized_provider or provider,
+        "model": model,
+        "model_family": model_family,
+        "is_lightweight": is_lightweight,
+        "is_gemma4": is_gemma4,
+        "is_gemma4_e2b": is_gemma4_e2b,
+        "recommended_reasoning_effort": recommended_reasoning_effort,
+        "streaming_required": bool(is_lightweight or normalized_provider == "ollama"),
+        "generate_fallback_enabled": not is_gemma4,
+        "thinking_supported": is_gemma4,
+        "vision_supported": is_gemma4 or any(marker in normalized_model for marker in ["vision", "vl", "multimodal"]),
+        "recommended_options": _ollama_options(model, recommended_reasoning_effort)
+        if normalized_provider in {"ollama", "ollama_native"}
+        else None,
+        "notes": [
+            "Gemma 4 계열은 /api/chat 응답만 신뢰하고 /api/generate plain-text fallback을 사용하지 않습니다."
+            if is_gemma4
+            else "기존 Ollama 모델은 호환성을 위해 reasoning_content와 /api/generate fallback을 유지합니다.",
+            "경량모델은 스트리밍 응답과 짧은 reasoning 기본값을 우선 사용합니다."
+            if is_lightweight
+            else "대형 또는 일반 모델은 현재 사용자 설정을 우선합니다.",
+        ],
+    }
+
+
+def _apply_ollama_model_tuning(
+    payload: dict[str, Any],
+    *,
+    model: str,
+    reasoning_effort: str | None,
+) -> dict[str, Any]:
+    payload["think"] = _ollama_think_enabled(model, reasoning_effort)
+    options = _ollama_options(model, reasoning_effort)
+    if options is not None:
+        payload["options"] = options
+    return payload
+
+
 def _ollama_chat_messages(normalized_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     messages: list[dict[str, Any]] = []
     for message in normalized_messages:
@@ -645,19 +738,24 @@ def _generate_ollama_reply(
         "model": model,
         "messages": _ollama_chat_messages(normalized_messages),
         "stream": False,
-        "think": reasoning_effort in {"medium", "high"},
     }
+    _apply_ollama_model_tuning(payload, model=model, reasoning_effort=reasoning_effort)
     response_payload = _post_json(f"{base_url}/api/chat", headers, payload)
-    response_text = _extract_ollama_text(response_payload)
+    response_text = _extract_ollama_text(
+        response_payload,
+        allow_reasoning_fallback=not _is_gemma4_model(model),
+    )
     if response_text:
         return LLMGenerationResult(text=response_text, provider="ollama", model=model)
+    if _is_gemma4_model(model):
+        raise LLMGenerationError("Ollama Gemma 4 returned no assistant text from /api/chat; /api/generate fallback is disabled for this model.")
 
     generate_payload: dict[str, Any] = {
         "model": model,
         "prompt": _ollama_generate_prompt(normalized_messages),
         "stream": False,
-        "think": reasoning_effort in {"medium", "high"},
     }
+    _apply_ollama_model_tuning(generate_payload, model=model, reasoning_effort=reasoning_effort)
     images = _ollama_last_user_images(normalized_messages)
     if images:
         generate_payload["images"] = images
@@ -682,8 +780,8 @@ def _generate_ollama_reply_streaming(
         "model": model,
         "messages": _ollama_chat_messages(normalized_messages),
         "stream": True,
-        "think": reasoning_effort in {"medium", "high"},
     }
+    _apply_ollama_model_tuning(payload, model=model, reasoning_effort=reasoning_effort)
 
     chunks: list[str] = []
     for line in _post_json_stream_lines(f"{base_url}/api/chat", headers, payload):
@@ -693,7 +791,10 @@ def _generate_ollama_reply_streaming(
             continue
         if event_payload.get("error"):
             raise LLMGenerationError(str(event_payload["error"]))
-        delta_text = _extract_ollama_delta(event_payload)
+        delta_text = _extract_ollama_delta(
+            event_payload,
+            allow_reasoning_fallback=not _is_gemma4_model(model),
+        )
         if delta_text:
             chunks.append(delta_text)
             on_delta(delta_text)
@@ -703,13 +804,15 @@ def _generate_ollama_reply_streaming(
     text = "".join(chunks).strip()
     if text:
         return LLMGenerationResult(text=text, provider="ollama", model=model)
+    if _is_gemma4_model(model):
+        raise LLMGenerationError("Ollama Gemma 4 returned no assistant text from /api/chat; /api/generate fallback is disabled for this model.")
 
     generate_payload: dict[str, Any] = {
         "model": model,
         "prompt": _ollama_generate_prompt(normalized_messages),
         "stream": True,
-        "think": reasoning_effort in {"medium", "high"},
     }
+    _apply_ollama_model_tuning(generate_payload, model=model, reasoning_effort=reasoning_effort)
     images = _ollama_last_user_images(normalized_messages)
     if images:
         generate_payload["images"] = images

@@ -1,0 +1,21 @@
+{
+  "runId": "computer-use-actual-1779654561326",
+  "model": "gemma4:e2b",
+  "modelDisplayName": "Gemma 4 E2B",
+  "generatedAt": "2026-05-24T20:29:21.339Z",
+  "readyForCompletion": true,
+  "totalScenarios": 100,
+  "testedCount": 100,
+  "notTestedCount": 0,
+  "requiredTestedCount": 100,
+  "categoriesCovered": 10,
+  "categoriesMissing": 0,
+  "missingCategories": [],
+  "notTestedIds": [],
+  "scenariosMissingEvidence": [],
+  "failedScenarios": [],
+  "overallGrade": "release-ready",
+  "totalScore": 1000,
+  "totalMaxScore": 1000,
+  "issues": []
+}

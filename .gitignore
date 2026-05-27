@@ -13,5 +13,6 @@ apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/resources/sidecar/windows-x64/
 release/sidecar/
 release/offline/
+release/ai-pack/
 release/alpha/20*-windows-*.md
 output/

@@ -29,8 +29,8 @@ export const LLM_PROVIDER_PRESETS: Record<LlmProviderKey, LlmProviderPreset> = {
     label: "Ollama / 로컬 모델",
     docsUrl: "https://github.com/ollama/ollama/blob/main/docs/api.md",
     defaultBaseUrl: "http://127.0.0.1:11434",
-    defaultModel: "qwen3.6:27b",
-    modelPlaceholder: "qwen3.6:27b 또는 gemma4:31b",
+    defaultModel: "gemma4:e2b",
+    modelPlaceholder: "gemma4:e2b 또는 qwen3.6:27b",
     apiKeyLabel: "API Key (선택)",
     apiKeyPlaceholder: "보통 비워둡니다",
     helperLines: [

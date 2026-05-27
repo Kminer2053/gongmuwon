@@ -209,6 +209,7 @@ const MENU_ITEMS: MenuItem[] = [
   { key: "settings", label: "기타 환경설정", description: "로컬 우선 설정", icon: Settings2, iconSrc: "/icons/menu-settings.png" },
 ];
 const ANYTHING_RELEASES_URL = "https://github.com/chrisryugj/Docufinder/releases";
+const SELECTED_SESSION_STORAGE_KEY = "gongmu:selected-session-id";
 const PROVIDER_OPTION_ORDER: LlmProviderKey[] = [
   "openai",
   "openrouter",
@@ -1276,6 +1277,43 @@ function userFacingRuntimeError(error: unknown, fallback: string): string {
   return message.replace(/sidecar/gi, "업무 엔진").replace(/사이드카/g, "업무 엔진");
 }
 
+function readStoredSelectedSessionId(): string {
+  if (typeof window === "undefined") {
+    return "";
+  }
+  try {
+    return window.localStorage.getItem(SELECTED_SESSION_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredSelectedSessionId(sessionId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    if (sessionId) {
+      window.localStorage.setItem(SELECTED_SESSION_STORAGE_KEY, sessionId);
+    } else {
+      window.localStorage.removeItem(SELECTED_SESSION_STORAGE_KEY);
+    }
+  } catch {
+    // Storage may be unavailable in restricted webviews; selection still works in memory.
+  }
+}
+
+function resolveSelectedSessionId(sessions: WorkSessionItem[], currentSessionId: string): string {
+  if (currentSessionId && sessions.some((session) => session.id === currentSessionId)) {
+    return currentSessionId;
+  }
+  const storedSessionId = readStoredSelectedSessionId();
+  if (storedSessionId && sessions.some((session) => session.id === storedSessionId)) {
+    return storedSessionId;
+  }
+  return sessions[0]?.id ?? "";
+}
+
 export function App() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>(EMPTY_SNAPSHOT);
   const [activeMenu, setActiveMenu] = useState<MenuKey>("chat");
@@ -1284,7 +1322,7 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>("");
-  const [selectedSessionId, setSelectedSessionId] = useState<string>("");
+  const [selectedSessionId, setSelectedSessionId] = useState<string>(() => readStoredSelectedSessionId());
   const [selectedReferenceSetId, setSelectedReferenceSetId] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
   const [anythingImportForms, setAnythingImportForms] = useState<
@@ -1331,7 +1369,7 @@ export function App() {
   const [settingsForm, setSettingsForm] = useState({
     llm_mode: "local_first" as "local_first" | "internal_server" | "external_model",
     llm_provider: "ollama",
-    llm_model: "qwen3.6:27b",
+    llm_model: "gemma4:e2b",
     llm_api_key: "",
     llm_site_url: "",
     llm_application_name: "",
@@ -1874,6 +1912,10 @@ export function App() {
     return () => window.removeEventListener("keydown", handleEscape);
   }, [chatImagePreviewOpen]);
 
+  useEffect(() => {
+    writeStoredSelectedSessionId(selectedSessionId);
+  }, [selectedSessionId]);
+
   async function refreshSnapshot(options: { silent?: boolean } = {}) {
     if (!options.silent) {
       setLoading(true);
@@ -1886,8 +1928,9 @@ export function App() {
       if (!selectedScheduleId && next.schedules[0]) {
         setSelectedScheduleId(next.schedules[0].id);
       }
-      if (!selectedSessionId && next.workSessions[0]) {
-        setSelectedSessionId(next.workSessions[0].id);
+      const nextSessionId = resolveSelectedSessionId(next.workSessions, selectedSessionId);
+      if (nextSessionId !== selectedSessionId) {
+        setSelectedSessionId(nextSessionId);
       }
       if (!selectedReferenceSetId && next.referenceSets[0]) {
         setSelectedReferenceSetId(next.referenceSets[0].id);
@@ -1941,8 +1984,9 @@ export function App() {
       if (!selectedScheduleId && next.schedules[0]) {
         setSelectedScheduleId(next.schedules[0].id);
       }
-      if (!selectedSessionId && next.workSessions[0]) {
-        setSelectedSessionId(next.workSessions[0].id);
+      const nextSessionId = resolveSelectedSessionId(next.workSessions, selectedSessionId);
+      if (nextSessionId !== selectedSessionId) {
+        setSelectedSessionId(nextSessionId);
       }
       if (!selectedReferenceSetId && next.referenceSets[0]) {
         setSelectedReferenceSetId(next.referenceSets[0].id);

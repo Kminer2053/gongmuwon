@@ -170,6 +170,36 @@ def test_local_file_search_does_not_rescan_pc_when_filename_index_has_hits(
     assert payload["local_index_count"] == 1
 
 
+def test_file_search_does_not_return_knowledge_files_without_any_match(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    knowledge_root = tmp_path / "knowledge"
+    knowledge_root.mkdir()
+    (knowledge_root / "budget-memo.txt").write_text(
+        "budget review and meeting notes",
+        encoding="utf-8",
+    )
+    empty_pc_root = tmp_path / "empty-pc-root"
+    empty_pc_root.mkdir()
+    monkeypatch.setenv("GONGMU_FILE_SEARCH_ROOTS", str(empty_pc_root))
+
+    client = _client(tmp_path)
+    created = client.post(
+        "/api/knowledge/sources",
+        json={"label": "work", "root_path": str(knowledge_root)},
+    )
+    assert created.status_code == 201
+    source_id = created.json()["id"]
+    assert client.post(f"/api/knowledge/sources/{source_id}/scan").status_code == 200
+
+    response = client.get("/api/files/search?query=zzzzzznotfound&limit=10")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"] == []
+
+
 def test_local_file_search_normalizes_korean_unicode_filenames(tmp_path: Path, monkeypatch) -> None:
     search_root = tmp_path / "pc"
     search_root.mkdir()
