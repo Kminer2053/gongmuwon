@@ -49,5 +49,6 @@
 ### Task 5: 검증
 
 - [x] targeted pytest로 새 RED/GREEN 테스트를 확인한다.
-- [ ] `npm.cmd run sidecar:test` 전체를 실행한다.
+- [x] `npm.cmd run sidecar:test` 전체를 실행한다.
+- [x] `npm.cmd run desktop:test`로 문서작성 화면 handoff 계약을 확인한다.
 - [x] 가능하면 업무대화 문서작성 라우팅 테스트를 함께 실행한다.
