@@ -551,10 +551,20 @@ def test_work_session_turn_returns_recovery_guidance_when_knowledge_tool_fails(
 
 
 def test_work_session_turn_creates_schedule_from_chat_instruction(tmp_path: Path, monkeypatch) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("schedule skill should create schedule without generic LLM fallback")
+    llm_calls: list[list[dict]] = []
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    def fake_extract_schedule_slots(settings, messages, **kwargs):
+        llm_calls.append(messages)
+        return LLMGenerationResult(
+            text=(
+                '{"title":"AI 전략회의","starts_at":"2026-05-20T15:00:00+09:00",'
+                '"ends_at":"2026-05-20T16:00:00+09:00","location":"","confidence":0.95}'
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_schedule_slots)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "일정 등록 테스트"})
     session_id = session.json()["id"]
@@ -567,13 +577,26 @@ def test_work_session_turn_creates_schedule_from_chat_instruction(tmp_path: Path
     assert response.status_code == 201
     assistant_message = response.json()["assistant_message"]
     assert assistant_message["status"] == "completed"
+    assert "일정 등록으로 처리할까요?" in assistant_message["text"]
+    assert response.json()["context_summary"]["skill_actions"] == ["schedule.confirm.request"]
+    assert client.get("/api/schedules").json()["items"] == []
+    assert client.get("/api/approval-tickets").json()["items"] == []
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "네 등록해줘"},
+    )
+
+    assert response.status_code == 201
+    assistant_message = response.json()["assistant_message"]
     assert "일정을 등록했습니다" in assistant_message["text"]
     assert "이렇게 이해했어요" in assistant_message["text"]
-    assert "날짜와 시간" in assistant_message["text"]
+    assert "입력값을 정리한 뒤" in assistant_message["text"]
     assert "schedule.create" not in assistant_message["text"]
     assert "rule" not in assistant_message["text"].lower()
     assert "AI 전략회의" in assistant_message["text"]
     assert response.json()["context_summary"]["skill_actions"] == ["schedule.create"]
+    assert len(llm_calls) == 1
 
     schedules = client.get("/api/schedules").json()["items"]
     assert schedules[0]["title"] == "AI 전략회의"
@@ -581,10 +604,17 @@ def test_work_session_turn_creates_schedule_from_chat_instruction(tmp_path: Path
 
 
 def test_work_session_turn_creates_schedule_from_korean_natural_datetime(tmp_path: Path, monkeypatch) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("natural Korean schedule skill should create schedule without generic LLM fallback")
+    def fake_extract_schedule_slots(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text=(
+                '{"title":"예산 검토 회의","starts_at":"2026-05-21T16:00:00+09:00",'
+                '"ends_at":"2026-05-21T17:00:00+09:00","location":"","confidence":0.94}'
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_schedule_slots)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "자연어 일정 테스트"})
     session_id = session.json()["id"]
@@ -597,6 +627,16 @@ def test_work_session_turn_creates_schedule_from_korean_natural_datetime(tmp_pat
     assert response.status_code == 201
     assistant_message = response.json()["assistant_message"]
     assert assistant_message["status"] == "completed"
+    assert "일정 등록으로 처리할까요?" in assistant_message["text"]
+    assert client.get("/api/schedules").json()["items"] == []
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "좋아"},
+    )
+
+    assert response.status_code == 201
+    assistant_message = response.json()["assistant_message"]
     assert "일정을 등록했습니다" in assistant_message["text"]
     assert response.json()["context_summary"]["skill_actions"] == ["schedule.create"]
 
@@ -608,10 +648,17 @@ def test_work_session_turn_creates_schedule_from_korean_natural_datetime(tmp_pat
 def test_work_session_turn_prioritizes_schedule_when_document_word_is_event_title(
     tmp_path: Path, monkeypatch
 ) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("schedule title containing document words must not route to document generation")
+    def fake_extract_schedule_slots(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text=(
+                '{"title":"문서작성법 사내강의","starts_at":"2026-06-05T15:00:00+09:00",'
+                '"ends_at":"2026-06-05T16:00:00+09:00","location":"다목적홀","confidence":0.9}'
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_schedule_slots)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "문서작성법 세미나 일정 테스트"})
     session_id = session.json()["id"]
@@ -624,9 +671,15 @@ def test_work_session_turn_prioritizes_schedule_when_document_word_is_event_titl
     assert response.status_code == 201
     payload = response.json()
     assert payload["assistant_message"]["provider"] == "gongmu-skill"
-    assert payload["context_summary"]["skill_actions"] == ["schedule.create"]
-    assert "일정을 등록했습니다" in payload["assistant_message"]["text"]
+    assert payload["context_summary"]["skill_actions"] == ["schedule.confirm.request"]
+    assert "일정 등록으로 처리할까요?" in payload["assistant_message"]["text"]
     assert "HWPX 문서를 생성했습니다" not in payload["assistant_message"]["text"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "응 맞아"},
+    )
+    assert response.status_code == 201
 
     schedules = client.get("/api/schedules").json()["items"]
     assert schedules[0]["title"] == "문서작성법 사내강의"
@@ -636,10 +689,17 @@ def test_work_session_turn_prioritizes_schedule_when_document_word_is_event_titl
 def test_work_session_turn_uses_event_phrase_before_date_as_schedule_title(
     tmp_path: Path, monkeypatch
 ) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("clear schedule request should use the local schedule parser")
+    def fake_extract_schedule_slots(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text=(
+                '{"title":"문서작성법 사내강의","starts_at":"2026-06-05T15:00:00+09:00",'
+                '"ends_at":"2026-06-05T16:00:00+09:00","location":"다목적홀","confidence":0.9}'
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_schedule_slots)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "행사 일정 제목 테스트"})
     session_id = session.json()["id"]
@@ -651,8 +711,14 @@ def test_work_session_turn_uses_event_phrase_before_date_as_schedule_title(
 
     assert response.status_code == 201
     payload = response.json()
-    assert payload["context_summary"]["skill_actions"] == ["schedule.create"]
+    assert payload["context_summary"]["skill_actions"] == ["schedule.confirm.request"]
     assert "HWPX 문서를 생성했습니다" not in payload["assistant_message"]["text"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "네"},
+    )
+    assert response.status_code == 201
 
     schedules = client.get("/api/schedules").json()["items"]
     assert schedules[0]["title"] == "문서작성법 사내강의"
@@ -660,10 +726,17 @@ def test_work_session_turn_uses_event_phrase_before_date_as_schedule_title(
 
 
 def test_work_session_turn_accepts_english_schedule_command(tmp_path: Path, monkeypatch) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("english schedule skill should create schedule without generic LLM fallback")
+    def fake_extract_schedule_slots(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text=(
+                '{"title":"UI smoke","starts_at":"2026-05-21T16:00:00+09:00",'
+                '"ends_at":"2026-05-21T17:00:00+09:00","location":"","confidence":0.92}'
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_schedule_slots)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "UI smoke session"})
     session_id = session.json()["id"]
@@ -671,6 +744,15 @@ def test_work_session_turn_accepts_english_schedule_command(tmp_path: Path, monk
     response = client.post(
         f"/api/work-sessions/{session_id}/turn",
         json={"text": "2026-05-21 16:00 UI smoke schedule add"},
+    )
+
+    assert response.status_code == 201
+    assistant_message = response.json()["assistant_message"]
+    assert "일정 등록으로 처리할까요?" in assistant_message["text"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "yes proceed"},
     )
 
     assert response.status_code == 201

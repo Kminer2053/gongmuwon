@@ -45,6 +45,19 @@ CREATE TABLE IF NOT EXISTS work_session_messages (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS work_session_tool_confirmations (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    user_message_id TEXT,
+    action TEXT NOT NULL,
+    original_text TEXT NOT NULL,
+    status TEXT NOT NULL,
+    extracted_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    decided_at TEXT,
+    FOREIGN KEY(session_id) REFERENCES work_sessions(id)
+);
+
 CREATE TABLE IF NOT EXISTS work_session_attachments (
     id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,

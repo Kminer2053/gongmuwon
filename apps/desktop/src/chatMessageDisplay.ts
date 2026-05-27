@@ -25,9 +25,12 @@ const PROVIDER_LABELS: Record<string, string> = {
 const MODEL_LABELS: Record<string, string> = {
   "help.guide": "사용법 안내",
   "intent.plan": "여러 작업 처리",
+  "schedule.confirm.request": "일정 등록 확인",
   "schedule.create": "일정 등록",
+  "schedule.create.failed": "일정 등록 오류",
   "schedule.delete": "일정 삭제",
   "schedule.list": "일정 조회",
+  "tool.confirm.rejected": "도구 실행 취소",
   "knowledge.search": "지식폴더 검색",
   "knowledge.search.failed": "지식폴더 검색 오류",
   "documents.generate": "문서작성",

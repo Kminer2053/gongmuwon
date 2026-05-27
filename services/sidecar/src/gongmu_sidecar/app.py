@@ -1088,6 +1088,12 @@ class AppServices:
         if not normalized:
             return None
         skill_result: dict[str, Any] | None = None
+        pending_confirmation = self._run_pending_work_session_tool_confirmation(
+            session_id=session_id,
+            text=normalized,
+        )
+        if pending_confirmation is not None:
+            return pending_confirmation
         if self._looks_like_feature_usage_request(normalized):
             skill_result = self._run_feature_usage_guide(normalized)
             return self._with_user_friendly_skill_explanation(skill_result)
@@ -1103,10 +1109,13 @@ class AppServices:
         if self._looks_like_schedule_delete_request(normalized):
             skill_result = self._run_schedule_delete_skill(normalized)
             return self._with_user_friendly_skill_explanation(skill_result)
-        if self._looks_like_schedule_create_request(normalized):
-            schedule_result = self._run_schedule_create_skill(normalized)
-            if schedule_result is not None:
-                return self._with_user_friendly_skill_explanation(schedule_result)
+        if self._looks_like_schedule_create_request(normalized) and self._parse_schedule_request(normalized) is not None:
+            return self._request_work_session_tool_confirmation(
+                session_id=session_id,
+                user_message_id=user_message["id"],
+                action="schedule.create",
+                original_text=normalized,
+            )
         if self._looks_like_schedule_list_request(normalized):
             skill_result = self._run_schedule_list_skill()
             return self._with_user_friendly_skill_explanation(skill_result)
@@ -1122,14 +1131,152 @@ class AppServices:
             return self._with_user_friendly_skill_explanation(skill_result)
         return None
 
+    def _request_work_session_tool_confirmation(
+        self,
+        *,
+        session_id: str,
+        user_message_id: str,
+        action: str,
+        original_text: str,
+    ) -> dict[str, Any]:
+        now = now_iso()
+        self.db.execute(
+            """
+            UPDATE work_session_tool_confirmations
+            SET status = 'superseded', decided_at = ?
+            WHERE session_id = ? AND status = 'pending'
+            """,
+            (now, session_id),
+        )
+        confirmation = {
+            "id": str(uuid4()),
+            "session_id": session_id,
+            "user_message_id": user_message_id,
+            "action": action,
+            "original_text": original_text,
+            "status": "pending",
+            "extracted_json": "{}",
+            "created_at": now,
+            "decided_at": None,
+        }
+        self.db.insert("work_session_tool_confirmations", confirmation)
+        self.db.log(
+            feature="chat",
+            action="work_session.tool_confirmation.requested",
+            status="pending",
+            inputs={"session_id": session_id, "text": original_text},
+            outputs={"confirmation_id": confirmation["id"], "action": action},
+        )
+        label = self._friendly_skill_action_label(action)
+        return {
+            "actions": ["schedule.confirm.request" if action == "schedule.create" else "tool.confirm.request"],
+            "results": [{"confirmation_id": confirmation["id"], "action": action}],
+            "text": (
+                f"{label}으로 처리할까요?\n\n"
+                "제가 이해한 내용\n"
+                f"- 처리할 일: {label}\n"
+                f"- 원문: {original_text}\n\n"
+                "동의하면 `네`, `좋아`, `진행해`처럼 답해주세요.\n"
+                "아니라면 `아니`, `취소`라고 답하거나 원하는 방향을 다시 말해주세요."
+            ),
+        }
+
+    def _latest_pending_work_session_tool_confirmation(self, session_id: str) -> dict[str, Any] | None:
+        row = self.db.fetch_one(
+            """
+            SELECT *
+            FROM work_session_tool_confirmations
+            WHERE session_id = ? AND status = 'pending'
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (session_id,),
+        )
+        return dict(row) if row else None
+
+    def _run_pending_work_session_tool_confirmation(
+        self,
+        *,
+        session_id: str,
+        text: str,
+    ) -> dict[str, Any] | None:
+        pending = self._latest_pending_work_session_tool_confirmation(session_id)
+        if pending is None:
+            return None
+        if self._looks_like_tool_confirmation_rejection(text):
+            self._complete_work_session_tool_confirmation(
+                pending["id"],
+                status="rejected",
+                extracted={},
+            )
+            return {
+                "actions": ["tool.confirm.rejected"],
+                "results": [{"confirmation_id": pending["id"], "action": pending["action"], "accepted": False}],
+                "text": "알겠습니다. 요청한 도구 실행은 하지 않았습니다.\n\n원하시는 방향으로 다시 말씀해 주세요.",
+            }
+        if not self._looks_like_tool_confirmation_acceptance(text):
+            return None
+        if pending["action"] == "schedule.create":
+            result = self._run_confirmed_schedule_create_skill(str(pending["original_text"]))
+            extracted = result["results"][0].get("extracted", {}) if result.get("results") else {}
+            self._complete_work_session_tool_confirmation(
+                pending["id"],
+                status="accepted",
+                extracted=extracted if isinstance(extracted, dict) else {},
+            )
+            return result
+        return None
+
+    def _complete_work_session_tool_confirmation(
+        self,
+        confirmation_id: str,
+        *,
+        status: str,
+        extracted: dict[str, Any],
+    ) -> None:
+        self.db.execute(
+            """
+            UPDATE work_session_tool_confirmations
+            SET status = ?, extracted_json = ?, decided_at = ?
+            WHERE id = ?
+            """,
+            (status, json.dumps(extracted, ensure_ascii=False), now_iso(), confirmation_id),
+        )
+        self.db.log(
+            feature="chat",
+            action="work_session.tool_confirmation.decided",
+            status=status,
+            inputs={"confirmation_id": confirmation_id},
+            outputs={"extracted": extracted},
+        )
+
+    @staticmethod
+    def _looks_like_tool_confirmation_acceptance(text: str) -> bool:
+        lowered = text.strip().lower()
+        return bool(re.search(r"\b(ok|yes|y|go|proceed)\b", lowered)) or any(
+            marker in text
+            for marker in ["네", "응", "ㅇㅇ", "좋아", "맞아", "그래", "진행", "등록", "해줘", "실행", "동의"]
+        )
+
+    @staticmethod
+    def _looks_like_tool_confirmation_rejection(text: str) -> bool:
+        lowered = text.strip().lower()
+        return bool(re.search(r"\b(no|n|cancel|stop)\b", lowered)) or any(
+            marker in text
+            for marker in ["아니", "취소", "하지마", "멈춰", "틀려", "아님", "보류"]
+        )
+
     @staticmethod
     def _friendly_skill_action_label(action: str) -> str:
         return {
             "help.guide": "사용법 안내",
             "intent.plan": "여러 작업 처리",
+            "schedule.confirm.request": "일정 등록 확인",
             "schedule.create": "일정 등록",
+            "schedule.create.failed": "일정 등록 오류",
             "schedule.delete": "일정 삭제",
             "schedule.list": "일정 조회",
+            "tool.confirm.rejected": "도구 실행 취소",
             "knowledge.search": "지식폴더 검색",
             "knowledge.search.failed": "지식폴더 검색",
             "documents.generate": "문서작성",
@@ -1504,6 +1651,116 @@ class AppServices:
             "results": [{"count": len(schedules)}],
             "text": "\n".join(lines),
         }
+
+    def _run_confirmed_schedule_create_skill(self, text: str) -> dict[str, Any]:
+        parsed = self._parse_schedule_request(text)
+        extracted = self._extract_schedule_create_slots_with_llm(text, fallback=parsed)
+        starts_at = str(extracted.get("starts_at") or (parsed or {}).get("starts_at") or "").strip()
+        ends_at = str(extracted.get("ends_at") or (parsed or {}).get("ends_at") or "").strip()
+        title = str(extracted.get("title") or (parsed or {}).get("title") or "새 일정").strip()
+        if not starts_at or not ends_at:
+            fallback_result = self._run_schedule_create_skill(text)
+            if fallback_result is None:
+                return {
+                    "actions": ["schedule.create.failed"],
+                    "results": [{"original_text": text, "extracted": extracted}],
+                    "text": (
+                        "일정을 등록하지 못했습니다.\n\n"
+                        "날짜와 시간을 충분히 확인하지 못했습니다. `2026-06-05 오후 3시 회의 일정 등록`처럼 다시 말씀해 주세요."
+                    ),
+                }
+            fallback_result["results"][0]["extracted"] = extracted
+            return fallback_result
+
+        schedule = self.create_schedule(
+            ScheduleCreate(
+                title=title,
+                starts_at=starts_at,
+                ends_at=ends_at,
+                view="day",
+            )
+        )
+        location = str(extracted.get("location") or "").strip()
+        lines = [
+            "이렇게 이해했어요",
+            "- 일정 등록으로 처리하자는 확인에 동의해 주셔서, 원문에서 입력값을 정리한 뒤 업무일정 캘린더에 추가했습니다.",
+            "",
+            "일정을 등록했습니다.",
+            "",
+            f"- 제목: {schedule['title']}",
+            f"- 시간: {schedule['starts_at']} ~ {schedule['ends_at']}",
+        ]
+        if location:
+            lines.append(f"- 장소: {location}")
+        return {
+            "actions": ["schedule.create"],
+            "results": [
+                {
+                    "schedule_id": schedule["id"],
+                    "title": schedule["title"],
+                    "extracted": extracted,
+                }
+            ],
+            "text": "\n".join(lines),
+        }
+
+    def _extract_schedule_create_slots_with_llm(
+        self,
+        text: str,
+        *,
+        fallback: dict[str, str] | None,
+    ) -> dict[str, Any]:
+        fallback_payload = fallback or {}
+        prompt = (
+            "당신은 공공기관 업무 일정 등록 보조자입니다.\n"
+            "사용자의 원문에서 일정 등록에 필요한 입력값만 JSON 객체로 추출하세요.\n"
+            "반드시 JSON만 출력하세요. 설명, 마크다운, 코드블록은 금지합니다.\n"
+            "필드: title, starts_at, ends_at, location, description, confidence, missing_fields.\n"
+            "starts_at/ends_at은 ISO 8601 형식과 +09:00 타임존을 사용하세요.\n"
+            "제목은 행사명이나 회의명만 짧게 적고, 날짜/시간/장소/등록 요청 문구는 제목에서 제외하세요.\n"
+            f"오늘 날짜는 {datetime.now(timezone(timedelta(hours=9))).date().isoformat()}입니다.\n"
+            f"규칙 파서 초안: {json.dumps(fallback_payload, ensure_ascii=False)}"
+        )
+        try:
+            result = generate_session_reply(
+                self.settings,
+                [
+                    {
+                        "role": "system",
+                        "text": prompt,
+                        "status": "completed",
+                    },
+                    {
+                        "role": "user",
+                        "text": text,
+                        "status": "completed",
+                    },
+                ],
+                reasoning_effort="minimal",
+            )
+            extracted = self._parse_llm_json_object(result.text)
+        except (LLMGenerationError, ValueError, TypeError, json.JSONDecodeError):
+            extracted = {}
+
+        merged = dict(fallback_payload)
+        merged.update({key: value for key, value in extracted.items() if value not in (None, "")})
+        return merged
+
+    @staticmethod
+    def _parse_llm_json_object(text: str) -> dict[str, Any]:
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+        if not cleaned.startswith("{"):
+            match = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+            if not match:
+                raise ValueError("LLM did not return a JSON object")
+            cleaned = match.group(0)
+        parsed = json.loads(cleaned)
+        if not isinstance(parsed, dict):
+            raise ValueError("LLM JSON payload is not an object")
+        return parsed
 
     def _run_schedule_create_skill(self, text: str) -> dict[str, Any] | None:
         parsed = self._parse_schedule_request(text)

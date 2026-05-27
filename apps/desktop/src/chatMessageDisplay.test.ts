@@ -51,6 +51,17 @@ describe("getAssistantSourceLabel", () => {
     ).toBe("공무 도구 / 일정 등록");
   });
 
+  it("shows a readable pending schedule confirmation label", () => {
+    expect(
+      getAssistantSourceLabel(
+        message({
+          provider: "gongmu-skill",
+          model: "schedule.confirm.request",
+        }),
+      ),
+    ).toBe("공무 도구 / 일정 등록 확인");
+  });
+
   it("summarizes multi-step tool execution without exposing route ids", () => {
     expect(
       getAssistantSourceLabel(
