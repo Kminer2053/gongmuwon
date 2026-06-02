@@ -21,6 +21,73 @@ def _extract_hwpx_text(path: Path) -> str:
     return "\n".join(chunks)
 
 
+def _fake_document_pipeline_reply(
+    *,
+    title: str = "보고서 자연어 라우팅 문서",
+    document_format: str = "onePageReport",
+):
+    calls: list[list[dict]] = []
+
+    def fake_generate_reply(settings, messages, **kwargs):
+        calls.append(messages)
+        if len(calls) == 1:
+            return LLMGenerationResult(
+                text=(
+                    f'{{"title":"{title}","document_format":"{document_format}",'
+                    '"purpose":"업무대화 세션을 근거로 공공문서 작성",'
+                    '"instructions":"대화세션 맥락을 두괄식과 개조식으로 정리",'
+                    '"confidence":0.91}'
+                ),
+                provider="ollama",
+                model="gemma4:e2b",
+            )
+        if len(calls) == 2:
+            return LLMGenerationResult(
+                text=(
+                    '{"summary":["업무대화 세션 내용을 공공문서 형식으로 정리합니다."],'
+                    '"background":["사용자가 문서작성 기능을 요청했습니다."],'
+                    '"current_status":["대화세션을 문서작성의 기본 근거로 사용합니다."],'
+                    '"issues":["세부 근거가 부족한 항목은 확인 필요로 표시합니다."],'
+                    '"solutions":["핵심 내용과 후속 조치를 짧은 개조식으로 정리합니다."],'
+                    '"expected_effects":["문서작성 결과의 재사용성과 추적성을 높입니다."],'
+                    '"actions":["보고서 초안을 검토합니다."],'
+                    '"evidence":["업무대화 세션"],'
+                    '"quality_checks":["두괄식","한 문장 한 핵심"],'
+                    '"confidence":0.9}'
+                ),
+                provider="ollama",
+                model="gemma4:e2b",
+            )
+        return LLMGenerationResult(
+            text=(
+                f'{{"content_markdown":"# {title}\\n\\n'
+                '## WorkSessionBrief\\n'
+                '- 작성 지시: 대화세션 기반 문서작성\\n'
+                '- 핵심 근거: 업무대화 세션\\n\\n'
+                '## DocumentPlan\\n'
+                f'- 형식: public-doc-to-hwpx {document_format}\\n'
+                '- 전략: 두괄식 요약과 개조식 본문\\n\\n'
+                '## 핵심 내용\\n'
+                '- 업무대화 세션 내용을 공공문서 형식으로 정리합니다.\\n\\n'
+                '## 현황 및 쟁점\\n'
+                '- 대화세션을 문서작성의 기본 근거로 사용합니다.\\n\\n'
+                '## 조치안\\n'
+                '- 핵심 내용과 후속 조치를 짧은 개조식으로 정리합니다.\\n\\n'
+                '## 기대효과 및 요청\\n'
+                '- 문서작성 결과의 재사용성과 추적성을 높입니다.\\n\\n'
+                '## 수집 근거\\n'
+                '- 업무대화 세션\\n\\n'
+                '## 작성 품질 점검\\n'
+                '- 두괄식\\n'
+                '- 한 문장 한 핵심"}'
+            ),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    return calls, fake_generate_reply
+
+
 def test_work_session_turn_persists_user_and_assistant_messages(tmp_path: Path, monkeypatch) -> None:
     def fake_generate_reply(settings, messages, **kwargs):
         assert settings.llm_provider == "ollama"
@@ -942,6 +1009,55 @@ def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path:
 
     def fake_extract_document_request(settings, messages, **kwargs):
         llm_calls.append(messages)
+        call_index = len(llm_calls)
+        if call_index == 2:
+            return LLMGenerationResult(
+                text=(
+                    '{"summary":["AI 실행계획은 보안형 로컬 자동화 중심으로 추진합니다.",'
+                    '"부서별 책임자와 추진기한을 명시해야 합니다."],'
+                    '"background":["업무대화 세션에서 AI 추진 배경과 향후 조치사항이 논의되었습니다."],'
+                    '"current_status":["연결 파일에 보안형 로컬 자동화와 책임자 지정 필요성이 확인되었습니다."],'
+                    '"issues":["추진기한과 책임부서가 불명확하면 실행력이 낮아집니다."],'
+                    '"solutions":["부서별 책임자와 추진기한을 보고서 본문에 명시합니다."],'
+                    '"expected_effects":["후속 검토와 실행 관리 기준을 명확히 합니다."],'
+                    '"actions":["추진방향 검토 후 부서별 실행계획을 확정합니다."],'
+                    '"evidence":["AI 실행계획 근거: 보안형 로컬 자동화 중심"],'
+                    '"quality_checks":["두괄식으로 핵심 결론을 앞에 배치했습니다.",'
+                    '"개조식으로 한 문장 한 핵심을 유지했습니다."],'
+                    '"confidence":0.94}'
+                ),
+                provider="ollama",
+                model="gemma4:e2b",
+            )
+        if call_index == 3:
+            return LLMGenerationResult(
+                text=(
+                    '{"content_markdown":"# AI 실행계획 1페이지 보고서\\n\\n'
+                    '## WorkSessionBrief\\n'
+                    '- 작성 지시: AI 추진 배경과 향후 조치사항을 1페이지 보고서로 압축\\n'
+                    '- 세션 핵심: 보안형 로컬 자동화 중심 추진, 부서별 책임자와 추진기한 명시\\n\\n'
+                    '## DocumentPlan\\n'
+                    '- 형식: 1페이지 보고서\\n'
+                    '- 전략: 두괄식 요약, 개조식 본문, 출처 분리\\n\\n'
+                    '## 핵심 내용\\n'
+                    '- 보안형 로컬 자동화 중심으로 AI 실행계획을 수립합니다.\\n'
+                    '- 부서별 책임자와 추진기한을 명시해 실행력을 높입니다.\\n\\n'
+                    '## 현황 및 쟁점\\n'
+                    '- 업무대화에서 AI 추진 배경과 향후 조치사항이 논의되었습니다.\\n'
+                    '- 책임자와 기한이 불명확하면 후속 실행이 지연될 수 있습니다.\\n\\n'
+                    '## 조치안\\n'
+                    '- 부서별 실행계획, 책임자, 추진기한을 보고서 본문에 반영합니다.\\n\\n'
+                    '## 기대효과 및 요청\\n'
+                    '- 후속 검토와 실행 관리 기준을 명확히 합니다.\\n\\n'
+                    '## 수집 근거\\n'
+                    '- AI 실행계획 근거: 보안형 로컬 자동화 중심\\n\\n'
+                    '## 작성 품질 점검\\n'
+                    '- 두괄식으로 핵심 결론을 앞에 배치했습니다.\\n'
+                    '- 개조식으로 한 문장 한 핵심을 유지했습니다."}'
+                ),
+                provider="ollama",
+                model="gemma4:e2b",
+            )
         return LLMGenerationResult(
             text=(
                 '{"title":"AI 실행계획 1페이지 보고서","document_format":"onePageReport",'
@@ -1008,7 +1124,6 @@ def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path:
     assert "파일 열기:" in assistant_message["text"]
     assert "폴더 열기:" in assistant_message["text"]
     assert response.json()["context_summary"]["skill_actions"] == ["document.create"]
-    assert len(llm_calls) == 1
 
     skill_result = response.json()["context_summary"]["skill_results"][0]
     content_base_id = skill_result["content_base_id"]
@@ -1019,27 +1134,35 @@ def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path:
     assert content_base_id
     assert output_path.exists()
     assert markdown_path.exists()
+    content_base_markdown = Path(skill_result["content_base_path"]).read_text(encoding="utf-8")
     review_markdown = markdown_path.read_text(encoding="utf-8")
     assert "AI 추진 배경과 향후 조치사항" in review_markdown
     assert "보안형 로컬 자동화 중심" in review_markdown
+    assert "부서별 책임자와 추진기한" in review_markdown
+    assert "## WorkSessionBrief" in content_base_markdown
+    assert "## DocumentPlan" in content_base_markdown
+    assert "아직 연결된 파일이 없습니다" not in content_base_markdown
     assert "이 세션 내용으로 1페이지 보고서 HWPX 문서작성 해줘" not in review_markdown
-    assert "두괄식" in review_markdown
-    assert "개조식" in review_markdown
+    assert "두괄식" in content_base_markdown
+    assert "개조식" in content_base_markdown
     hwpx_text = _extract_hwpx_text(output_path)
     assert "AI 실행계획 1페이지 보고서" in hwpx_text
-    assert "AI 추진 배경과 향후 조치사항" in hwpx_text
+    assert "보안형 로컬 자동화" in hwpx_text
+    assert "부서별 책임자" in hwpx_text
+    assert "공무 워크스페이스 생성 내용" not in hwpx_text
     assert "보안형 로컬 자동화 중심" in hwpx_text
+    assert "작성 품질 점검" not in hwpx_text
+    assert "두괄식" not in hwpx_text
+    assert "개조식" not in hwpx_text
+    call_texts = ["\n".join(str(message.get("text", "")) for message in call) for call in llm_calls]
+    assert len(llm_calls) >= 3
+    assert any("WorkSessionBrief" in text for text in call_texts)
+    assert any("DocumentPlan" in text and "public-doc-to-hwpx" in text for text in call_texts)
 
 
 def test_work_session_turn_routes_plain_hwpx_requests_to_document_skill(tmp_path: Path, monkeypatch) -> None:
-    def fake_extract_document_request(settings, messages, **kwargs):
-        return LLMGenerationResult(
-            text='{"title":"One page HWPX report","document_format":"onePageReport","confidence":0.9}',
-            provider="ollama",
-            model="gemma4:e2b",
-        )
-
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_document_request)
+    _calls, fake_generate_reply = _fake_document_pipeline_reply(title="One page HWPX report")
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "Plain document skill session"})
     session_id = session.json()["id"]
@@ -1082,17 +1205,8 @@ def test_work_session_turn_routes_plain_hwpx_requests_to_document_skill(tmp_path
 def test_work_session_turn_routes_natural_korean_report_requests_to_document_skill(
     tmp_path: Path, monkeypatch, instruction: str, expected_format: str
 ) -> None:
-    def fake_extract_document_request(settings, messages, **kwargs):
-        return LLMGenerationResult(
-            text=(
-                '{"title":"보고서 자연어 라우팅 문서",'
-                f'"document_format":"{expected_format}","confidence":0.91}}'
-            ),
-            provider="ollama",
-            model="gemma4:e2b",
-        )
-
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_extract_document_request)
+    _calls, fake_generate_reply = _fake_document_pipeline_reply(document_format=expected_format)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "보고서 자연어 라우팅"})
     session_id = session.json()["id"]

@@ -47,6 +47,22 @@ from .workspace import WorkspacePaths, ensure_workspace
 
 ANYTHING_RELEASES_URL = "https://github.com/chrisryugj/Docufinder/releases"
 
+PUBLIC_DOC_AUTHORING_GUIDE = """
+[public-doc-to-hwpx writing guide]
+목표: 공공기관 보고서 작성자가 만든 것처럼 30초 안에 핵심을 파악하고 5분 안에 판단할 수 있는 문서를 만든다.
+필수 흐름: 콘텐츠 기초데이터 정리 -> 작성목적/서식 결정 -> 서식 슬롯에 맞춘 콘텐츠 수정 -> 레이아웃 최적화 -> HWPX skeleton 채움.
+핵심 원칙:
+- 두괄식: 결론과 요청사항을 첫 3줄 안에 둔다.
+- 한 문장 한 핵심: 긴 서술은 개조식 항목으로 나눈다.
+- 적/의/것/들 정리: 빼도 의미가 유지되면 줄인다.
+- 출처 분리: 대화, 연결 일정, 연결 파일, GraphRAG 근거를 구분해 추적 가능하게 쓴다.
+- 양식 보존: 새 레이아웃을 만들지 말고 선택된 public-doc-to-hwpx skeleton 슬롯에 들어갈 내용만 작성한다.
+1페이지 보고서 기준:
+- 구성: 개요 -> 현황 및 쟁점 -> 조치안 -> 기대효과 및 요청 -> 근거 및 연결자료.
+- 각 항목은 45자 안팎의 짧은 문장 또는 개조식으로 쓴다.
+- 불확실하거나 누락된 내용은 만들어내지 말고 "확인 필요"로 표시한다.
+""".strip()
+
 
 class ScheduleCreate(BaseModel):
     title: str
@@ -1501,7 +1517,7 @@ class AppServices:
             elif intent == "knowledge.search":
                 skill_result = self._run_knowledge_search_skill(session_id=session_id, query=text)
             elif intent == "documents.generate":
-                skill_result = self._run_document_create_skill(session_id=session_id, session=session, text=text)
+                skill_result = self._run_confirmed_document_create_skill(session_id=session_id, session=session, text=text)
 
             if skill_result is None:
                 continue
@@ -2005,7 +2021,14 @@ class AppServices:
             if not match:
                 raise ValueError("LLM did not return a JSON object")
             cleaned = match.group(0)
-        parsed = json.loads(cleaned)
+        try:
+            parsed = json.loads(cleaned)
+        except json.JSONDecodeError:
+            # Small models often Markdown-escape "_" or "*" inside JSON strings.
+            # Those escapes are harmless in Markdown but invalid in JSON, so remove
+            # backslashes that do not introduce a legal JSON escape sequence.
+            repaired = re.sub(r'\\(?!["\\/bfnrtu])', "", cleaned)
+            parsed = json.loads(repaired)
         if not isinstance(parsed, dict):
             raise ValueError("LLM JSON payload is not an object")
         return parsed
@@ -2076,6 +2099,272 @@ class AppServices:
         if result.get("results"):
             result["results"][0]["extracted"] = extracted
         return result
+
+    def _prepare_document_authoring_markdown(
+        self,
+        *,
+        title: str,
+        purpose: str,
+        outline: str,
+        document_format: str,
+        source_session_id: str | None,
+        direct_file_paths: list[str],
+        reference_set_id: str | None,
+        document_request: dict[str, Any],
+    ) -> dict[str, Any]:
+        session_context = self.documents._session_context(source_session_id) if source_session_id else None
+        knowledge_items = self.documents._document_knowledge_items(
+            title=title,
+            purpose=purpose,
+            outline=outline,
+            source_session_id=source_session_id,
+            session_context=session_context,
+        )
+        source_bundle = self._build_document_authoring_source_bundle(
+            title=title,
+            purpose=purpose,
+            outline=outline,
+            document_format=document_format,
+            session_context=session_context,
+            direct_file_paths=direct_file_paths,
+            reference_set_id=reference_set_id,
+            knowledge_items=knowledge_items,
+            document_request=document_request,
+        )
+        brief = self._generate_document_work_session_brief_with_llm(
+            title=title,
+            purpose=purpose,
+            outline=outline,
+            document_format=document_format,
+            source_bundle=source_bundle,
+        )
+        content_markdown = self._generate_public_document_markdown_with_llm(
+            title=title,
+            purpose=purpose,
+            outline=outline,
+            document_format=document_format,
+            source_bundle=source_bundle,
+            brief=brief,
+        )
+        return {
+            "content_markdown": content_markdown,
+            "brief": brief,
+            "source_bundle": source_bundle,
+            "llm_stages": [
+                {"stage": "WorkSessionBrief", "status": "completed"},
+                {"stage": "DocumentPlan", "status": "completed"},
+                {"stage": "public-doc-to-hwpx content mapping", "status": "completed"},
+            ],
+        }
+
+    def _build_document_authoring_source_bundle(
+        self,
+        *,
+        title: str,
+        purpose: str,
+        outline: str,
+        document_format: str,
+        session_context: dict[str, Any] | None,
+        direct_file_paths: list[str],
+        reference_set_id: str | None,
+        knowledge_items: list[dict[str, Any]],
+        document_request: dict[str, Any],
+    ) -> str:
+        lines = [
+            "[문서작성 요청]",
+            f"- 제목: {title}",
+            f"- 목적: {purpose}",
+            f"- 출력 형식: {document_format}",
+            f"- 작성 지시: {outline}",
+        ]
+        for key in [
+            "audience_type",
+            "expected_length",
+            "requested_action",
+            "deadline",
+            "security_level",
+        ]:
+            value = str(document_request.get(key) or "").strip()
+            if value:
+                lines.append(f"- {key}: {value}")
+
+        if session_context:
+            session = session_context.get("session") or {}
+            schedule = session_context.get("schedule")
+            lines.extend(["", "[업무대화 세션]", f"- 세션명: {session.get('title', '')}"])
+            if schedule:
+                lines.append(
+                    f"- 연결 일정: {schedule.get('title')} ({schedule.get('starts_at')} ~ {schedule.get('ends_at')})"
+                )
+            messages = self.documents._document_context_messages(session_context.get("messages") or [])
+            if messages:
+                lines.append("- 대화 기록:")
+                for message in messages[-16:]:
+                    role = "사용자" if message.get("role") == "user" else "어시스턴트"
+                    text = self._redact_sensitive_text(str(message.get("text") or ""))
+                    text = re.sub(r"\s+", " ", text).strip()
+                    if text:
+                        lines.append(f"  - {role}: {text[:900]}")
+
+            file_links = session_context.get("file_links") or []
+            if file_links:
+                lines.extend(["", "[세션 연결 파일]"])
+                for link in file_links[:10]:
+                    path = str(link.get("file_path") or "").strip()
+                    label = str(link.get("label") or Path(path).name or path)
+                    lines.append(f"- {label}: {path}")
+                    excerpt = self.documents._safe_file_excerpt(path)
+                    if excerpt:
+                        lines.append(f"  excerpt: {self._redact_sensitive_text(excerpt)[:1000]}")
+
+        if direct_file_paths:
+            lines.extend(["", "[직접 연결 파일]"])
+            for path in direct_file_paths[:10]:
+                label = Path(path).name or path
+                lines.append(f"- {label}: {path}")
+                excerpt = self.documents._safe_file_excerpt(path)
+                if excerpt:
+                    lines.append(f"  excerpt: {self._redact_sensitive_text(excerpt)[:1000]}")
+
+        if reference_set_id:
+            reference_lines = self.documents._reference_lines(reference_set_id)
+            usable_references = [
+                line for line in reference_lines if "참고자료가 아직 연결되지 않았습니다" not in line
+            ]
+            if usable_references:
+                lines.extend(["", "[Reference Set]"])
+                lines.extend(usable_references[:12])
+
+        if knowledge_items:
+            lines.extend(["", "[GraphRAG 근거 후보]"])
+            for item in knowledge_items[:8]:
+                document = item.get("document") if isinstance(item.get("document"), dict) else {}
+                chunk = item.get("chunk") if isinstance(item.get("chunk"), dict) else {}
+                title_value = str(document.get("title") or item.get("title") or "제목 없음")
+                path = str(document.get("file_path") or item.get("file_path") or "")
+                text = str(item.get("text") or item.get("snippet") or chunk.get("text") or "").strip()
+                lines.append(f"- {title_value}: {path}")
+                if text:
+                    lines.append(f"  excerpt: {self._redact_sensitive_text(text)[:900]}")
+
+        bundle = "\n".join(lines)
+        return bundle[:12000]
+
+    def _generate_document_work_session_brief_with_llm(
+        self,
+        *,
+        title: str,
+        purpose: str,
+        outline: str,
+        document_format: str,
+        source_bundle: str,
+    ) -> dict[str, Any]:
+        prompt = (
+            "당신은 Gongmu의 WorkSessionBrief 작성자입니다.\n"
+            "아래 기초 데이터를 그대로 옮기지 말고, 사용자의 문서작성 지시에 맞는 근거만 골라 재요약하세요.\n"
+            "반드시 JSON 객체만 출력하세요. Markdown, 설명, 코드블록은 금지합니다.\n"
+            "필드: summary, background, current_status, issues, solutions, expected_effects, actions, "
+            "requested_action, evidence, quality_checks, confidence.\n"
+            "각 목록은 공공기관 보고서에 바로 쓸 수 있는 짧은 한국어 문장 1~5개로 작성하세요.\n"
+            "관련 없는 GraphRAG 후보는 evidence에서 제외하세요.\n"
+            f"출력 형식: {document_format}\n제목: {title}\n목적: {purpose}\n작성 지시: {outline}\n"
+        )
+        result = generate_session_reply(
+            self.settings,
+            [
+                {"role": "system", "text": prompt, "status": "completed"},
+                {"role": "user", "text": source_bundle, "status": "completed"},
+            ],
+            reasoning_effort="low",
+        )
+        try:
+            payload = self._parse_llm_json_object(result.text)
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise LLMGenerationError("문서작성 WorkSessionBrief 단계에서 JSON 응답을 받지 못했습니다.") from exc
+        normalized = self._normalize_document_brief_payload(payload)
+        if not normalized["summary"] and not normalized["current_status"] and not normalized["evidence"]:
+            raise LLMGenerationError("문서작성 WorkSessionBrief가 사용할 핵심 내용을 만들지 못했습니다.")
+        return normalized
+
+    def _generate_public_document_markdown_with_llm(
+        self,
+        *,
+        title: str,
+        purpose: str,
+        outline: str,
+        document_format: str,
+        source_bundle: str,
+        brief: dict[str, Any],
+    ) -> str:
+        prompt = (
+            "당신은 public-doc-to-hwpx 스킬의 DocumentPlan 및 본문 작성자입니다.\n"
+            "아래 WorkSessionBrief를 바탕으로 선택된 HWPX skeleton 슬롯에 들어갈 최종 Content Base Markdown을 작성하세요.\n"
+            f"{PUBLIC_DOC_AUTHORING_GUIDE}\n\n"
+            "반드시 JSON 객체만 출력하고, content_markdown 필드 하나에 Markdown 문자열을 넣으세요.\n"
+            "content_markdown에는 다음 섹션을 이 순서로 포함하세요: "
+            "# 제목, ## WorkSessionBrief, ## DocumentPlan, ## 핵심 내용, ## 현황 및 쟁점, "
+            "## 조치안, ## 기대효과 및 요청, ## 수집 근거, ## 작성 품질 점검.\n"
+            "문서작성 명령문 자체를 본문에 반복하지 말고, 실제 업무 내용과 근거만 쓰세요.\n"
+            "관련 없는 근거는 제외하고, 없는 정보는 확인 필요로 표시하세요.\n"
+            f"제목: {title}\n목적: {purpose}\n출력 형식: {document_format}\n작성 지시: {outline}\n"
+        )
+        user_payload = {
+            "brief": brief,
+            "source_bundle": source_bundle,
+        }
+        result = generate_session_reply(
+            self.settings,
+            [
+                {"role": "system", "text": prompt, "status": "completed"},
+                {
+                    "role": "user",
+                    "text": json.dumps(user_payload, ensure_ascii=False),
+                    "status": "completed",
+                },
+            ],
+            reasoning_effort="medium",
+        )
+        try:
+            payload = self._parse_llm_json_object(result.text)
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            raise LLMGenerationError("문서작성 DocumentPlan 단계에서 JSON 응답을 받지 못했습니다.") from exc
+        content_markdown = str(payload.get("content_markdown") or "").strip()
+        if not content_markdown:
+            raise LLMGenerationError("문서작성 DocumentPlan 단계가 content_markdown을 반환하지 않았습니다.")
+        required_sections = ["## WorkSessionBrief", "## DocumentPlan"]
+        if not all(section in content_markdown for section in required_sections):
+            raise LLMGenerationError("문서작성 결과에 WorkSessionBrief 또는 DocumentPlan이 누락되었습니다.")
+        return content_markdown
+
+    @staticmethod
+    def _normalize_document_brief_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        list_fields = [
+            "summary",
+            "background",
+            "current_status",
+            "issues",
+            "solutions",
+            "expected_effects",
+            "actions",
+            "requested_action",
+            "evidence",
+            "quality_checks",
+        ]
+        normalized: dict[str, Any] = {}
+        for field in list_fields:
+            value = payload.get(field)
+            if isinstance(value, list):
+                items = [str(item).strip() for item in value if str(item).strip()]
+            elif isinstance(value, str) and value.strip():
+                items = [value.strip()]
+            else:
+                items = []
+            normalized[field] = items[:8]
+        try:
+            normalized["confidence"] = float(payload.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            normalized["confidence"] = 0.0
+        return normalized
 
     def _extract_document_create_slots_with_llm(
         self,
@@ -2238,6 +2527,7 @@ class AppServices:
             for row in self.list_work_session_file_links(session_id)
             if str(row.get("file_path") or "").strip()
         ]
+        reference_set_id = self._latest_reference_set_id_for_session(session_id)
         work_job = self.jobs.create_job(
             kind="documents.generate",
             title=f"{session['title']} HWPX 생성",
@@ -2251,11 +2541,44 @@ class AppServices:
             resource_policy="exclusive",
         )
         self.jobs.start_job(work_job["id"], stage="업무대화 컨텍스트 수집")
+        try:
+            self.jobs.update_progress(work_job["id"], progress_percent=20, stage="WorkSessionBrief 생성")
+            authoring = self._prepare_document_authoring_markdown(
+                title=title,
+                purpose=purpose,
+                outline=outline,
+                document_format=document_format,
+                source_session_id=session_id,
+                direct_file_paths=direct_paths,
+                reference_set_id=reference_set_id,
+                document_request=document_request,
+            )
+        except LLMGenerationError as exc:
+            failed_job = self.jobs.fail_job(
+                work_job["id"],
+                error_message=str(exc),
+                stage="문서작성 LLM 단계 실패",
+            )
+            return {
+                "actions": ["document.create.failed"],
+                "results": [
+                    {
+                        "work_job_id": failed_job["id"],
+                        "work_job_status": failed_job["status"],
+                        "error": str(exc),
+                    }
+                ],
+                "text": (
+                    "문서작성에 필요한 LLM 요약/구성 단계를 완료하지 못했습니다.\n\n"
+                    f"원인: {exc}\n\n"
+                    "저품질 초안을 자동 생성하지 않고 중단했습니다. 모델 연결 상태를 확인한 뒤 다시 시도해 주세요."
+                ),
+            }
         content_base = self.documents.create_content_base(
             title=title,
             purpose=purpose,
             template_key="report",
-            reference_set_id=self._latest_reference_set_id_for_session(session_id),
+            reference_set_id=reference_set_id,
             source_session_id=session_id,
             outline=outline,
             document_format=document_format,
@@ -2268,6 +2591,7 @@ class AppServices:
             deadline=deadline,
             security_level=security_level,
             direct_file_paths=direct_paths,
+            prepared_content_markdown=authoring["content_markdown"],
         )
         finalize = self.documents.request_final_document_output(
             content_base_id=content_base["id"],
@@ -2288,9 +2612,13 @@ class AppServices:
             status="succeeded",
             result={
                 "content_base_id": content_base["id"],
+                "content_base_path": content_base["artifact"]["path"],
                 "artifact_path": artifact["path"],
                 "markdown_path": artifact["markdown_path"],
                 "format": artifact["format"],
+                "template_source": artifact.get("template_source"),
+                "template_path": artifact.get("template_path"),
+                "llm_stages": authoring["llm_stages"],
             },
             stage="HWPX 문서 생성 완료",
         )
@@ -2299,12 +2627,16 @@ class AppServices:
             "results": [
                 {
                     "content_base_id": content_base["id"],
+                    "content_base_path": content_base["artifact"]["path"],
                     "work_job_id": completed_job["id"],
                     "work_job_status": completed_job["status"],
                     "artifact_path": artifact["path"],
                     "markdown_path": artifact["markdown_path"],
                     "folder_path": str(folder_path),
                     "format": artifact["format"],
+                    "template_source": artifact.get("template_source"),
+                    "template_path": artifact.get("template_path"),
+                    "llm_stages": authoring["llm_stages"],
                     "open_targets": [
                         {"label": "파일 열기", "target": artifact["path"]},
                         {"label": "폴더 열기", "target": str(folder_path)},
@@ -2378,6 +2710,16 @@ class AppServices:
         }
 
     def generate_document_from_request(self, payload: DocumentGenerateRequest) -> dict[str, Any]:
+        authoring = self._prepare_document_authoring_markdown(
+            title=payload.title,
+            purpose=payload.purpose,
+            outline=payload.outline,
+            document_format=payload.document_format,
+            source_session_id=payload.source_session_id,
+            direct_file_paths=payload.direct_file_paths,
+            reference_set_id=payload.reference_set_id,
+            document_request=payload.model_dump(),
+        )
         content_base = self.documents.create_content_base(
             title=payload.title,
             purpose=payload.purpose,
@@ -2396,6 +2738,7 @@ class AppServices:
             security_level=payload.security_level,
             direct_file_paths=payload.direct_file_paths,
             user_template_path=payload.user_template_path,
+            prepared_content_markdown=authoring["content_markdown"],
         )
         finalize = self.documents.request_final_document_output(
             content_base_id=content_base["id"],
@@ -2416,6 +2759,7 @@ class AppServices:
                 "artifact": applied["artifact"],
             },
             "artifact": applied["artifact"],
+            "llm_stages": authoring["llm_stages"],
         }
 
     @staticmethod

@@ -39,14 +39,12 @@ import {
   cancelKnowledgeIngestionJob,
   cloneWorkspaceLlmProfiles,
   createDefaultWorkspaceLlmProfiles,
-  applyAnythingLaunch,
   commitFileProposalApply,
   createContentBase,
   createFileProposals,
   getLlmProfileForSelection,
   generateDocument,
   createKnowledgeSource,
-  createReferenceSet,
   createWorkSessionFileLinks,
   createSchedule,
   createWorkSession,
@@ -57,7 +55,6 @@ import {
   updateWorkSession,
   decideApproval,
   deleteWorkSessionFileLink,
-  importAnythingLaunchReferenceSet,
   ingestKnowledgeSource,
   reindexKnowledgeSource,
   loadKnowledgeBackendStatus,
@@ -76,7 +73,6 @@ import {
   loadWorkspaceShellSnapshot,
   mergeWorkspaceSnapshot,
   requestFileProposalApply,
-  requestAnythingLaunch,
   rollbackFileOperation,
   applyDocumentFinalize,
   requestDocumentFinalize,
@@ -92,7 +88,6 @@ import {
   uploadWorkSessionAttachments,
   updateWorkspaceSettings,
   type ApprovalTicketItem,
-  type AnythingLaunchItem,
   type ContentBaseResult,
   type CustomDocumentTemplateItem,
   type DocumentFormat,
@@ -111,7 +106,6 @@ import {
   type KnowledgeTableBlock,
   type LocalFileIndexRebuildResult,
   type LocalFileSearchResult,
-  type ReferenceSetItem,
   type ScheduleItem,
   type ToolManifestItem,
   type WorkspaceLlmProfiles,
@@ -133,7 +127,6 @@ import { buildExecutionLogDisplay } from "./executionLogDisplay";
 import { LLM_PROVIDER_PRESETS, normalizeProviderKey, type LlmProviderKey } from "./llmProviders";
 import {
   copyTextToClipboard,
-  launchAnythingQuery,
   loadDesktopRuntimeStatus,
   openExternalTarget,
   pickDirectory,
@@ -201,15 +194,15 @@ const MENU_ITEMS: MenuItem[] = [
   { key: "chat", label: "업무대화", description: "업무 요청 라우터", icon: BotMessageSquare, iconSrc: "/icons/menu-chat.png" },
   { key: "schedule", label: "일정", description: "업무 연결 캘린더", icon: CalendarDays, iconSrc: "/icons/menu-schedule.png" },
   { key: "search", label: "파일찾기", description: "내장 파일찾기 우선", icon: FileSearch, iconSrc: "/icons/menu-search.png" },
-  { key: "documents", label: "문서작성", description: "콘텐츠 베이스 -> 템플릿", icon: FileText, iconSrc: "/icons/menu-documents.png" },
+  { key: "documents", label: "문서작성", description: "대화/파일 기반 HWPX 산출", icon: FileText, iconSrc: "/icons/menu-documents.png" },
   { key: "knowledge", label: "내 지식폴더", description: "그래프RAG로 지식관리", icon: BookMarked, iconSrc: "/icons/menu-knowledge.png" },
   { key: "fileorg", label: "파일정리", description: "지식화 연동 정리", icon: FolderTree, iconSrc: "/icons/menu-fileorg.png" },
   { key: "tools", label: "도구", description: "보강형 실행 레지스트리", icon: Hammer, iconSrc: "/icons/menu-tools.png" },
   { key: "logs", label: "실행기록", description: "사용자 작업 이력", icon: History, iconSrc: "/icons/menu-logs.png" },
   { key: "settings", label: "기타 환경설정", description: "로컬 우선 설정", icon: Settings2, iconSrc: "/icons/menu-settings.png" },
 ];
-const ANYTHING_RELEASES_URL = "https://github.com/chrisryugj/Docufinder/releases";
 const SELECTED_SESSION_STORAGE_KEY = "gongmu:selected-session-id";
+const SCHEDULE_COLOR_STORAGE_KEY = "gongmu:schedule-color-map:v1";
 const PROVIDER_OPTION_ORDER: LlmProviderKey[] = [
   "openai",
   "openrouter",
@@ -253,6 +246,44 @@ const DOCUMENT_FORMAT_OPTIONS: Array<{
   { key: "onePageReport", label: "1페이지 보고서", description: "의사결정자가 30초 안에 핵심을 읽도록 요약·쟁점·조치안을 압축합니다.", output: "HWPX" },
   { key: "fullReport", label: "풀버전 보고서", description: "표지·목차·본문·근거를 갖춘 추진계획/결과보고 구조로 확장합니다.", output: "HWPX" },
   { key: "email", label: "이메일", description: "협업자에게 바로 보낼 수 있도록 결론과 요청사항을 짧게 정리합니다.", output: "본문/HWPX" },
+];
+
+type DocumentFormatChoice = DocumentFormat | "custom";
+type DocumentFileContext = {
+  summary: string;
+  usage: string;
+};
+type DocumentFileUsageSource = {
+  label: string;
+  path: string;
+  contextKey: string;
+  sourceLabel: string;
+};
+type DocumentGenerateProgress = {
+  startedAt: number;
+  step: number;
+  total: number;
+  stage: string;
+  detail: string;
+  completed?: boolean;
+};
+type ScheduleColorKey = "blue" | "green" | "violet" | "orange" | "teal" | "pink" | "slate";
+type ScheduleColorChoice = ScheduleColorKey | "auto";
+
+const SCHEDULE_COLOR_PALETTE: Array<{
+  key: ScheduleColorKey;
+  label: string;
+  bg: string;
+  border: string;
+  text: string;
+}> = [
+  { key: "blue", label: "파랑", bg: "#1f9cf0", border: "#1176bd", text: "#ffffff" },
+  { key: "green", label: "초록", bg: "#22bd87", border: "#16855f", text: "#ffffff" },
+  { key: "violet", label: "보라", bg: "#b28bf2", border: "#7e57c2", text: "#211833" },
+  { key: "orange", label: "주황", bg: "#c68a5b", border: "#96633f", text: "#ffffff" },
+  { key: "teal", label: "청록", bg: "#75cbe2", border: "#409cb4", text: "#102a31" },
+  { key: "pink", label: "분홍", bg: "#f284ac", border: "#bf5379", text: "#351521" },
+  { key: "slate", label: "회색", bg: "#8f969f", border: "#606872", text: "#ffffff" },
 ];
 
 function documentFormatLabel(format: DocumentFormat) {
@@ -553,6 +584,16 @@ function formatDurationMs(value: number) {
   return `${(value / 1000).toFixed(1)}초`;
 }
 
+function formatElapsedSeconds(value: number) {
+  const seconds = Math.max(0, Math.floor(value));
+  if (seconds < 60) {
+    return `${seconds}초`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const rest = seconds % 60;
+  return rest > 0 ? `${minutes}분 ${rest}초` : `${minutes}분`;
+}
+
 function ingestionRuntimeLabel(job: KnowledgeIngestionJobItem) {
   if (typeof job.duration_ms !== "number") {
     return null;
@@ -724,7 +765,7 @@ function describeExecutionFeature(value: string) {
     case "schedule":
       return "일정";
     case "references":
-      return "참고자료 묶음";
+      return "연결 자료";
     case "settings":
       return "환경설정";
     default:
@@ -734,7 +775,7 @@ function describeExecutionFeature(value: string) {
 
 function describeExecutionAction(value: string) {
   const actionMap: Record<string, string> = {
-    "documents.content_base.created": "콘텐츠 베이스 생성",
+    "documents.content_base.created": "문서 초안 생성",
     "documents.finalize.requested": "최종 저장 요청",
     "documents.finalize.applied": "최종 저장 적용",
     "knowledge.candidate.created": "지식 후보 생성",
@@ -745,10 +786,10 @@ function describeExecutionAction(value: string) {
     "file_org.apply.requested": "파일정리 적용 요청",
     "file_org.apply.committed": "파일정리 적용",
     "file_org.rollback.completed": "파일정리 되돌리기",
-    "anything.launch.requested": "Anything 실행 요청",
-    "anything.launch.applied": "Anything 실행 적용",
-    "anything.launch.imported": "Anything 결과 가져오기",
-    "reference_set.created": "참고자료 묶음 생성",
+    "anything.launch.requested": "외부 검색 요청",
+    "anything.launch.applied": "외부 검색 적용",
+    "anything.launch.imported": "검색 결과 가져오기",
+    "reference_set.created": "연결 자료 생성",
     "work_session.created": "업무 세션 생성",
     "work_session.updated": "업무 세션 갱신",
     "work_session.turn.failed": "업무대화 응답 실패",
@@ -1277,6 +1318,83 @@ function userFacingRuntimeError(error: unknown, fallback: string): string {
   return message.replace(/sidecar/gi, "업무 엔진").replace(/사이드카/g, "업무 엔진");
 }
 
+function hashScheduleColorSeed(value: string) {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function readStoredScheduleColors(): Record<string, ScheduleColorKey> {
+  if (typeof window === "undefined") {
+    return {};
+  }
+  try {
+    const raw = window.localStorage.getItem(SCHEDULE_COLOR_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) =>
+        SCHEDULE_COLOR_PALETTE.some((color) => color.key === value),
+      ),
+    ) as Record<string, ScheduleColorKey>;
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredScheduleColors(colors: Record<string, ScheduleColorKey>) {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(SCHEDULE_COLOR_STORAGE_KEY, JSON.stringify(colors));
+  } catch {
+    // Storage may be unavailable in restricted webviews; color choices still work in memory.
+  }
+}
+
+function scheduleColorKeyFor(schedule: ScheduleItem, storedColors: Record<string, ScheduleColorKey>) {
+  const stored = storedColors[schedule.id];
+  if (stored) {
+    return stored;
+  }
+  const seed = `${schedule.title}:${schedule.starts_at}:${schedule.id}`;
+  return SCHEDULE_COLOR_PALETTE[hashScheduleColorSeed(seed) % SCHEDULE_COLOR_PALETTE.length].key;
+}
+
+function scheduleColorFor(schedule: ScheduleItem, storedColors: Record<string, ScheduleColorKey>) {
+  const colorKey = scheduleColorKeyFor(schedule, storedColors);
+  return SCHEDULE_COLOR_PALETTE.find((color) => color.key === colorKey) ?? SCHEDULE_COLOR_PALETTE[0];
+}
+
+function scheduleEventStyle(schedule: ScheduleItem, storedColors: Record<string, ScheduleColorKey>): CSSProperties {
+  const color = scheduleColorFor(schedule, storedColors);
+  return {
+    "--schedule-event-bg": color.bg,
+    "--schedule-event-border": color.border,
+    "--schedule-event-text": color.text,
+  } as CSSProperties;
+}
+
+function formatTimeOfDay(value?: string | null) {
+  if (!value) {
+    return "";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 function readStoredSelectedSessionId(): string {
   if (typeof window === "undefined") {
     return "";
@@ -1322,16 +1440,9 @@ export function App() {
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedScheduleId, setSelectedScheduleId] = useState<string>("");
+  const [scheduleColorById, setScheduleColorById] =
+    useState<Record<string, ScheduleColorKey>>(() => readStoredScheduleColors());
   const [selectedSessionId, setSelectedSessionId] = useState<string>(() => readStoredSelectedSessionId());
-  const [selectedReferenceSetId, setSelectedReferenceSetId] = useState<string>("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [anythingImportForms, setAnythingImportForms] = useState<
-    Record<string, { title: string; paths: string }>
-  >({});
-  const [lastImportedAnythingReferenceSetId, setLastImportedAnythingReferenceSetId] =
-    useState<string>("");
-  const [lastImportedAnythingReferenceSet, setLastImportedAnythingReferenceSet] =
-    useState<ReferenceSetItem | null>(null);
   const [fileOrgTargetPath, setFileOrgTargetPath] = useState("");
   const [fileOrgOperations, setFileOrgOperations] = useState<
     Record<string, { id: string; destination_path: string }>
@@ -1343,6 +1454,7 @@ export function App() {
     starts_at: "",
     ends_at: "",
     view: "week" as "month" | "week" | "day",
+    color: "auto" as ScheduleColorChoice,
   });
   const [plannerAnchorAt, setPlannerAnchorAt] = useState("");
   const [selectedPlannerSlotId, setSelectedPlannerSlotId] = useState("");
@@ -1386,12 +1498,6 @@ export function App() {
   const [settingsProfiles, setSettingsProfiles] = useState<WorkspaceLlmProfiles>(
     createDefaultWorkspaceLlmProfiles(),
   );
-  const [referenceForm, setReferenceForm] = useState({
-    title: "",
-    kind: "file",
-    label: "",
-    value: "",
-  });
   const [localFileQuery, setLocalFileQuery] = useState("");
   const [localFileSearchResult, setLocalFileSearchResult] = useState<LocalFileSearchResult | null>(null);
   const [selectedLocalFileHit, setSelectedLocalFileHit] = useState<LocalFileSearchResult["items"][number] | null>(null);
@@ -1472,15 +1578,16 @@ export function App() {
     deadline: "",
     security_level: "",
     direct_file_paths_text: "",
-    file_usage_note: "",
     user_template_path: "",
   });
   const [documentAttachmentDrafts, setDocumentAttachmentDrafts] = useState<
     Array<{ id: string; file: File }>
   >([]);
-  const [documentFileUsageNotes, setDocumentFileUsageNotes] = useState<Record<string, string>>({});
+  const [documentFileContexts, setDocumentFileContexts] = useState<Record<string, DocumentFileContext>>({});
   const [documentSourceMode, setDocumentSourceMode] = useState<"session" | "direct">("direct");
   const [documentSourceSessionId, setDocumentSourceSessionId] = useState("");
+  const [documentGenerateProgress, setDocumentGenerateProgress] = useState<DocumentGenerateProgress | null>(null);
+  const [documentGenerateElapsedSeconds, setDocumentGenerateElapsedSeconds] = useState(0);
   const [customDocumentTemplates, setCustomDocumentTemplates] = useState<CustomDocumentTemplateItem[]>([]);
   const [finalizeForm, setFinalizeForm] = useState({
     output_name: "",
@@ -1524,7 +1631,6 @@ export function App() {
     documentForm.title,
     documentForm.purpose,
     activeTemplateKey,
-    selectedReferenceSetId || "",
     documentSourceMode,
     documentSourceSessionId || "",
     documentForm.outline,
@@ -1538,8 +1644,8 @@ export function App() {
     documentForm.deadline,
     documentForm.security_level,
     documentForm.direct_file_paths_text,
-    documentForm.file_usage_note,
     documentForm.user_template_path,
+    JSON.stringify(documentFileContexts),
   ].join("\u0001");
   const pendingApprovals = snapshot.approvalTickets.filter((ticket) => ticket.status === "pending");
   const normalizedSessionRailQuery = sessionRailQuery.trim().toLowerCase();
@@ -1656,6 +1762,23 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!documentGenerateProgress) {
+      setDocumentGenerateElapsedSeconds(0);
+      return;
+    }
+
+    const updateElapsed = () => {
+      setDocumentGenerateElapsedSeconds((Date.now() - documentGenerateProgress.startedAt) / 1000);
+    };
+    updateElapsed();
+    if (documentGenerateProgress.completed) {
+      return;
+    }
+    const timerId = window.setInterval(updateElapsed, 1000);
+    return () => window.clearInterval(timerId);
+  }, [documentGenerateProgress?.startedAt, documentGenerateProgress?.completed]);
+
   async function copyKnowledgeLogDumpPath(logDumpPath: string) {
     try {
       await copyTextToClipboard(logDumpPath);
@@ -1734,7 +1857,7 @@ export function App() {
     setLastContentBaseSignature(null);
     setLastFinalizeRequest(null);
     setFinalizeForm({ output_name: "" });
-    setNotice("초안 조건이 바뀌었습니다. 최종 저장 전에 Content Base를 다시 생성하세요.");
+    setNotice("문서작성 입력 조건이 바뀌었습니다. 최신 입력 기준으로 다시 작업을 시작하세요.");
   }, [currentContentBaseSignature, lastContentBase, lastContentBaseSignature]);
 
   useEffect(() => {
@@ -1916,6 +2039,10 @@ export function App() {
     writeStoredSelectedSessionId(selectedSessionId);
   }, [selectedSessionId]);
 
+  useEffect(() => {
+    writeStoredScheduleColors(scheduleColorById);
+  }, [scheduleColorById]);
+
   async function refreshSnapshot(options: { silent?: boolean } = {}) {
     if (!options.silent) {
       setLoading(true);
@@ -1931,9 +2058,6 @@ export function App() {
       const nextSessionId = resolveSelectedSessionId(next.workSessions, selectedSessionId);
       if (nextSessionId !== selectedSessionId) {
         setSelectedSessionId(nextSessionId);
-      }
-      if (!selectedReferenceSetId && next.referenceSets[0]) {
-        setSelectedReferenceSetId(next.referenceSets[0].id);
       }
       if (!fileOrgTargetPath && next.health?.workspace_root) {
         setFileOrgTargetPath(next.health.workspace_root);
@@ -1987,9 +2111,6 @@ export function App() {
       const nextSessionId = resolveSelectedSessionId(next.workSessions, selectedSessionId);
       if (nextSessionId !== selectedSessionId) {
         setSelectedSessionId(nextSessionId);
-      }
-      if (!selectedReferenceSetId && next.referenceSets[0]) {
-        setSelectedReferenceSetId(next.referenceSets[0].id);
       }
       if (!fileOrgTargetPath && next.health?.workspace_root) {
         setFileOrgTargetPath(next.health.workspace_root);
@@ -2566,11 +2687,19 @@ export function App() {
       revealContextSection("context");
       setSelectedScheduleId(savedSchedule.id);
       setSelectedPlannerSlotId(`existing-${savedSchedule.id}`);
+      setScheduleColorById((current) => {
+        if (scheduleForm.color === "auto") {
+          const { [savedSchedule.id]: _removed, ...rest } = current;
+          return rest;
+        }
+        return { ...current, [savedSchedule.id]: scheduleForm.color };
+      });
       setScheduleForm({
         title: savedSchedule.title,
         starts_at: savedSchedule.starts_at.slice(0, 16),
         ends_at: savedSchedule.ends_at.slice(0, 16),
         view: scheduleForm.view,
+        color: scheduleForm.color,
       });
     }
   }
@@ -2594,11 +2723,16 @@ export function App() {
       }));
       setSelectedScheduleId("");
       setSelectedPlannerSlotId("");
+      setScheduleColorById((current) => {
+        const { [deleted.id]: _removed, ...rest } = current;
+        return rest;
+      });
       setScheduleForm((current) => ({
         title: "",
         starts_at: "",
         ends_at: "",
         view: current.view,
+        color: "auto",
       }));
     }
   }
@@ -3206,34 +3340,6 @@ export function App() {
     }
   }
 
-  async function submitReferenceSet(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const created = await handleAction(
-      () =>
-        createReferenceSet({
-          title: referenceForm.title,
-          session_id: selectedSessionId || null,
-          items: [
-            {
-              kind: referenceForm.kind,
-              label: referenceForm.label,
-              value: referenceForm.value,
-            },
-          ],
-        }),
-      "참고자료 묶음을 등록했습니다.",
-      { revealSection: "context", refresh: "none" },
-    );
-    if (created) {
-      setSnapshot((current) => ({
-        ...current,
-        referenceSets: [created, ...current.referenceSets.filter((item) => item.id !== created.id)],
-      }));
-      setSelectedReferenceSetId(created.id);
-      setReferenceForm({ title: "", kind: "file", label: "", value: "" });
-    }
-  }
-
   async function runLocalFileSearch(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     const query = localFileQuery.trim();
@@ -3469,7 +3575,7 @@ export function App() {
         createContentBase({
           title: documentForm.title,
           purpose: documentForm.purpose,
-          reference_set_id: selectedReferenceSetId || null,
+          reference_set_id: null,
           template_key: activeTemplateKey as "report" | "meeting" | "review",
           source_session_id: documentSourceMode === "session" ? documentSourceSessionId || null : null,
           outline: documentForm.outline,
@@ -3485,7 +3591,7 @@ export function App() {
           direct_file_paths: splitDocumentFilePaths(documentForm.direct_file_paths_text),
           user_template_path: documentForm.user_template_path || null,
         }),
-      "콘텐츠 베이스를 생성했습니다.",
+      "문서 초안을 생성했습니다.",
       { revealSection: "logs", refresh: "none" },
     );
     if (created) {
@@ -3511,24 +3617,75 @@ export function App() {
         : `${formatLabel} 바로 작성`;
     const sessionFileLinks =
       documentSourceMode === "session" && sourceSession?.id === selectedSession?.id ? selectedSessionFileLinks : [];
+    const progressStartedAt = Date.now();
+    const progressTotal = 5;
+    const updateDocumentGenerateProgress = (
+      step: number,
+      stage: string,
+      detail: string,
+      completed = false,
+    ) => {
+      setDocumentGenerateProgress({
+        startedAt: progressStartedAt,
+        step,
+        total: progressTotal,
+        stage,
+        detail,
+        completed,
+      });
+    };
+    updateDocumentGenerateProgress(
+      1,
+      "자료 수집",
+      "업무대화 세션, 연결 파일, 직접 첨부 파일 목록을 확인하고 있습니다.",
+    );
     const generated = await handleAction(
       async () => {
+        const uploadDrafts = documentAttachmentDrafts;
+        updateDocumentGenerateProgress(
+          2,
+          "첨부 파일 준비",
+          "첨부 파일을 작업공간에 저장하고 본문 분석에 사용할 경로를 준비하고 있습니다.",
+        );
         const uploaded =
           documentAttachmentDrafts.length > 0
             ? await uploadDocumentAttachments(documentAttachmentDrafts.map((item) => item.file))
             : { items: [] };
-        const uploadedPaths = uploaded.items.map((item) => item.stored_path);
-        const directPaths = [...splitDocumentFilePaths(documentForm.direct_file_paths_text), ...uploadedPaths];
-        const uploadedNames = uploaded.items.map((item) => item.file_name);
-        const fileUsagePlan = buildDocumentFileUsagePlan(sessionFileLinks, directPaths, uploadedNames);
+        const directPathSources = splitDocumentFilePaths(documentForm.direct_file_paths_text).map((path) => ({
+          label: fileNameFromPath(path),
+          path,
+          contextKey: path,
+          sourceLabel: "추가 경로",
+        }));
+        const uploadedSources = uploaded.items.map((item, index) => {
+          const draft = uploadDrafts[index];
+          return {
+            label: item.file_name,
+            path: item.stored_path,
+            contextKey: draft?.id ?? item.stored_path,
+            sourceLabel: "업로드 첨부",
+          };
+        });
+        const directPaths = [...directPathSources.map((item) => item.path), ...uploadedSources.map((item) => item.path)];
+        const fileUsagePlan = buildDocumentFileUsagePlan(sessionFileLinks, directPathSources, uploadedSources);
         const outlineParts = [
           documentForm.outline.trim() || "업무대화와 연결 자료를 바탕으로 공공문서 작성요령에 맞춰 정리합니다.",
           fileUsagePlan,
         ].filter(Boolean);
+        updateDocumentGenerateProgress(
+          3,
+          "맥락 정리",
+          "파일 본문과 대화 맥락을 분석해 보고서 구조를 정리하는 중입니다.",
+        );
+        updateDocumentGenerateProgress(
+          4,
+          "HWPX 작성",
+          "보고서 유형에 맞춰 내용을 다듬고 HWPX 양식에 채워 넣고 있습니다.",
+        );
         return generateDocument({
           title,
           purpose,
-          reference_set_id: selectedReferenceSetId || null,
+          reference_set_id: null,
           template_key: activeTemplateKey as "report" | "meeting" | "review",
           source_session_id: sourceSession?.id ?? null,
           outline: outlineParts.join("\n\n"),
@@ -3548,6 +3705,16 @@ export function App() {
       },
       "HWPX 보고서 생성을 완료했습니다.",
       { revealSection: "jobs", refresh: "none" },
+    );
+    if (!generated) {
+      setDocumentGenerateProgress(null);
+      return;
+    }
+    updateDocumentGenerateProgress(
+      5,
+      "산출물 저장 완료",
+      "보고서 파일과 검토용 Markdown을 저장했습니다. 아래 생성 결과 카드에서 바로 열 수 있습니다.",
+      true,
     );
     if (generated) {
       if (generated.work_job) {
@@ -3585,7 +3752,7 @@ export function App() {
 
   async function submitDocumentFinalizeRequest() {
     if (!lastContentBase) {
-      setError("Generate a fresh ContentBase before requesting final save.");
+      setError("최종 저장 요청 전에 최신 입력 기준으로 문서 초안을 다시 생성하세요.");
       return;
     }
 
@@ -3618,139 +3785,6 @@ export function App() {
     }
   }
 
-  async function submitAnythingLaunch() {
-    const requested = await handleAction(
-      () => requestAnythingLaunch(searchQuery),
-      "Anything 실행 요청을 승인 대기열에 등록했습니다.",
-      {
-        revealSection: "approvals",
-        refresh: "shell",
-      },
-    );
-    if (requested) {
-      void refreshDeferredSnapshot("search");
-    }
-  }
-
-  async function launchAnything(launch: AnythingLaunchItem) {
-    const result =
-      launch.status === "applied"
-        ? { launch_request: launch }
-        : await handleAction(
-            () => applyAnythingLaunch(launch.approval_ticket_id),
-            "Anything를 여는 준비를 마쳤습니다.",
-            { revealSection: "logs", refresh: "none" },
-          );
-
-    if (!result) {
-      return;
-    }
-
-    const query = result.launch_request.query;
-    const anythingDetected = runtimeStatus?.anything_available ?? false;
-
-    if (anythingDetected) {
-      try {
-        await copyTextToClipboard(query);
-      } catch (clipboardError) {
-        console.warn("failed to copy Anything query to clipboard", clipboardError);
-      }
-    }
-
-    await launchAnythingQuery(query, result.launch_request.launch_target);
-    setNotice(
-      anythingDetected
-        ? runtimeStatus?.anything_autopaste_enabled
-          ? launch.status === "applied"
-            ? `Anything를 다시 열었습니다. 검색어 "${query}" 자동 붙여넣기를 시도했고, 필요하면 앱 안에서 한번 더 붙여넣어 주세요.`
-            : `Anything를 열었습니다. 검색어 "${query}" 자동 붙여넣기를 시도했고, 필요하면 앱 안에서 한번 더 붙여넣어 주세요.`
-          : launch.status === "applied"
-            ? `Anything를 다시 열었습니다. 검색어 "${query}"를 클립보드에 복사해 두었으니 앱 안에서 바로 붙여넣어 주세요.`
-            : `Anything를 열었습니다. 검색어 "${query}"를 클립보드에 복사해 두었으니 앱 안에서 바로 붙여넣어 주세요.`
-        : launch.status === "applied"
-          ? "Anything 설치 안내 페이지를 다시 열었습니다."
-          : "Anything 설치 안내 페이지를 열었습니다.",
-    );
-  }
-
-  async function openAnythingInstallGuide() {
-    await handleAction(
-      () => openExternalTarget(ANYTHING_RELEASES_URL),
-      "Anything 설치 안내 페이지를 열었습니다.",
-      { refresh: "none" },
-    );
-  }
-
-  async function submitAnythingReferenceImport(
-    event: FormEvent<HTMLFormElement>,
-    launch: AnythingLaunchItem,
-  ) {
-    event.preventDefault();
-    const form = anythingImportForms[launch.approval_ticket_id] ?? { title: "", paths: "" };
-    const paths = form.paths
-      .split(/\r?\n/)
-      .map((value) => value.trim())
-      .filter(Boolean);
-
-    const imported = await handleAction(
-      () =>
-        importAnythingLaunchReferenceSet(launch.approval_ticket_id, {
-          title: form.title.trim() || `${launch.query} import`,
-          session_id: selectedSessionId || null,
-          paths,
-        }),
-      "Anything 결과를 Reference Set으로 가져왔습니다.",
-      { revealSection: "context", refresh: "none" },
-    );
-
-    if (imported) {
-      setSnapshot((current) => ({
-        ...current,
-        referenceSets: [
-          imported.reference_set,
-          ...current.referenceSets.filter((item) => item.id !== imported.reference_set.id),
-        ],
-      }));
-      setSelectedReferenceSetId(imported.reference_set.id);
-      setLastImportedAnythingReferenceSetId(imported.reference_set.id);
-      setLastImportedAnythingReferenceSet(imported.reference_set);
-      if (selectedSessionId && paths.length > 0) {
-        await createWorkSessionFileLinks(selectedSessionId, {
-          items: paths.map((filePath) => ({
-            file_path: filePath,
-            label: filePath.split(/[\\/]/).pop() || filePath,
-            source: "anything",
-          })),
-        });
-        await refreshSessionFileLinks(selectedSessionId);
-      }
-      setAnythingImportForms((current) => ({
-        ...current,
-        [launch.approval_ticket_id]: { title: "", paths: "" },
-      }));
-    }
-  }
-
-  function continueImportedAnythingToDocuments() {
-    const importedReferenceSet =
-      snapshot.referenceSets.find((item) => item.id === lastImportedAnythingReferenceSetId) ??
-      lastImportedAnythingReferenceSet;
-    if (importedReferenceSet) {
-      setDocumentSourceMode(selectedSession ? "session" : "direct");
-      setDocumentSourceSessionId(selectedSession?.id ?? "");
-      setDocumentForm((current) => ({
-        ...current,
-        title: current.title.trim() ? current.title : importedReferenceSet.title,
-        purpose:
-          !current.purpose.trim() || current.purpose === "보고서형"
-            ? `${importedReferenceSet.title} 기반 정리`
-            : current.purpose,
-        outline: current.outline.trim() || `${importedReferenceSet.title} 참고자료를 바탕으로 문서를 작성합니다.`,
-      }));
-    }
-    setActiveMenu("documents");
-  }
-
   function continueSelectedSessionToDocuments() {
     if (!selectedSession) {
       setNotice("문서작성으로 이어갈 업무대화 세션을 먼저 선택하세요.");
@@ -3778,15 +3812,23 @@ export function App() {
       .filter(Boolean);
   }
 
-  function documentFileUsageKey(filePath: string) {
+  function documentFileContextKey(filePath: string) {
     return filePath.trim().toLowerCase();
   }
 
-  function updateDocumentFileUsage(filePath: string, value: string) {
-    const key = documentFileUsageKey(filePath);
-    setDocumentFileUsageNotes((current) => ({
+  function documentFileContextFor(filePath: string) {
+    return documentFileContexts[documentFileContextKey(filePath)] ?? { summary: "", usage: "" };
+  }
+
+  function updateDocumentFileContext(filePath: string, patch: Partial<DocumentFileContext>) {
+    const key = documentFileContextKey(filePath);
+    setDocumentFileContexts((current) => ({
       ...current,
-      [key]: value,
+      [key]: {
+        summary: current[key]?.summary ?? "",
+        usage: current[key]?.usage ?? "",
+        ...patch,
+      },
     }));
   }
 
@@ -3803,28 +3845,42 @@ export function App() {
 
   function removeDocumentAttachment(id: string) {
     setDocumentAttachmentDrafts((current) => current.filter((item) => item.id !== id));
+    setDocumentFileContexts((current) => {
+      const next = { ...current };
+      delete next[documentFileContextKey(id)];
+      return next;
+    });
   }
 
   function buildDocumentFileUsagePlan(
     sessionFileLinks: WorkSessionFileLinkItem[],
-    directPaths: string[],
-    uploadedFileNames: string[],
+    directPathSources: DocumentFileUsageSource[],
+    uploadedSources: DocumentFileUsageSource[],
   ) {
     const lines: string[] = [];
+    const appendSource = (source: DocumentFileUsageSource) => {
+      const context = documentFileContextFor(source.contextKey);
+      const summary = context.summary.trim() || "사용자가 별도 주요내용을 입력하지 않았습니다.";
+      const usage = context.usage.trim() || "보고서 작성 과정에서 관련 근거 여부를 검토합니다.";
+      lines.push(
+        `- ${source.label}`,
+        `  - 출처: ${source.sourceLabel}`,
+        `  - 경로: ${source.path}`,
+        `  - 주요내용: ${summary}`,
+        `  - 활용목적: ${usage}`,
+      );
+    };
     for (const link of sessionFileLinks) {
       const label = link.label || link.file_path.split(/[\\/]/).pop() || link.file_path;
-      const note = documentFileUsageNotes[documentFileUsageKey(link.file_path)]?.trim();
-      lines.push(`- ${label}: ${note || "세션 연결자료로 검토해 필요한 근거만 반영"}`);
+      appendSource({
+        label,
+        path: link.file_path,
+        contextKey: link.file_path,
+        sourceLabel: "대화세션 연결 파일",
+      });
     }
-    for (const path of directPaths) {
-      const label = path.split(/[\\/]/).pop() || path;
-      const note = documentFileUsageNotes[documentFileUsageKey(path)]?.trim() || documentForm.file_usage_note.trim();
-      lines.push(`- ${label}: ${note || "직접 첨부/연결한 참고자료로 활용"}`);
-    }
-    for (const fileName of uploadedFileNames) {
-      const note = documentFileUsageNotes[documentFileUsageKey(fileName)]?.trim() || documentForm.file_usage_note.trim();
-      lines.push(`- ${fileName}: ${note || "업로드 첨부자료로 활용"}`);
-    }
+    directPathSources.forEach(appendSource);
+    uploadedSources.forEach(appendSource);
     return lines.length > 0 ? `첨부/연결 파일 활용 계획:\n${lines.join("\n")}` : "";
   }
 
@@ -3840,7 +3896,11 @@ export function App() {
     );
     if (uploaded) {
       setCustomDocumentTemplates((current) => [uploaded.item, ...current.filter((item) => item.path !== uploaded.item.path)]);
-      setDocumentForm((current) => ({ ...current, user_template_path: uploaded.item.path }));
+      setDocumentForm((current) => ({
+        ...current,
+        document_format: "fullReport",
+        user_template_path: uploaded.item.path,
+      }));
     }
     if (documentTemplateInputRef.current) {
       documentTemplateInputRef.current.value = "";
@@ -4100,9 +4160,6 @@ export function App() {
       timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [loading, selectedSession?.id, selectedSessionMessages.length, latestSessionMessageSignature]);
-  const selectedReferenceSet =
-    snapshot.referenceSets.find((item) => item.id === selectedReferenceSetId) ?? null;
-
   function latestSessionPreview(session: WorkSessionItem) {
     const latestMessage = [...(sessionMessages[session.id] ?? session.messages ?? [])].sort((left, right) =>
       new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
@@ -4280,6 +4337,7 @@ export function App() {
             <button
               key={item.key}
               type="button"
+              data-testid={`feature-menu-${item.key}`}
               className={`feature-rail__item ${activeMenu === item.key ? "is-active" : ""}`}
               onClick={() => setActiveMenu(item.key)}
               aria-label={item.label}
@@ -4431,6 +4489,7 @@ export function App() {
           endValue: formatDateInputValue(rangeStart, endHour),
           title: `${String(startHour).padStart(2, "0")}:00`,
           subtitle: `${safeAnchorDate.getMonth() + 1}월 ${safeAnchorDate.getDate()}일`,
+          schedules,
           scheduledCount: schedules.length,
           primaryScheduleId: schedules[0]?.id ?? null,
           primaryScheduleTitle: schedules[0]?.title ?? null,
@@ -4462,6 +4521,7 @@ export function App() {
           subtitle: schedules[0]
             ? `${formatDateTime(schedules[0].starts_at)} - ${schedules[0].title}`
             : "등록 일정 없음",
+          schedules,
           scheduledCount: schedules.length,
           primaryScheduleId: schedules[0]?.id ?? null,
           primaryScheduleTitle: schedules[0]?.title ?? null,
@@ -4490,7 +4550,8 @@ export function App() {
         startValue: formatDateInputValue(rangeStart, 9),
         endValue: formatDateInputValue(rangeStart, 10),
         title: `${rangeStart.getDate()}`,
-          subtitle: schedules[0]?.title ?? "빈 일정",
+        subtitle: schedules[0]?.title ?? "빈 일정",
+        schedules,
         scheduledCount: schedules.length,
         primaryScheduleId: schedules[0]?.id ?? null,
         primaryScheduleTitle: schedules[0]?.title ?? null,
@@ -4511,12 +4572,13 @@ export function App() {
     setSelectedPlannerSlotId(slotId);
     setSelectedScheduleId("");
     setPlannerAnchorAt(startValue);
-    setScheduleForm((current) => ({
-      ...current,
-      title: "",
-      starts_at: startValue,
-      ends_at: endValue,
-    }));
+      setScheduleForm((current) => ({
+        ...current,
+        title: "",
+        starts_at: startValue,
+        ends_at: endValue,
+        color: "auto",
+      }));
   }
 
   function beginScheduleInlineEdit(schedule: ScheduleItem) {
@@ -4528,6 +4590,7 @@ export function App() {
       title: schedule.title,
       starts_at: schedule.starts_at.slice(0, 16),
       ends_at: schedule.ends_at.slice(0, 16),
+      color: scheduleColorById[schedule.id] ?? "auto",
     }));
   }
 
@@ -4706,70 +4769,63 @@ export function App() {
                     applySchedulePlannerSlot(slot.id, slot.startValue, slot.endValue);
                   }}
                 >
-                  {slot.dayLabel && scheduleForm.view === "week" ? (
-                    <span className="schedule-slot__eyebrow schedule-slot__line" title={slot.dayLabel}>
-                      {slot.dayLabel}
-                    </span>
-                  ) : null}
-                  <strong className="schedule-slot__line" title={slot.title}>{slot.title}</strong>
-                  <span className="schedule-slot__line" title={slot.subtitle}>{slot.subtitle}</span>
-                  {slot.scheduledCount > 0 ? (
-                    <>
+                  <span className="schedule-slot__date-row">
+                    {slot.dayLabel && scheduleForm.view === "week" ? (
+                      <span className="schedule-slot__eyebrow schedule-slot__line" title={slot.dayLabel}>
+                        {slot.dayLabel}
+                      </span>
+                    ) : null}
+                    <strong className="schedule-slot__line" title={slot.title}>{slot.title}</strong>
+                    {slot.hasLinkedSession ? (
                       <span
-                        data-testid={`schedule-slot-existing-count-${index}`}
-                        className="schedule-slot__meta schedule-slot__line"
-                        title={`등록 일정 ${slot.scheduledCount}개`}
-                      >
+                        className="schedule-slot__status-dot"
+                        data-testid={`schedule-slot-link-state-${index}`}
+                        title={slot.linkedSessionTitles.length ? `연결 세션: ${slot.linkedSessionTitles.join(", ")}` : "세션 연결"}
+                      />
+                    ) : null}
+                  </span>
+                  {slot.scheduledCount > 0 ? (
+                    <span className="schedule-slot__events" aria-label={`등록 일정 ${slot.scheduledCount}개`}>
+                      <span className="sr-only" data-testid={`schedule-slot-existing-count-${index}`}>
                         {slot.scheduledCount}
                       </span>
-                      <span
-                        data-testid={`schedule-slot-existing-title-${index}`}
-                        className="schedule-slot__meta schedule-slot__line"
-                        title={slot.primaryScheduleTitle ?? undefined}
-                      >
-                        {slot.primaryScheduleTitle}
-                      </span>
-                      {slot.primaryLinkedSessionTitle ? (
+                      {slot.schedules.slice(0, 3).map((schedule, scheduleIndex) => {
+                        const linkedSessionTitle =
+                          snapshot.workSessions.find((session) => session.schedule_id === schedule.id)?.title ?? "";
+                        const eventTitle = `${scheduleForm.view === "month" ? "" : `${formatTimeOfDay(schedule.starts_at)} `}${schedule.title}`;
+                        return (
+                          <span
+                            key={schedule.id}
+                            className="schedule-slot__event-bar"
+                            style={scheduleEventStyle(schedule, scheduleColorById)}
+                            data-testid={`schedule-slot-event-bar-${schedule.id}`}
+                            title={[
+                              `${formatTimeOfDay(schedule.starts_at)}-${formatTimeOfDay(schedule.ends_at)} ${schedule.title}`,
+                              linkedSessionTitle ? `연결 세션: ${linkedSessionTitle}` : "연결 세션 없음",
+                            ].join("\n")}
+                          >
+                            <span
+                              className="schedule-slot__event-title schedule-slot__line"
+                              title={schedule.title}
+                              data-testid={scheduleIndex === 0 ? `schedule-slot-existing-title-${index}` : undefined}
+                            >
+                              {eventTitle}
+                            </span>
+                          </span>
+                        );
+                      })}
+                      {slot.scheduleTitles.length > 3 ? (
                         <span
-                          data-testid={`schedule-slot-session-title-${index}`}
-                          className="schedule-slot__meta schedule-slot__line"
-                          title={slot.primaryLinkedSessionTitle}
+                          className="schedule-slot__more"
+                          title={slot.scheduleTitles.slice(3).join(", ")}
                         >
-                          {slot.primaryLinkedSessionTitle}
+                          +{slot.scheduleTitles.length - 3}개 더
                         </span>
                       ) : null}
-                      {slot.scheduleTitles.length > 1 ? (
-                        <span
-                          className="schedule-slot__meta schedule-slot__meta--strong schedule-slot__line"
-                          title={slot.scheduleTitles.slice(1).join(", ")}
-                        >
-                          +{slot.scheduleTitles.length - 1}개 더
-                        </span>
-                      ) : null}
-                      {slot.hasLinkedSession ? (
-                        <span
-                          className="schedule-slot__badge schedule-slot__line"
-                          data-testid={`schedule-slot-link-state-${index}`}
-                          title={slot.linkedSessionTitles.length ? `연결 세션: ${slot.linkedSessionTitles.join(", ")}` : "세션 연결"}
-                        >
-                          세션 연결
-                        </span>
-                      ) : (
-                        <span
-                          className="schedule-slot__badge schedule-slot__badge--muted schedule-slot__line"
-                          data-testid={`schedule-slot-link-state-${index}`}
-                          title="연결된 업무대화 세션 없음"
-                        >
-                          독립 일정
-                        </span>
-                      )}
-                      {slot.primaryScheduleId ? (
-                        <span className="schedule-slot__hint schedule-slot__line" title="클릭해 일정 편집">
-                          클릭해 일정 편집
-                        </span>
-                      ) : null}
-                    </>
-                  ) : null}
+                    </span>
+                  ) : (
+                    <span className="schedule-slot__empty">빈 일정</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -4817,7 +4873,7 @@ export function App() {
                     />
                   </label>
                 </div>
-                <div className="toolbar">
+                <div className="toolbar schedule-editor-actions">
                   <label className="select-field">
                     보기
                     <select
@@ -4834,6 +4890,25 @@ export function App() {
                       <option value="day">일</option>
                     </select>
                   </label>
+                  <label className="select-field schedule-color-select">
+                    색상
+                    <select
+                      value={scheduleForm.color}
+                      onChange={(event) =>
+                        setScheduleForm((current) => ({
+                          ...current,
+                          color: event.target.value as ScheduleColorChoice,
+                        }))
+                      }
+                    >
+                      <option value="auto">자동</option>
+                      {SCHEDULE_COLOR_PALETTE.map((color) => (
+                        <option key={color.key} value={color.key}>
+                          {color.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <button type="submit" disabled={submitting}>
                     {editingExistingSchedule ? "일정 수정 저장" : "일정 등록"}
                   </button>
@@ -4844,7 +4919,13 @@ export function App() {
                       onClick={() => {
                         setSelectedScheduleId("");
                         setSelectedPlannerSlotId("");
-                        setScheduleForm({ title: "", starts_at: "", ends_at: "", view: scheduleForm.view });
+                        setScheduleForm({
+                          title: "",
+                          starts_at: "",
+                          ends_at: "",
+                          view: scheduleForm.view,
+                          color: "auto",
+                        });
                       }}
                     >
                       새 일정 입력으로 전환
@@ -4922,7 +5003,7 @@ export function App() {
                 />
               </label>
             </div>
-            <div className="toolbar">
+            <div className="toolbar schedule-editor-actions">
               <label className="select-field">
                 보기
                 <select
@@ -4937,6 +5018,25 @@ export function App() {
                   <option value="month">월</option>
                   <option value="week">주</option>
                   <option value="day">일</option>
+                </select>
+              </label>
+              <label className="select-field schedule-color-select">
+                색상
+                <select
+                  value={scheduleForm.color}
+                  onChange={(event) =>
+                    setScheduleForm((current) => ({
+                      ...current,
+                      color: event.target.value as ScheduleColorChoice,
+                    }))
+                  }
+                >
+                  <option value="auto">자동</option>
+                  {SCHEDULE_COLOR_PALETTE.map((color) => (
+                    <option key={color.key} value={color.key}>
+                      {color.label}
+                    </option>
+                  ))}
                 </select>
               </label>
               <button type="submit" disabled={submitting}>
@@ -5354,6 +5454,7 @@ export function App() {
               <button
                 type="button"
                 className="button-secondary local-file-explorer__index-button"
+                data-testid="local-file-index-rebuild"
                 disabled={localFileIndexLoading}
                 onClick={() => void runLocalFileIndexRebuild()}
               >
@@ -5379,7 +5480,11 @@ export function App() {
                     placeholder="파일명, 경로, 문서 본문 키워드"
                   />
                 </label>
-                <button type="submit" disabled={localFileSearchLoading || !localFileQuery.trim()}>
+                <button
+                  type="submit"
+                  data-testid="local-file-search-submit"
+                  disabled={localFileSearchLoading || !localFileQuery.trim()}
+                >
                   <Search size={16} />
                   검색
                 </button>
@@ -5395,7 +5500,7 @@ export function App() {
               ) : (
                 <div className="helper-copy">
                   <p>파일 탐색기처럼 빠르게 검색하고, 필요한 파일만 현재 업무대화 세션에 연결합니다.</p>
-                  <p>Anything은 보조 고급검색으로만 남기고 기본 흐름은 내장 인덱서를 우선 사용합니다.</p>
+                  <p>로컬 파일명 인덱스와 지식폴더 색인을 함께 사용해 현재 PC 안의 자료를 직접 찾습니다.</p>
                 </div>
               )}
 
@@ -5448,6 +5553,7 @@ export function App() {
                           <div className="inline-actions">
                             <button
                               type="button"
+                              data-testid={`local-file-link-${hit.file.id}`}
                               disabled={!selectedSessionId || linked || submitting}
                               onClick={(event) => {
                                 event.stopPropagation();
@@ -5460,6 +5566,7 @@ export function App() {
                             <button
                               type="button"
                               className="button-secondary"
+                              data-testid={`local-file-open-${hit.file.id}`}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 void openExternalTarget(hit.file.file_path);
@@ -5471,6 +5578,7 @@ export function App() {
                             <button
                               type="button"
                               className="button-secondary"
+                              data-testid={`local-file-copy-${hit.file.id}`}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 void copyLocalFilePath(hit.file.file_path);
@@ -5495,238 +5603,6 @@ export function App() {
           </div>
         </SectionCard>
 
-        <SectionCard eyebrow="선택 연계" title="외부 고급검색">
-          <details className="knowledge-detail-section">
-            <summary>Anything로 더 찾아보기</summary>
-            <div className="stack-form">
-            {selectedSession ? (
-              <div className="detail-panel">
-                <p className="detail-panel__title">Anything 가져오기 대상 세션</p>
-                <div className="document-preview__meta">
-                  <strong>{selectedSession.title}</strong>
-                  <span>가져온 파일 경로는 이 업무대화 세션에도 함께 연결됩니다.</span>
-                </div>
-              </div>
-            ) : null}
-            <div className="hint-box">
-              <strong>
-                {runtimeStatus?.anything_available
-                  ? "외부 설치된 Anything 앱을 감지했습니다."
-                  : "현재 Anything 앱이 감지되지 않았습니다."}
-              </strong>
-              <p>
-                {runtimeStatus?.anything_available
-                  ? runtimeStatus.anything_autopaste_enabled
-                    ? "승인 후 열기를 누르면 감지된 Anything 앱을 실행하고 검색어 자동 붙여넣기를 시도합니다."
-                    : "승인 후 열기를 누르면 감지된 Anything 앱을 실행합니다."
-                  : "감지되지 않으면 Anything 설치 페이지를 열어 설치 후 다시 연계할 수 있습니다."}
-              </p>
-              {runtimeStatus?.anything_path ? (
-                <p className="subtle-text">{runtimeStatus.anything_path}</p>
-              ) : null}
-              {!runtimeStatus?.anything_available ? (
-                <button type="button" className="button-secondary" onClick={() => void openAnythingInstallGuide()}>
-                  Anything 설치 안내 열기
-                </button>
-              ) : null}
-            </div>
-            <label>
-              검색어 힌트
-              <input
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="예: 예산, 회의자료, 사업계획"
-              />
-            </label>
-            <div className="toolbar">
-              <button type="button" onClick={submitAnythingLaunch} disabled={submitting}>
-                Anything 열기 요청
-              </button>
-              <span className="subtle-text">외부 실행은 승인 흐름과 결과 기록에 남습니다.</span>
-            </div>
-            </div>
-          </details>
-        </SectionCard>
-
-        <SectionCard eyebrow="Anything history" title="승인 후 다시 열기">
-          <details className="knowledge-detail-section">
-            <summary>Anything 실행 기록 보기</summary>
-          {snapshot.anythingLaunches.length === 0 ? (
-            <EmptyState
-              title="아직 다시 열기 요청이 없습니다."
-              body="Anything 실행 요청을 보내면 승인 상태와 다시 열기 링크가 여기에 쌓입니다."
-            />
-          ) : (
-            <div className="item-list">
-              {snapshot.anythingLaunches.map((launch) => {
-                const relatedTicket = snapshot.approvalTickets.find(
-                  (ticket) => ticket.id === launch.approval_ticket_id,
-                );
-                const canOpen = relatedTicket?.status === "approved";
-                const anythingDetected = runtimeStatus?.anything_available ?? false;
-                const openLabel = anythingDetected
-                    ? launch.status === "applied"
-                    ? "Anything 다시 열기"
-                    : "승인 후 Anything 열기"
-                  : launch.status === "applied"
-                    ? "설치 안내 다시 열기"
-                    : "승인 후 설치 안내 열기";
-
-                return (
-                  <article key={launch.id} className="list-card">
-                    <div className="list-card__main list-card__main--static">
-                      <div>
-                        <h3>{launch.query}</h3>
-                        <p>{launch.status === "applied" ? "적용 완료" : relatedTicket?.status ?? launch.status}</p>
-                        <p className="subtle-text">{launch.launch_target}</p>
-                        {!anythingDetected ? (
-                          <p className="subtle-text">
-                            Anything이 감지되지 않아 설치 안내 페이지를 먼저 엽니다.
-                          </p>
-                        ) : null}
-                      </div>
-                      <span className="pill">Anything</span>
-                    </div>
-                    <div className="inline-actions">
-                      {canOpen ? (
-                        <button type="button" aria-label={openLabel} onClick={() => void launchAnything(launch)}>
-                          {launch.status === "applied" ? "다시 열기" : "승인 후 열기"}
-                        </button>
-                      ) : null}
-                    </div>
-                    {launch.status === "applied" ? (
-                      <form
-                        className="stack-form"
-                        onSubmit={(event) => void submitAnythingReferenceImport(event, launch)}
-                      >
-                        <label>
-                          가져올 묶음 제목
-                          <input
-                            value={anythingImportForms[launch.approval_ticket_id]?.title ?? ""}
-                            onChange={(event) =>
-                              setAnythingImportForms((current) => ({
-                                ...current,
-                                [launch.approval_ticket_id]: {
-                                  title: event.target.value,
-                                  paths: current[launch.approval_ticket_id]?.paths ?? "",
-                                },
-                              }))
-                            }
-                            placeholder="예산 검토 결과 묶음"
-                            required
-                          />
-                        </label>
-                        <label>
-                          선택한 경로 붙여넣기
-                          <textarea
-                            value={anythingImportForms[launch.approval_ticket_id]?.paths ?? ""}
-                            onChange={(event) =>
-                              setAnythingImportForms((current) => ({
-                                ...current,
-                                [launch.approval_ticket_id]: {
-                                  title: current[launch.approval_ticket_id]?.title ?? "",
-                                  paths: event.target.value,
-                                },
-                              }))
-                            }
-                            placeholder={"C:\\docs\\budget.xlsx\nC:\\docs\\meeting-notes.md"}
-                            rows={4}
-                            required
-                          />
-                        </label>
-                        <button type="submit" disabled={submitting}>
-                          Reference Set으로 가져오기
-                        </button>
-                        {lastImportedAnythingReferenceSetId === selectedReferenceSetId ? (
-                          <button
-                            type="button"
-                            className="button-secondary"
-                            onClick={continueImportedAnythingToDocuments}
-                          >
-                            문서작성으로 이어가기
-                          </button>
-                        ) : null}
-                      </form>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-          </details>
-        </SectionCard>
-
-        <SectionCard eyebrow="고급" title="작업자료 묶음으로 저장">
-          <details className="knowledge-detail-section">
-            <summary>반복 사용할 자료 묶음 만들기</summary>
-            <div className="helper-copy">
-              <p>일상적인 파일찾기는 개별 파일을 세션에 바로 연결하면 충분합니다.</p>
-              <p>같은 자료 구성을 여러 문서작성 작업에서 반복 사용할 때만 작업자료 묶음으로 저장하세요.</p>
-            </div>
-            <form className="stack-form" onSubmit={submitReferenceSet}>
-              <label>
-                작업자료 묶음 제목
-                <input
-                  value={referenceForm.title}
-                  onChange={(event) =>
-                    setReferenceForm((current) => ({ ...current, title: event.target.value }))
-                  }
-                  placeholder="예: 보고 참고자료"
-                  required
-                />
-              </label>
-              <label className="select-field">
-                연결 세션
-                <select value={selectedSessionId} onChange={(event) => setSelectedSessionId(event.target.value)}>
-                  <option value="">연결 안 함</option>
-                  {snapshot.workSessions.map((session) => (
-                    <option key={session.id} value={session.id}>
-                      {session.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="grid-3">
-                <label>
-                  유형
-                  <input
-                    value={referenceForm.kind}
-                    onChange={(event) =>
-                      setReferenceForm((current) => ({ ...current, kind: event.target.value }))
-                    }
-                    placeholder="file / note / search-result"
-                    required
-                  />
-                </label>
-                <label>
-                  라벨
-                  <input
-                    value={referenceForm.label}
-                    onChange={(event) =>
-                      setReferenceForm((current) => ({ ...current, label: event.target.value }))
-                    }
-                    placeholder="예산 메모"
-                    required
-                  />
-                </label>
-                <label>
-                  값
-                  <input
-                    value={referenceForm.value}
-                    onChange={(event) =>
-                      setReferenceForm((current) => ({ ...current, value: event.target.value }))
-                    }
-                    placeholder="파일 경로 또는 메모"
-                    required
-                  />
-                </label>
-              </div>
-              <button type="submit" disabled={submitting}>
-                작업자료 묶음 등록
-              </button>
-            </form>
-          </details>
-        </SectionCard>
       </>
     );
   }
@@ -5745,10 +5621,10 @@ export function App() {
       selectedDocumentSession && selectedDocumentSession.id === selectedSession?.id ? selectedSessionFileLinks : [];
 
     return (
-      <>
-        <SectionCard eyebrow="작업 연결" title="자료 기반 문서작성 시작">
-          <div className="stack-form">
-            <div className="segmented-control" data-testid="document-source-mode">
+      <div className="document-authoring-flow" data-testid="document-authoring-flow">
+        <SectionCard eyebrow="1단계" title="작성 출발점 선택" testId="document-source-step">
+          <div className="stack-form document-step-card">
+            <div className="segmented-control segmented-control--cards" data-testid="document-source-mode">
               <label>
                 <input
                   type="radio"
@@ -5763,7 +5639,7 @@ export function App() {
                     }
                   }}
                 />
-                대화세션에서 작성
+                <span>대화세션에서 작성</span>
               </label>
               <label>
                 <input
@@ -5775,7 +5651,7 @@ export function App() {
                     setDocumentSourceSessionId("");
                   }}
                 />
-                바로 작성
+                <span>바로 작성</span>
               </label>
             </div>
 
@@ -5825,99 +5701,14 @@ export function App() {
             ) : (
               <div className="hint-box">
                 <strong>세션 없이 바로 작성</strong>
-                <span>작성 개요와 관련 파일 경로를 Content Base에 직접 남깁니다.</span>
+                <span>작성 개요와 관련 파일 경로를 문서작성 입력으로 바로 정리합니다.</span>
               </div>
             )}
           </div>
         </SectionCard>
 
-        <SectionCard eyebrow="문서작성" title="HWPX 보고서 작업 시작">
-          <form className="stack-form" onSubmit={submitDocumentGenerate}>
-            <label>
-              문서 제목
-              <input
-                value={documentForm.title}
-                onChange={(event) => setDocumentForm((current) => ({ ...current, title: event.target.value }))}
-                placeholder="예: 주간 보고 초안"
-                required
-              />
-            </label>
-            <label>
-              작업 설명
-              <textarea
-                value={documentForm.outline}
-                onChange={(event) => setDocumentForm((current) => ({ ...current, outline: event.target.value }))}
-                placeholder="문서작성 방향, 꼭 반영할 관점, 보고 대상, 강조할 결론 등을 자연어로 적습니다."
-                rows={4}
-              />
-            </label>
-            <div className="grid-2">
-              <label className="select-field">
-                산출보고서
-                <select
-                  value={documentForm.document_format}
-                  onChange={(event) =>
-                    setDocumentForm((current) => ({
-                      ...current,
-                      document_format: event.target.value as DocumentFormat,
-                    }))
-                  }
-                >
-                  {DOCUMENT_FORMAT_OPTIONS.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="select-field">
-                Reference Set
-                <select
-                  value={selectedReferenceSetId}
-                  onChange={(event) => setSelectedReferenceSetId(event.target.value)}
-                >
-                  <option value="">선택 안 함</option>
-                  {snapshot.referenceSets.map((referenceSet) => (
-                    <option key={referenceSet.id} value={referenceSet.id}>
-                      {referenceSet.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="document-format-guide" data-testid="document-format-guide">
-              <div className="document-format-guide__intro">
-                <span>public-doc-to-hwpx 작성 원칙</span>
-                <strong>두괄식 · 개조식 · 한 문장 한 핵심 · 적/의/것/들 정리</strong>
-                <p>보고서 작성요령을 Content Base 이후 HWPX 산출 단계에 적용해 읽히는 공공문서로 정리합니다.</p>
-              </div>
-              <div className="document-format-cards">
-                {DOCUMENT_FORMAT_OPTIONS.map((option) => (
-                  <button
-                    key={option.key}
-                    type="button"
-                    className={[
-                      "document-format-card",
-                      documentForm.document_format === option.key ? "document-format-card--selected" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")}
-                    onClick={() =>
-                      setDocumentForm((current) => ({
-                        ...current,
-                        document_format: option.key,
-                      }))
-                    }
-                  >
-                    <span>{option.output}</span>
-                    <strong>{option.label}</strong>
-                    <p>{option.description}</p>
-                  </button>
-                ))}
-              </div>
-            </div>
-
+        <form className="stack-form" onSubmit={submitDocumentGenerate}>
+          <SectionCard eyebrow="2단계" title="파일 등록과 활용 목적" testId="document-file-step">
             <div className="detail-panel">
               <div className="section-heading-row">
                 <div>
@@ -5925,28 +5716,54 @@ export function App() {
                   <strong>첨부/연결 파일</strong>
                 </div>
                 <span className="pill">
-                  세션 {selectedDocumentSessionFileLinks.length}개 · 추가 {documentAttachmentDrafts.length}개
+                  세션 {selectedDocumentSessionFileLinks.length}개 · 첨부 {documentAttachmentDrafts.length}개
                 </span>
               </div>
+              <div className="hint-box">
+                작업 시작 시 가능한 범위에서 본문을 즉시 분석합니다. HWP/HWPX/PDF/DOCX/XLSX/PPTX는 파일 크기와 상태에 따라 잠시 걸릴 수 있고,
+                분석이 어려운 파일은 아래에 적은 주요내용과 활용목적을 우선 반영합니다.
+              </div>
               {documentSourceMode === "session" ? (
-                <div className="stack-list">
+                <div className="document-file-group">
                   <h4>세션 연결 파일</h4>
                   {selectedDocumentSessionFileLinks.length > 0 ? (
                     selectedDocumentSessionFileLinks.map((link) => {
                       const label = link.label || link.file_path.split(/[\\/]/).pop() || "연결 파일";
+                      const context = documentFileContextFor(link.file_path);
                       return (
-                        <article key={link.id} className="list-card list-card--compact">
-                          <strong>{label}</strong>
-                          <p>{link.file_path}</p>
-                          <label>
-                            {label} 활용방안
-                            <textarea
-                              value={documentFileUsageNotes[documentFileUsageKey(link.file_path)] ?? ""}
-                              onChange={(event) => updateDocumentFileUsage(link.file_path, event.target.value)}
-                              placeholder="예: 사실관계 근거, 통계 출처, 결재 참고자료 등"
-                              rows={2}
-                            />
-                          </label>
+                        <article
+                          key={link.id}
+                          className="document-file-card"
+                          data-testid={`document-file-card-${label}`}
+                        >
+                          <div className="document-file-card__header">
+                            <div>
+                              <span className="eyebrow">대화세션 연결 파일</span>
+                              <strong>{label}</strong>
+                              <p>{link.file_path}</p>
+                            </div>
+                            <span className="pill pill--soft">세션 자료</span>
+                          </div>
+                          <div className="grid-2">
+                            <label>
+                              {label} 주요내용
+                              <textarea
+                                value={context.summary}
+                                onChange={(event) => updateDocumentFileContext(link.file_path, { summary: event.target.value })}
+                                placeholder="예: 회의 결과, 통계 핵심, 쟁점 요약 등"
+                                rows={2}
+                              />
+                            </label>
+                            <label>
+                              {label} 활용목적
+                              <textarea
+                                value={context.usage}
+                                onChange={(event) => updateDocumentFileContext(link.file_path, { usage: event.target.value })}
+                                placeholder="예: 현황 근거, 조치계획 근거, 붙임자료 등"
+                                rows={2}
+                              />
+                            </label>
+                          </div>
                         </article>
                       );
                     })
@@ -5955,84 +5772,184 @@ export function App() {
                   )}
                 </div>
               ) : null}
-              <div className="grid-2">
-                <label>
-                  추가 파일 경로
-                  <textarea
-                    value={documentForm.direct_file_paths_text}
-                    onChange={(event) =>
-                      setDocumentForm((current) => ({ ...current, direct_file_paths_text: event.target.value }))
-                    }
-                    placeholder="파일찾기에서 복사한 경로를 한 줄에 하나씩 붙여넣으세요."
-                    rows={3}
-                  />
-                </label>
-                <label>
-                  추가 파일 활용방안
-                  <textarea
-                    value={documentForm.file_usage_note}
-                    onChange={(event) =>
-                      setDocumentForm((current) => ({ ...current, file_usage_note: event.target.value }))
-                    }
-                    placeholder="예: 회의결과 근거, 참고 통계, 결재용 양식 등"
-                    rows={3}
-                  />
-                </label>
-              </div>
-              <div className="hint-box">
-                <strong>보고서 관련 파일 첨부</strong>
-                <input
-                  ref={documentAttachmentInputRef}
-                  type="file"
-                  multiple
-                  aria-label="보고서 관련 파일 첨부"
-                  onChange={(event) => appendDocumentAttachments(event.currentTarget.files)}
-                />
-                {documentAttachmentDrafts.length > 0 ? (
-                  <div className="chat-composer__attachment-list">
-                    {documentAttachmentDrafts.map((item) => (
-                      <span key={item.id} className="pill pill--soft chat-composer__attachment-pill">
-                        <span>{item.file.name}</span>
-                        <button
-                          type="button"
-                          className="chat-composer__attachment-remove"
-                          aria-label={`${item.file.name} 첨부 제거`}
-                          onClick={() => removeDocumentAttachment(item.id)}
-                        >
-                          <X size={13} />
-                        </button>
-                      </span>
-                    ))}
+              <div className="document-file-group document-file-upload-panel">
+                <div className="section-heading-row">
+                  <div>
+                    <span className="eyebrow">UPLOAD</span>
+                    <strong>보고서 관련 파일 첨부</strong>
                   </div>
-                ) : null}
+                  <input
+                    ref={documentAttachmentInputRef}
+                    type="file"
+                    multiple
+                    aria-label="보고서 관련 파일 첨부"
+                    onChange={(event) => appendDocumentAttachments(event.currentTarget.files)}
+                  />
+                </div>
+                {documentAttachmentDrafts.length > 0 ? (
+                  <div className="document-file-list">
+                    {documentAttachmentDrafts.map((item) => {
+                      const label = item.file.name;
+                      const context = documentFileContextFor(item.id);
+                      return (
+                        <article
+                          key={item.id}
+                          className="document-file-card"
+                          data-testid={`document-file-card-${label}`}
+                        >
+                          <div className="document-file-card__header">
+                            <div>
+                              <span className="eyebrow">업로드 첨부</span>
+                              <strong>{label}</strong>
+                              <p>{Math.max(1, Math.round(item.file.size / 1024))}KB</p>
+                            </div>
+                            <button
+                              type="button"
+                              className="button-secondary document-file-card__remove"
+                              aria-label={`${label} 첨부 제거`}
+                              onClick={() => removeDocumentAttachment(item.id)}
+                            >
+                              <X size={14} />
+                              제거
+                            </button>
+                          </div>
+                          <div className="grid-2">
+                            <label>
+                              {label} 주요내용
+                              <textarea
+                                value={context.summary}
+                                onChange={(event) => updateDocumentFileContext(item.id, { summary: event.target.value })}
+                                placeholder="첨부 파일의 핵심 내용을 적습니다."
+                                rows={2}
+                              />
+                            </label>
+                            <label>
+                              {label} 활용목적
+                              <textarea
+                                value={context.usage}
+                                onChange={(event) => updateDocumentFileContext(item.id, { usage: event.target.value })}
+                                placeholder="보고서 작성에 어떻게 활용할지 적습니다."
+                                rows={2}
+                              />
+                            </label>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="hint-box">필요한 파일을 여러 개 첨부한 뒤, 파일별 주요내용과 활용목적을 적어주세요.</div>
+                )}
               </div>
             </div>
+          </SectionCard>
 
-            <div className="hint-box">
-              <strong>사용자 HWPX/HWTX 양식</strong>
-              <span>업로드한 양식은 최종 HWPX 생성 시 기본 문서로 열고, 선택한 보고서 유형에 맞춰 Content Base를 정리한 뒤 본문 슬롯에 반영합니다.</span>
-              <input
-                ref={documentTemplateInputRef}
-                type="file"
-                accept=".hwpx,.hwtx"
-                aria-label="사용자 HWPX/HWTX 양식"
-                onChange={handleDocumentTemplateUpload}
-              />
-              <label className="select-field">
-                업로드된 양식 선택
-                <select
-                  value={documentForm.user_template_path}
-                  onChange={(event) =>
-                    setDocumentForm((current) => ({ ...current, user_template_path: event.target.value }))
-                  }
-                >
-                  <option value="">선택 안 함</option>
-                  {customDocumentTemplates.map((template) => (
-                    <option key={template.path} value={template.path}>
-                      {template.file_name}
-                    </option>
-                  ))}
-                </select>
+            <SectionCard eyebrow="3단계" title="산출보고서 선택" className="document-inner-section" testId="document-format-step">
+              <div className="document-format-guide" data-testid="document-format-guide">
+                <div className="document-format-guide__intro">
+                  <span>public-doc-to-hwpx 작성 원칙</span>
+                  <strong>두괄식 · 개조식 · 한 문장 한 핵심 · 적/의/것/들 정리</strong>
+                  <p>보고서 작성요령을 HWPX 산출 단계에 적용해 읽히는 공공문서로 정리합니다.</p>
+                </div>
+                <div className="document-format-cards">
+                  {[...DOCUMENT_FORMAT_OPTIONS, {
+                    key: "custom" as DocumentFormatChoice,
+                    label: "별도지정",
+                    description: "사용자가 업로드한 HWPX/HWTX 양식에 맞춰 풀버전 보고서 구조로 작성합니다.",
+                    output: "CUSTOM",
+                  }].map((option) => {
+                    const actualFormat = option.key === "custom" ? "fullReport" : option.key;
+                    const selected =
+                      option.key === "custom"
+                        ? Boolean(documentForm.user_template_path) && documentForm.document_format === "fullReport"
+                        : documentForm.document_format === option.key && !documentForm.user_template_path;
+                    return (
+                      <button
+                        key={option.key}
+                        type="button"
+                        data-testid={`document-format-${option.key}`}
+                        className={[
+                          "document-format-card",
+                          selected ? "document-format-card--selected" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        onClick={() =>
+                          setDocumentForm((current) => ({
+                            ...current,
+                            document_format: actualFormat as DocumentFormat,
+                            user_template_path: option.key === "custom" ? current.user_template_path : "",
+                          }))
+                        }
+                      >
+                        <span>{option.output}</span>
+                        <strong>{option.label}</strong>
+                        <p>{option.description}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="document-template-panel">
+                  <div>
+                    <strong>별도지정 양식 파일</strong>
+                    <p>별도지정 형식이 필요할 때 HWPX/HWTX 양식을 업로드하거나 기존 업로드 양식을 선택합니다.</p>
+                  </div>
+                  <div className="grid-2">
+                    <label>
+                      사용자 HWPX/HWTX 양식
+                      <input
+                        ref={documentTemplateInputRef}
+                        type="file"
+                        accept=".hwpx,.hwtx"
+                        aria-label="사용자 HWPX/HWTX 양식"
+                        onChange={handleDocumentTemplateUpload}
+                      />
+                    </label>
+                    <label className="select-field">
+                      업로드된 양식 선택
+                      <select
+                        value={documentForm.user_template_path}
+                        onChange={(event) =>
+                          setDocumentForm((current) => ({
+                            ...current,
+                            user_template_path: event.target.value,
+                            document_format: event.target.value ? "fullReport" : current.document_format,
+                          }))
+                        }
+                      >
+                        <option value="">선택 안 함</option>
+                        {customDocumentTemplates.map((template) => (
+                          <option key={template.path} value={template.path}>
+                            {template.file_name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
+
+            <SectionCard eyebrow="4단계" title="작업 지시" className="document-inner-section" testId="document-instruction-step">
+              <label>
+                문서 제목
+                <input
+                  data-testid="document-title-input"
+                  value={documentForm.title}
+                  onChange={(event) => setDocumentForm((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="예: 주간 보고 초안"
+                  required
+                />
+              </label>
+              <label>
+                작업 설명
+                <textarea
+                  data-testid="document-outline-input"
+                  value={documentForm.outline}
+                  onChange={(event) => setDocumentForm((current) => ({ ...current, outline: event.target.value }))}
+                  placeholder="문서작성 방향, 꼭 반영할 관점, 보고 대상, 강조할 결론 등을 자연어로 적습니다."
+                  rows={4}
+                />
               </label>
               <label>
                 출력 파일 이름(선택)
@@ -6044,26 +5961,38 @@ export function App() {
                   placeholder="비워두면 문서 제목으로 저장합니다."
                 />
               </label>
-            </div>
+            </SectionCard>
 
-            <button type="submit" disabled={submitting}>
+            {documentGenerateProgress ? (
+              <div
+                className={`document-generate-status${documentGenerateProgress.completed ? " is-complete" : ""}`}
+                data-testid="document-generate-status"
+              >
+                <div className="document-generate-status__header">
+                  <span className="pill">{documentGenerateProgress.completed ? "완료" : "진행 중"}</span>
+                  <strong>{documentGenerateProgress.stage}</strong>
+                  <span>경과 {formatElapsedSeconds(documentGenerateElapsedSeconds)}</span>
+                </div>
+                <div className="document-generate-status__bar" aria-hidden="true">
+                  <span
+                    style={{
+                      width: `${Math.min(
+                        100,
+                        Math.round((documentGenerateProgress.step / documentGenerateProgress.total) * 100),
+                      )}%`,
+                    }}
+                  />
+                </div>
+                <p>
+                  단계 {documentGenerateProgress.step}/{documentGenerateProgress.total} ·{" "}
+                  {documentGenerateProgress.detail}
+                </p>
+              </div>
+            ) : null}
+            <button type="submit" data-testid="document-generate-submit" disabled={submitting}>
               작업 시작
             </button>
-          </form>
-          {selectedReferenceSet ? (
-            <div className="hint-box">
-              <strong>선택된 참고자료 묶음</strong>
-              <span>{selectedReferenceSet.title}</span>
-              <span>{selectedReferenceSet.items.length}개 자료</span>
-              {selectedReferenceSet.items.slice(0, 2).map((item) => (
-                <span key={item.id ?? item.value}>{item.label}</span>
-              ))}
-              {selectedReferenceSet.items[0] ? (
-                <span>{selectedReferenceSet.items[0].value}</span>
-              ) : null}
-            </div>
-          ) : null}
-        </SectionCard>
+        </form>
 
         <SectionCard eyebrow="생성 결과" title="HWPX 산출물">
           {lastFinalizeRequest?.artifact?.path ? (
@@ -6072,7 +6001,15 @@ export function App() {
                 <span className="pill">생성 완료</span>
                 <span className="subtle-text">{lastFinalizeRequest.final_document_output.output_name}</span>
               </div>
-              <p>{friendlyArtifactLabel(lastFinalizeRequest.artifact.path)}</p>
+              <button
+                type="button"
+                className="document-artifact-card"
+                data-testid="document-artifact-card"
+                onClick={() => void openExternalTarget(lastFinalizeRequest.artifact?.path ?? "")}
+              >
+                <strong>{fileNameFromPath(lastFinalizeRequest.artifact.path)}</strong>
+                <span>{friendlyArtifactLabel(lastFinalizeRequest.artifact.path)}</span>
+              </button>
               {lastFinalizeRequest.artifact.markdown_path ? (
                 <p className="subtle-text">
                   검토용 Markdown: {friendlyArtifactLabel(lastFinalizeRequest.artifact.markdown_path)}
@@ -6102,7 +6039,7 @@ export function App() {
             />
           )}
         </SectionCard>
-      </>
+      </div>
     );
   }
 
@@ -7712,9 +7649,7 @@ export function App() {
             <button type="button" className="button-secondary" onClick={() => void runLlmConnectionTest()} disabled={submitting}>
               LLM 연결 테스트
             </button>
-            <span className="subtle-text">
-              검색 연계는 {snapshot.settings?.defaults.anything_launch_mode ?? "external_app_preferred"} 기준으로 유지됩니다.
-            </span>
+            <span className="subtle-text">로컬 파일명 인덱스와 지식폴더 색인을 우선 사용합니다.</span>
           </div>
         </form>
         <div className="settings-grid">
@@ -7916,15 +7851,15 @@ export function App() {
           <div className="context-detail__hero">
             <span className="context-detail__icon"><FileText size={18} /></span>
             <div>
-              <strong>{lastContentBase ? friendlyArtifactLabel(lastContentBase.artifact.path) : "문서작성 준비"}</strong>
-              <p>{lastContentBase ? lastContentBase.title : "Content Base를 만든 뒤 최종 HWPX 산출까지 진행합니다."}</p>
+              <strong>{lastFinalizeRequest ? friendlyArtifactLabel(lastFinalizeRequest.artifact?.path) : "문서작성 준비"}</strong>
+              <p>{lastFinalizeRequest ? "생성된 HWPX 산출물을 열어 검토할 수 있습니다." : "출발점, 파일, 작업지시, 보고서 유형을 차례로 입력합니다."}</p>
             </div>
           </div>
           <div className="context-detail__grid">
             <span>{documentSourceMode === "session" ? "대화세션 기반" : "바로 작성"}</span>
-            <span>{selectedReferenceSet?.title ?? "자료 묶음 없음"}</span>
-            <span>{lastFinalizeRequest ? shortDisplayId(lastFinalizeRequest.approval_ticket.id, "승인") : "승인 대기 없음"}</span>
-            <span>{currentFinalizeTicket?.status ?? lastFinalizeRequest?.approval_ticket.status ?? "초안 단계"}</span>
+            <span>{documentFormatLabel(documentForm.document_format)}</span>
+            <span>{selectedSessionFileLinks.length + documentAttachmentDrafts.length}개 파일</span>
+            <span>{lastFinalizeRequest?.final_document_output.status ?? "작성 전"}</span>
           </div>
           {lastFinalizeRequest?.final_document_output.artifact_path ? (
             <button
@@ -8226,10 +8161,6 @@ export function App() {
                   <div>
                     <p className="settings-grid__label">선택 세션</p>
                     <p>{selectedSession?.title ?? "없음"}</p>
-                  </div>
-                  <div>
-                    <p className="settings-grid__label">선택 ReferenceSet</p>
-                    <p>{selectedReferenceSet?.title ?? "없음"}</p>
                   </div>
                 </div>
               {selectedResponseContext ? (

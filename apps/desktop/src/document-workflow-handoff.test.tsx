@@ -14,16 +14,16 @@ vi.mock("./runtime", () => ({
     running: true,
     managed: true,
     auto_restart_recommended: false,
-    log_path: "/tmp/gongmu-workspace/logs/sidecar-runtime.log",
-    detail: "managed sidecar running",
+    log_path: "/tmp/gongmu-workspace/logs/engine-runtime.log",
+    detail: "managed engine running",
   })),
   startDesktopSidecar: vi.fn(),
   stopDesktopSidecar: vi.fn(),
   restartDesktopSidecar: vi.fn(),
   pickDirectory: vi.fn(async () => null),
-  launchAnythingQuery: vi.fn(async () => undefined),
   openExternalTarget: vi.fn(async () => undefined),
   copyTextToClipboard: vi.fn(async () => undefined),
+  setDesktopZoom: vi.fn(async () => undefined),
 }));
 
 import { App } from "./app";
@@ -37,7 +37,7 @@ const jsonResponse = (payload: unknown, status = 200) =>
   );
 
 describe("session to documents workflow", () => {
-  const generateBodies: unknown[] = [];
+  const generateBodies: Array<Record<string, unknown>> = [];
 
   beforeEach(() => {
     generateBodies.length = 0;
@@ -45,7 +45,7 @@ describe("session to documents workflow", () => {
       "fetch",
       vi.fn((input: string | URL | Request, init?: RequestInit) => {
         const url = String(input);
-        const method = init?.method ?? "GET";
+        const method = (init?.method ?? "GET").toUpperCase();
 
         if (url.endsWith("/health")) {
           return jsonResponse({
@@ -95,7 +95,7 @@ describe("session to documents workflow", () => {
                 content_hash: "abc123",
                 source_signature: "sig",
                 artifact_path: "documents/content-bases/content-1.md",
-                created_at: "2026-05-06T09:30:00+09:00",
+                created_at: "2026-06-02T09:30:00+09:00",
               },
               finalize: {
                 id: "finalize-1",
@@ -111,7 +111,7 @@ describe("session to documents workflow", () => {
                   output_format: "hwpx",
                   artifact_path: "documents/final/weekly-report.hwpx",
                   status: "applied",
-                  created_at: "2026-05-06T09:31:00+09:00",
+                  created_at: "2026-06-02T09:31:00+09:00",
                 },
                 artifact: {
                   path: "documents/final/weekly-report.hwpx",
@@ -141,7 +141,7 @@ describe("session to documents workflow", () => {
                 title: "주간 보고 작업",
                 schedule_id: "schedule-1",
                 status: "open",
-                created_at: "2026-05-06T09:00:00+09:00",
+                created_at: "2026-06-02T09:00:00+09:00",
                 messages: [
                   {
                     id: "message-1",
@@ -150,7 +150,7 @@ describe("session to documents workflow", () => {
                     text: "보고서 목차를 먼저 정리하겠습니다.",
                     message_type: "chat",
                     status: "completed",
-                    created_at: "2026-05-06T09:05:00+09:00",
+                    created_at: "2026-06-02T09:05:00+09:00",
                   },
                 ],
               },
@@ -168,7 +168,7 @@ describe("session to documents workflow", () => {
                 text: "보고서 목차를 먼저 정리하겠습니다.",
                 message_type: "chat",
                 status: "completed",
-                created_at: "2026-05-06T09:05:00+09:00",
+                created_at: "2026-06-02T09:05:00+09:00",
               },
             ],
           });
@@ -183,7 +183,7 @@ describe("session to documents workflow", () => {
                 file_path: "C:/Docs/weekly-report.md",
                 label: "weekly-report.md",
                 source: "manual",
-                created_at: "2026-05-06T09:10:00+09:00",
+                created_at: "2026-06-02T09:10:00+09:00",
               },
             ],
           });
@@ -195,10 +195,10 @@ describe("session to documents workflow", () => {
               {
                 id: "schedule-1",
                 title: "주간 보고 회의",
-                starts_at: "2026-05-06T10:00:00+09:00",
-                ends_at: "2026-05-06T11:00:00+09:00",
+                starts_at: "2026-06-02T10:00:00+09:00",
+                ends_at: "2026-06-02T11:00:00+09:00",
                 view: "week",
-                created_at: "2026-05-06T08:00:00+09:00",
+                created_at: "2026-06-02T08:00:00+09:00",
               },
             ],
           },
@@ -216,6 +216,7 @@ describe("session to documents workflow", () => {
           "/api/file-organizer/proposals": { items: [] },
           "/api/execution-logs": { items: [] },
           "/api/tools": { items: [] },
+          "/api/jobs": { items: [] },
         };
         const matched = Object.entries(collectionMap).find(([path]) => url.endsWith(path));
         if (matched) {
@@ -227,14 +228,18 @@ describe("session to documents workflow", () => {
     );
   });
 
-  it("moves the active chat session into the simplified HWPX authoring flow", async () => {
+  it("moves the active chat session into the same HWPX authoring pipeline with file-specific notes", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await screen.findByTestId("chat-workspace");
     await user.click(await screen.findByRole("button", { name: "문서작성으로 이어가기" }));
 
-    expect(await screen.findByText("HWPX 보고서 작업 시작")).toBeInTheDocument();
+    expect(await screen.findByTestId("document-authoring-flow")).toBeInTheDocument();
+    expect(screen.getByTestId("document-source-step")).toHaveTextContent("작성 출발점 선택");
+    expect(screen.getByTestId("document-file-step")).toHaveTextContent("파일 등록과 활용 목적");
+    expect(screen.getByTestId("document-format-step")).toHaveTextContent("산출보고서 선택");
+    expect(screen.getByTestId("document-instruction-step")).toHaveTextContent("작업 지시");
     expect(screen.queryByRole("button", { name: "ContentBase.md 생성" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "최종 저장 요청" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "최종 저장 적용" })).not.toBeInTheDocument();
@@ -242,47 +247,34 @@ describe("session to documents workflow", () => {
     const sourceModeGroup = screen.getByTestId("document-source-mode");
     expect(within(sourceModeGroup).getByLabelText("대화세션에서 작성")).toBeChecked();
     expect(screen.getByLabelText("문서 제목")).toHaveValue("주간 보고 작업 문서");
-    expect(screen.queryByLabelText("문서 목적")).not.toBeInTheDocument();
     expect(screen.getByLabelText("작업 설명")).toHaveValue("주간 보고 작업 대화 내용을 바탕으로 문서를 작성합니다.");
     expect(screen.getByText("연결 파일 1개")).toBeInTheDocument();
 
-    const formatSelect = screen.getByLabelText("산출보고서");
-    expect(formatSelect).toHaveValue("onePageReport");
-    expect(within(formatSelect).queryByRole("option", { name: "자동 선택" })).not.toBeInTheDocument();
-    expect(within(formatSelect).getByRole("option", { name: "시행문" })).toBeInTheDocument();
-    expect(within(formatSelect).getByRole("option", { name: "1페이지 보고서" })).toBeInTheDocument();
-    expect(within(formatSelect).getByRole("option", { name: "풀버전 보고서" })).toBeInTheDocument();
-    expect(within(formatSelect).getByRole("option", { name: "이메일" })).toBeInTheDocument();
+    const linkedFileCard = screen.getByTestId("document-file-card-weekly-report.md");
+    await user.type(within(linkedFileCard).getByLabelText("weekly-report.md 주요내용"), "이번 주 추진 현황과 회의 결정사항");
+    await user.type(within(linkedFileCard).getByLabelText("weekly-report.md 활용목적"), "현황 및 쟁점 작성 근거로 사용");
 
-    expect(screen.queryByLabelText("수신/대상")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("예상 분량")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("긴급도")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("기한")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("추적성 필요")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("공식 서식 필요")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("요청 조치")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("보안 수준")).not.toBeInTheDocument();
-
-    expect(screen.getByText("세션 연결 파일")).toBeInTheDocument();
-    expect(screen.getByText("weekly-report.md")).toBeInTheDocument();
-    expect(screen.getByLabelText("weekly-report.md 활용방안")).toBeInTheDocument();
-    await user.type(screen.getByLabelText("weekly-report.md 활용방안"), "주간 보고 근거로 사용");
-    expect(screen.getByLabelText("추가 파일 경로")).toBeInTheDocument();
+    expect(screen.queryByLabelText("추가 파일 경로")).not.toBeInTheDocument();
     expect(screen.getByLabelText("보고서 관련 파일 첨부")).toBeInTheDocument();
     expect(screen.getByLabelText("사용자 HWPX/HWTX 양식")).toBeInTheDocument();
+    expect(screen.getByTestId("document-format-onePageReport")).toHaveClass("document-format-card--selected");
+    expect(screen.getByTestId("document-format-officialMemo")).toBeInTheDocument();
+    expect(screen.getByTestId("document-format-fullReport")).toBeInTheDocument();
+    expect(screen.getByTestId("document-format-email")).toBeInTheDocument();
+    expect(screen.getByTestId("document-format-custom")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "작업 시작" }));
+    await user.click(screen.getByTestId("document-generate-submit"));
 
     await waitFor(() => expect(generateBodies).toHaveLength(1));
     expect(generateBodies[0]).toMatchObject({
       title: "주간 보고 작업 문서",
-      purpose: "업무대화 세션 기반 1페이지 보고서 작성",
+      reference_set_id: null,
       source_session_id: "session-1",
       document_format: "onePageReport",
     });
-    expect(generateBodies[0]).toMatchObject({
-      outline: expect.stringContaining("weekly-report.md: 주간 보고 근거로 사용"),
-    });
-    expect(await screen.findByTestId("document-generate-result")).toHaveTextContent("documents/final/weekly-report.hwpx");
+    expect(String(generateBodies[0].outline)).toContain("weekly-report.md");
+    expect(String(generateBodies[0].outline)).toContain("주요내용: 이번 주 추진 현황과 회의 결정사항");
+    expect(String(generateBodies[0].outline)).toContain("활용목적: 현황 및 쟁점 작성 근거로 사용");
+    expect(await screen.findByTestId("document-artifact-card")).toHaveTextContent("weekly-report.hwpx");
   });
 });

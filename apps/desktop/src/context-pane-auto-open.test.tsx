@@ -308,7 +308,17 @@ describe("Context pane auto open", () => {
     expect(screen.getByRole("button", { name: KOREAN.scheduleCreate })).toBeInTheDocument();
   });
 
-  it("reopens the right pane and exposes context after creating a reference set", async () => {
+  it("keeps built-in file search free of legacy reference set creation", async () => {
+    {
+      const user = userEvent.setup();
+      render(<App />);
+      const navigation = await screen.findByRole("navigation", { name: KOREAN.navigation });
+      await user.click(within(navigation).getByRole("button", { name: KOREAN.searchMenu }));
+      expect(screen.queryByText(KOREAN.referenceSetSummary)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Reference Set/i)).not.toBeInTheDocument();
+    }
+    return;
+
     const user = userEvent.setup();
     render(<App />);
 

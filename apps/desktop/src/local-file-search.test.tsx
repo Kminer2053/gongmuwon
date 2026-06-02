@@ -187,19 +187,19 @@ describe("local file search", () => {
     render(<App />);
 
     await screen.findByTestId("chat-workspace");
-    await user.click(screen.getByRole("button", { name: "파일찾기" }));
+    await user.click(screen.getByTestId("feature-menu-search"));
 
-    expect(await screen.findByText("내장 파일찾기")).toBeInTheDocument();
+    expect(await screen.findByTestId("local-file-explorer")).toBeInTheDocument();
     await user.type(screen.getByTestId("local-file-search-input"), "budget");
-    await user.click(screen.getByRole("button", { name: "검색" }));
+    await user.click(screen.getByTestId("local-file-search-submit"));
 
     expect(await screen.findByTestId("local-file-result-file-1")).toHaveTextContent("Budget Plan");
     expect(screen.getAllByText(/budget-plan\.md/).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Budget planning notes for the review session.").length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("button", { name: "세션에 연결" }));
+    await user.click(screen.getByTestId("local-file-link-file-1"));
 
-    await waitFor(() => expect(screen.getByRole("button", { name: "연결됨" })).toBeDisabled());
+    await waitFor(() => expect(screen.getByTestId("local-file-link-file-1")).toBeDisabled());
   });
 
   it("keeps preview details in the right panel and shows copy/index feedback", async () => {
@@ -207,26 +207,38 @@ describe("local file search", () => {
     render(<App />);
 
     await screen.findByTestId("chat-workspace");
-    await user.click(screen.getByRole("button", { name: "파일찾기" }));
+    await user.click(screen.getByTestId("feature-menu-search"));
 
     const explorer = await screen.findByTestId("local-file-explorer");
-    expect(within(explorer).queryByText("결과 미리보기")).not.toBeInTheDocument();
-    expect(within(explorer).getByTestId("local-file-scope-panel")).toHaveTextContent("검색 범위");
-    expect(within(explorer).getByTestId("local-file-search-panel")).toHaveTextContent("파일 검색");
+    expect(within(explorer).queryByTestId("local-file-central-preview")).not.toBeInTheDocument();
+    expect(within(explorer).getByTestId("local-file-scope-panel")).toBeInTheDocument();
+    expect(within(explorer).getByTestId("local-file-search-panel")).toBeInTheDocument();
 
-    await user.click(within(explorer).getByRole("button", { name: /파일명 인덱스 갱신/ }));
+    await user.click(within(explorer).getByTestId("local-file-index-rebuild"));
     expect(await within(explorer).findByText("인덱스 42개")).toBeInTheDocument();
     expect(screen.queryByTestId("local-file-central-preview")).not.toBeInTheDocument();
 
     await user.type(screen.getByTestId("local-file-search-input"), "budget");
-    await user.click(screen.getByRole("button", { name: "검색" }));
+    await user.click(screen.getByTestId("local-file-search-submit"));
 
     const resultCard = await screen.findByTestId("local-file-result-file-1");
     await user.click(resultCard);
     expect(await screen.findByTestId("right-file-preview")).toHaveTextContent("budget-plan.md");
 
-    await user.click(within(resultCard).getByRole("button", { name: "경로 복사" }));
+    await user.click(within(resultCard).getByTestId("local-file-copy-file-1"));
     await waitFor(() => expect(copyTextToClipboard).toHaveBeenCalledWith("C:/Docs/budget-plan.md"));
     expect(await screen.findByText("파일 경로를 복사했습니다.")).toBeInTheDocument();
+  });
+
+  it("keeps built-in file search free of Anything and Reference Set handoff UI", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByTestId("chat-workspace");
+    await user.click(screen.getByTestId("feature-menu-search"));
+
+    expect(await screen.findByTestId("local-file-explorer")).toBeInTheDocument();
+    expect(screen.queryByText(/Anything/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reference Set/i)).not.toBeInTheDocument();
   });
 });

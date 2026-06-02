@@ -8,7 +8,9 @@ from typing import Any
 from uuid import uuid4
 
 from .db import Database, now_iso
+from .document_parsers import parse_document
 from .document_planning import build_document_plan, compile_document_brief, render_brief_markdown
+from .graphrag_models import StructuredDocument
 from .hwpx_writer import write_public_hwpx_document
 from .workspace import WorkspacePaths
 
@@ -37,6 +39,9 @@ DOCUMENT_FORMAT_LABELS = {
 }
 
 TEMPLATE_EXTENSIONS = {".hwpx", ".hwtx"}
+TEXT_EXCERPT_EXTENSIONS = {".txt", ".md", ".markdown", ".csv", ".json", ".log", ".yaml", ".yml"}
+STRUCTURED_EXCERPT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx", ".hwp", ".hwpx"}
+MAX_IMMEDIATE_PARSE_BYTES = 20 * 1024 * 1024
 
 
 class DocumentManager:
@@ -65,6 +70,7 @@ class DocumentManager:
         security_level: str = "",
         direct_file_paths: list[str] | None = None,
         user_template_path: str | None = None,
+        prepared_content_markdown: str | None = None,
     ) -> dict[str, Any]:
         template = TEMPLATES.get(template_key, TEMPLATES["report"])
         references = self._reference_lines(reference_set_id)
@@ -104,20 +110,30 @@ class DocumentManager:
             knowledge_items=knowledge_items,
         )
         plan = build_document_plan(brief)
-        body = self._render_markdown(
-            title=title,
-            purpose=purpose,
-            template=template,
-            references=references,
-            session_context=session_context,
-            outline=outline,
-            document_format=document_format,
-            slots=slots,
-            direct_file_paths=direct_paths,
-            user_template_path=selected_template_path,
-            brief=brief,
-            plan=plan,
-        )
+        if prepared_content_markdown and prepared_content_markdown.strip():
+            body = self._normalize_prepared_markdown(
+                prepared_content_markdown.strip(),
+                title=title,
+                purpose=purpose,
+                document_format=document_format,
+                user_template_path=selected_template_path,
+                slots=slots,
+            )
+        else:
+            body = self._render_markdown(
+                title=title,
+                purpose=purpose,
+                template=template,
+                references=references,
+                session_context=session_context,
+                outline=outline,
+                document_format=document_format,
+                slots=slots,
+                direct_file_paths=direct_paths,
+                user_template_path=selected_template_path,
+                brief=brief,
+                plan=plan,
+            )
         base_path.write_text(body, encoding="utf-8")
         preview_path.write_text(self._render_html(body), encoding="utf-8")
 
@@ -173,6 +189,33 @@ class DocumentManager:
             "preview": {"path": str(preview_path)},
             "content": body,
         }
+
+    def _normalize_prepared_markdown(
+        self,
+        markdown_text: str,
+        *,
+        title: str,
+        purpose: str,
+        document_format: str,
+        user_template_path: str | None,
+        slots: dict[str, str],
+    ) -> str:
+        lines: list[str] = []
+        if not markdown_text.lstrip().startswith("# "):
+            lines.extend([f"# {title}", ""])
+        lines.extend(
+            [
+                "## 문서 작성 기준",
+                f"- 문서 목적: {purpose}",
+                f"- 출력 유형: {DOCUMENT_FORMAT_LABELS.get(document_format, document_format)} ({document_format})",
+                f"- 사용자 양식: {user_template_path or '선택 안 함'}",
+                "- 작성 방식: LLM WorkSessionBrief -> DocumentPlan -> public-doc-to-hwpx 서식 매핑",
+                "",
+            ]
+        )
+        lines.extend(self._slot_lines(slots))
+        lines.append(markdown_text)
+        return "\n".join(lines).strip() + "\n"
 
     def list_custom_templates(self) -> list[dict[str, Any]]:
         items = []
@@ -557,11 +600,49 @@ class DocumentManager:
         path = Path(file_path)
         if not path.exists() or not path.is_file():
             return None
-        if path.suffix.lower() not in {".txt", ".md", ".csv", ".json", ".log", ".yaml", ".yml"}:
+        suffix = path.suffix.lower()
+        if suffix in TEXT_EXCERPT_EXTENSIONS:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            text = re.sub(r"\s+", " ", text).strip()
+            return text[:limit] if text else None
+        if suffix not in STRUCTURED_EXCERPT_EXTENSIONS:
             return None
-        text = path.read_text(encoding="utf-8", errors="ignore")
+        try:
+            if path.stat().st_size > MAX_IMMEDIATE_PARSE_BYTES:
+                return None
+            document = parse_document(path)
+        except Exception:
+            return None
+        text = self._structured_document_excerpt(document)
         text = re.sub(r"\s+", " ", text).strip()
         return text[:limit] if text else None
+
+    @staticmethod
+    def _structured_document_excerpt(document: StructuredDocument, limit: int = 1800) -> str:
+        parts: list[str] = []
+        if document.title:
+            parts.append(document.title)
+        if document.metadata:
+            metadata_parts = [
+                f"{key}: {value}"
+                for key, value in document.metadata.items()
+                if value is not None and str(value).strip()
+            ]
+            if metadata_parts:
+                parts.append("; ".join(metadata_parts[:6]))
+
+        for section in document.sections[:4]:
+            if section.heading:
+                parts.append(section.heading)
+            parts.extend(paragraph for paragraph in section.paragraphs[:8] if paragraph.strip())
+            for table in section.tables[:2]:
+                projection_lines = table.to_text_projection().splitlines()
+                parts.extend(line for line in projection_lines[:4] if line.strip())
+            if len(" ".join(parts)) >= limit:
+                break
+
+        text = " ".join(parts)
+        return text[:limit]
 
     def _render_html(self, markdown_text: str) -> str:
         paragraphs = []
