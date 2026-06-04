@@ -1207,17 +1207,28 @@ def _cleanup_full_report_dynamic_skeleton_remainders(text: str) -> str:
 
 
 def _remove_empty_full_report_schedule_tables(text: str) -> str:
-    def replace(match: re.Match[str]) -> str:
-        table = match.group(0)
+    output: list[str] = []
+    position = 0
+    while True:
+        table_start = text.find("<hp:tbl", position)
+        if table_start == -1:
+            output.append(text[position:])
+            return "".join(output)
+        table_end = _find_matching_element_close(text, table_start, "hp:tbl")
+        if table_end == -1:
+            output.append(text[position:])
+            return "".join(output)
+
+        table = text[table_start:table_end]
         visible = _plain_text_from_hwpx_xml(table)
         normalized = re.sub(r"[\s\u00a0\u200b]+", "", visible)
         for token in ("구분", "일정", "내용", EMPTY_PLACEHOLDER_MARKER):
             normalized = normalized.replace(token, "")
         if "구분" in visible and "일정" in visible and "내용" in visible and not normalized:
-            return ""
-        return table
-
-    return re.sub(r"<hp:tbl\b.*?</hp:tbl>", replace, text, flags=re.DOTALL)
+            output.append(text[position:table_start])
+        else:
+            output.append(text[position:table_end])
+        position = table_end
 
 
 def _remove_standalone_full_report_chapter_markers(text: str) -> str:
@@ -1244,15 +1255,26 @@ def _remove_standalone_full_report_chapter_markers(text: str) -> str:
         "X",
     }
 
-    def replace(match: re.Match[str]) -> str:
-        paragraph = match.group(0)
+    output: list[str] = []
+    position = 0
+    while True:
+        paragraph_start = text.find("<hp:p", position)
+        if paragraph_start == -1:
+            output.append(text[position:])
+            return "".join(output)
+        paragraph_end = _find_matching_paragraph_close(text, paragraph_start)
+        if paragraph_end == -1:
+            output.append(text[position:])
+            return "".join(output)
+
+        paragraph = text[paragraph_start:paragraph_end]
         visible = _plain_text_from_hwpx_xml(paragraph)
         normalized = re.sub(r"[\s\u00a0\u200b]+", "", visible)
         if normalized in roman_markers:
-            return ""
-        return paragraph
-
-    return re.sub(r"<hp:p\b.*?</hp:p>", replace, text, flags=re.DOTALL)
+            output.append(text[position:paragraph_start])
+        else:
+            output.append(text[position:paragraph_end])
+        position = paragraph_end
 
 
 def _plain_text_from_hwpx_xml(block: str) -> str:
@@ -1284,6 +1306,27 @@ def _find_matching_paragraph_close(text: str, paragraph_start: int) -> int:
         else:
             depth -= 1
             position = next_close + len("</hp:p>")
+            if depth == 0:
+                return position
+    return -1
+
+
+def _find_matching_element_close(text: str, element_start: int, tag_name: str) -> int:
+    open_prefix = f"<{tag_name}"
+    close_token = f"</{tag_name}>"
+    depth = 1
+    position = element_start + len(open_prefix)
+    while depth > 0:
+        next_open = text.find(open_prefix, position)
+        next_close = text.find(close_token, position)
+        if next_close == -1:
+            return -1
+        if next_open != -1 and next_open < next_close:
+            depth += 1
+            position = next_open + len(open_prefix)
+        else:
+            depth -= 1
+            position = next_close + len(close_token)
             if depth == 0:
                 return position
     return -1

@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import re
+import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 
 import pytest
@@ -44,6 +45,14 @@ def _extract_hwpx_plain_text(path: Path) -> str:
     text = __import__("re").sub(r"<[^>]+>", " ", text)
     text = __import__("re").sub(r"\s+", " ", text)
     return text.strip()
+
+
+def _assert_hwpx_xml_well_formed(path: Path) -> None:
+    with ZipFile(path) as archive:
+        assert archive.testzip() is None
+        for name in archive.namelist():
+            if name.lower().endswith(".xml"):
+                ET.fromstring(archive.read(name))
 
 
 def _skeleton_slot_key(value: object) -> str:
@@ -1693,6 +1702,7 @@ def test_full_report_generates_variable_body_sections_beyond_builtin_skeleton_sl
 
     review_markdown = Path(artifact["markdown_path"]).read_text(encoding="utf-8")
     plain_text = _extract_hwpx_plain_text(Path(artifact["path"]))
+    _assert_hwpx_xml_well_formed(Path(artifact["path"]))
     for index, name in enumerate(section_names, start=1):
         roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"][index - 1]
         assert f"{roman}. {name}" in review_markdown
