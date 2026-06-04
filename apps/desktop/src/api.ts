@@ -816,6 +816,26 @@ export type ContentBaseResult = {
   content: string;
   artifact: { path: string };
   preview: { path: string };
+  source_analysis?: DocumentSourceAnalysis;
+};
+
+export type DocumentSourceAnalysisMode = "none" | "normal" | "partial" | "limited";
+
+export type DocumentSourceAnalysisFile = {
+  path: string;
+  file_name: string;
+  size_bytes?: number | null;
+  analysis_mode: DocumentSourceAnalysisMode;
+  excerpt?: string;
+  warnings?: string[];
+};
+
+export type DocumentSourceAnalysis = {
+  budget_bytes: number;
+  used_bytes: number;
+  overall_mode: DocumentSourceAnalysisMode;
+  direct_files: DocumentSourceAnalysisFile[];
+  warnings: string[];
 };
 
 export type FinalDocumentOutputItem = {

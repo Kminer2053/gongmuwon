@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from .db import Database, now_iso
 from .document_parsers import parse_document
-from .document_planning import build_document_plan, compile_document_brief, render_brief_markdown
+from .document_planning import FileExcerptReader, build_document_plan, compile_document_brief, render_brief_markdown
 from .graphrag_models import StructuredDocument
 from .hwpx_writer import write_public_hwpx_document
 from .workspace import WorkspacePaths
@@ -42,6 +42,8 @@ TEMPLATE_EXTENSIONS = {".hwpx", ".hwtx"}
 TEXT_EXCERPT_EXTENSIONS = {".txt", ".md", ".markdown", ".csv", ".json", ".log", ".yaml", ".yml"}
 STRUCTURED_EXCERPT_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx", ".hwp", ".hwpx"}
 MAX_IMMEDIATE_PARSE_BYTES = 20 * 1024 * 1024
+AUTHORING_CONTEXT_BUDGET_BYTES = 32 * 1024
+AUTHORING_PER_FILE_BUDGET_BYTES = 8 * 1024
 
 
 class DocumentManager:
@@ -77,6 +79,7 @@ class DocumentManager:
         session_context = self._session_context(source_session_id)
         direct_paths = [path.strip() for path in direct_file_paths or [] if path.strip()]
         selected_template_path = self._normalize_user_template_path(user_template_path)
+        source_analysis = self.analyze_authoring_sources(direct_paths)
         content_base_id = str(uuid4())
         base_path = self.paths.content_bases / f"{content_base_id}.md"
         preview_path = self.paths.drafts / f"{content_base_id}.html"
@@ -96,7 +99,10 @@ class DocumentManager:
             outline=outline,
             source_session_id=source_session_id,
             session_context=session_context,
+            direct_file_paths=direct_paths,
+            source_analysis=source_analysis,
         )
+        file_excerpt_reader = self._authoring_excerpt_reader(source_analysis)
         brief = compile_document_brief(
             title=title,
             purpose=purpose,
@@ -106,7 +112,7 @@ class DocumentManager:
             references=references,
             direct_file_paths=direct_paths,
             slots=slots,
-            file_excerpt_reader=self._safe_file_excerpt,
+            file_excerpt_reader=file_excerpt_reader,
             knowledge_items=knowledge_items,
         )
         plan = build_document_plan(brief)
@@ -188,7 +194,117 @@ class DocumentManager:
             "artifact": {"path": str(base_path)},
             "preview": {"path": str(preview_path)},
             "content": body,
+            "source_analysis": source_analysis,
         }
+
+    def analyze_authoring_sources(
+        self,
+        direct_file_paths: list[str],
+        *,
+        budget_bytes: int = AUTHORING_CONTEXT_BUDGET_BYTES,
+    ) -> dict[str, Any]:
+        remaining = max(0, budget_bytes)
+        direct_files: list[dict[str, Any]] = []
+        warnings: list[str] = []
+        for file_path in direct_file_paths[:10]:
+            item = self._analyze_authoring_file(file_path, remaining)
+            direct_files.append(item)
+            warnings.extend(item.get("warnings") or [])
+            excerpt = str(item.get("excerpt") or "")
+            remaining = max(0, remaining - len(excerpt.encode("utf-8", errors="ignore")))
+        modes = {str(item.get("analysis_mode") or "normal") for item in direct_files}
+        if "limited" in modes:
+            overall_mode = "limited"
+        elif "partial" in modes:
+            overall_mode = "partial"
+        else:
+            overall_mode = "normal" if direct_files else "none"
+        return {
+            "budget_bytes": budget_bytes,
+            "used_bytes": budget_bytes - remaining,
+            "overall_mode": overall_mode,
+            "direct_files": direct_files,
+            "warnings": _dedupe_strings(warnings),
+        }
+
+    def _analyze_authoring_file(self, file_path: str, remaining_budget: int) -> dict[str, Any]:
+        path = Path(file_path)
+        label = path.name or file_path
+        item: dict[str, Any] = {
+            "path": file_path,
+            "file_name": label,
+            "size_bytes": None,
+            "analysis_mode": "limited",
+            "excerpt": "",
+            "warnings": [],
+        }
+        if remaining_budget <= 0:
+            item["warnings"].append(f"{label}: 문서작성 입력 예산 32KB를 초과해 본문 분석을 생략했습니다.")
+            return item
+        if not path.exists() or not path.is_file():
+            item["warnings"].append(f"{label}: 파일을 찾을 수 없어 경로 정보만 반영합니다.")
+            return item
+
+        try:
+            size_bytes = path.stat().st_size
+        except OSError:
+            size_bytes = None
+        item["size_bytes"] = size_bytes
+        suffix = path.suffix.lower()
+        per_file_budget = min(AUTHORING_PER_FILE_BUDGET_BYTES, max(0, remaining_budget))
+
+        if suffix in TEXT_EXCERPT_EXTENSIONS:
+            try:
+                text = path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                item["warnings"].append(f"{label}: 텍스트 파일을 읽지 못해 경로 정보만 반영합니다.")
+                return item
+            excerpt, truncated = _truncate_to_utf8_budget(_clean_text(text), per_file_budget)
+            item["excerpt"] = excerpt
+            item["analysis_mode"] = "partial" if truncated else "normal"
+            if truncated:
+                item["warnings"].append(f"{label}: 32KB 문서작성 입력 예산에 맞춰 일부 본문만 반영했습니다.")
+            return item
+
+        if suffix not in STRUCTURED_EXCERPT_EXTENSIONS:
+            item["warnings"].append(f"{label}: 지원하지 않는 형식이어서 파일명과 경로만 반영합니다.")
+            return item
+
+        if size_bytes is not None and size_bytes > MAX_IMMEDIATE_PARSE_BYTES:
+            item["analysis_mode"] = "limited"
+            item["warnings"].append(
+                f"{label}: 파일이 {format_file_size(size_bytes)}로 커서 전체 본문을 즉시 분석하지 못했습니다. "
+                "첨부는 유지하지만 보고서 품질을 높이려면 주요내용/활용목적을 입력하거나 지식폴더 색인을 먼저 실행하세요."
+            )
+            return item
+
+        try:
+            document = parse_document(path)
+            text = self._structured_document_excerpt(document, limit=AUTHORING_PER_FILE_BUDGET_BYTES * 2)
+        except Exception:
+            item["warnings"].append(f"{label}: 본문 추출에 실패해 파일명과 경로만 반영합니다.")
+            return item
+        excerpt, truncated = _truncate_to_utf8_budget(_clean_text(text), per_file_budget)
+        item["excerpt"] = excerpt
+        item["analysis_mode"] = "partial" if truncated else "normal"
+        if truncated:
+            item["warnings"].append(f"{label}: 추출 본문이 길어 관련 일부만 문서작성 근거로 반영했습니다.")
+        if not excerpt:
+            item["analysis_mode"] = "limited"
+            item["warnings"].append(f"{label}: 추출된 본문이 없어 파일명과 경로만 반영합니다.")
+        return item
+
+    def _authoring_excerpt_reader(self, source_analysis: dict[str, Any]) -> FileExcerptReader:
+        excerpts = {
+            str(item.get("path") or ""): str(item.get("excerpt") or "")
+            for item in source_analysis.get("direct_files", [])
+            if str(item.get("path") or "") and str(item.get("excerpt") or "")
+        }
+
+        def read(file_path: str) -> str | None:
+            return excerpts.get(file_path) or self._safe_file_excerpt(file_path)
+
+        return read
 
     def _normalize_prepared_markdown(
         self,
@@ -431,8 +547,13 @@ class DocumentManager:
         outline: str,
         source_session_id: str | None,
         session_context: dict[str, Any] | None,
+        direct_file_paths: list[str] | None = None,
+        source_analysis: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         if self.graphrag is None:
+            return []
+        direct_paths = [path for path in direct_file_paths or [] if path]
+        if direct_paths and not _document_request_explicitly_mentions_knowledge(title, purpose, outline):
             return []
         query_parts = [outline, purpose, title]
         for message in self._document_context_messages((session_context or {}).get("messages") or []):
@@ -719,3 +840,56 @@ class DocumentManager:
             if not candidate.exists():
                 return candidate
             counter += 1
+
+
+def _clean_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
+
+
+def _truncate_to_utf8_budget(value: str, budget_bytes: int) -> tuple[str, bool]:
+    if budget_bytes <= 0:
+        return "", bool(value)
+    encoded = value.encode("utf-8", errors="ignore")
+    if len(encoded) <= budget_bytes:
+        return value, False
+    truncated = encoded[:budget_bytes].decode("utf-8", errors="ignore").rstrip()
+    return truncated, True
+
+
+def _dedupe_strings(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        cleaned = _clean_text(str(value or ""))
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        result.append(cleaned)
+    return result
+
+
+def _document_request_explicitly_mentions_knowledge(*texts: str) -> bool:
+    haystack = " ".join(texts).lower()
+    return any(
+        token in haystack
+        for token in [
+            "graphrag",
+            "graph rag",
+            "rag",
+            "지식폴더",
+            "지식 폴더",
+            "지식베이스",
+            "지식 베이스",
+            "지식검색",
+            "지식 검색",
+            "로컬 지식",
+        ]
+    )
+
+
+def format_file_size(size_bytes: int) -> str:
+    if size_bytes >= 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f}MB"
+    if size_bytes >= 1024:
+        return f"{size_bytes / 1024:.1f}KB"
+    return f"{size_bytes}B"

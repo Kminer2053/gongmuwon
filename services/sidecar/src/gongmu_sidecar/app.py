@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from .db import Database, now_iso
 from .document_parsers import parse_document
-from .documents import DocumentManager
+from .documents import DocumentManager, format_file_size
 from .embeddings import embed_text
 from .file_organizer import FileOrganizer
 from .graphrag_backends import ChromaVectorBackend
@@ -57,10 +57,22 @@ PUBLIC_DOC_AUTHORING_GUIDE = """
 - 적/의/것/들 정리: 빼도 의미가 유지되면 줄인다.
 - 출처 분리: 대화, 연결 일정, 연결 파일, GraphRAG 근거를 구분해 추적 가능하게 쓴다.
 - 양식 보존: 새 레이아웃을 만들지 말고 선택된 public-doc-to-hwpx skeleton 슬롯에 들어갈 내용만 작성한다.
-1페이지 보고서 기준:
-- 구성: 개요 -> 현황 및 쟁점 -> 조치안 -> 기대효과 및 요청 -> 근거 및 연결자료.
-- 각 항목은 45자 안팎의 짧은 문장 또는 개조식으로 쓴다.
+1페이지 보고서 문체:
+- 구성: 내용과 보고 목적에 따라 3~5절 목차를 먼저 고르고, HWPX 4개 본문 슬롯에 압축 매핑한다.
+- 목차 예: 현황·동향 보고는 보고요지/주요현황/영향·시사점/향후관리, 검토 보고는 검토결과/검토배경·쟁점/대안검토/결정요청, 계획 보고는 추진방향/추진배경·현황/주요내용/향후계획.
+- 본문 항목은 개조체를 우선한다. 완결 서술형보다 "~함", "~필요", "~중점", "~확보", "~정리"처럼 짧게 압축한다.
+- 각 항목은 45자 안팎, 한 줄 한 핵심으로 쓴다.
+- 항목 문장 앞에 "효과:", "기대효과:", "요청:", "요청사항:", "현황:", "쟁점:" 같은 필드 라벨을 붙이지 않는다. 섹션명이 이미 역할을 설명한다.
 - 불확실하거나 누락된 내용은 만들어내지 말고 "확인 필요"로 표시한다.
+풀버전 보고서 문체:
+- 본문은 목차별로 서술하되, 각 절 첫 문단은 두괄식 요약으로 시작하고 세부 항목은 개조식으로 정리한다.
+- Content Base의 ## 목차와 ## 핵심 내용 안의 ### 섹션 제목을 유지하고, 고정 목차로 덮어쓰지 않는다.
+시행문 문체:
+- 관련 근거, 요청 내용, 조치 기한을 명확히 쓰되 내부 작성 단계나 품질 점검 문구를 본문에 넣지 않는다.
+- "기대효과:" 같은 분석용 라벨을 본문에 재삽입하지 않는다.
+이메일 문체:
+- 수신자가 바로 행동할 수 있게 요지, 요청, 근거, 후속 안내 순으로 짧게 쓴다.
+- 과도한 보고서식 표현보다 업무 메일의 자연스러운 문장과 짧은 bullet을 우선한다.
 """.strip()
 
 
@@ -2112,13 +2124,17 @@ class AppServices:
         reference_set_id: str | None,
         document_request: dict[str, Any],
     ) -> dict[str, Any]:
+        document_request = self._with_document_instruction_hints(document_request, outline)
         session_context = self.documents._session_context(source_session_id) if source_session_id else None
+        source_analysis = self.documents.analyze_authoring_sources(direct_file_paths)
         knowledge_items = self.documents._document_knowledge_items(
             title=title,
             purpose=purpose,
             outline=outline,
             source_session_id=source_session_id,
             session_context=session_context,
+            direct_file_paths=direct_file_paths,
+            source_analysis=source_analysis,
         )
         source_bundle = self._build_document_authoring_source_bundle(
             title=title,
@@ -2130,6 +2146,7 @@ class AppServices:
             reference_set_id=reference_set_id,
             knowledge_items=knowledge_items,
             document_request=document_request,
+            source_analysis=source_analysis,
         )
         brief = self._generate_document_work_session_brief_with_llm(
             title=title,
@@ -2150,6 +2167,7 @@ class AppServices:
             "content_markdown": content_markdown,
             "brief": brief,
             "source_bundle": source_bundle,
+            "source_analysis": source_analysis,
             "llm_stages": [
                 {"stage": "WorkSessionBrief", "status": "completed"},
                 {"stage": "DocumentPlan", "status": "completed"},
@@ -2169,6 +2187,7 @@ class AppServices:
         reference_set_id: str | None,
         knowledge_items: list[dict[str, Any]],
         document_request: dict[str, Any],
+        source_analysis: dict[str, Any],
     ) -> str:
         lines = [
             "[문서작성 요청]",
@@ -2218,6 +2237,27 @@ class AppServices:
                         lines.append(f"  excerpt: {self._redact_sensitive_text(excerpt)[:1000]}")
 
         if direct_file_paths:
+            lines.extend(["", "[direct attached files - primary evidence]"])
+            analysis_by_path = {
+                str(item.get("path") or ""): item
+                for item in source_analysis.get("direct_files", [])
+                if str(item.get("path") or "")
+            }
+            for path in direct_file_paths[:10]:
+                item = analysis_by_path.get(path, {})
+                label = str(item.get("file_name") or Path(path).name or path)
+                mode = str(item.get("analysis_mode") or "unknown")
+                size = item.get("size_bytes")
+                size_label = f", {format_file_size(size)}" if isinstance(size, int) else ""
+                lines.append(f"- {label}: {path} (analysis={mode}{size_label})")
+                excerpt = str(item.get("excerpt") or "")
+                if excerpt:
+                    lines.append(f"  excerpt: {self._redact_sensitive_text(excerpt)[:1000]}")
+                for warning in item.get("warnings") or []:
+                    lines.append(f"  warning: {warning}")
+            direct_file_paths = []
+
+        if direct_file_paths:
             lines.extend(["", "[직접 연결 파일]"])
             for path in direct_file_paths[:10]:
                 label = Path(path).name or path
@@ -2250,6 +2290,47 @@ class AppServices:
         bundle = "\n".join(lines)
         return bundle[:12000]
 
+    @staticmethod
+    def _with_document_instruction_hints(document_request: dict[str, Any], outline: str) -> dict[str, Any]:
+        enriched = dict(document_request or {})
+        hints = AppServices._extract_document_instruction_hints(outline)
+        for key, value in hints.items():
+            if value and not str(enriched.get(key) or "").strip():
+                enriched[key] = value
+        return enriched
+
+    @staticmethod
+    def _extract_document_instruction_hints(outline: str) -> dict[str, str]:
+        hints: dict[str, str] = {}
+        lines = [line.strip(" \t-•ㆍ") for line in str(outline or "").splitlines() if line.strip()]
+        for line in lines:
+            match = re.match(r"^(?:수신|수신자|대상|받는\s*사람)\s*[:：]\s*(.+)$", line)
+            if match and not hints.get("audience_type"):
+                hints["audience_type"] = match.group(1).strip()
+                continue
+            match = re.match(r"^(?:요청사항|요청\s*사항|요청|조치사항|제출사항)\s*[:：]\s*(.+)$", line)
+            if match and not hints.get("requested_action"):
+                hints["requested_action"] = match.group(1).strip()
+                continue
+            match = re.match(r"^(?:기한|마감|제출\s*기한|요청\s*기한)\s*[:：]\s*(.+)$", line)
+            if match and not hints.get("deadline"):
+                hints["deadline"] = match.group(1).strip()
+
+        if not hints.get("deadline"):
+            date_match = re.search(
+                r"(20\d{2}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일|\d{4}[-.]\s*\d{1,2}[-.]\s*\d{1,2}|\d{1,2}\s*월\s*\d{1,2}\s*일)",
+                str(outline or ""),
+            )
+            if date_match:
+                hints["deadline"] = re.sub(r"\s+", " ", date_match.group(1)).strip()
+
+        if not hints.get("requested_action"):
+            for line in lines:
+                if any(keyword in line for keyword in ["제출", "회신", "검토", "협조", "작성"]) and len(line) <= 160:
+                    hints["requested_action"] = line
+                    break
+        return hints
+
     def _generate_document_work_session_brief_with_llm(
         self,
         *,
@@ -2265,7 +2346,10 @@ class AppServices:
             "반드시 JSON 객체만 출력하세요. Markdown, 설명, 코드블록은 금지합니다.\n"
             "필드: summary, background, current_status, issues, solutions, expected_effects, actions, "
             "requested_action, evidence, quality_checks, confidence.\n"
-            "각 목록은 공공기관 보고서에 바로 쓸 수 있는 짧은 한국어 문장 1~5개로 작성하세요.\n"
+            "각 목록은 공공기관 문서에 바로 쓸 수 있는 한국어 항목 1~5개로 작성하세요. "
+            "onePageReport는 개조체, fullReport는 두괄식 요약+개조식 세부, officialMemo는 시행문 문장, email은 짧은 업무메일 문체를 사용하세요.\n"
+            "목록 값에는 '효과:', '요청사항:', '현황:' 같은 필드 라벨을 붙이지 말고 내용 문장만 쓰세요.\n"
+            "최우선 기준은 사용자의 작성 지시와 명시 슬롯입니다. GraphRAG나 참고 후보가 작성 지시와 충돌하면 작성 지시를 따르세요.\n"
             "관련 없는 GraphRAG 후보는 evidence에서 제외하세요.\n"
             f"출력 형식: {document_format}\n제목: {title}\n목적: {purpose}\n작성 지시: {outline}\n"
         )
@@ -2301,9 +2385,13 @@ class AppServices:
             "아래 WorkSessionBrief를 바탕으로 선택된 HWPX skeleton 슬롯에 들어갈 최종 Content Base Markdown을 작성하세요.\n"
             f"{PUBLIC_DOC_AUTHORING_GUIDE}\n\n"
             "반드시 JSON 객체만 출력하고, content_markdown 필드 하나에 Markdown 문자열을 넣으세요.\n"
-            "content_markdown에는 다음 섹션을 이 순서로 포함하세요: "
-            "# 제목, ## WorkSessionBrief, ## DocumentPlan, ## 핵심 내용, ## 현황 및 쟁점, "
-            "## 조치안, ## 기대효과 및 요청, ## 수집 근거, ## 작성 품질 점검.\n"
+            "content_markdown에는 # 제목, ## WorkSessionBrief, ## DocumentPlan, ## 목차, "
+            "## 핵심 내용, 보고 목적에 맞는 본문 섹션, ## 수집 근거, ## 작성 품질 점검을 포함하세요.\n"
+            "1페이지 보고서에서는 ## 1페이지 목차를 사용할 수 있습니다. DocumentPlan과 목차에는 보고 목적에 맞는 섹션명을 3~5개로 정하고, 섹션명은 내용에 따라 바꾸세요.\n"
+            "단, fullReport에서 작성 지시에 번호 목록이나 명시 목차가 있으면 해당 섹션명을 병합하거나 삭제하지 말고 모두 ## 목차와 ## 핵심 내용의 ### 섹션으로 보존하세요.\n"
+            "사용자가 수신, 요청사항, 기한을 적은 경우 content_markdown 본문과 요청 섹션에 반드시 반영하세요.\n"
+            "예: 계획 보고=추진방향/추진배경·현황/주요내용/향후계획, 검토 보고=검토결과/검토배경·쟁점/대안검토/결정요청.\n"
+            "항목 문장에는 '효과:', '요청사항:', '현황:', '쟁점:' 같은 라벨을 붙이지 마세요.\n"
             "문서작성 명령문 자체를 본문에 반복하지 말고, 실제 업무 내용과 근거만 쓰세요.\n"
             "관련 없는 근거는 제외하고, 없는 정보는 확인 필요로 표시하세요.\n"
             f"제목: {title}\n목적: {purpose}\n출력 형식: {document_format}\n작성 지시: {outline}\n"
@@ -2327,14 +2415,173 @@ class AppServices:
         try:
             payload = self._parse_llm_json_object(result.text)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
-            raise LLMGenerationError("문서작성 DocumentPlan 단계에서 JSON 응답을 받지 못했습니다.") from exc
+            recovered = self._recover_content_markdown_from_loose_json(result.text)
+            if recovered:
+                return recovered
+            return self._fallback_public_document_markdown(
+                title=title,
+                purpose=purpose,
+                outline=outline,
+                document_format=document_format,
+                brief=brief,
+            )
         content_markdown = str(payload.get("content_markdown") or "").strip()
         if not content_markdown:
-            raise LLMGenerationError("문서작성 DocumentPlan 단계가 content_markdown을 반환하지 않았습니다.")
+            return self._fallback_public_document_markdown(
+                title=title,
+                purpose=purpose,
+                outline=outline,
+                document_format=document_format,
+                brief=brief,
+            )
         required_sections = ["## WorkSessionBrief", "## DocumentPlan"]
         if not all(section in content_markdown for section in required_sections):
-            raise LLMGenerationError("문서작성 결과에 WorkSessionBrief 또는 DocumentPlan이 누락되었습니다.")
+            recovered = self._ensure_public_document_markdown_sections(
+                content_markdown,
+                title=title,
+                purpose=purpose,
+                outline=outline,
+                document_format=document_format,
+                brief=brief,
+            )
+            return recovered
         return content_markdown
+
+    @staticmethod
+    def _recover_content_markdown_from_loose_json(text: str) -> str:
+        cleaned = text.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+            cleaned = re.sub(r"\s*```$", "", cleaned)
+        match = re.search(r'"content_markdown"\s*:\s*"', cleaned)
+        if not match:
+            return ""
+        tail = cleaned[match.end() :]
+        end_match = re.search(r'"\s*}\s*$', tail, flags=re.DOTALL)
+        if not end_match:
+            return ""
+        content = tail[: end_match.start()]
+        content = content.replace(r"\"", '"')
+        content = content.replace(r"\n", "\n").replace(r"\t", "\t")
+        content = content.strip()
+        if "## WorkSessionBrief" not in content or "## DocumentPlan" not in content:
+            return ""
+        return content
+
+    def _ensure_public_document_markdown_sections(
+        self,
+        content_markdown: str,
+        *,
+        title: str,
+        purpose: str,
+        outline: str,
+        document_format: str,
+        brief: dict[str, Any],
+    ) -> str:
+        content = content_markdown.strip()
+        if not content:
+            return self._fallback_public_document_markdown(
+                title=title,
+                purpose=purpose,
+                outline=outline,
+                document_format=document_format,
+                brief=brief,
+            )
+        prefix: list[str] = []
+        if not content.startswith("# "):
+            prefix.extend([f"# {title}", ""])
+        if "## WorkSessionBrief" not in content:
+            prefix.extend(["## WorkSessionBrief", *[f"- {item}" for item in self._brief_items(brief, "summary")[:4]], ""])
+        if "## DocumentPlan" not in content:
+            prefix.extend(["## DocumentPlan", "- 문서 목적과 출력 형식에 맞춰 목차와 본문을 구성합니다.", ""])
+        return "\n".join(prefix + [content]).strip()
+
+    def _fallback_public_document_markdown(
+        self,
+        *,
+        title: str,
+        purpose: str,
+        outline: str,
+        document_format: str,
+        brief: dict[str, Any],
+    ) -> str:
+        sections = self._fallback_public_document_sections(brief, document_format=document_format)
+        lines = [
+            f"# {title}",
+            "",
+            "## WorkSessionBrief",
+        ]
+        brief_items = self._brief_items(brief, "summary") or [purpose or outline or "문서작성 요청을 기준으로 정리합니다."]
+        lines.extend(f"- {item}" for item in brief_items[:5])
+        lines.extend(["", "## DocumentPlan"])
+        if document_format == "fullReport":
+            lines.append("- Content Base의 장 제목과 본문 항목을 유지하는 풀버전 보고서로 구성합니다.")
+            lines.append("- 목차와 핵심 내용의 장 구조가 HWPX 본문에 그대로 이어지도록 작성합니다.")
+        elif document_format == "officialMemo":
+            lines.append("- 수신자가 조치할 내용과 제출 기한을 먼저 파악하도록 시행문 형식으로 작성합니다.")
+        elif document_format == "email":
+            lines.append("- 요지, 요청사항, 기한, 근거를 짧은 업무메일 문체로 작성합니다.")
+        else:
+            lines.append("- 의사결정자가 빠르게 읽을 수 있도록 두괄식 1페이지 보고서로 작성합니다.")
+        lines.extend(["", "## 목차"])
+        for index, (heading, _items) in enumerate(sections, start=1):
+            lines.append(f"{index}. {heading}")
+        lines.extend(["", "## 핵심 내용"])
+        for heading, items in sections:
+            lines.append(f"### {heading}")
+            lines.extend(f"- {item}" for item in items[:6])
+            lines.append("")
+        evidence = self._brief_items(brief, "evidence")
+        lines.append("## 수집 근거")
+        lines.extend(f"- {item}" for item in (evidence or ["수집된 업무 맥락과 연결 자료"]))
+        lines.extend(["", "## 작성 품질 점검"])
+        quality = self._brief_items(brief, "quality_checks") or ["목차와 본문 구조 일치", "내부 메타데이터 제거"]
+        lines.extend(f"- {item}" for item in quality[:4])
+        return "\n".join(lines).strip()
+
+    def _fallback_public_document_sections(
+        self,
+        brief: dict[str, Any],
+        *,
+        document_format: str,
+    ) -> list[tuple[str, list[str]]]:
+        if document_format == "email":
+            specs = [
+                ("요지", self._brief_items(brief, "summary") + self._brief_items(brief, "background")),
+                ("요청사항", self._brief_items(brief, "requested_action") + self._brief_items(brief, "actions")),
+                ("근거 및 연결자료", self._brief_items(brief, "evidence")),
+            ]
+        elif document_format == "officialMemo":
+            specs = [
+                ("관련 사항", self._brief_items(brief, "summary") + self._brief_items(brief, "background")),
+                ("요청 내용", self._brief_items(brief, "actions") + self._brief_items(brief, "requested_action")),
+                ("근거 및 연결자료", self._brief_items(brief, "evidence")),
+            ]
+        elif document_format == "fullReport":
+            specs = [
+                ("추진배경 및 목적", self._brief_items(brief, "summary") + self._brief_items(brief, "background")),
+                ("현황 및 쟁점", self._brief_items(brief, "current_status") + self._brief_items(brief, "issues")),
+                ("개선 방향", self._brief_items(brief, "solutions")),
+                ("기대효과", self._brief_items(brief, "expected_effects")),
+                ("조치 및 요청사항", self._brief_items(brief, "actions") + self._brief_items(brief, "requested_action")),
+            ]
+        else:
+            specs = [
+                ("보고요지", self._brief_items(brief, "summary")),
+                ("배경·현황", self._brief_items(brief, "background") + self._brief_items(brief, "current_status")),
+                ("주요내용·검토", self._brief_items(brief, "issues") + self._brief_items(brief, "solutions")),
+                ("향후계획·요청사항", self._brief_items(brief, "expected_effects") + self._brief_items(brief, "actions") + self._brief_items(brief, "requested_action")),
+            ]
+        return [(heading, items) for heading, items in specs if items]
+
+    @staticmethod
+    def _brief_items(brief: dict[str, Any], key: str) -> list[str]:
+        value = brief.get(key)
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        if isinstance(value, str) and value.strip():
+            return [value.strip()]
+        return []
 
     @staticmethod
     def _normalize_document_brief_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -2508,7 +2755,7 @@ class AppServices:
         text: str,
         document_request: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        document_request = document_request or {}
+        document_request = self._with_document_instruction_hints(document_request or {}, str((document_request or {}).get("instructions") or text))
         document_format = self._normalize_document_format(
             str(document_request.get("document_format") or self._document_format_from_text(text))
         )
@@ -2710,6 +2957,7 @@ class AppServices:
         }
 
     def generate_document_from_request(self, payload: DocumentGenerateRequest) -> dict[str, Any]:
+        document_request = self._with_document_instruction_hints(payload.model_dump(), payload.outline)
         authoring = self._prepare_document_authoring_markdown(
             title=payload.title,
             purpose=payload.purpose,
@@ -2718,7 +2966,7 @@ class AppServices:
             source_session_id=payload.source_session_id,
             direct_file_paths=payload.direct_file_paths,
             reference_set_id=payload.reference_set_id,
-            document_request=payload.model_dump(),
+            document_request=document_request,
         )
         content_base = self.documents.create_content_base(
             title=payload.title,
@@ -2728,13 +2976,13 @@ class AppServices:
             source_session_id=payload.source_session_id,
             outline=payload.outline,
             document_format=payload.document_format,
-            audience_type=payload.audience_type,
+            audience_type=str(document_request.get("audience_type") or ""),
             expected_length=payload.expected_length,
             urgency_level=payload.urgency_level,
             needs_traceability=payload.needs_traceability,
             requires_official_form=payload.requires_official_form,
-            requested_action=payload.requested_action,
-            deadline=payload.deadline,
+            requested_action=str(document_request.get("requested_action") or ""),
+            deadline=str(document_request.get("deadline") or ""),
             security_level=payload.security_level,
             direct_file_paths=payload.direct_file_paths,
             user_template_path=payload.user_template_path,

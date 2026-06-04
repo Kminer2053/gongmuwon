@@ -105,6 +105,22 @@ describe("document authoring layout", () => {
                 content_markdown: "# Decision Brief",
                 content_hash: "abc123",
                 source_signature: "sig",
+                source_analysis: {
+                  budget_bytes: 32768,
+                  used_bytes: 8192,
+                  overall_mode: "partial",
+                  warnings: ["large-ai-guide.pdf: 일부 본문만 문서작성 근거로 반영했습니다."],
+                  direct_files: [
+                    {
+                      path: "C:/Gongmu/attachments/large-ai-guide.pdf",
+                      file_name: "large-ai-guide.pdf",
+                      size_bytes: 25165824,
+                      analysis_mode: "partial",
+                      excerpt: "AI image production evidence",
+                      warnings: ["일부 본문만 문서작성 근거로 반영했습니다."],
+                    },
+                  ],
+                },
                 artifact_path: "documents/content-bases/content-1.md",
                 created_at: "2026-06-02T09:30:00+09:00",
               },
@@ -227,6 +243,8 @@ describe("document authoring layout", () => {
       document_format: "onePageReport",
     });
     expect(await screen.findByTestId("document-artifact-card")).toHaveTextContent("decision-brief.hwpx");
+    expect(await screen.findByTestId("document-source-analysis")).toHaveTextContent("부분 분석");
+    expect(screen.getByTestId("document-source-analysis")).toHaveTextContent("large-ai-guide.pdf");
   });
 
   it("collects main content and usage purpose for each attached file before generating a report", async () => {

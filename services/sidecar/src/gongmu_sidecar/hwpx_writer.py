@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 import re
@@ -71,13 +71,59 @@ ONEPAGE_CONTENT_SLOTS = (
     "text_028",
     "text_029",
 )
+ONEPAGE_MAIN_SECTION_SLOTS = (
+    ("text_004", ("text_005", "text_006", "text_007", "text_008")),
+    ("text_009", ("text_010", "text_011", "text_012", "text_013")),
+    ("text_014", ("text_015", "text_016", "text_017", "text_018")),
+    ("text_019", ("text_020", "text_021", "text_022", "text_023")),
+)
 BULLET_MARKERS = ["- ", "– ", "− ", "—", "-", "–", "−"]
 SUBBULLET_MARKERS = ["◦ ", "○ ", "◇ ", "◦", "○"]
 ASTERISK_MARKERS = ["* ", "※ ", " * ", "*"]
 EMPTY_PLACEHOLDER_MARKER = "\u200b\u200b__EMPTY_PLACEHOLDER__\u200b\u200b"
+CLONE_PARAGRAPH_KEY = "__clone_paragraphs__"
+FULL_REPORT_DYNAMIC_BODY_KEY = "__full_report_dynamic_body__"
+FULL_REPORT_DYNAMIC_CLEANUP_KEY = "__full_report_dynamic_cleanup__"
 DEFAULT_SKELETON_VALUES = {
     "text_004": "수신",
 }
+INTERNAL_DOCUMENT_PURPOSE_PATTERNS = [
+    re.compile(r"^\s*(?:1페이지\s*보고서|시행문|풀버전\s*보고서|이메일|보고서)\s*(?:바로\s*작성|초안)\s*$", re.I),
+    re.compile(r"^\s*업무대화\s*세션\s*기반\s*(?:1페이지\s*보고서|시행문|풀버전\s*보고서|이메일|보고서|자동\s*문서작성)\s*작성\s*$", re.I),
+    re.compile(r"^\s*세션\s*없이\s*바로\s*작성\s*$", re.I),
+]
+ONEPAGE_DEFAULT_OUTLINE = ["보고요지", "배경·현황", "주요내용·검토", "향후계획·요청사항"]
+FULL_REPORT_DEFAULT_OUTLINE = ["추진배경 및 목적", "현황 및 쟁점", "해결방안", "기대효과", "조치사항", "근거 및 연결자료"]
+ROMAN_SECTION_LABELS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
+FULL_REPORT_CHAPTER_GROUPS = (
+    ("장01_제목", "본문_절_001", "본문_항목_001", "본문_세부_001", "본문_주석_001"),
+    ("장02_제목", "본문_절_002", "본문_항목_002", "본문_세부_002", "본문_주석_002"),
+    ("장03_제목", "본문_절_004", "본문_항목_004", "본문_세부_004", "본문_주석_004"),
+    ("장04_제목", "본문_절_006", "본문_항목_006", "본문_세부_006", "본문_주석_006"),
+    ("장05_제목", "본문_절_008", "본문_항목_008", "본문_세부_008", "본문_주석_008"),
+    ("장06_제목", "본문_절_011", "본문_항목_011", "본문_세부_010", "본문_주석_011"),
+)
+FULL_REPORT_REMOVABLE_TOKENS = tuple(
+    [
+        *(f"장{index:02d}_제목" for index in range(1, 7)),
+        *(f"본문_절_{index:03d}" for index in range(1, 13)),
+        *(f"본문_항목_{index:03d}" for index in range(1, 13)),
+        *(f"본문_세부_{index:03d}" for index in range(1, 12)),
+        *(f"본문_주석_{index:03d}" for index in range(1, 13)),
+    ]
+)
+ONEPAGE_OUTLINE_PRESETS: list[tuple[tuple[str, ...], list[str]]] = [
+    (("회의결과", "회의 결과"), ["결과요약", "회의개요", "결정사항", "조치계획"]),
+    (("회의안건", "회의 안건", "회의"), ["안건요지", "회의개요", "주요쟁점", "결정사항"]),
+    (("행사계획", "행사 계획", "행사"), ["행사개요", "추진배경", "주요내용", "준비사항"]),
+    (("사업", "정책", "계획", "추진", "도입", "구축", "로드맵", "예산"), ["추진방향", "추진배경·현황", "주요내용", "향후계획"]),
+    (("예산", "구매", "품의"), ["요청사항", "추진배경", "산출근거", "추진방법"]),
+    (("검토", "의사결정", "판단", "선택", "승인", "대안"), ["검토결과", "검토배경·쟁점", "대안검토", "결정요청"]),
+    (("개선", "문제해결", "해결방안"), ["개선방향", "현황·문제점", "개선방안", "실행계획"]),
+    (("이슈", "리스크", "사고", "민원", "긴급"), ["상황요약", "조치현황", "영향분석", "향후대응"]),
+    (("결과", "성과", "완료"), ["결과요약", "추진개요", "주요성과", "후속조치"]),
+    (("현황", "동향"), ["보고요지", "주요현황", "영향·시사점", "향후관리"]),
+]
 INTERNAL_AUTHORING_MARKERS = [
     "Content Base",
     "WorkSessionBrief",
@@ -91,7 +137,6 @@ INTERNAL_AUTHORING_MARKERS = [
     "사용자 양식",
     "출력 유형",
     "작성 방식",
-    "품질 점검",
     "작성 품질 점검",
     "원칙 준수",
     "형식 적합성",
@@ -179,6 +224,12 @@ GONGMUN_EXPANSION_RULES = [
 
 
 @dataclass(frozen=True)
+class OnePageCoreSection:
+    heading: str
+    body: list[str]
+
+
+@dataclass(frozen=True)
 class PublicDocumentPayload:
     title: str
     document_purpose: str
@@ -202,6 +253,10 @@ class PublicDocumentPayload:
     urgency_level: str
     needs_traceability: str
     requires_official_form: str
+    report_outline_headings: list[str] = field(default_factory=list)
+    report_core_sections: list[OnePageCoreSection] = field(default_factory=list)
+    onepage_outline_headings: list[str] = field(default_factory=list)
+    onepage_core_sections: list[OnePageCoreSection] = field(default_factory=list)
 
 
 def build_public_document_payload(
@@ -233,6 +288,7 @@ def build_public_document_payload(
     status_issue_lines = _usable_section_values_any(sections, ["현황 및 쟁점", "현황", "쟁점", "문제점"])
     solution_section_lines = _usable_section_values_any(sections, ["조치안", "해결방안", "후속 조치"])
     effect_request_lines = _usable_section_values_any(sections, ["기대효과 및 요청", "기대효과", "요청사항"])
+    effect_lines, request_lines = _split_effect_request_lines(effect_request_lines)
     evidence_section_lines = _usable_section_values_any(sections, ["수집 근거", "근거 및 연결자료", "출처"])
     quality_section_lines = _usable_section_values_any(sections, ["작성 품질 점검", "품질 점검"])
     session_lines = sections.get("업무대화 세션", [])
@@ -265,7 +321,7 @@ def build_public_document_payload(
         + session_lines
         + conversation_lines
     )
-    requested_action_lines = [requested_action] if requested_action.strip() else _first_non_empty(
+    requested_action_lines = [requested_action] if requested_action.strip() else request_lines or _first_non_empty(
         sections,
         ["기대효과 및 요청", "후속 조치", "결정 사항", "권고안", "요청사항", "작성 슬롯"],
     )
@@ -274,6 +330,38 @@ def build_public_document_payload(
         ["조치안", "후속 조치", "결정 사항", "권고안", "해결방안", "조치사항"],
         fallback=report_context_lines[:3] if report_context_lines else None,
     )
+    onepage_outline_headings = _extract_onepage_outline_headings(
+        sections=sections,
+        title=title,
+        purpose=purpose,
+        context_lines=report_context_lines + evidence_lines,
+    )
+    onepage_core_sections = _extract_onepage_core_sections(
+        sections=sections,
+        outline_headings=onepage_outline_headings,
+    )
+    if not _has_explicit_core_section_headings(sections, onepage_outline_headings):
+        onepage_core_sections = []
+    report_outline_headings = onepage_outline_headings
+    report_core_sections = onepage_core_sections
+    if selected_format == "fullReport":
+        full_report_outline_headings = _extract_full_report_outline_headings(
+            markdown_text=content_markdown,
+            sections=sections,
+            title=title,
+            purpose=purpose,
+            context_lines=report_context_lines + evidence_lines,
+        )
+        full_report_core_sections = _extract_full_report_core_sections(
+            markdown_text=content_markdown,
+            outline_headings=full_report_outline_headings,
+        )
+        if full_report_core_sections:
+            report_outline_headings = full_report_outline_headings
+            report_core_sections = full_report_core_sections
+        else:
+            report_outline_headings = full_report_outline_headings
+            report_core_sections = []
     pick = lambda keys, fallback=None: _apply_writing_principles(_first_non_empty(sections, keys, fallback=fallback))
 
     return PublicDocumentPayload(
@@ -302,9 +390,13 @@ def build_public_document_payload(
             or _first_non_empty(sections, ["핵심 내용", "논의 안건", "검토 의견", "문제점", "바로 작성 개요", "세션 기반 작성 개요"])
         ),
         solutions=_apply_writing_principles(solutions),
-        expected_effects=pick(
-            ["기대효과 및 요청", "기대효과"],
-            fallback=["후속 절차를 명확히 하고 업무 이력을 재사용할 수 있습니다."],
+        expected_effects=_apply_writing_principles(
+            effect_lines
+            or _first_non_empty(
+                sections,
+                ["기대효과", "기대효과 및 요청"],
+                fallback=["후속 절차를 명확히 하고 업무 이력을 재사용할 수 있습니다."],
+            )
         ),
         actions=pick(["조치안", "후속 조치", "결정 사항", "권고안", "조치사항"], fallback=(session_issue_lines + report_context_lines)[:2] if report_context_lines else None),
         requested_action=_apply_writing_principles(requested_action_lines),
@@ -319,6 +411,10 @@ def build_public_document_payload(
         urgency_level=urgency_level or "보통",
         needs_traceability=needs_traceability or "미지정",
         requires_official_form=requires_official_form or "미지정",
+        report_outline_headings=report_outline_headings,
+        report_core_sections=report_core_sections,
+        onepage_outline_headings=onepage_outline_headings,
+        onepage_core_sections=onepage_core_sections,
     )
 
 
@@ -342,6 +438,350 @@ def choose_public_document_format(
     if template_key == "review":
         return "onePageReport"
     return "onePageReport"
+
+
+def _extract_onepage_outline_headings(
+    *,
+    sections: dict[str, list[str]],
+    title: str,
+    purpose: str,
+    context_lines: list[str],
+) -> list[str]:
+    explicit = _extract_explicit_onepage_outline_headings(sections)
+    if explicit:
+        return explicit
+    return _infer_onepage_outline_headings(title=title, purpose=purpose, context_lines=context_lines)
+
+
+def _extract_full_report_outline_headings(
+    *,
+    markdown_text: str,
+    sections: dict[str, list[str]],
+    title: str,
+    purpose: str,
+    context_lines: list[str],
+) -> list[str]:
+    headings: list[str] = []
+    for raw_line in _markdown_section_raw_lines(markdown_text, "목차"):
+        if not _is_top_level_report_outline_line(raw_line):
+            continue
+        heading = _clean_outline_heading(_strip_outline_list_prefix(raw_line.strip()))
+        if heading and heading not in headings:
+            headings.append(heading)
+
+    if headings:
+        return headings
+
+    for raw_line in _markdown_section_raw_lines(markdown_text, "핵심 내용"):
+        stripped = raw_line.strip()
+        if not stripped.startswith("### "):
+            continue
+        heading = _clean_outline_heading(_strip_outline_list_prefix(stripped[4:].strip()))
+        if heading and heading not in headings:
+            headings.append(heading)
+
+    if headings:
+        return headings
+
+    onepage_headings = _extract_onepage_outline_headings(
+        sections=sections,
+        title=title,
+        purpose=purpose,
+        context_lines=context_lines,
+    )
+    return onepage_headings or FULL_REPORT_DEFAULT_OUTLINE
+
+
+def _extract_full_report_core_sections(
+    *,
+    markdown_text: str,
+    outline_headings: list[str],
+) -> list[OnePageCoreSection]:
+    normalized_outline = [
+        (_normalize_compare_text(_clean_outline_heading(heading)), _clean_outline_heading(heading))
+        for heading in outline_headings
+        if _clean_outline_heading(heading)
+    ]
+    results: list[tuple[str, list[str]]] = []
+    current_heading = ""
+    current_body: list[str] = []
+    saw_explicit_section_heading = False
+
+    def flush() -> None:
+        nonlocal current_heading, current_body
+        body = _dedupe_non_empty(current_body)
+        if current_heading and body:
+            results.append((current_heading, body))
+        current_heading = ""
+        current_body = []
+
+    for raw_line in _markdown_section_raw_lines(markdown_text, "핵심 내용"):
+        stripped = raw_line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("### "):
+            flush()
+            saw_explicit_section_heading = True
+            candidate = _clean_outline_heading(_strip_outline_list_prefix(stripped[4:].strip()))
+            current_heading = _match_report_outline_heading(candidate, normalized_outline) or candidate
+            continue
+        if stripped.startswith("#### "):
+            stripped = stripped[4:].strip()
+        item = _clean_report_body_line(stripped)
+        if not item:
+            continue
+        if not current_heading and normalized_outline and saw_explicit_section_heading:
+            current_heading = normalized_outline[min(len(results), len(normalized_outline) - 1)][1]
+        current_body.append(item)
+
+    flush()
+    if results:
+        return [OnePageCoreSection(heading=heading, body=body) for heading, body in results]
+    return []
+
+
+def _markdown_section_raw_lines(markdown_text: str, section_title: str) -> list[str]:
+    lines: list[str] = []
+    inside = False
+    target = _normalize_compare_text(section_title)
+    for raw_line in markdown_text.splitlines():
+        stripped = raw_line.strip()
+        if stripped.startswith("## ") and not stripped.startswith("### "):
+            current = _normalize_compare_text(stripped[3:].strip())
+            if inside and current != target:
+                break
+            inside = current == target
+            continue
+        if inside:
+            lines.append(raw_line.rstrip())
+    return lines
+
+
+def _is_top_level_report_outline_line(value: str) -> bool:
+    stripped = value.strip()
+    if not stripped:
+        return False
+    if re.match(r"^\d+\.\d+", stripped):
+        return False
+    return bool(re.match(r"^(?:\d{1,2}|[IVXLCivxlc]+)[\.)]\s+\S", stripped))
+
+
+def _match_report_outline_heading(
+    candidate: str,
+    normalized_outline: list[tuple[str, str]],
+) -> str:
+    candidate_key = _normalize_compare_text(candidate)
+    if not candidate_key:
+        return ""
+    for outline_key, outline_heading in normalized_outline:
+        if candidate_key == outline_key or candidate_key.startswith(outline_key) or outline_key.startswith(candidate_key):
+            return outline_heading
+    return ""
+
+
+def _clean_report_body_line(value: str) -> str:
+    cleaned = _compact_public_sentence(value)
+    if (
+        not cleaned
+        or _looks_like_placeholder_value(cleaned)
+        or _looks_like_label_only(cleaned)
+        or _looks_like_document_generation_instruction(cleaned)
+        or _looks_like_internal_authoring_metadata(cleaned)
+    ):
+        return ""
+    return cleaned
+
+
+def _split_effect_request_lines(lines: list[str]) -> tuple[list[str], list[str]]:
+    effects: list[str] = []
+    requests: list[str] = []
+    for line in lines:
+        label, content = _split_leading_public_label(line)
+        prefix = _normalize_compare_text(line)[:24]
+        if label in {"효과", "기대효과"}:
+            effects.append(content)
+        elif label in {"요청", "요청사항", "요청 사항", "결정요청"}:
+            requests.append(content)
+        elif label in {"조치", "조치안", "후속조치", "후속 조치"}:
+            requests.append(content)
+        elif "요청" in prefix:
+            requests.append(re.sub(r"^.*?[:：]\s*", "", content).strip())
+        elif "효과" in prefix:
+            effects.append(re.sub(r"^.*?[:：]\s*", "", content).strip())
+        else:
+            effects.append(content)
+    return _dedupe_labeled_public_items(effects), _dedupe_labeled_public_items(requests)
+
+
+def _split_leading_public_label(value: str) -> tuple[str, str]:
+    cleaned = _strip_inline_markdown(value)
+    match = re.match(
+        r"^\s*(효과|기대효과|요청사항|요청\s*사항|요청|결정요청|조치안|조치|후속\s*조치)\s*[:：]\s*(.+)$",
+        cleaned,
+    )
+    if not match:
+        return "", cleaned
+    label = re.sub(r"\s+", " ", match.group(1)).strip()
+    return label, match.group(2).strip()
+
+
+def _dedupe_labeled_public_items(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    results: list[str] = []
+    for item in items:
+        value = item.strip()
+        key = _normalize_compare_text(value).casefold()
+        if (
+            not value
+            or key in seen
+            or _looks_like_placeholder_value(value)
+            or _looks_like_label_only(value)
+            or _looks_like_internal_authoring_metadata(value)
+        ):
+            continue
+        seen.add(key)
+        results.append(value)
+    return results
+
+
+def _extract_explicit_onepage_outline_headings(sections: dict[str, list[str]]) -> list[str]:
+    headings: list[str] = []
+    outline_lines = _usable_section_values_any(sections, ["1페이지 목차", "목차"])
+    for line in outline_lines:
+        title = _clean_outline_heading(_strip_outline_list_prefix(line))
+        if title and title not in headings:
+            headings.append(title)
+        if len(headings) >= 4:
+            return headings[:4]
+
+    plan_lines = _usable_section_values_any(sections, ["DocumentPlan", "문서구성", "보고서 구성"])
+    for line in plan_lines:
+        cleaned = _strip_inline_markdown(line)
+        match = re.search(r"(?:섹션|section)\s*\d*\s*[:：]\s*(.+)", cleaned, flags=re.I)
+        if not match:
+            continue
+        title = _clean_outline_heading(match.group(1))
+        if title and title not in headings:
+            headings.append(title)
+        if len(headings) >= 4:
+            break
+    return headings[:4]
+
+
+def _extract_onepage_core_sections(
+    *,
+    sections: dict[str, list[str]],
+    outline_headings: list[str],
+) -> list[OnePageCoreSection]:
+    core_lines = _core_section_values_preserving_headings(sections)
+    if not core_lines:
+        return []
+
+    normalized_outline = [
+        (_normalize_compare_text(_clean_outline_heading(heading)), _clean_outline_heading(heading))
+        for heading in outline_headings
+        if _clean_outline_heading(heading)
+    ]
+    results: list[tuple[str, list[str]]] = []
+    current_heading = ""
+    current_body: list[str] = []
+
+    def flush() -> None:
+        nonlocal current_heading, current_body
+        if current_heading and current_body:
+            results.append((current_heading, _dedupe_non_empty(current_body)))
+        current_heading = ""
+        current_body = []
+
+    for raw_line in core_lines:
+        heading = _onepage_core_heading_from_line(raw_line, normalized_outline)
+        if heading:
+            flush()
+            current_heading = heading
+            continue
+        body = _compact_public_sentence(raw_line)
+        if body:
+            if not current_heading and normalized_outline:
+                current_heading = normalized_outline[min(len(results), len(normalized_outline) - 1)][1]
+            current_body.append(body)
+
+    flush()
+    return [OnePageCoreSection(heading=heading, body=body) for heading, body in results[:4]]
+
+
+def _core_section_values_preserving_headings(sections: dict[str, list[str]]) -> list[str]:
+    # `## 작성 품질 점검` is internal metadata, but a `### 품질 점검 체크리스트`
+    # under `## 핵심 내용` can be a legitimate report section.
+    values: list[str] = []
+    for value in sections.get("핵심 내용", []):
+        if (
+            value.strip()
+            and not _looks_like_placeholder_value(value)
+            and not _looks_like_label_only(value)
+            and not _looks_like_document_generation_instruction(value)
+        ):
+            values.append(value.strip())
+    return values
+
+
+def _has_explicit_core_section_headings(
+    sections: dict[str, list[str]],
+    outline_headings: list[str],
+) -> bool:
+    core_lines = _core_section_values_preserving_headings(sections)
+    normalized_outline = [
+        (_normalize_compare_text(_clean_outline_heading(heading)), _clean_outline_heading(heading))
+        for heading in outline_headings
+        if _clean_outline_heading(heading)
+    ]
+    return any(_onepage_core_heading_from_line(line, normalized_outline) for line in core_lines)
+
+
+def _onepage_core_heading_from_line(
+    value: str,
+    normalized_outline: list[tuple[str, str]],
+) -> str:
+    cleaned = _strip_inline_markdown(value)
+    candidate = _clean_outline_heading(_strip_outline_list_prefix(cleaned))
+    if not candidate:
+        return ""
+    candidate_key = _normalize_compare_text(candidate)
+    for outline_key, outline_heading in normalized_outline:
+        if candidate_key == outline_key or candidate_key.startswith(outline_key):
+            return outline_heading
+    return ""
+
+
+def _strip_outline_list_prefix(value: str) -> str:
+    cleaned = _strip_inline_markdown(value).strip()
+    section_match = re.search(r"(?:섹션|section)\s*\d*\s*[:：]\s*(.+)", cleaned, flags=re.I)
+    if section_match:
+        cleaned = section_match.group(1).strip()
+    number_match = re.match(r"^\s*(?:\d{1,2}|[IVXLCivxlc]+)\s*[\.\)]\s*(.+)$", cleaned)
+    if number_match:
+        cleaned = number_match.group(1).strip()
+    marker_match = re.match(r"^\s*(?:□|◦|○|ㆍ|•|-|\*)\s*(.+)$", cleaned)
+    if marker_match:
+        cleaned = marker_match.group(1).strip()
+    return cleaned
+
+
+def _infer_onepage_outline_headings(*, title: str, purpose: str, context_lines: list[str]) -> list[str]:
+    source = _normalize_compare_text(" ".join([title, purpose, *context_lines])).casefold()
+    for tokens, headings in ONEPAGE_OUTLINE_PRESETS:
+        if any(token.casefold() in source for token in tokens):
+            return headings
+    return ONEPAGE_DEFAULT_OUTLINE
+
+
+def _clean_outline_heading(value: str) -> str:
+    heading = re.split(r"\s[-–—]\s|[:：]", value, maxsplit=1)[0]
+    heading = re.sub(r"^[\s□○◦*\dIVXLCivxlc\.\)\-–—]+", "", heading)
+    heading = re.sub(r"\s+", " ", heading).strip()
+    heading = heading.strip("[](){}<>")
+    if not heading or _looks_like_internal_authoring_metadata(heading):
+        return ""
+    return heading
 
 
 def render_public_document_lines(payload: PublicDocumentPayload) -> list[str]:
@@ -453,7 +893,12 @@ def _fill_skeleton_template(skeleton_path: Path, values: dict[str, object], outp
             if xml_path.relative_to(workdir).as_posix() == "Contents/section0.xml":
                 text = _apply_public_doc_skeleton_fixes(text)
                 values, text = _apply_gongmun_body_expansion(values, text)
+                values, text = _apply_clone_paragraph_expansion(values, text)
+                values, text = _apply_full_report_dynamic_body_expansion(values, text)
+                needs_full_report_cleanup = bool(values.pop(FULL_REPORT_DYNAMIC_CLEANUP_KEY, ""))
                 text = _replace_skeleton_tokens(text, values, remove_empty=True)
+                if needs_full_report_cleanup:
+                    text = _cleanup_full_report_dynamic_skeleton_remainders(text)
             else:
                 text = _replace_skeleton_tokens(text, values)
             xml_path.write_text(text, encoding="utf-8")
@@ -464,6 +909,7 @@ def _fill_skeleton_template(skeleton_path: Path, values: dict[str, object], outp
             safe_title = _xml_escape(values["표지_제목"])
             hpf = re.sub(r"<opf:title>[^<]*</opf:title>", f"<opf:title>{safe_title}</opf:title>", hpf, count=1)
             hpf_path.write_text(hpf, encoding="utf-8")
+        _refresh_preview_text(workdir)
 
         if output_path.exists():
             output_path.unlink()
@@ -475,6 +921,25 @@ def _fill_skeleton_template(skeleton_path: Path, values: dict[str, object], outp
                 if not file_path.is_file() or file_path.name == "mimetype":
                     continue
                 archive.write(file_path, file_path.relative_to(workdir).as_posix())
+
+
+def _refresh_preview_text(workdir: Path) -> None:
+    section_path = workdir / "Contents" / "section0.xml"
+    preview_path = workdir / "Preview" / "PrvText.txt"
+    if not section_path.exists() or not preview_path.parent.exists():
+        return
+    raw = section_path.read_text(encoding="utf-8", errors="ignore")
+    text = _plain_text_from_hwpx_xml(raw)
+    preview_path.write_text(text, encoding="utf-8")
+
+
+def _plain_text_from_hwpx_xml(raw: str) -> str:
+    text = raw.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+    text = re.sub(r"</hp:p>|</p>", "\n", text)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"[ \t\r\f\v]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def _apply_public_doc_skeleton_fixes(text: str) -> str:
@@ -499,10 +964,10 @@ def _apply_gongmun_body_expansion(values: dict[str, object], text: str) -> tuple
             item = _apply_indent(str(items[consumed]), str(rule.get("slot_indent", "")))
             if isinstance(slot, tuple):
                 marker, body = _split_numbered_marker(item)
-                expanded_values.setdefault(slot[0], marker)
-                expanded_values.setdefault(slot[1], body)
+                expanded_values[slot[0]] = marker
+                expanded_values[slot[1]] = body
             else:
-                expanded_values.setdefault(slot, item)
+                expanded_values[slot] = item
             consumed += 1
         extra_items = items[consumed:]
         if extra_items:
@@ -555,6 +1020,86 @@ def _insert_dynamic_paragraphs(text: str, dynamic: dict[str, list[tuple[str, str
         )
         text = text[:paragraph_end] + blocks + text[paragraph_end:]
     return text
+
+
+def _apply_clone_paragraph_expansion(values: dict[str, object], text: str) -> tuple[dict[str, object], str]:
+    expanded_values = dict(values)
+    clone_map = expanded_values.pop(CLONE_PARAGRAPH_KEY, None)
+    if not isinstance(clone_map, dict):
+        return expanded_values, text
+
+    normalized: dict[str, list[str]] = {}
+    for anchor, items in clone_map.items():
+        if not isinstance(anchor, str) or not isinstance(items, list):
+            continue
+        normalized_items = [str(item).strip() for item in items if str(item).strip()]
+        if normalized_items:
+            normalized[anchor] = normalized_items
+    return expanded_values, _insert_clone_paragraphs(text, normalized)
+
+
+def _insert_clone_paragraphs(text: str, dynamic: dict[str, list[str]]) -> str:
+    for anchor, items in dynamic.items():
+        if not items:
+            continue
+        token = f"{{{{{anchor}}}}}"
+        index = text.find(token)
+        if index == -1:
+            continue
+        paragraph_start = text.rfind("<hp:p ", 0, index)
+        if paragraph_start == -1:
+            continue
+        paragraph_end = _find_matching_paragraph_close(text, paragraph_start)
+        if paragraph_end == -1:
+            continue
+        paragraph = text[paragraph_start:paragraph_end]
+        blocks = "".join(_clone_paragraph_with_text(paragraph, anchor, item) for item in items)
+        text = text[:paragraph_end] + blocks + text[paragraph_end:]
+    return text
+
+
+def _clone_paragraph_with_text(paragraph: str, anchor: str, text: str) -> str:
+    cloned = re.sub(r'<hp:p id="[^"]+"', '<hp:p id="0"', paragraph, count=1)
+    cloned = re.sub(r"<hp:linesegarray>.*?</hp:linesegarray>", "", cloned, flags=re.DOTALL)
+    return cloned.replace(f"{{{{{anchor}}}}}", _xml_escape(text))
+
+
+def _apply_full_report_dynamic_body_expansion(values: dict[str, object], text: str) -> tuple[dict[str, object], str]:
+    expanded_values = dict(values)
+    sections = expanded_values.pop(FULL_REPORT_DYNAMIC_BODY_KEY, None)
+    if not isinstance(sections, list) or not sections:
+        return expanded_values, text
+    blocks = _build_full_report_dynamic_body_blocks(sections)
+    if not blocks:
+        return expanded_values, text
+    expanded_values[FULL_REPORT_DYNAMIC_CLEANUP_KEY] = "1"
+    insertion_index = text.find("{{장01_제목}}")
+    if insertion_index == -1:
+        insertion_index = text.find("{{본문_절_001}}")
+    if insertion_index == -1:
+        return expanded_values, text
+    paragraph_start = text.rfind("<hp:p ", 0, insertion_index)
+    if paragraph_start == -1:
+        return expanded_values, text
+    return expanded_values, text[:paragraph_start] + blocks + text[paragraph_start:]
+
+
+def _build_full_report_dynamic_body_blocks(sections: list[object]) -> str:
+    blocks: list[str] = []
+    for index, section in enumerate(sections, start=1):
+        if not isinstance(section, OnePageCoreSection):
+            continue
+        heading = _clean_outline_heading(section.heading)
+        body = _dedupe_non_empty([_clean_report_body_line(item) for item in section.body])
+        if not heading and not body:
+            continue
+        chapter_label = _roman_label(index)
+        if heading:
+            blocks.append(_build_dynamic_paragraph(f"{chapter_label}. {heading}", "22", "32"))
+            blocks.append(_build_dynamic_paragraph(f"□ {heading}", "37", "53"))
+        for item in body:
+            blocks.append(_build_dynamic_paragraph(f"  ◦ {item}", "38", "54"))
+    return "".join(blocks)
 
 
 def _build_dynamic_paragraph(text: str, para_pr: str, char_pr: str, indent_xml: str = "") -> str:
@@ -647,11 +1192,82 @@ def _remove_empty_marker_paragraphs(text: str) -> str:
             text = text[:paragraph_start] + block.replace(EMPTY_PLACEHOLDER_MARKER, "") + text[paragraph_end:]
             continue
         values = re.findall(r"<hp:t\b[^>]*>(.*?)</hp:t>", block, flags=re.DOTALL)
-        has_meaningful_text = any(value.replace(EMPTY_PLACEHOLDER_MARKER, "").strip() for value in values)
+        has_meaningful_text = any(_has_meaningful_non_marker_text(value) for value in values)
         if has_meaningful_text:
             text = text[:paragraph_start] + block.replace(EMPTY_PLACEHOLDER_MARKER, "") + text[paragraph_end:]
         else:
             text = text[:paragraph_start] + text[paragraph_end:]
+
+
+def _cleanup_full_report_dynamic_skeleton_remainders(text: str) -> str:
+    """Remove empty built-in full-report scaffolding after dynamic body insertion."""
+    text = _remove_empty_full_report_schedule_tables(text)
+    text = _remove_standalone_full_report_chapter_markers(text)
+    return text
+
+
+def _remove_empty_full_report_schedule_tables(text: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        table = match.group(0)
+        visible = _plain_text_from_hwpx_xml(table)
+        normalized = re.sub(r"[\s\u00a0\u200b]+", "", visible)
+        for token in ("구분", "일정", "내용", EMPTY_PLACEHOLDER_MARKER):
+            normalized = normalized.replace(token, "")
+        if "구분" in visible and "일정" in visible and "내용" in visible and not normalized:
+            return ""
+        return table
+
+    return re.sub(r"<hp:tbl\b.*?</hp:tbl>", replace, text, flags=re.DOTALL)
+
+
+def _remove_standalone_full_report_chapter_markers(text: str) -> str:
+    roman_markers = {
+        "Ⅰ",
+        "Ⅱ",
+        "Ⅲ",
+        "Ⅳ",
+        "Ⅴ",
+        "Ⅵ",
+        "Ⅶ",
+        "Ⅷ",
+        "Ⅸ",
+        "Ⅹ",
+        "I",
+        "II",
+        "III",
+        "IV",
+        "V",
+        "VI",
+        "VII",
+        "VIII",
+        "IX",
+        "X",
+    }
+
+    def replace(match: re.Match[str]) -> str:
+        paragraph = match.group(0)
+        visible = _plain_text_from_hwpx_xml(paragraph)
+        normalized = re.sub(r"[\s\u00a0\u200b]+", "", visible)
+        if normalized in roman_markers:
+            return ""
+        return paragraph
+
+    return re.sub(r"<hp:p\b.*?</hp:p>", replace, text, flags=re.DOTALL)
+
+
+def _plain_text_from_hwpx_xml(block: str) -> str:
+    values = re.findall(r"<hp:t\b[^>]*>(.*?)</hp:t>", block, flags=re.DOTALL)
+    text = " ".join(values)
+    text = text.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _has_meaningful_non_marker_text(value: str) -> bool:
+    cleaned = value.replace(EMPTY_PLACEHOLDER_MARKER, "")
+    cleaned = re.sub(r"[\s\u00a0\u200b]+", "", cleaned)
+    if not cleaned:
+        return False
+    return not re.fullmatch(r"[□◦○◇ㆍ•\-–−—*※·:：.．\[\]()（）]+", cleaned)
 
 
 def _find_matching_paragraph_close(text: str, paragraph_start: int) -> int:
@@ -694,6 +1310,33 @@ def _build_skeleton_values(payload: PublicDocumentPayload, lines: list[str]) -> 
 
 def _line_or(items: list[str], index: int, fallback: str = "") -> str:
     return items[index] if index < len(items) else fallback
+
+
+def _roman_label(number: int) -> str:
+    if number <= 0:
+        return str(number)
+    numerals = [
+        (1000, "M"),
+        (900, "CM"),
+        (500, "D"),
+        (400, "CD"),
+        (100, "C"),
+        (90, "XC"),
+        (50, "L"),
+        (40, "XL"),
+        (10, "X"),
+        (9, "IX"),
+        (5, "V"),
+        (4, "IV"),
+        (1, "I"),
+    ]
+    value = number
+    output: list[str] = []
+    for amount, label in numerals:
+        while value >= amount:
+            output.append(label)
+            value -= amount
+    return "".join(output)
 
 
 def _bullet_value(items: list[str], index: int, fallback: str = "") -> str:
@@ -754,14 +1397,52 @@ def _circled_items(items: list[str]) -> list[str]:
     return [f"{markers[index] if index < len(markers) else index + 1} {item}" for index, item in enumerate(items) if item]
 
 
-def _build_onepage_values(payload: PublicDocumentPayload, lines: list[str]) -> dict[str, str]:
+def _onepage_headings_for_payload(payload: PublicDocumentPayload) -> list[str]:
+    headings = [heading for heading in payload.onepage_outline_headings if heading]
+    if not headings:
+        headings = _infer_onepage_outline_headings(
+            title=payload.title,
+            purpose=payload.document_purpose,
+            context_lines=(
+                payload.summary
+                + payload.background
+                + payload.current_status
+                + payload.issues
+                + payload.solutions
+                + payload.expected_effects
+                + payload.actions
+                + payload.requested_action
+                + payload.evidence
+            ),
+        )
+    headings = _dedupe_non_empty([_clean_outline_heading(heading) for heading in headings])
+    headings = headings[:4]
+    while len(headings) < 4:
+        headings.append(ONEPAGE_DEFAULT_OUTLINE[len(headings)])
+    return headings
+
+
+def _output_subtitle(payload: PublicDocumentPayload) -> str:
+    purpose = payload.document_purpose.strip()
+    if not purpose or _is_internal_document_purpose(purpose):
+        return ""
+    return purpose
+
+
+def _is_internal_document_purpose(value: str) -> bool:
+    compacted = re.sub(r"\s+", " ", _strip_inline_markdown(value)).strip()
+    return any(pattern.search(compacted) for pattern in INTERNAL_DOCUMENT_PURPOSE_PATTERNS)
+
+
+def _build_onepage_values(payload: PublicDocumentPayload, lines: list[str]) -> dict[str, object]:
+    headings = _onepage_headings_for_payload(payload)
     first_issue = _line_or_distinct_from(payload.issues + payload.current_status, [], "")
-    first_solution = _line_or_distinct_from(payload.solutions + payload.actions + payload.requested_action, [], "")
+    first_solution = _line_or_distinct_from(payload.solutions + payload.actions, [], "")
     first_effect = _line_or_distinct_from(payload.expected_effects + payload.requested_action + payload.actions, [], "")
     first_evidence = _line_or(payload.evidence, 0, payload.related)
     second_status = _line_or_distinct_from(payload.current_status + payload.issues[1:] + payload.background, [first_issue], "")
     second_solution = _line_or_distinct_from(
-        payload.solutions[1:] + payload.actions + payload.requested_action,
+        payload.solutions[1:] + payload.actions,
         [first_solution],
         "",
     )
@@ -805,24 +1486,24 @@ def _build_onepage_values(payload: PublicDocumentPayload, lines: list[str]) -> d
     values = {
         "표지_제목": payload.title,
         "text_001": payload.title,
-        "text_002": payload.document_purpose or f"{payload.selected_format} 보고",
+        "text_002": _output_subtitle(payload),
         "text_003": f"<공무원, {_safe_date_label()}>",
-        "text_004": "□ 개요",
+        "text_004": f"□ {headings[0]}",
         "text_005": _line_or(payload.summary, 0, payload.document_purpose),
         "text_006": _line_or_distinct_from(payload.summary[1:] + payload.background, [_line_or(payload.summary, 0, payload.document_purpose)], ""),
         "text_007": first_background,
         "text_008": intro_note,
-        "text_009": "□ 현황 및 쟁점",
+        "text_009": f"□ {headings[1]}",
         "text_010": first_issue,
         "text_011": second_status,
         "text_012": third_issue,
         "text_013": issue_note,
-        "text_014": "□ 조치안",
+        "text_014": f"□ {headings[2]}",
         "text_015": first_solution,
         "text_016": second_solution,
         "text_017": third_solution,
         "text_018": solution_note,
-        "text_019": "□ 기대효과 및 요청",
+        "text_019": f"□ {headings[3]}",
         "text_020": first_effect,
         "text_021": _line_or_distinct_from(payload.requested_action + payload.actions + payload.expected_effects, [first_effect], ""),
         "text_022": deadline_detail,
@@ -840,14 +1521,103 @@ def _build_onepage_values(payload: PublicDocumentPayload, lines: list[str]) -> d
         "text_029": follow_up_third,
         "본문_주석_002": "※ 후속 조치와 적용 기준을 확인",
     }
+    _apply_dynamic_onepage_core_sections(values, payload.onepage_core_sections)
     _fill_numbered_text_tokens(values, lines, start=30, end=35)
     return _normalize_onepage_skeleton_values(values)
 
 
+def _apply_dynamic_onepage_core_sections(
+    values: dict[str, object],
+    core_sections: list[OnePageCoreSection],
+) -> None:
+    if not core_sections:
+        return
+    used_sections = core_sections[: len(ONEPAGE_MAIN_SECTION_SLOTS)]
+    for section_index, section in enumerate(used_sections):
+        heading_token, body_tokens = ONEPAGE_MAIN_SECTION_SLOTS[section_index]
+        values[heading_token] = f"□ {_clean_outline_heading(section.heading)}"
+        for token in body_tokens:
+            values[token] = ""
+        top_level_tokens = body_tokens[:2]
+        compact_body = [_compact_public_sentence(line) for line in section.body if _compact_public_sentence(line)]
+        for token, line in zip(top_level_tokens, compact_body[:2]):
+            values[token] = line
+        if len(compact_body) > 2 and len(top_level_tokens) >= 2:
+            _append_clone_paragraphs(
+                values,
+                top_level_tokens[1],
+                [f"◦ {line}" for line in compact_body[2:]],
+            )
+    for heading_token, body_tokens in ONEPAGE_MAIN_SECTION_SLOTS[len(used_sections) :]:
+        values[heading_token] = ""
+        for token in body_tokens:
+            values[token] = ""
+    _suppress_generic_dynamic_onepage_follow_up(values, core_sections)
+
+
+def _append_clone_paragraphs(values: dict[str, object], anchor: str, items: list[str]) -> None:
+    normalized_items = [item for item in items if str(item).strip()]
+    if not normalized_items:
+        return
+    clone_map = values.setdefault(CLONE_PARAGRAPH_KEY, {})
+    if not isinstance(clone_map, dict):
+        clone_map = {}
+        values[CLONE_PARAGRAPH_KEY] = clone_map
+    anchor_items = clone_map.setdefault(anchor, [])
+    if isinstance(anchor_items, list):
+        anchor_items.extend(normalized_items)
+
+
+def _suppress_generic_dynamic_onepage_follow_up(
+    values: dict[str, object],
+    core_sections: list[OnePageCoreSection],
+) -> None:
+    values["본문_주석_002"] = ""
+    core_heading_keys = {
+        _normalize_compare_text(_clean_outline_heading(section.heading))
+        for section in core_sections
+        if section.heading
+    }
+    follow_up_tokens = ("text_027", "text_028", "text_029")
+    meaningful_items: list[str] = []
+    for token in follow_up_tokens:
+        item = _onepage_review_value(values, token)
+        item_key = _normalize_compare_text(_clean_outline_heading(item))
+        if (
+            not item
+            or _looks_like_generic_onepage_follow_up(item)
+            or item_key in core_heading_keys
+        ):
+            continue
+        meaningful_items.append(item)
+
+    if not meaningful_items:
+        for token in ("본문_절_002", "본문_항목_002", *follow_up_tokens, "본문_주석_002"):
+            values[token] = ""
+        return
+
+    for token in follow_up_tokens:
+        values[token] = ""
+    for token, item in zip(follow_up_tokens, meaningful_items[: len(follow_up_tokens)]):
+        values[token] = item
+
+
+def _looks_like_generic_onepage_follow_up(value: str) -> bool:
+    normalized = _normalize_compare_text(value)
+    generic_phrases = [
+        "수집된 업무 맥락을 기준으로 정리합니다",
+        "후속 절차를 명확히 하고 업무 이력을 재사용할 수 있습니다",
+        "후속 조치와 적용 기준을 확인",
+        "Content Base 초안",
+    ]
+    return any(_normalize_compare_text(phrase) in normalized for phrase in generic_phrases)
+
+
 def _build_gongmun_values(payload: PublicDocumentPayload) -> dict[str, object]:
     evidence = _evidence_items(payload)
-    summary_items = [f"가. {_line_or(payload.summary, 0, '주요 내용')}", f"나. {_line_or(payload.solutions, 0, '조치 계획')}"]
-    summary_items.extend(f"{label}. {item}" for label, item in zip(["다", "라", "마", "바", "사"], payload.summary[1:] + payload.solutions[1:]))
+    dynamic_context = _flatten_report_core_sections(payload.report_core_sections)
+    summary_source = _dedupe_non_empty(dynamic_context or payload.summary)
+    summary_items = _lettered_items(_dedupe_non_empty(summary_source + payload.solutions)[:7])
     issue_items = _numbered_items(payload.issues or ["현황 정리"])
     action_items = _lettered_items(payload.actions or payload.requested_action or ["후속 조치"])
     evidence_parent_items = [f"(1) {_line_or(evidence, 0, '근거자료 확인')}"]
@@ -857,9 +1627,8 @@ def _build_gongmun_values(payload: PublicDocumentPayload) -> dict[str, object]:
         [
             f"1. {payload.document_purpose or '관련 사항입니다.'}",
             "2. 주요 내용은 다음과 같습니다.",
-            *summary_items,
             f"3. {_line_or(payload.requested_action, 0, '아래와 같이 검토 또는 조치를 요청합니다.')}",
-            f"4. 기대효과: {_line_or(payload.expected_effects, 0, '후속 절차를 명확히 합니다.')}",
+            f"4. {_line_or(payload.expected_effects, 0, '후속 절차를 명확히 합니다.')}",
         ]
     )
     return {
@@ -898,8 +1667,7 @@ def _build_gongmun_values(payload: PublicDocumentPayload) -> dict[str, object]:
     }
 
 
-def _build_full_report_values(payload: PublicDocumentPayload) -> dict[str, str]:
-    background_items = _dedupe_non_empty(payload.summary + payload.background)
+def _build_full_report_values(payload: PublicDocumentPayload) -> dict[str, object]:
     values = {
         "표지_제목": payload.title,
         "문서번호": "-",
@@ -912,59 +1680,83 @@ def _build_full_report_values(payload: PublicDocumentPayload) -> dict[str, str]:
         "참고자료_1": payload.related or _line_or(payload.evidence, 0, "1. 연결자료"),
         "참고자료_2": " / ".join(payload.evidence[:12]) or "2. 업무대화 기록",
         "참고자료_3": _line_or(payload.evidence, 2, "3. 산출 근거"),
-        "장01_제목": "추진배경 및 목적",
-        "장02_제목": "현황 및 쟁점",
-        "장03_제목": "해결방안",
-        "장04_제목": "기대효과",
-        "장05_제목": "조치사항",
-        "장06_제목": "근거 및 연결자료",
     }
-    toc = [
-        "Ⅰ. 추진배경 및 목적",
-        "1",
-        "Ⅱ. 현황 및 쟁점",
-        "3",
-        "Ⅲ. 해결방안",
-        "5",
-        "Ⅳ. 기대효과",
-        "7",
-        "Ⅴ. 조치사항",
-        "9",
-        "Ⅵ. 근거 및 연결자료",
-        "11",
-    ]
+    for token in FULL_REPORT_REMOVABLE_TOKENS:
+        values[token] = EMPTY_PLACEHOLDER_MARKER
+    output_sections = _full_report_output_sections(payload)
+
+    toc: list[str] = []
+    for index, section in enumerate(output_sections, start=1):
+        heading = _clean_outline_heading(section.heading)
+        if not heading:
+            continue
+        toc.extend([f"{_roman_label(index)}. {heading}", str(index * 2 - 1)])
     for index in range(1, 53):
         values[f"목차_항목_{index:03d}"] = _line_or(toc, index - 1, "")
-    body_groups = [
-        ("본문_절_001", "본문_항목_001", "본문_세부_001", "본문_주석_001", "□ 추진배경", background_items),
-        ("본문_절_002", "본문_항목_002", "본문_세부_002", "본문_주석_002", "□ 현황", payload.current_status),
-        ("본문_절_003", "본문_항목_003", "본문_세부_003", "본문_주석_003", "□ 쟁점", payload.issues),
-        ("본문_절_004", "본문_항목_004", "본문_세부_004", "본문_주석_004", "□ 해결방안", payload.solutions),
-        ("본문_절_005", "본문_항목_005", "본문_세부_005", "본문_주석_005", "□ 기대효과", payload.expected_effects),
-        ("본문_절_006", "본문_항목_006", "본문_세부_006", "본문_주석_006", "□ 조치사항", payload.actions),
-        ("본문_절_007", "본문_항목_007", "본문_세부_007", "본문_주석_007", "□ 요청사항", payload.requested_action),
-        ("본문_절_008", "본문_항목_008", "본문_세부_008", "본문_주석_008", "□ 근거자료", _evidence_items(payload)),
-    ]
-    for section_token, item_token, detail_token, note_token, heading, items in body_groups:
-        values[section_token] = heading
-        values[item_token] = _line_or(items, 0, "")
-        values[detail_token] = _direct_marker_value(_line_or(items, 1, ""), "   - ", BULLET_MARKERS)
-        values[note_token] = _direct_marker_value(_line_or(items, 2, ""), "       ※ ", ASTERISK_MARKERS)
+    values[FULL_REPORT_DYNAMIC_BODY_KEY] = output_sections
     for index in range(1, 13):
         values.setdefault(f"일정표_셀_{index:03d}", "")
     return values
 
 
+def _full_report_output_sections(payload: PublicDocumentPayload) -> list[OnePageCoreSection]:
+    if payload.report_core_sections:
+        sections = [
+            OnePageCoreSection(
+                heading=_clean_outline_heading(section.heading),
+                body=_dedupe_non_empty([_clean_report_body_line(item) for item in section.body]),
+            )
+            for section in payload.report_core_sections
+            if _clean_outline_heading(section.heading)
+        ]
+        request_items = _full_report_request_items(payload)
+        if request_items and not _full_report_has_action_section(sections):
+            sections.append(OnePageCoreSection(heading="조치 및 요청사항", body=request_items))
+        if payload.evidence:
+            sections.append(OnePageCoreSection(heading="근거 및 연결자료", body=_evidence_items(payload)))
+        return [section for section in sections if section.body]
+
+    background_items = _dedupe_non_empty(payload.summary + payload.background)
+    fallback_specs = [
+        ("추진배경 및 목적", background_items),
+        ("현황 및 쟁점", _dedupe_non_empty(payload.current_status + payload.issues)),
+        ("해결방안", payload.solutions),
+        ("기대효과", payload.expected_effects),
+        ("조치 및 요청사항", _full_report_request_items(payload)),
+        ("근거 및 연결자료", _evidence_items(payload)),
+    ]
+    return [
+        OnePageCoreSection(heading=heading, body=_dedupe_non_empty(items))
+        for heading, items in fallback_specs
+        if _dedupe_non_empty(items)
+    ]
+
+
+def _full_report_request_items(payload: PublicDocumentPayload) -> list[str]:
+    items = _dedupe_non_empty(payload.actions + payload.requested_action)
+    if payload.deadline and not any(payload.deadline in item for item in items):
+        items.append(f"기한: {payload.deadline}")
+    return items
+
+
+def _full_report_has_action_section(sections: list[OnePageCoreSection]) -> bool:
+    for section in sections:
+        heading = _normalize_compare_text(section.heading)
+        if any(token in heading for token in ["조치", "요청", "향후", "가이드라인", "계획"]):
+            return True
+    return False
+
+
 def _build_email_values(payload: PublicDocumentPayload, lines: list[str]) -> dict[str, str]:
     evidence = _evidence_items(payload)
-    summary_items = [payload.document_purpose, *payload.summary] if payload.document_purpose else payload.summary
+    dynamic_context = _flatten_report_core_sections(payload.report_core_sections)
+    summary_items = dynamic_context or ([payload.document_purpose, *payload.summary] if payload.document_purpose else payload.summary)
     follow_up_items = _dedupe_non_empty(payload.actions[:1] + payload.expected_effects + payload.actions[1:])
-    email_summary_items = _email_context_slots(
-        _prioritize_email_context(
-            summary_items + payload.background + payload.current_status + payload.issues,
-            preferred_tokens=["GraphRAG", "지식폴더"],
-        )
+    prioritized_summary = _prioritize_email_context(
+        summary_items + payload.background + payload.current_status + payload.issues,
+        preferred_tokens=["GraphRAG", "지식폴더"],
     )
+    email_summary_items = prioritized_summary if dynamic_context else _email_context_slots(prioritized_summary)
     email_evidence_items = _email_context_slots(
         _prioritize_email_context(
             evidence + payload.background + payload.current_status + payload.issues,
@@ -992,6 +1784,11 @@ def _build_email_values(payload: PublicDocumentPayload, lines: list[str]) -> dic
         "text_016": _bullet_value(follow_up_items, 0),
         "text_017": _bullet_value(follow_up_items, 1),
     }
+    _append_clone_paragraphs(
+        values,
+        "text_007",
+        [_bullet_value(email_summary_items, index) for index in range(2, len(email_summary_items))],
+    )
     _fill_numbered_text_tokens(values, lines, start=18, end=24)
     return values
 
@@ -1026,8 +1823,34 @@ def _email_context_slots(items: list[str]) -> list[str]:
     return [items[0], " / ".join(items[1:3])]
 
 
+def _flatten_report_core_sections(sections: list[OnePageCoreSection]) -> list[str]:
+    flattened: list[str] = []
+    for section in sections:
+        heading = _clean_outline_heading(section.heading)
+        body = _dedupe_non_empty(section.body)
+        if not body:
+            continue
+        flattened.append(f"{heading}: {body[0]}" if heading else body[0])
+        flattened.extend(body[1:])
+    return _dedupe_non_empty(flattened)
+
+
 def _fill_numbered_text_tokens(values: dict[str, str], lines: list[str], *, start: int, end: int) -> None:
-    compact_lines = [line for line in lines if line.strip()]
+    existing_keys = {
+        _onepage_repeat_key(value)
+        for value in values.values()
+        if str(value or "").strip()
+    }
+    compact_lines: list[str] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        key = _onepage_repeat_key(line)
+        if key and key in existing_keys:
+            continue
+        compact_lines.append(line)
+        if key:
+            existing_keys.add(key)
     for number in range(start, end + 1):
         values.setdefault(f"text_{number:03d}", _line_or(compact_lines, number - start, ""))
 
@@ -1132,6 +1955,13 @@ def _looks_like_document_generation_instruction(value: str) -> bool:
         if len(normalized) > 120:
             return False
     lowered = normalized.lower()
+    if not is_user_command_line:
+        internal_patterns = [
+            r"(문서작성|content base|public-doc-to-hwpx|hwpx skeleton|서식\s*슬롯).*(작성\s*방식|서식\s*매핑|채움|생성\s*단계|내부)",
+            r"(업무대화\s*세션\s*기반|세션\s*없이\s*바로)\s*(?:1페이지\s*보고서|시행문|풀버전\s*보고서|이메일|보고서|자동\s*문서작성)\s*작성",
+            r"(?:보고서|공문|시행문|이메일|메일|hwpx)\s*(?:로|파일로)?\s*(?:작성해|작성하|생성해|만들어|뽑아|출력해)",
+        ]
+        return any(re.search(pattern, lowered, flags=re.IGNORECASE) for pattern in internal_patterns)
     has_document_marker = any(
         token in lowered
         for token in [
@@ -1261,6 +2091,7 @@ def _apply_writing_principles(items: list[str]) -> list[str]:
 
 def _compact_public_sentence(value: str) -> str:
     compacted = _strip_inline_markdown(value)
+    _, compacted = _split_leading_public_label(compacted)
     replacements = [
         ("와 관련된", " 관련"),
         ("과 관련된", " 관련"),
@@ -1286,6 +2117,7 @@ def _compact_public_sentence(value: str) -> str:
 def _strip_inline_markdown(value: str) -> str:
     compacted = value.strip()
     compacted = re.sub(r"\\([_*\[\](){}#+.!>|~-])", r"\1", compacted)
+    compacted = re.sub(r"^#{1,6}\s+", "", compacted).strip()
     compacted = re.sub(r"^[-*+]\s+", "", compacted).strip()
     compacted = re.sub(r"^\d+[\.)]\s+", "", compacted).strip()
     compacted = re.sub(r"\*\*([^*]+)\*\*", r"\1", compacted)
@@ -1374,7 +2206,7 @@ def _onepage_repeat_key(value: object) -> str:
     if EMPTY_PLACEHOLDER_MARKER in str(value or ""):
         return ""
     normalized = _normalize_compare_text(str(value or ""))
-    normalized = re.sub(r"^(요약|핵심|내용|조치|후속\s*조치|기대효과|요청)\s*[:：]\s*", "", normalized)
+    normalized = re.sub(r"^(요약|핵심|내용|조치|후속\s*조치|효과|기대효과|요청|요청사항|요청\s*사항)\s*[:：]\s*", "", normalized)
     normalized = re.sub(r"\s+", " ", normalized)
     return normalized.strip().casefold()
 
@@ -1394,7 +2226,42 @@ def _looks_like_internal_authoring_metadata(value: str) -> bool:
     normalized_lower = normalized.lower()
     if not normalized:
         return True
-    return any(marker.lower() in normalized_lower for marker in INTERNAL_AUTHORING_MARKERS)
+    exact_markers = {
+        "WorkSessionBrief".lower(),
+        "DocumentPlan".lower(),
+        "작성 품질 점검".lower(),
+        "문서 작성 기준".lower(),
+        "작성 슬롯".lower(),
+    }
+    if normalized_lower in exact_markers:
+        return True
+    metadata_prefixes = (
+        "문서 목적:",
+        "출력 유형:",
+        "사용자 양식:",
+        "작성 방식:",
+        "수신/대상:",
+        "예상 분량:",
+        "긴급도:",
+        "추적성 필요:",
+        "공식 서식 필요:",
+        "요청 조치:",
+        "기한:",
+        "보안 수준:",
+    )
+    if normalized.startswith(metadata_prefixes):
+        return True
+    internal_phrases = [
+        "LLM WorkSessionBrief -> DocumentPlan",
+        "public-doc-to-hwpx 서식 매핑",
+        "HWPX skeleton 채움",
+        "작성목적/서식 결정",
+        "서식 슬롯",
+        "원칙 준수",
+        "형식 적합성",
+        "누락/불확실",
+    ]
+    return any(phrase.lower() in normalized_lower for phrase in internal_phrases)
 
 
 def _section(title: str, items: list[str]) -> list[str]:
@@ -1425,15 +2292,87 @@ def _evidence_items(payload: PublicDocumentPayload) -> list[str]:
 
 
 def _render_onepage(payload: PublicDocumentPayload) -> list[str]:
-    lines = [payload.title, ""]
-    lines += _metadata_lines(payload)
-    lines += _section("1. 개요", payload.summary)
-    lines += _section("2. 현황 및 쟁점", payload.issues)
-    lines += _section("3. 조치안", payload.solutions)
-    lines += _section("4. 기대효과", payload.expected_effects)
-    lines += _section("5. 요청사항", payload.requested_action)
-    lines += _section("6. 근거 및 연결자료", _evidence_items(payload))
+    if payload.onepage_core_sections:
+        lines = [payload.title]
+        subtitle = _output_subtitle(payload)
+        if subtitle:
+            lines.append(subtitle)
+        lines.append(f"<공무원, {_safe_date_label()}>")
+        lines.append("")
+        for section in payload.onepage_core_sections[: len(ONEPAGE_MAIN_SECTION_SLOTS)]:
+            heading = _clean_outline_heading(section.heading)
+            if heading:
+                lines.append(f"□ {heading}")
+            for item in section.body:
+                cleaned = _compact_public_sentence(item)
+                if cleaned:
+                    lines.append(f"◦ {cleaned}")
+            lines.append("")
+        evidence = _evidence_items(payload)
+        if evidence:
+            lines.append("□ 출처 및 활용 계획")
+            for item in evidence:
+                cleaned = _compact_public_sentence(item)
+                if cleaned:
+                    lines.append(f"◦ {cleaned}")
+            lines.append("* 연결 파일과 대화 이력을 근거로 정리")
+            lines.append("")
+        while lines and not lines[-1].strip():
+            lines.pop()
+        return lines
+
+    values = _build_onepage_values(payload, [])
+    lines = [_onepage_review_value(values, "text_001") or payload.title]
+    subtitle = _onepage_review_value(values, "text_002")
+    if subtitle:
+        lines.append(subtitle)
+    date_line = _onepage_review_value(values, "text_003")
+    if date_line:
+        lines.append(date_line)
+    lines.append("")
+
+    _append_onepage_review_section(lines, values, "text_004", ["text_005", "text_006", "text_007", "text_008"])
+    _append_onepage_review_section(lines, values, "text_009", ["text_010", "text_011", "text_012", "text_013"])
+    _append_onepage_review_section(lines, values, "text_014", ["text_015", "text_016", "text_017", "text_018"])
+    _append_onepage_review_section(lines, values, "text_019", ["text_020", "text_021", "text_022", "text_023"])
+    _append_onepage_review_section(lines, values, "본문_항목_001", ["text_024", "text_025", "text_026", "본문_주석_001"])
+    _append_onepage_review_section(lines, values, "본문_항목_002", ["text_027", "text_028", "text_029", "본문_주석_002"])
+    while lines and not lines[-1].strip():
+        lines.pop()
     return lines
+
+
+def _append_onepage_review_section(
+    lines: list[str],
+    values: dict[str, object],
+    heading_token: str,
+    body_tokens: list[str],
+) -> None:
+    heading = _onepage_review_value(values, heading_token)
+    body = [_onepage_review_line(values, token) for token in body_tokens]
+    body = [line for line in body if line]
+    if not heading and not body:
+        return
+    if heading:
+        lines.append(heading)
+    lines.extend(body)
+    lines.append("")
+
+
+def _onepage_review_value(values: dict[str, object], token: str) -> str:
+    value = str(values.get(token) or "").replace(EMPTY_PLACEHOLDER_MARKER, "").strip()
+    return value
+
+
+def _onepage_review_line(values: dict[str, object], token: str) -> str:
+    value = _onepage_review_value(values, token)
+    if not value:
+        return ""
+    if token in ONEPAGE_TRIM_BULLET and not any(
+        value.lstrip().startswith(marker) for marker in BULLET_MARKERS
+    ):
+        return f"- {value}"
+    return value
 
 
 def _render_official_memo(payload: PublicDocumentPayload) -> list[str]:
@@ -1460,6 +2399,16 @@ def _render_official_memo(payload: PublicDocumentPayload) -> list[str]:
 def _render_full_report(payload: PublicDocumentPayload) -> list[str]:
     lines = [payload.title, ""]
     lines += _metadata_lines(payload)
+    output_sections = _full_report_output_sections(payload)
+    if output_sections:
+        lines.append("목차")
+        for index, section in enumerate(output_sections, start=1):
+            lines.append(f"{_roman_label(index)}. {_clean_outline_heading(section.heading)}")
+        lines.append("")
+        for index, section in enumerate(output_sections, start=1):
+            lines += _section(f"{_roman_label(index)}. {_clean_outline_heading(section.heading)}", section.body)
+        return lines
+
     lines.append("목차")
     lines.append("I. 추진배경 및 목적")
     lines.append("II. 현황")
@@ -1484,6 +2433,16 @@ def _render_full_report(payload: PublicDocumentPayload) -> list[str]:
 def _render_email(payload: PublicDocumentPayload) -> list[str]:
     lines = [f"제목: {payload.title}", "", f"수신: {payload.recipient}", f"발신: {payload.sender}", ""]
     lines += _metadata_lines(payload)
+    if payload.report_core_sections:
+        lines += _section("요지", _flatten_report_core_sections(payload.report_core_sections)[:4])
+        lines += _section("요청사항", payload.requested_action)
+        lines += _section("근거 및 연결자료", _evidence_items(payload))
+        lines.append(f"- 요청 기한: {payload.deadline}")
+        lines.append("")
+        lines.append("감사합니다.")
+        lines.append("")
+        return lines
+
     lines += _section("요지", payload.summary)
     lines += _section("요청사항", payload.requested_action)
     lines += _section("근거 및 연결자료", _evidence_items(payload))

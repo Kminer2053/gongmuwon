@@ -91,6 +91,7 @@ import {
   type ContentBaseResult,
   type CustomDocumentTemplateItem,
   type DocumentFormat,
+  type DocumentSourceAnalysis,
   type FileProposalItem,
   type FinalDocumentRequestResult,
   type KnowledgeAskResult,
@@ -267,6 +268,35 @@ type DocumentGenerateProgress = {
   detail: string;
   completed?: boolean;
 };
+
+function documentSourceAnalysisLabel(mode: DocumentSourceAnalysis["overall_mode"]) {
+  if (mode === "normal") {
+    return "정상 분석";
+  }
+  if (mode === "partial") {
+    return "부분 분석";
+  }
+  if (mode === "limited") {
+    return "제한 분석";
+  }
+  return "분석 없음";
+}
+
+function documentSourceAnalysisDescription(analysis?: DocumentSourceAnalysis) {
+  if (!analysis || analysis.overall_mode === "none") {
+    return "";
+  }
+  const fileNames = analysis.direct_files.map((item) => item.file_name || fileNameFromPath(item.path)).filter(Boolean);
+  const fileSummary = fileNames.length > 0 ? fileNames.slice(0, 3).join(", ") : "직접 첨부 파일";
+  if (analysis.overall_mode === "normal") {
+    return `${fileSummary}의 본문을 문서작성 근거로 반영했습니다.`;
+  }
+  if (analysis.overall_mode === "partial") {
+    return `${fileSummary}의 관련 일부 본문을 32KB 입력 예산 안에서 반영했습니다.`;
+  }
+  return `${fileSummary}은 파일 크기나 형식 때문에 경로/요약 중심으로 반영했습니다.`;
+}
+
 type ScheduleColorKey = "blue" | "green" | "violet" | "orange" | "teal" | "pink" | "slate";
 type ScheduleColorChoice = ScheduleColorKey | "auto";
 
@@ -6014,6 +6044,19 @@ export function App() {
                 <p className="subtle-text">
                   검토용 Markdown: {friendlyArtifactLabel(lastFinalizeRequest.artifact.markdown_path)}
                 </p>
+              ) : null}
+              {lastContentBase?.source_analysis && lastContentBase.source_analysis.overall_mode !== "none" ? (
+                <div className="hint-box" data-testid="document-source-analysis">
+                  <strong>{documentSourceAnalysisLabel(lastContentBase.source_analysis.overall_mode)}</strong>
+                  <span>{documentSourceAnalysisDescription(lastContentBase.source_analysis)}</span>
+                  <span>
+                    입력 예산 {Math.round(lastContentBase.source_analysis.used_bytes / 1024)}KB/
+                    {Math.round(lastContentBase.source_analysis.budget_bytes / 1024)}KB
+                  </span>
+                  {lastContentBase.source_analysis.warnings.length > 0 ? (
+                    <span>{lastContentBase.source_analysis.warnings[0]}</span>
+                  ) : null}
+                </div>
               ) : null}
               <div className="inline-actions">
                 <button
