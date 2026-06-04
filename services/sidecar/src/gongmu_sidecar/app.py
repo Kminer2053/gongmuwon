@@ -2340,13 +2340,19 @@ class AppServices:
         document_format: str,
         source_bundle: str,
     ) -> dict[str, Any]:
+        item_scope = (
+            "fullReport는 자료의 논리 구조에 맞춰 장·절 후보를 충분히 남기고, 각 장별 핵심 근거를 과도하게 압축하지 마세요. "
+            "onePageReport는 1쪽 슬롯에 들어가도록 핵심만 압축하세요. "
+            if document_format == "fullReport"
+            else "각 목록은 공공기관 문서에 바로 쓸 수 있는 한국어 항목 1~5개로 작성하세요. "
+        )
         prompt = (
             "당신은 Gongmu의 WorkSessionBrief 작성자입니다.\n"
             "아래 기초 데이터를 그대로 옮기지 말고, 사용자의 문서작성 지시에 맞는 근거만 골라 재요약하세요.\n"
             "반드시 JSON 객체만 출력하세요. Markdown, 설명, 코드블록은 금지합니다.\n"
             "필드: summary, background, current_status, issues, solutions, expected_effects, actions, "
             "requested_action, evidence, quality_checks, confidence.\n"
-            "각 목록은 공공기관 문서에 바로 쓸 수 있는 한국어 항목 1~5개로 작성하세요. "
+            f"{item_scope}"
             "onePageReport는 개조체, fullReport는 두괄식 요약+개조식 세부, officialMemo는 시행문 문장, email은 짧은 업무메일 문체를 사용하세요.\n"
             "목록 값에는 '효과:', '요청사항:', '현황:' 같은 필드 라벨을 붙이지 말고 내용 문장만 쓰세요.\n"
             "최우선 기준은 사용자의 작성 지시와 명시 슬롯입니다. GraphRAG나 참고 후보가 작성 지시와 충돌하면 작성 지시를 따르세요.\n"
@@ -2380,6 +2386,7 @@ class AppServices:
         source_bundle: str,
         brief: dict[str, Any],
     ) -> str:
+        format_rules = self._public_document_markdown_format_rules(document_format)
         prompt = (
             "당신은 public-doc-to-hwpx 스킬의 DocumentPlan 및 본문 작성자입니다.\n"
             "아래 WorkSessionBrief를 바탕으로 선택된 HWPX skeleton 슬롯에 들어갈 최종 Content Base Markdown을 작성하세요.\n"
@@ -2387,8 +2394,7 @@ class AppServices:
             "반드시 JSON 객체만 출력하고, content_markdown 필드 하나에 Markdown 문자열을 넣으세요.\n"
             "content_markdown에는 # 제목, ## WorkSessionBrief, ## DocumentPlan, ## 목차, "
             "## 핵심 내용, 보고 목적에 맞는 본문 섹션, ## 수집 근거, ## 작성 품질 점검을 포함하세요.\n"
-            "1페이지 보고서에서는 ## 1페이지 목차를 사용할 수 있습니다. DocumentPlan과 목차에는 보고 목적에 맞는 섹션명을 3~5개로 정하고, 섹션명은 내용에 따라 바꾸세요.\n"
-            "단, fullReport에서 작성 지시에 번호 목록이나 명시 목차가 있으면 해당 섹션명을 병합하거나 삭제하지 말고 모두 ## 목차와 ## 핵심 내용의 ### 섹션으로 보존하세요.\n"
+            f"{format_rules}\n"
             "사용자가 수신, 요청사항, 기한을 적은 경우 content_markdown 본문과 요청 섹션에 반드시 반영하세요.\n"
             "예: 계획 보고=추진방향/추진배경·현황/주요내용/향후계획, 검토 보고=검토결과/검토배경·쟁점/대안검토/결정요청.\n"
             "항목 문장에는 '효과:', '요청사항:', '현황:', '쟁점:' 같은 라벨을 붙이지 마세요.\n"
@@ -2446,6 +2452,28 @@ class AppServices:
             )
             return recovered
         return content_markdown
+
+    @staticmethod
+    def _public_document_markdown_format_rules(document_format: str) -> str:
+        if document_format == "fullReport":
+            return (
+                "fullReport 작성 규칙: public-doc-to-hwpx의 풀버전 보고서 방식에 맞춰 표지·목차·보고내용 요약·본문·참고자료 구조를 전제로 작성하세요. "
+                "목차는 자료와 작성 지시에 따라 가변 구성하고, 1페이지 보고서처럼 3~5개로 압축하지 마세요. "
+                "## 1페이지 목차는 절대 쓰지 마세요. "
+                "## 목차에는 장 제목을 번호 목록으로 쓰고, 필요한 경우 하위 절은 장 아래에 들여쓴 번호 목록으로 쓰세요. "
+                "## 핵심 내용에는 장 제목을 ### 로, 절 제목을 #### 로 보존하고, 각 절 아래에는 판단 근거와 적용 방안을 충분히 쓰세요. "
+                "작성 지시에 명시 목차가 있으면 병합·삭제하지 말고 그대로 유지하세요."
+            )
+        if document_format == "onePageReport":
+            return (
+                "onePageReport 작성 규칙: ## 1페이지 목차를 사용할 수 있습니다. "
+                "보고 목적에 맞는 섹션명을 3~5개로 정하고 HWPX 4개 본문 슬롯에 들어가도록 핵심을 압축하세요."
+            )
+        if document_format == "officialMemo":
+            return "officialMemo 작성 규칙: 시행문 형식에 맞게 관련 근거, 요청 내용, 조치 기한을 명확히 쓰세요."
+        if document_format == "email":
+            return "email 작성 규칙: 수신자가 바로 행동할 수 있도록 요지, 요청, 근거, 후속 안내 순으로 짧게 쓰세요."
+        return "문서 형식 규칙: 선택된 출력 형식에 맞춰 목차와 본문을 구성하세요."
 
     @staticmethod
     def _recover_content_markdown_from_loose_json(text: str) -> str:

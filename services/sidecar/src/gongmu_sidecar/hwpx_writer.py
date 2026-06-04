@@ -84,6 +84,7 @@ EMPTY_PLACEHOLDER_MARKER = "\u200b\u200b__EMPTY_PLACEHOLDER__\u200b\u200b"
 CLONE_PARAGRAPH_KEY = "__clone_paragraphs__"
 FULL_REPORT_DYNAMIC_BODY_KEY = "__full_report_dynamic_body__"
 FULL_REPORT_DYNAMIC_CLEANUP_KEY = "__full_report_dynamic_cleanup__"
+FULL_REPORT_SUBSECTION_PREFIX = "__full_report_subsection__:"
 DEFAULT_SKELETON_VALUES = {
     "text_004": "수신",
 }
@@ -95,6 +96,15 @@ INTERNAL_DOCUMENT_PURPOSE_PATTERNS = [
 ONEPAGE_DEFAULT_OUTLINE = ["보고요지", "배경·현황", "주요내용·검토", "향후계획·요청사항"]
 FULL_REPORT_DEFAULT_OUTLINE = ["추진배경 및 목적", "현황 및 쟁점", "해결방안", "기대효과", "조치사항", "근거 및 연결자료"]
 ROMAN_SECTION_LABELS = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
+FULL_REPORT_TOC_CHAPTER_SLOTS = [1, 3, 13, 21, 33, 43]
+FULL_REPORT_TOC_SUBSECTION_SLOTS_BY_CHAPTER = (
+    [],
+    [5, 7, 9, 11],
+    [15, 17, 19],
+    [23, 25, 27, 29, 31],
+    [35, 37, 39, 41],
+    [45, 47, 49, 51],
+)
 FULL_REPORT_CHAPTER_GROUPS = (
     ("장01_제목", "본문_절_001", "본문_항목_001", "본문_세부_001", "본문_주석_001"),
     ("장02_제목", "본문_절_002", "본문_항목_002", "본문_세부_002", "본문_주석_002"),
@@ -465,7 +475,7 @@ def _extract_full_report_outline_headings(
     for raw_line in _markdown_section_raw_lines(markdown_text, "목차"):
         if not _is_top_level_report_outline_line(raw_line):
             continue
-        heading = _clean_outline_heading(_strip_outline_list_prefix(raw_line.strip()))
+        heading = _clean_full_report_heading(_strip_outline_list_prefix(raw_line.strip()))
         if heading and heading not in headings:
             headings.append(heading)
 
@@ -476,7 +486,7 @@ def _extract_full_report_outline_headings(
         stripped = raw_line.strip()
         if not stripped.startswith("### "):
             continue
-        heading = _clean_outline_heading(_strip_outline_list_prefix(stripped[4:].strip()))
+        heading = _clean_full_report_heading(_strip_outline_list_prefix(stripped[4:].strip()))
         if heading and heading not in headings:
             headings.append(heading)
 
@@ -498,9 +508,9 @@ def _extract_full_report_core_sections(
     outline_headings: list[str],
 ) -> list[OnePageCoreSection]:
     normalized_outline = [
-        (_normalize_compare_text(_clean_outline_heading(heading)), _clean_outline_heading(heading))
+        (_normalize_compare_text(_clean_full_report_heading(heading)), _clean_full_report_heading(heading))
         for heading in outline_headings
-        if _clean_outline_heading(heading)
+        if _clean_full_report_heading(heading)
     ]
     results: list[tuple[str, list[str]]] = []
     current_heading = ""
@@ -522,11 +532,14 @@ def _extract_full_report_core_sections(
         if stripped.startswith("### "):
             flush()
             saw_explicit_section_heading = True
-            candidate = _clean_outline_heading(_strip_outline_list_prefix(stripped[4:].strip()))
+            candidate = _clean_full_report_heading(_strip_outline_list_prefix(stripped[4:].strip()))
             current_heading = _match_report_outline_heading(candidate, normalized_outline) or candidate
             continue
         if stripped.startswith("#### "):
-            stripped = stripped[4:].strip()
+            subsection = _clean_full_report_heading(_strip_outline_list_prefix(stripped[5:].strip()))
+            if subsection:
+                current_body.append(_full_report_subsection_marker(subsection))
+            continue
         item = _clean_report_body_line(stripped)
         if not item:
             continue
@@ -782,6 +795,43 @@ def _clean_outline_heading(value: str) -> str:
     if not heading or _looks_like_internal_authoring_metadata(heading):
         return ""
     return heading
+
+
+def _clean_full_report_heading(value: str) -> str:
+    """Clean full-report chapter headings without dropping meaningful subtitles."""
+    heading = _strip_outline_list_prefix(value)
+    heading = re.sub(r"^[\s□○◦*\dIVXLCivxlc\.\)\-–—]+", "", heading)
+    heading = re.sub(r"\s+", " ", heading).strip()
+    heading = heading.strip("[](){}<>")
+    if not heading or _looks_like_internal_authoring_metadata(heading):
+        return ""
+    return heading
+
+
+def _full_report_subsection_marker(heading: str) -> str:
+    return f"{FULL_REPORT_SUBSECTION_PREFIX}{_clean_full_report_heading(heading)}"
+
+
+def _is_full_report_subsection_item(value: str) -> bool:
+    return str(value or "").startswith(FULL_REPORT_SUBSECTION_PREFIX)
+
+
+def _full_report_subsection_heading(value: str) -> str:
+    if not _is_full_report_subsection_item(value):
+        return ""
+    return _clean_full_report_heading(str(value)[len(FULL_REPORT_SUBSECTION_PREFIX) :])
+
+
+def _clean_full_report_body_item(value: str) -> str:
+    if _is_full_report_subsection_item(value):
+        heading = _full_report_subsection_heading(value)
+        return _full_report_subsection_marker(heading) if heading else ""
+    return _clean_report_body_line(value)
+
+
+def _full_report_visible_body_item(value: str) -> str:
+    heading = _full_report_subsection_heading(value)
+    return f"□ {heading}" if heading else value
 
 
 def render_public_document_lines(payload: PublicDocumentPayload) -> list[str]:
@@ -1089,16 +1139,24 @@ def _build_full_report_dynamic_body_blocks(sections: list[object]) -> str:
     for index, section in enumerate(sections, start=1):
         if not isinstance(section, OnePageCoreSection):
             continue
-        heading = _clean_outline_heading(section.heading)
-        body = _dedupe_non_empty([_clean_report_body_line(item) for item in section.body])
+        heading = _clean_full_report_heading(section.heading)
+        body = _dedupe_non_empty([_clean_full_report_body_item(item) for item in section.body])
         if not heading and not body:
             continue
         chapter_label = _roman_label(index)
         if heading:
             blocks.append(_build_dynamic_paragraph(f"{chapter_label}. {heading}", "22", "32"))
-            blocks.append(_build_dynamic_paragraph(f"□ {heading}", "37", "53"))
+        saw_subsection = False
         for item in body:
-            blocks.append(_build_dynamic_paragraph(f"  ◦ {item}", "38", "54"))
+            subsection = _full_report_subsection_heading(item)
+            if subsection:
+                saw_subsection = True
+                blocks.append(_build_dynamic_paragraph(f" □ {subsection}", "37", "53"))
+                continue
+            if saw_subsection:
+                blocks.append(_build_dynamic_paragraph(f"  ◦ {item}", "38", "54"))
+            else:
+                blocks.append(_build_dynamic_paragraph(f"  ◦ {item}", "38", "54"))
     return "".join(blocks)
 
 
@@ -1358,6 +1416,9 @@ def _line_or(items: list[str], index: int, fallback: str = "") -> str:
 def _roman_label(number: int) -> str:
     if number <= 0:
         return str(number)
+    unicode_labels = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ", "Ⅸ", "Ⅹ"]
+    if number <= len(unicode_labels):
+        return unicode_labels[number - 1]
     numerals = [
         (1000, "M"),
         (900, "CM"),
@@ -1728,35 +1789,79 @@ def _build_full_report_values(payload: PublicDocumentPayload) -> dict[str, objec
         values[token] = EMPTY_PLACEHOLDER_MARKER
     output_sections = _full_report_output_sections(payload)
 
-    toc: list[str] = []
-    for index, section in enumerate(output_sections, start=1):
-        heading = _clean_outline_heading(section.heading)
-        if not heading:
-            continue
-        toc.extend([f"{_roman_label(index)}. {heading}", str(index * 2 - 1)])
     for index in range(1, 53):
-        values[f"목차_항목_{index:03d}"] = _line_or(toc, index - 1, "")
+        values[f"목차_항목_{index:03d}"] = ""
+    values.update(_full_report_toc_values(output_sections))
     values[FULL_REPORT_DYNAMIC_BODY_KEY] = output_sections
     for index in range(1, 13):
         values.setdefault(f"일정표_셀_{index:03d}", "")
     return values
 
 
+def _full_report_toc_values(sections: list[OnePageCoreSection]) -> dict[str, str]:
+    values: dict[str, str] = {}
+    used_slots: set[int] = set()
+    chapter_slot_set = set(FULL_REPORT_TOC_CHAPTER_SLOTS)
+    fallback_chapter_slots = [index for index in range(1, 53, 2)]
+    fallback_subsection_slots = [index for index in range(1, 53, 2) if index not in chapter_slot_set]
+
+    def assign(slot_index: int, text: str, page: str) -> None:
+        if slot_index < 1 or slot_index > 52 or slot_index in used_slots:
+            return
+        values[f"목차_항목_{slot_index:03d}"] = text
+        if slot_index + 1 <= 52:
+            values[f"목차_항목_{slot_index + 1:03d}"] = page
+        used_slots.add(slot_index)
+        used_slots.add(slot_index + 1)
+
+    for chapter_index, section in enumerate(sections, start=1):
+        heading = _clean_full_report_heading(section.heading)
+        if not heading:
+            continue
+        if chapter_index <= len(FULL_REPORT_TOC_CHAPTER_SLOTS):
+            chapter_slot = FULL_REPORT_TOC_CHAPTER_SLOTS[chapter_index - 1]
+        else:
+            chapter_slot = next((slot for slot in fallback_chapter_slots if slot not in used_slots), 0)
+        if not chapter_slot:
+            break
+        page = str(chapter_index * 2 - 1)
+        assign(chapter_slot, f"{_roman_label(chapter_index)}. {heading}", page)
+
+        subsection_slots = (
+            FULL_REPORT_TOC_SUBSECTION_SLOTS_BY_CHAPTER[chapter_index - 1]
+            if chapter_index <= len(FULL_REPORT_TOC_SUBSECTION_SLOTS_BY_CHAPTER)
+            else []
+        )
+        for subsection_index, subsection in enumerate(_full_report_subsection_headings(section.body), start=1):
+            if subsection_index <= len(subsection_slots):
+                subsection_slot = subsection_slots[subsection_index - 1]
+            else:
+                subsection_slot = next((slot for slot in fallback_subsection_slots if slot not in used_slots), 0)
+            if not subsection_slot:
+                break
+            assign(subsection_slot, f"  {subsection_index}. {subsection}", page)
+    return values
+
+
+def _full_report_subsection_headings(items: list[str]) -> list[str]:
+    headings: list[str] = []
+    for item in items:
+        heading = _full_report_subsection_heading(item)
+        if heading and heading not in headings:
+            headings.append(heading)
+    return headings
+
+
 def _full_report_output_sections(payload: PublicDocumentPayload) -> list[OnePageCoreSection]:
     if payload.report_core_sections:
         sections = [
             OnePageCoreSection(
-                heading=_clean_outline_heading(section.heading),
-                body=_dedupe_non_empty([_clean_report_body_line(item) for item in section.body]),
+                heading=_clean_full_report_heading(section.heading),
+                body=_dedupe_non_empty([_clean_full_report_body_item(item) for item in section.body]),
             )
             for section in payload.report_core_sections
-            if _clean_outline_heading(section.heading)
+            if _clean_full_report_heading(section.heading)
         ]
-        request_items = _full_report_request_items(payload)
-        if request_items and not _full_report_has_action_section(sections):
-            sections.append(OnePageCoreSection(heading="조치 및 요청사항", body=request_items))
-        if payload.evidence:
-            sections.append(OnePageCoreSection(heading="근거 및 연결자료", body=_evidence_items(payload)))
         return [section for section in sections if section.body]
 
     background_items = _dedupe_non_empty(payload.summary + payload.background)
@@ -2446,10 +2551,13 @@ def _render_full_report(payload: PublicDocumentPayload) -> list[str]:
     if output_sections:
         lines.append("목차")
         for index, section in enumerate(output_sections, start=1):
-            lines.append(f"{_roman_label(index)}. {_clean_outline_heading(section.heading)}")
+            lines.append(f"{_roman_label(index)}. {_clean_full_report_heading(section.heading)}")
         lines.append("")
         for index, section in enumerate(output_sections, start=1):
-            lines += _section(f"{_roman_label(index)}. {_clean_outline_heading(section.heading)}", section.body)
+            lines += _full_report_section_lines(
+                f"{_roman_label(index)}. {_clean_full_report_heading(section.heading)}",
+                section.body,
+            )
         return lines
 
     lines.append("목차")
@@ -2470,6 +2578,20 @@ def _render_full_report(payload: PublicDocumentPayload) -> list[str]:
     lines += _section("VI. 조치사항", payload.actions)
     lines += _section("VII. 요청사항", payload.requested_action)
     lines += _section("VIII. 근거 및 연결자료", _evidence_items(payload))
+    return lines
+
+
+def _full_report_section_lines(title: str, items: list[str]) -> list[str]:
+    lines = [title]
+    for item in items:
+        visible = _full_report_visible_body_item(item)
+        if not visible:
+            continue
+        if visible.startswith("□ "):
+            lines.append(visible)
+        else:
+            lines.append(f"- {visible}")
+    lines.append("")
     return lines
 
 

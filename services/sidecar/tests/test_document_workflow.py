@@ -1550,9 +1550,9 @@ def test_full_report_preserves_dynamic_content_base_sections_in_review_markdown(
     )
 
     review_markdown = Path(artifact["markdown_path"]).read_text(encoding="utf-8")
-    assert "I. 제작 원칙" in review_markdown
-    assert "II. 조명·카메라 운용" in review_markdown
-    assert "III. 검토 기준" in review_markdown
+    assert "Ⅰ. 제작 원칙" in review_markdown
+    assert "Ⅱ. 조명·카메라 운용" in review_markdown
+    assert "Ⅲ. 검토 기준" in review_markdown
     assert "추진배경 및 목적" not in review_markdown
     assert "현황 및 쟁점" not in review_markdown
     assert "비현실적 디테일보다 질감" in review_markdown
@@ -1642,11 +1642,11 @@ def test_full_report_uses_dedicated_outline_parser_for_nested_content_base_secti
     review_markdown = Path(artifact["markdown_path"]).read_text(encoding="utf-8")
     plain_text = _extract_hwpx_plain_text(Path(artifact["path"]))
     for heading in [
-        "I. 현황 및 문제점",
-        "II. 자연스러움을 위한 4대 핵심 원칙",
-        "III. 심리학 기반 시각 연출 전략",
-        "IV. 구체적 프롬프트 적용 방안",
-        "V. 향후 제작 가이드라인",
+        "Ⅰ. 현황 및 문제점",
+        "Ⅱ. 자연스러움을 위한 4대 핵심 원칙",
+        "Ⅲ. 심리학 기반 시각 연출 전략",
+        "Ⅳ. 구체적 프롬프트 적용 방안",
+        "Ⅴ. 향후 제작 가이드라인",
     ]:
         assert heading in review_markdown
     assert "심리학 기반 시각 연출 전략" in plain_text
@@ -1704,7 +1704,7 @@ def test_full_report_generates_variable_body_sections_beyond_builtin_skeleton_sl
     plain_text = _extract_hwpx_plain_text(Path(artifact["path"]))
     _assert_hwpx_xml_well_formed(Path(artifact["path"]))
     for index, name in enumerate(section_names, start=1):
-        roman = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"][index - 1]
+        roman = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ"][index - 1]
         assert f"{roman}. {name}" in review_markdown
         assert name in plain_text
         assert f"{name}의 두 번째 실행 기준을 제시함" in plain_text
@@ -1713,6 +1713,129 @@ def test_full_report_generates_variable_body_sections_beyond_builtin_skeleton_sl
     assert "헤드라인M 폰트" not in plain_text
     assert "구분 일정 내용" not in plain_text
     assert "Ⅱ Ⅲ Ⅳ Ⅴ" not in plain_text
+
+
+def test_full_report_preserves_content_base_outline_without_auto_sections(tmp_path: Path) -> None:
+    content_markdown = """# 영상 연출 노하우 분석 보고서
+
+## WorkSessionBrief
+- 영상 이동 축의 심리학을 풀버전 보고서로 정리함.
+
+## DocumentPlan
+- Content Base의 명시 목차와 장 제목을 최종 보고서에 그대로 유지함.
+
+## 목차
+1. 수평 이동의 심리학: 인물 성격 부여
+2. 수직 이동의 심리학: 중력을 활용한 감정 유도
+3. 대각선 및 Z축 활용: 공간적 입체감 연출
+4. 종합 연출 전략 및 적용 방안
+
+## 핵심 내용
+### 수평 이동의 심리학: 인물 성격 부여
+- 왼쪽에서 오른쪽 이동은 편안함과 호감으로 인식됨.
+- 우측에서 좌측 이동은 부정적 인식을 유발함.
+
+### 수직 이동의 심리학: 중력을 활용한 감정 유도
+- 위에서 아래로의 수직 이동은 중력에 의해 편안함과 자연스러움을 전달함.
+- 수직 이동 경로 설계는 시청자의 감정적 흐름을 유도함.
+
+### 대각선 및 Z축 활용: 공간적 입체감 연출
+- 대각선 경로를 활용하여 시각적 긴장감과 입체감을 동시에 확보함.
+- Z축을 이용한 깊이 연출로 3차원적 공간 구성을 극대화함.
+
+### 종합 연출 전략 및 적용 방안
+- 각 이동 축별 심리학적 효과를 명확히 구분하여 적용함.
+- 연출 기법의 체계화로 영상 완성도와 이해도를 향상함.
+
+## 수집 근거
+- 영화 연출의 기본 원리와 이동 축별 심리학 자료를 근거로 정리함.
+"""
+    artifact = write_public_hwpx_document(
+        title="영상 연출 노하우 분석 보고서",
+        purpose="풀버전 보고서 목차 보존 검증",
+        template_key="report",
+        content_markdown=content_markdown,
+        output_path=tmp_path / "outline-preserved-full-report.hwpx",
+        document_format="fullReport",
+    )
+
+    review_markdown = Path(artifact["markdown_path"]).read_text(encoding="utf-8")
+    plain_text = _extract_hwpx_plain_text(Path(artifact["path"]))
+    _assert_hwpx_xml_well_formed(Path(artifact["path"]))
+
+    assert "Ⅰ. 수평 이동의 심리학: 인물 성격 부여" in review_markdown
+    assert "Ⅱ. 수직 이동의 심리학: 중력을 활용한 감정 유도" in review_markdown
+    assert "수평 이동의 심리학: 인물 성격 부여" in plain_text
+    assert "수직 이동의 심리학: 중력을 활용한 감정 유도" in plain_text
+    assert "V. 조치 및 요청사항" not in review_markdown
+    assert "VI. 근거 및 연결자료" not in review_markdown
+    assert "수집된 업무 맥락을 기준으로 정리합니다" not in review_markdown
+
+
+def test_full_report_toc_uses_public_doc_skill_chapter_slots(tmp_path: Path) -> None:
+    content_markdown = """# 원스킬 풀버전 목차 점검
+
+## 목차
+1. 검토 배경
+2. 제도 개요
+3. 세제 변화
+4. 시장 반응 현황
+5. 향후 전망
+6. 시사점 및 향후 과제
+
+## 핵심 내용
+### 검토 배경
+- 검토 배경을 정리함.
+
+### 제도 개요
+#### 제도 도입 연혁
+- 제도 도입 경과를 정리함.
+#### 적용 범위
+- 적용 범위를 구분함.
+
+### 세제 변화
+- 세제 변화 핵심을 정리함.
+
+### 시장 반응 현황
+- 시장 반응을 정리함.
+
+### 향후 전망
+- 향후 전망을 정리함.
+
+### 시사점 및 향후 과제
+- 시사점과 과제를 정리함.
+"""
+    payload = build_public_document_payload(
+        title="원스킬 풀버전 목차 점검",
+        purpose="풀버전 보고서 목차 슬롯 위계 검증",
+        template_key="report",
+        content_markdown=content_markdown,
+        document_format="fullReport",
+    )
+    values = _build_skeleton_values(payload, render_public_document_lines(payload))
+    artifact = write_public_hwpx_document(
+        title="원스킬 풀버전 목차 점검",
+        purpose="풀버전 보고서 목차 슬롯 위계 검증",
+        template_key="report",
+        content_markdown=content_markdown,
+        output_path=tmp_path / "skill-style-full-report.hwpx",
+        document_format="fullReport",
+    )
+
+    assert values["목차_항목_001"].startswith("Ⅰ. 검토 배경")
+    assert values["목차_항목_003"].startswith("Ⅱ. 제도 개요")
+    assert values["목차_항목_013"].startswith("Ⅲ. 세제 변화")
+    assert values["목차_항목_021"].startswith("Ⅳ. 시장 반응 현황")
+    assert values["목차_항목_033"].startswith("Ⅴ. 향후 전망")
+    assert values["목차_항목_043"].startswith("Ⅵ. 시사점 및 향후 과제")
+    assert values["목차_항목_005"].startswith("  1. 제도 도입 연혁")
+    assert values["목차_항목_007"].startswith("  2. 적용 범위")
+    assert not values["목차_항목_005"].startswith("Ⅲ")
+    plain_text = _extract_hwpx_plain_text(Path(artifact["path"]))
+    _assert_hwpx_xml_well_formed(Path(artifact["path"]))
+    assert "Ⅰ. 검토 배경" in plain_text
+    assert "Ⅱ. 제도 개요" in plain_text
+    assert "□ 제도 도입 연혁" in plain_text
 
 
 def test_document_instruction_hints_promote_audience_action_and_deadline(tmp_path: Path) -> None:
