@@ -200,6 +200,63 @@ export type KnowledgeSourceScanResult = {
   scanned_at: string;
 };
 
+export type KnowledgeWorkProfile = {
+  id: string;
+  org_name: string;
+  department_name: string;
+  team_name: string;
+  position: string;
+  duty_keywords: string[];
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type KnowledgeWorkAnalysisClassification = {
+  id: string;
+  run_id: string;
+  source_id: string;
+  source_file_id: string;
+  document_id?: string | null;
+  document_role: string;
+  document_role_label: string;
+  family_key: string;
+  family_relation: string;
+  confidence: number;
+  reasons: string[];
+  ranking_hint: string;
+  needs_review: boolean;
+  confirmed: boolean;
+  metadata?: Record<string, unknown>;
+  relative_path?: string | null;
+  file_path?: string | null;
+  title?: string | null;
+};
+
+export type KnowledgeWorkAnalysis = {
+  run_id?: string | null;
+  source_id: string;
+  status: "not_analyzed" | "completed" | string;
+  confirmed: boolean;
+  summary: {
+    document_count: number;
+    discovered_regulation_count: number;
+    produced_document_count: number;
+    data_source_count: number;
+    collaboration_document_count: number;
+    duplicate_file_count: number;
+    version_family_count: number;
+    needs_review_count: number;
+    role_counts?: Record<string, number>;
+    questions_needed?: string[];
+    profile?: Record<string, unknown>;
+  };
+  questions_needed: string[];
+  classifications: KnowledgeWorkAnalysisClassification[];
+  created_at?: string | null;
+  completed_at?: string | null;
+  confirmed_at?: string | null;
+};
+
 export type KnowledgeIngestionJobItem = {
   id: string;
   source_id: string;
@@ -508,6 +565,10 @@ export type KnowledgeParserStatus = {
 export type KnowledgeAskResult = {
   query: string;
   session_id?: string | null;
+  intent?: {
+    key: string;
+    label: string;
+  };
   answer: string;
   citations: Array<{
     document_id: string;
@@ -525,7 +586,14 @@ export type KnowledgeAskResult = {
       vector_score?: number;
       session_context_boost?: number;
       table_evidence_boost?: number;
+      work_context_boost?: number;
+      policy_boost?: number;
+      work_product_boost?: number;
+      data_boost?: number;
+      department_boost?: number;
+      reference_penalty?: number;
     };
+    ranking_explanation?: string;
     relations: string[];
   }>;
   retrieval_summary?: {
@@ -1586,6 +1654,40 @@ export async function createKnowledgeSource(payload: { label: string; root_path:
 export async function scanKnowledgeSource(sourceId: string) {
   return requestJson<KnowledgeSourceScanResult>(`/api/knowledge/sources/${sourceId}/scan`, {
     method: "POST",
+  });
+}
+
+export async function loadKnowledgeWorkProfile() {
+  return requestJson<KnowledgeWorkProfile>("/api/knowledge/work-profile");
+}
+
+export async function saveKnowledgeWorkProfile(payload: {
+  org_name: string;
+  department_name: string;
+  team_name: string;
+  position: string;
+  duty_keywords: string[];
+}) {
+  return requestJson<KnowledgeWorkProfile>("/api/knowledge/work-profile", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function analyzeKnowledgeSourceWorkContext(sourceId: string) {
+  return requestJson<KnowledgeWorkAnalysis>(`/api/knowledge/sources/${sourceId}/analyze-work-context`, {
+    method: "POST",
+  });
+}
+
+export async function loadKnowledgeSourceWorkAnalysis(sourceId: string) {
+  return requestJson<KnowledgeWorkAnalysis>(`/api/knowledge/sources/${sourceId}/analysis`);
+}
+
+export async function confirmKnowledgeSourceWorkAnalysis(sourceId: string, runId?: string | null) {
+  return requestJson<KnowledgeWorkAnalysis>(`/api/knowledge/sources/${sourceId}/analysis/confirm`, {
+    method: "POST",
+    body: JSON.stringify({ run_id: runId ?? null }),
   });
 }
 

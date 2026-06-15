@@ -47,6 +47,36 @@ describe("knowledge source folders", () => {
     let knowledgeSourceFiles: Array<Record<string, unknown>> = [];
     let knowledgeIngestionJobs: Array<Record<string, unknown>> = [];
     let knowledgeDocuments: Array<Record<string, unknown>> = [];
+    let knowledgeWorkProfile: Record<string, unknown> = {
+      id: "default",
+      org_name: "",
+      department_name: "",
+      team_name: "",
+      position: "",
+      duty_keywords: [],
+      created_at: null,
+      updated_at: null,
+    };
+    let knowledgeAnalysis: Record<string, unknown> = {
+      run_id: null,
+      source_id: "source-1",
+      status: "not_analyzed",
+      confirmed: false,
+      summary: {
+        document_count: 0,
+        discovered_regulation_count: 0,
+        produced_document_count: 0,
+        data_source_count: 0,
+        collaboration_document_count: 0,
+        duplicate_file_count: 0,
+        version_family_count: 0,
+        needs_review_count: 0,
+        role_counts: {},
+        questions_needed: [],
+      },
+      questions_needed: [],
+      classifications: [],
+    };
     lastKnowledgeIngestBody = undefined;
     lastKnowledgeReindexBody = undefined;
     lastCanceledIngestionJobId = undefined;
@@ -94,6 +124,20 @@ describe("knowledge source folders", () => {
 
         if (url.endsWith("/api/knowledge/sources") && method === "GET") {
           return jsonResponse({ items: knowledgeSources });
+        }
+
+        if (url.endsWith("/api/knowledge/work-profile") && method === "GET") {
+          return jsonResponse(knowledgeWorkProfile);
+        }
+
+        if (url.endsWith("/api/knowledge/work-profile") && method === "PUT") {
+          knowledgeWorkProfile = {
+            id: "default",
+            ...body,
+            created_at: "2026-06-15T00:00:00+09:00",
+            updated_at: "2026-06-15T00:01:00+09:00",
+          };
+          return jsonResponse(knowledgeWorkProfile);
         }
 
         if (url.endsWith("/api/knowledge/sources") && method === "POST") {
@@ -144,6 +188,61 @@ describe("knowledge source folders", () => {
             failed_count: 0,
             scanned_at: "2026-04-28T00:10:00+09:00",
           });
+        }
+
+        if (url.endsWith("/api/knowledge/sources/source-1/analyze-work-context") && method === "POST") {
+          knowledgeAnalysis = {
+            run_id: "analysis-1",
+            source_id: "source-1",
+            status: "completed",
+            confirmed: false,
+            summary: {
+              document_count: 4,
+              discovered_regulation_count: 1,
+              produced_document_count: 2,
+              data_source_count: 1,
+              collaboration_document_count: 0,
+              duplicate_file_count: 2,
+              version_family_count: 1,
+              needs_review_count: 1,
+              role_counts: {
+                policy_source: 1,
+                work_product: 2,
+                data_source: 1,
+              },
+              questions_needed: [],
+            },
+            questions_needed: [],
+            classifications: [
+              {
+                id: "class-1",
+                source_file_id: "file-1",
+                document_role: "policy_source",
+                document_role_label: "규정/지침",
+                family_key: "budget",
+                family_relation: "base",
+                confidence: 0.88,
+                reasons: ["역할 단서: 예산, 규정"],
+                ranking_hint: "업무절차 질의에서 규정 근거로 우선 활용",
+                needs_review: false,
+                confirmed: false,
+                relative_path: "budget.md",
+                title: "예산 검토",
+              },
+            ],
+            created_at: "2026-06-15T00:02:00+09:00",
+            completed_at: "2026-06-15T00:02:03+09:00",
+          };
+          return jsonResponse(knowledgeAnalysis);
+        }
+
+        if (url.endsWith("/api/knowledge/sources/source-1/analysis") && method === "GET") {
+          return jsonResponse(knowledgeAnalysis);
+        }
+
+        if (url.endsWith("/api/knowledge/sources/source-1/analysis/confirm") && method === "POST") {
+          knowledgeAnalysis = { ...knowledgeAnalysis, confirmed: true, confirmed_at: "2026-06-15T00:03:00+09:00" };
+          return jsonResponse(knowledgeAnalysis);
         }
 
         if (url.endsWith("/api/knowledge/ingest") && method === "POST") {
@@ -380,6 +479,7 @@ describe("knowledge source folders", () => {
           return jsonResponse({
             query: body.query,
             session_id: body.session_id,
+            intent: { key: "work_procedure", label: "업무절차 질의" },
             answer: "'개인정보보호법'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 공공서비스 개선계획: 개인정보 처리 기준을 점검합니다.",
             citations: [
               {
@@ -397,7 +497,10 @@ describe("knowledge source folders", () => {
                   graph_score: 12,
                   vector_score: 0,
                   session_context_boost: 0,
+                  policy_boost: 80,
+                  work_context_boost: 100,
                 },
+                ranking_explanation: "업무절차 질의라서 규정 문서를 우선 반영했습니다.",
                 relations: ["REFERENCES"],
               },
             ],
@@ -643,6 +746,46 @@ describe("knowledge source folders", () => {
     expect(screen.getByText("예산 편성 회의자료를 정리한다.")).toBeInTheDocument();
     expect(screen.getByText("본문 추출됨")).toBeInTheDocument();
     expect(screen.getByText(/추출물:/)).toBeInTheDocument();
+  });
+
+  it("saves the work profile and shows work-aware source analysis before indexing", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+
+    await user.click(screen.getByText("업무 프로필"));
+    await user.type(screen.getByLabelText("기관명"), "공무원");
+    await user.type(screen.getByLabelText("부서명"), "AI혁신과");
+    await user.type(screen.getByLabelText("팀명"), "업무자동화팀");
+    await user.type(screen.getByLabelText("직위"), "주무관");
+    await user.type(screen.getByLabelText("담당업무 키워드"), "AI, 업무자동화, 보고서");
+    await user.click(screen.getByRole("button", { name: "업무 프로필 저장" }));
+
+    expect(await screen.findByText("AI혁신과 · 업무자동화팀 · 주무관")).toBeInTheDocument();
+
+    await user.click(screen.getByText("지식 소스 등록 설정"));
+    await user.type(screen.getByLabelText("소스 이름"), "기획팀 업무자료");
+    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
+    await user.click(screen.getByRole("button", { name: "지식 소스 등록" }));
+    await screen.findByText("기획팀 업무자료");
+    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
+
+    const sourceCards = await screen.findAllByText("기획팀 업무자료");
+    const sourceCard = sourceCards[sourceCards.length - 1]!;
+    await user.click(within(sourceCard.closest("article") as HTMLElement).getByRole("button", { name: "업무 분석" }));
+
+    expect(await screen.findByText("업무 맥락 분석 결과")).toBeInTheDocument();
+    expect(screen.getByText("규정 1개")).toBeInTheDocument();
+    expect(screen.getByText("생산문서 2개")).toBeInTheDocument();
+    expect(screen.getByText("데이터 1개")).toBeInTheDocument();
+    expect(screen.getByText("문서군 1개")).toBeInTheDocument();
+    expect(screen.getByText("예산 검토")).toBeInTheDocument();
+    expect(screen.getByText("규정/지침")).toBeInTheDocument();
+    expect(screen.getByText("업무절차 질의에서 규정 근거로 우선 활용")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "분석 결과 확인" }));
+    expect(await screen.findByText("사용자 확인 완료")).toBeInTheDocument();
   });
 
   it("starts GraphRAG ingestion from a registered knowledge source", async () => {
@@ -1009,6 +1152,9 @@ describe("knowledge source folders", () => {
     expect(screen.getByText("표 근거")).toBeInTheDocument();
     expect(screen.getByText("경고: 표 구조 없음")).toBeInTheDocument();
     expect(screen.getByText("검색근거 1개 · 표근거 1개 · 관계 1개")).toBeInTheDocument();
+    expect(screen.getByText("업무절차 질의")).toBeInTheDocument();
+    expect(screen.getByText("업무절차 질의라서 규정 문서를 우선 반영했습니다.")).toBeInTheDocument();
+    expect(screen.getByText("업무 boost 100점")).toBeInTheDocument();
     expect(screen.getByText("REFERENCES")).toBeInTheDocument();
   });
 });

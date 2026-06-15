@@ -43,6 +43,7 @@ from .llm import (
 from .personalization import PersonalizationManager
 from .settings import SidecarSettings, WorkspaceSettingsResponse, WorkspaceSettingsUpdate
 from .tools import TOOLS
+from .work_aware_recon import WorkAwareKnowledgeManager
 from .workspace import WorkspacePaths, ensure_workspace
 
 ANYTHING_RELEASES_URL = "https://github.com/chrisryugj/Docufinder/releases"
@@ -161,6 +162,18 @@ class KnowledgeSourceCreate(BaseModel):
     root_path: str
 
 
+class KnowledgeWorkProfileUpdate(BaseModel):
+    org_name: str = ""
+    department_name: str = ""
+    team_name: str = ""
+    position: str = ""
+    duty_keywords: list[str] = Field(default_factory=list)
+
+
+class KnowledgeAnalysisConfirmRequest(BaseModel):
+    run_id: str | None = None
+
+
 class KnowledgeIngestRequest(BaseModel):
     source_id: str
     run_now: bool = True
@@ -239,10 +252,12 @@ class AppServices:
         self.recovered_work_jobs = self.jobs.recover_interrupted_jobs()
         self.job_runner = JobRunner(self.jobs)
         self.knowledge = KnowledgeManager(self.paths, self.db)
+        self.work_aware = WorkAwareKnowledgeManager(self.db)
         self.graphrag = GraphRAGIngestionManager(
             self.db,
             embedding_provider=self._embed_for_graphrag,
             vector_backend=self._create_graphrag_vector_backend(),
+            work_aware=self.work_aware,
         )
         self.recovered_knowledge_jobs = self.graphrag.recover_interrupted_jobs()
         self.personalization = PersonalizationManager(self.db)
@@ -4599,6 +4614,20 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     def list_knowledge_sources() -> dict[str, Any]:
         return {"items": services.knowledge.list_sources()}
 
+    @app.get("/api/knowledge/work-profile")
+    def get_knowledge_work_profile() -> dict[str, Any]:
+        return services.work_aware.get_profile()
+
+    @app.put("/api/knowledge/work-profile")
+    def update_knowledge_work_profile(payload: KnowledgeWorkProfileUpdate) -> dict[str, Any]:
+        return services.work_aware.save_profile(
+            org_name=payload.org_name,
+            department_name=payload.department_name,
+            team_name=payload.team_name,
+            position=payload.position,
+            duty_keywords=payload.duty_keywords,
+        )
+
     @app.post("/api/knowledge/sources", status_code=201)
     def create_knowledge_source(payload: KnowledgeSourceCreate) -> dict[str, Any]:
         ensure_no_active_knowledge_ingestion()
@@ -4619,6 +4648,31 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="knowledge source not found") from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/knowledge/sources/{source_id}/analyze-work-context")
+    def analyze_knowledge_source_work_context(source_id: str) -> dict[str, Any]:
+        ensure_no_active_knowledge_ingestion()
+        try:
+            return services.work_aware.analyze_source(source_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge source not found") from exc
+
+    @app.get("/api/knowledge/sources/{source_id}/analysis")
+    def get_knowledge_source_work_analysis(source_id: str) -> dict[str, Any]:
+        source = services.db.fetch_one("SELECT * FROM knowledge_sources WHERE id = ?", (source_id,))
+        if source is None:
+            raise HTTPException(status_code=404, detail="knowledge source not found")
+        return services.work_aware.get_analysis(source_id)
+
+    @app.post("/api/knowledge/sources/{source_id}/analysis/confirm")
+    def confirm_knowledge_source_work_analysis(
+        source_id: str,
+        payload: KnowledgeAnalysisConfirmRequest,
+    ) -> dict[str, Any]:
+        try:
+            return services.work_aware.confirm_analysis(source_id, run_id=payload.run_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge source analysis not found") from exc
 
     @app.get("/api/knowledge/source-files")
     def list_knowledge_source_files(source_id: str | None = None) -> dict[str, Any]:
