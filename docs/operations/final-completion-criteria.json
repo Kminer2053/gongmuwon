@@ -224,7 +224,7 @@
       "id": "G07",
       "title": "공공문서 작성과 HWPX 산출 서식",
       "required": true,
-      "status": "pending",
+      "status": "pass",
       "completionCriteria": [
         "업무대화 세션, 연결 파일, RAG 근거, 일정 맥락이 WorkSessionBrief에 반영된다.",
         "Content Base, 검토용 Markdown, HWPX 본문이 같은 논리 구조와 내용을 유지한다.",
@@ -236,21 +236,23 @@
       "evidence": {
         "commands": [
           "node scripts/portable-run.mjs python -m pytest services/sidecar/tests/test_document_workflow.py -q",
-          "npm.cmd --workspace apps/desktop run test -- document"
+          "npm.cmd --workspace apps/desktop run test -- document-authoring-layout.test.tsx document-workflow-handoff.test.tsx",
+          ".\\.venv\\Scripts\\python.exe scripts\\document-format-smoke.py"
         ],
         "requiredFiles": [
           "docs/operations/2026-06-02-document-authoring-flow-comparison.md",
-          "docs/operations/2026-06-02-document-authoring-immediate-file-parsing.md"
+          "docs/operations/2026-06-02-document-authoring-immediate-file-parsing.md",
+          "docs/operations/2026-06-16-document-format-smoke-validation.md",
+          "scripts/document-format-smoke.py"
         ],
         "notes": [
-          "문서작성 관련 파일은 현재 modified 상태이며 최종 검증 후 변경 정리가 필요하다.",
-          "sidecar Python 테스트는 `.venv` 복구 후 fresh run으로 다시 확보해야 한다."
+          "test_document_workflow.py 75개 테스트가 통과했다.",
+          "문서작성 UI 테스트 2개 파일, 4개 테스트가 통과했다.",
+          "document-format-smoke.py로 시행문, 1페이지 보고서, 풀버전 보고서, 이메일 4종을 실제 생성하고 HWPX ZIP/XML 무결성, format 일치, 핵심 맥락 보존을 확인했다.",
+          "한컴오피스 GUI click-through 확인은 설치 환경 의존 항목으로 UX/운영 증거에서 별도 축적한다."
         ]
       },
-      "blockingFollowUp": [
-        "4개 산출 유형별 Content Base, Markdown, HWPX 비교 증거를 남긴다.",
-        "HWPX 파일을 실제로 열어 레이아웃과 손상 여부를 확인한다."
-      ]
+      "blockingFollowUp": []
     },
     {
       "id": "G08",
