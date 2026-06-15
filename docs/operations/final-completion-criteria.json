@@ -377,6 +377,7 @@
         "requiredFiles": [
           "docs/operations/2026-04-22-windows-interactive-install-validation.md",
           "docs/operations/2026-05-26-ollama-gemma4-e2b-ai-pack.md",
+          "docs/operations/2026-06-16-offline-package-refresh.md",
           "docs/operations/generated/final-completion-preflight-report.json",
           "docs/operations/generated/sidecar-bundle-freshness-report.json",
           "docs/operations/generated/bundled-sidecar-smoke-2026-06-15.json"
@@ -401,9 +402,9 @@
         "notes": [
           "`desktop:bundle`과 `desktop:bundle:debug`는 이제 `sidecar:bundle:windows -> sync-sidecar-bundle -> sidecar:smoke:bundled -> tauri build` 순서로 동작한다.",
           "`release:offline`은 이제 sidecar bundle freshness가 stale이면 최신 NSIS exe를 복사하지 않고 실패한다.",
-          "최종 HEAD에서 `desktop:bundle`, `desktop:smoke:nsis`, `release:offline`, `release:ai-pack`를 재실행했다.",
+          "2026-06-16 현재 HEAD에서 `desktop:bundle`, `desktop:smoke:nsis`, `release:offline`, `release:ai-pack`를 재실행했다.",
           "NSIS smoke는 설치, bundled 업무엔진 `/health`, uninstall cleanup `remaining_install_files: []`를 통과했다.",
-          "AI pack은 초보자용 설치 스크립트 패키지로 생성됐으나 Gemma 모델 바이너리는 포함하지 않은 상태다.",
+          "AI pack은 초보자용 설치 스크립트 패키지로 생성됐고, 이번 패키지는 Gemma 모델 바이너리를 포함하지 않은 상태다.",
           "최종 릴리스 후보 기준 clean-account/VM GUI click-through 증거는 아직 별도 운영 증거로 남아 있다."
         ]
       },
