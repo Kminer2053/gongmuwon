@@ -53,10 +53,12 @@ class GraphRAGIngestionManager:
         *,
         embedding_provider: Callable[[str], EmbeddingResult] | None = None,
         vector_backend: Any | None = None,
+        work_aware: Any | None = None,
     ) -> None:
         self.db = db
         self.embedding_provider = embedding_provider or (lambda text: embed_text(text))
         self.vector_backend = vector_backend
+        self.work_aware = work_aware
         self._active_running_job_ids: set[str] = set()
         self._pending_vector_records: list[dict[str, Any]] = []
 
@@ -897,6 +899,11 @@ class GraphRAGIngestionManager:
     def retrieve(self, *, query: str, session_id: str | None = None, limit: int = 5) -> dict[str, Any]:
         normalized_query = unicodedata.normalize("NFC", query.strip().lower())
         safe_limit = max(1, min(limit, 20))
+        intent = (
+            self.work_aware.infer_query_intent(query)
+            if self.work_aware is not None
+            else {"key": "research", "label": "리서치 질의"}
+        )
         base_query_tokens = set(tokenize(normalized_query))
         expanded_terms = self._expanded_query_terms(normalized_query, base_query_tokens)
         query_tokens = set(base_query_tokens)
@@ -940,12 +947,22 @@ class GraphRAGIngestionManager:
                 if evidence_type == "table" and text_score > 0
                 else 0
             )
+            document_metadata = self._safe_json_object(chunk.get("document_metadata_json"))
+            work_boost = 0.0
+            work_breakdown: dict[str, float] = {}
+            ranking_explanation = "기본 텍스트/벡터/그래프 점수로 정렬했습니다."
+            if self.work_aware is not None:
+                work_boost, work_breakdown, ranking_explanation = self.work_aware.work_boost_for_document(
+                    document_metadata=document_metadata,
+                    query_intent=intent["key"],
+                )
             if (
                 query_embedding is not None
                 and query_embedding.backend == "deterministic"
                 and text_score < MIN_RETRIEVAL_RAW_SCORE
                 and graph_score == 0
                 and session_context_boost == 0
+                and work_boost <= 0
             ):
                 vector_score = 0.0
                 vector_backend_score = 0.0
@@ -956,6 +973,7 @@ class GraphRAGIngestionManager:
                 + vector_backend_score
                 + session_context_boost
                 + table_evidence_boost
+                + work_boost
             )
             if raw_score < MIN_RETRIEVAL_RAW_SCORE:
                 continue
@@ -985,7 +1003,7 @@ class GraphRAGIngestionManager:
                         "parser_name": chunk["document_parser_name"],
                         "quality_score": chunk["document_quality_score"],
                         "partial": bool(chunk["document_partial"]),
-                        "metadata": self._safe_json_object(chunk.get("document_metadata_json")),
+                        "metadata": document_metadata,
                     },
                     "score": score,
                     "score_breakdown": {
@@ -996,7 +1014,10 @@ class GraphRAGIngestionManager:
                         "session_context_boost": session_context_boost,
                         "table_evidence_boost": table_evidence_boost,
                         "quality_penalty": quality_penalty,
+                        "work_context_boost": work_boost,
+                        **work_breakdown,
                     },
+                    "ranking_explanation": ranking_explanation,
                     "relations": [
                         {
                             "source_label": chunk["document_title"],
@@ -1009,7 +1030,7 @@ class GraphRAGIngestionManager:
             )
 
         hits.sort(key=lambda item: item["score"], reverse=True)
-        return {"query": query, "session_id": session_id, "items": hits[:safe_limit]}
+        return {"query": query, "session_id": session_id, "intent": intent, "items": hits[:safe_limit]}
 
     @staticmethod
     def _retrieval_quality_penalty(*, quality_score: Any, partial: bool) -> float:
@@ -1363,6 +1384,25 @@ class GraphRAGIngestionManager:
         timestamp = now_iso()
         extraction_quality = self._build_extraction_quality_report(document)
         metadata = {**document.metadata, "extraction_quality": extraction_quality}
+        classification = (
+            self.work_aware.classification_for_source_file(source_file["id"])
+            if self.work_aware is not None
+            else None
+        )
+        if classification is not None:
+            metadata["work_context"] = {
+                "document_role": classification["document_role"],
+                "document_role_label": classification["document_role_label"],
+                "family_key": classification["family_key"],
+                "family_relation": classification["family_relation"],
+                "confidence": classification["confidence"],
+                "needs_review": classification["needs_review"],
+                "confirmed": classification["confirmed"],
+                "department": classification.get("metadata", {}).get("department", ""),
+                "team": classification.get("metadata", {}).get("team", ""),
+                "ranking_hint": classification.get("ranking_hint", ""),
+                "reasons": classification.get("reasons", []),
+            }
         metadata_json = json.dumps(metadata, ensure_ascii=False)
         payload = {
             "source_file_id": source_file["id"],
@@ -1396,6 +1436,8 @@ class GraphRAGIngestionManager:
                     "created_at": timestamp,
                 },
             )
+            if self.work_aware is not None:
+                self.work_aware.attach_document_id(source_file["id"], document_id)
             return document_id
 
         document_id = existing["id"]
@@ -1445,6 +1487,8 @@ class GraphRAGIngestionManager:
                 document_id,
             ),
         )
+        if self.work_aware is not None:
+            self.work_aware.attach_document_id(source_file["id"], document_id)
         return document_id
 
     def _build_extraction_quality_report(self, document: StructuredDocument) -> dict[str, Any]:
@@ -1573,6 +1617,7 @@ class GraphRAGIngestionManager:
 
         self._flush_vector_records()
         self._insert_ontology_graph(document_node_id, document_id, document, timestamp)
+        self._insert_work_context_graph(document_node_id, document_id, document_record, timestamp)
 
     def _safe_embed_query(self, query: str) -> EmbeddingResult | None:
         if not query:
@@ -1946,6 +1991,108 @@ class GraphRAGIngestionManager:
                 relation=edge.relation,
                 confidence=edge.confidence,
                 metadata={"source": "ontology"},
+                timestamp=timestamp,
+            )
+
+    def _insert_work_context_graph(
+        self,
+        document_node_id: str,
+        document_id: str,
+        document_record: dict[str, Any],
+        timestamp: str,
+    ) -> None:
+        metadata = self._safe_json_object(document_record.get("metadata_json"))
+        work_context = metadata.get("work_context")
+        if not isinstance(work_context, dict):
+            return
+
+        confidence = float(work_context.get("confidence") or 0.5)
+        role = str(work_context.get("document_role") or "")
+        role_label = str(work_context.get("document_role_label") or role)
+        department = str(work_context.get("department") or "")
+        family_key = str(work_context.get("family_key") or "")
+
+        if department:
+            department_node_id = stable_node_id("Department", department)
+            self._insert_graph_node_once(
+                node_id=department_node_id,
+                node_type="Department",
+                label=department,
+                source_document_id=document_id,
+                confidence=confidence,
+                metadata={"source": "work_aware"},
+                timestamp=timestamp,
+            )
+            self._insert_graph_edge_once(
+                edge_id=stable_edge_id(document_node_id, "DOCUMENT_PRODUCED_BY_DEPARTMENT", department_node_id),
+                source_node_id=document_node_id,
+                target_node_id=department_node_id,
+                relation="DOCUMENT_PRODUCED_BY_DEPARTMENT",
+                confidence=confidence,
+                metadata={"source": "work_aware"},
+                timestamp=timestamp,
+            )
+
+        if role:
+            role_node_id = stable_node_id("DocumentRole", role)
+            self._insert_graph_node_once(
+                node_id=role_node_id,
+                node_type="DocumentRole",
+                label=role_label,
+                source_document_id=document_id,
+                confidence=confidence,
+                metadata={"source": "work_aware", "role": role},
+                timestamp=timestamp,
+            )
+            self._insert_graph_edge_once(
+                edge_id=stable_edge_id(document_node_id, "HAS_DOCUMENT_ROLE", role_node_id),
+                source_node_id=document_node_id,
+                target_node_id=role_node_id,
+                relation="HAS_DOCUMENT_ROLE",
+                confidence=confidence,
+                metadata={"source": "work_aware", "role": role},
+                timestamp=timestamp,
+            )
+
+        if family_key:
+            family_node_id = stable_node_id("DocumentFamily", family_key)
+            self._insert_graph_node_once(
+                node_id=family_node_id,
+                node_type="DocumentFamily",
+                label=family_key,
+                source_document_id=document_id,
+                confidence=confidence,
+                metadata={"source": "work_aware", "family_relation": work_context.get("family_relation")},
+                timestamp=timestamp,
+            )
+            self._insert_graph_edge_once(
+                edge_id=stable_edge_id(document_node_id, "DOCUMENT_IN_FAMILY", family_node_id),
+                source_node_id=document_node_id,
+                target_node_id=family_node_id,
+                relation="DOCUMENT_IN_FAMILY",
+                confidence=confidence,
+                metadata={"source": "work_aware", "family_relation": work_context.get("family_relation")},
+                timestamp=timestamp,
+            )
+
+        if role == "policy_source":
+            policy_node_id = stable_node_id("Regulation", document_record["title"])
+            self._insert_graph_node_once(
+                node_id=policy_node_id,
+                node_type="Regulation",
+                label=document_record["title"],
+                source_document_id=document_id,
+                confidence=confidence,
+                metadata={"source": "work_aware"},
+                timestamp=timestamp,
+            )
+            self._insert_graph_edge_once(
+                edge_id=stable_edge_id(document_node_id, "DOCUMENT_USES_RULE", policy_node_id),
+                source_node_id=document_node_id,
+                target_node_id=policy_node_id,
+                relation="DOCUMENT_USES_RULE",
+                confidence=confidence,
+                metadata={"source": "work_aware"},
                 timestamp=timestamp,
             )
 

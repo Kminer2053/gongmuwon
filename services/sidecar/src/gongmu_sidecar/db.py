@@ -301,6 +301,53 @@ CREATE TABLE IF NOT EXISTS knowledge_graph_edges (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_work_profile (
+    id TEXT PRIMARY KEY,
+    org_name TEXT NOT NULL DEFAULT '',
+    department_name TEXT NOT NULL DEFAULT '',
+    team_name TEXT NOT NULL DEFAULT '',
+    position TEXT NOT NULL DEFAULT '',
+    duty_keywords_json TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_discovery_runs (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    summary_json TEXT NOT NULL DEFAULT '{}',
+    questions_json TEXT NOT NULL DEFAULT '[]',
+    confirmed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    completed_at TEXT,
+    confirmed_at TEXT,
+    FOREIGN KEY(source_id) REFERENCES knowledge_sources(id)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_document_classifications (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    source_file_id TEXT NOT NULL,
+    document_id TEXT,
+    document_role TEXT NOT NULL,
+    family_key TEXT NOT NULL DEFAULT '',
+    family_relation TEXT NOT NULL DEFAULT '',
+    confidence REAL NOT NULL DEFAULT 0.5,
+    reasons_json TEXT NOT NULL DEFAULT '[]',
+    ranking_hint TEXT NOT NULL DEFAULT '',
+    needs_review INTEGER NOT NULL DEFAULT 0,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    confirmed INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(run_id) REFERENCES knowledge_discovery_runs(id),
+    FOREIGN KEY(source_id) REFERENCES knowledge_sources(id),
+    FOREIGN KEY(source_file_id) REFERENCES knowledge_source_files(id),
+    FOREIGN KEY(document_id) REFERENCES knowledge_documents(id)
+);
+
 CREATE TABLE IF NOT EXISTS local_file_index (
     id TEXT PRIMARY KEY,
     file_path TEXT NOT NULL UNIQUE,
@@ -436,6 +483,15 @@ ON knowledge_document_chunks(document_id);
 
 CREATE INDEX IF NOT EXISTS idx_knowledge_table_blocks_document
 ON knowledge_table_blocks(document_id);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_discovery_runs_source
+ON knowledge_discovery_runs(source_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_document_classifications_source_file
+ON knowledge_document_classifications(source_file_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_document_classifications_document
+ON knowledge_document_classifications(document_id);
 """
 
 

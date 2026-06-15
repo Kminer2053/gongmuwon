@@ -35,9 +35,11 @@ import {
 } from "lucide-react";
 import {
   askKnowledge,
+  analyzeKnowledgeSourceWorkContext,
   cancelWorkJob,
   cancelKnowledgeIngestionJob,
   cloneWorkspaceLlmProfiles,
+  confirmKnowledgeSourceWorkAnalysis,
   createDefaultWorkspaceLlmProfiles,
   commitFileProposalApply,
   createContentBase,
@@ -63,7 +65,9 @@ import {
   loadKnowledgeIngestionJobs,
   loadKnowledgeIngestionJobLog,
   loadKnowledgeParserStatus,
+  loadKnowledgeSourceWorkAnalysis,
   loadKnowledgeTables,
+  loadKnowledgeWorkProfile,
   loadWorkJobEvents,
   loadCustomDocumentTemplates,
   loadTools,
@@ -81,6 +85,7 @@ import {
   searchKnowledge,
   searchLocalFiles,
   scanKnowledgeSource,
+  saveKnowledgeWorkProfile,
   runKnowledgeIngestionJob,
   testWorkspaceLlmConnection,
   uploadDocumentAttachments,
@@ -105,6 +110,8 @@ import {
   type KnowledgeSearchResult,
   type KnowledgeSourceItem,
   type KnowledgeTableBlock,
+  type KnowledgeWorkAnalysis,
+  type KnowledgeWorkProfile,
   type LocalFileIndexRebuildResult,
   type LocalFileSearchResult,
   type ScheduleItem,
@@ -1538,6 +1545,16 @@ export function App() {
     label: "",
     root_path: "",
   });
+  const [knowledgeWorkProfile, setKnowledgeWorkProfile] = useState<KnowledgeWorkProfile | null>(null);
+  const [knowledgeWorkProfileForm, setKnowledgeWorkProfileForm] = useState({
+    org_name: "",
+    department_name: "",
+    team_name: "",
+    position: "",
+    duty_keywords: "",
+  });
+  const [knowledgeWorkAnalysis, setKnowledgeWorkAnalysis] = useState<KnowledgeWorkAnalysis | null>(null);
+  const [knowledgeWorkAnalysisSourceId, setKnowledgeWorkAnalysisSourceId] = useState("");
   const [knowledgeQuery, setKnowledgeQuery] = useState("");
   const [knowledgeSearchResult, setKnowledgeSearchResult] = useState<KnowledgeSearchResult | null>(null);
   const [knowledgeGraphQueryResult, setKnowledgeGraphQueryResult] = useState<KnowledgeGraphQueryResult | null>(null);
@@ -2498,8 +2515,13 @@ export function App() {
 
     let alive = true;
     setKnowledgeInspectorLoading(true);
-    void Promise.allSettled([loadKnowledgeGraph(), loadKnowledgeBackendStatus(), loadKnowledgeParserStatus()])
-      .then(([graphResult, backendResult, parserResult]) => {
+    void Promise.allSettled([
+      loadKnowledgeGraph(),
+      loadKnowledgeBackendStatus(),
+      loadKnowledgeParserStatus(),
+      loadKnowledgeWorkProfile(),
+    ])
+      .then(([graphResult, backendResult, parserResult, profileResult]) => {
         if (!alive) {
           return;
         }
@@ -2517,6 +2539,16 @@ export function App() {
         }
         if (parserResult.status === "fulfilled") {
           setKnowledgeParserStatus(parserResult.value);
+        }
+        if (profileResult.status === "fulfilled") {
+          setKnowledgeWorkProfile(profileResult.value);
+          setKnowledgeWorkProfileForm({
+            org_name: profileResult.value.org_name,
+            department_name: profileResult.value.department_name,
+            team_name: profileResult.value.team_name,
+            position: profileResult.value.position,
+            duty_keywords: profileResult.value.duty_keywords.join(", "),
+          });
         }
       })
       .finally(() => {
@@ -3495,6 +3527,78 @@ export function App() {
         }),
       );
       setKnowledgeSourceForm({ label: "", root_path: "" });
+    }
+  }
+
+  async function submitKnowledgeWorkProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const saved = await handleAction(
+      () =>
+        saveKnowledgeWorkProfile({
+          org_name: knowledgeWorkProfileForm.org_name,
+          department_name: knowledgeWorkProfileForm.department_name,
+          team_name: knowledgeWorkProfileForm.team_name,
+          position: knowledgeWorkProfileForm.position,
+          duty_keywords: knowledgeWorkProfileForm.duty_keywords
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+        }),
+      "업무 프로필을 저장했습니다.",
+      { revealSection: "context", refresh: "none" },
+    );
+    if (saved) {
+      setKnowledgeWorkProfile(saved);
+      setKnowledgeWorkProfileForm({
+        org_name: saved.org_name,
+        department_name: saved.department_name,
+        team_name: saved.team_name,
+        position: saved.position,
+        duty_keywords: saved.duty_keywords.join(", "),
+      });
+    }
+  }
+
+  async function runKnowledgeWorkAnalysis(source: KnowledgeSourceItem) {
+    setKnowledgePanel("indexing");
+    if (lockedKnowledgeIngestion) {
+      setNotice(knowledgeIngestionLockMessage);
+      return;
+    }
+    const analysis = await handleAction(
+      () => analyzeKnowledgeSourceWorkContext(source.id),
+      `${source.label} 업무 맥락 분석을 완료했습니다.`,
+      { revealSection: "context", refresh: "none" },
+    );
+    if (analysis) {
+      setKnowledgeWorkAnalysis(analysis);
+      setKnowledgeWorkAnalysisSourceId(source.id);
+    }
+  }
+
+  async function loadKnowledgeWorkAnalysisForSource(source: KnowledgeSourceItem) {
+    const analysis = await handleAction(
+      () => loadKnowledgeSourceWorkAnalysis(source.id),
+      `${source.label} 업무 분석 결과를 불러왔습니다.`,
+      { revealSection: "context", refresh: "none" },
+    );
+    if (analysis) {
+      setKnowledgeWorkAnalysis(analysis);
+      setKnowledgeWorkAnalysisSourceId(source.id);
+    }
+  }
+
+  async function confirmKnowledgeWorkAnalysis() {
+    if (!knowledgeWorkAnalysis || !knowledgeWorkAnalysisSourceId) {
+      return;
+    }
+    const confirmed = await handleAction(
+      () => confirmKnowledgeSourceWorkAnalysis(knowledgeWorkAnalysisSourceId, knowledgeWorkAnalysis.run_id),
+      "업무 분석 결과를 확인했습니다.",
+      { revealSection: "context", refresh: "none" },
+    );
+    if (confirmed) {
+      setKnowledgeWorkAnalysis(confirmed);
     }
   }
 
@@ -6456,6 +6560,84 @@ export function App() {
           <>
         <SectionCard eyebrow="상세 데이터" title="지식베이스 세부 관리">
           <details className="knowledge-detail-section">
+            <summary>업무 프로필</summary>
+            <div className="helper-copy">
+              <p>지식폴더가 문서를 단순 검색하지 않고, 사용자의 기관·부서·담당업무 기준으로 업무 맥락을 이해하도록 돕는 기준값입니다.</p>
+              {knowledgeWorkProfile?.department_name || knowledgeWorkProfile?.team_name || knowledgeWorkProfile?.position ? (
+                <p>
+                  현재 기준:{" "}
+                  <span className="pill">
+                    {[knowledgeWorkProfile.department_name, knowledgeWorkProfile.team_name, knowledgeWorkProfile.position]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </p>
+              ) : (
+                <p>아직 저장된 업무 프로필이 없습니다.</p>
+              )}
+            </div>
+            <form className="stack-form" onSubmit={submitKnowledgeWorkProfile}>
+              <div className="grid-2">
+                <label>
+                  기관명
+                  <input
+                    value={knowledgeWorkProfileForm.org_name}
+                    onChange={(event) =>
+                      setKnowledgeWorkProfileForm((current) => ({ ...current, org_name: event.target.value }))
+                    }
+                    placeholder="예: 공무원"
+                  />
+                </label>
+                <label>
+                  부서명
+                  <input
+                    value={knowledgeWorkProfileForm.department_name}
+                    onChange={(event) =>
+                      setKnowledgeWorkProfileForm((current) => ({ ...current, department_name: event.target.value }))
+                    }
+                    placeholder="예: AI혁신과"
+                  />
+                </label>
+                <label>
+                  팀명
+                  <input
+                    value={knowledgeWorkProfileForm.team_name}
+                    onChange={(event) =>
+                      setKnowledgeWorkProfileForm((current) => ({ ...current, team_name: event.target.value }))
+                    }
+                    placeholder="예: 업무자동화팀"
+                  />
+                </label>
+                <label>
+                  직위
+                  <input
+                    value={knowledgeWorkProfileForm.position}
+                    onChange={(event) =>
+                      setKnowledgeWorkProfileForm((current) => ({ ...current, position: event.target.value }))
+                    }
+                    placeholder="예: 주무관"
+                  />
+                </label>
+              </div>
+              <label>
+                담당업무 키워드
+                <input
+                  value={knowledgeWorkProfileForm.duty_keywords}
+                  onChange={(event) =>
+                    setKnowledgeWorkProfileForm((current) => ({ ...current, duty_keywords: event.target.value }))
+                  }
+                  placeholder="예: AI, 업무자동화, 보고서"
+                />
+              </label>
+              <div className="inline-actions">
+                <button type="submit" disabled={submitting}>
+                  업무 프로필 저장
+                </button>
+              </div>
+            </form>
+          </details>
+
+          <details className="knowledge-detail-section">
             <summary>지식 소스 등록 설정</summary>
             <div className="helper-copy">
               <p>특정 폴더를 지정하면 하위 문서의 본문과 메타데이터를 스캔해 개인 지식베이스 DB로 만듭니다.</p>
@@ -6532,6 +6714,14 @@ export function App() {
                         <span>최근 스캔: {source.last_scanned_at ? formatDateTime(source.last_scanned_at) : "아직 없음"}</span>
                       </div>
                       <div className="inline-actions">
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          onClick={() => void runKnowledgeWorkAnalysis(source)}
+                          disabled={lockedKnowledgeIngestion}
+                        >
+                          업무 분석
+                        </button>
                         <button type="button" className="button-secondary" onClick={() => setKnowledgePanel("indexing")}>
                           색인 처리로 이동
                         </button>
@@ -6625,6 +6815,65 @@ export function App() {
                 <p className="subtle-text">
                   등록 폴더에 파일이 추가, 수정, 삭제되면 다음 스캔에서 변경 파일만 감지하고, GraphRAG 인덱싱이 해당 문서 chunk와 그래프를 갱신합니다.
                 </p>
+                {knowledgeWorkAnalysis ? (
+                  <div className="document-preview" data-testid="knowledge-work-analysis">
+                    <div className="document-preview__meta">
+                      <span className="pill">업무 맥락 분석 결과</span>
+                      <span>{knowledgeWorkAnalysis.status === "completed" ? "분석 완료" : "분석 대기"}</span>
+                      {knowledgeWorkAnalysis.confirmed ? (
+                        <span className="pill">사용자 확인 완료</span>
+                      ) : (
+                        <span className="pill pill--warning">검토 필요</span>
+                      )}
+                    </div>
+                    <div className="document-preview__meta">
+                      <span className="pill pill--soft">규정 {knowledgeWorkAnalysis.summary.discovered_regulation_count}개</span>
+                      <span className="pill pill--soft">생산문서 {knowledgeWorkAnalysis.summary.produced_document_count}개</span>
+                      <span className="pill pill--soft">데이터 {knowledgeWorkAnalysis.summary.data_source_count}개</span>
+                      <span className="pill pill--soft">문서군 {knowledgeWorkAnalysis.summary.version_family_count}개</span>
+                      <span className="pill pill--soft">검토 필요 {knowledgeWorkAnalysis.summary.needs_review_count}개</span>
+                    </div>
+                    {knowledgeWorkAnalysis.questions_needed.length > 0 ? (
+                      <div className="hint-box hint-box--warning">
+                        {knowledgeWorkAnalysis.questions_needed.join(" ")}
+                      </div>
+                    ) : null}
+                    {knowledgeWorkAnalysis.classifications.length > 0 ? (
+                      <div className="item-list">
+                        {knowledgeWorkAnalysis.classifications.slice(0, 5).map((item) => (
+                          <article key={item.id} className="list-card list-card--compact">
+                            <div className="list-card__main list-card__main--static">
+                              <div>
+                                <h3>{item.title || item.relative_path || item.source_file_id}</h3>
+                                <p>{item.relative_path}</p>
+                              </div>
+                              <span className={item.needs_review ? "pill pill--warning" : "pill"}>
+                                {item.document_role_label}
+                              </span>
+                            </div>
+                            <div className="document-preview__meta">
+                              <span>신뢰도 {Math.round(item.confidence * 100)}%</span>
+                              {item.family_key ? <span>문서군 {item.family_key}</span> : null}
+                              {item.family_relation ? <span>관계 {item.family_relation}</span> : null}
+                            </div>
+                            <p className="subtle-text">{item.ranking_hint}</p>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+                    {!knowledgeWorkAnalysis.confirmed && knowledgeWorkAnalysis.run_id ? (
+                      <div className="inline-actions">
+                        <button type="button" onClick={() => void confirmKnowledgeWorkAnalysis()}>
+                          분석 결과 확인
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="hint-box">
+                    GraphRAG 인덱싱 전에 등록 소스에서 업무 분석을 실행하면 규정, 생산문서, 데이터시트, 문서군 후보가 여기에 표시됩니다.
+                  </div>
+                )}
                 <div className="knowledge-index-status-row">
                   <button
                     type="button"
@@ -6670,6 +6919,22 @@ export function App() {
                             <span className="pill">{describeKnowledgeSourceStatus(source.status)}</span>
                           </div>
                           <div className="inline-actions">
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              onClick={() => void runKnowledgeWorkAnalysis(source)}
+                              disabled={submitting || source.status === "missing" || lockedKnowledgeIngestion}
+                            >
+                              업무 분석
+                            </button>
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              onClick={() => void loadKnowledgeWorkAnalysisForSource(source)}
+                              disabled={submitting || source.status === "missing"}
+                            >
+                              분석 보기
+                            </button>
                             <button
                               type="button"
                               onClick={() => void runKnowledgeSourceScan(source)}
@@ -6961,6 +7226,9 @@ export function App() {
                       {knowledgeAskResult.retrieval_summary.relation_count}개
                     </span>
                   ) : null}
+                  {knowledgeAskResult.intent?.label ? (
+                    <span className="pill">{knowledgeAskResult.intent.label}</span>
+                  ) : null}
                 </div>
                 <div className="chat-markdown">
                   {renderMarkdownContent(knowledgeAskResult.answer, (target) => {
@@ -6997,7 +7265,15 @@ export function App() {
                               {citationWarningLabel(citation.quality_warnings)}
                             </span>
                           ) : null}
+                          {typeof citation.score_breakdown?.work_context_boost === "number" ? (
+                            <span className="pill pill--soft">
+                              업무 boost {Math.round(citation.score_breakdown.work_context_boost)}점
+                            </span>
+                          ) : null}
                         </div>
+                        {citation.ranking_explanation ? (
+                          <p className="subtle-text">{citation.ranking_explanation}</p>
+                        ) : null}
                         {citation.relations.length > 0 ? (
                           <div className="document-preview__meta">
                             {citation.relations.map((relation) => (
