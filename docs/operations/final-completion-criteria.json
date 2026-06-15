@@ -104,7 +104,7 @@
       "id": "G03",
       "title": "업무엔진 런타임 자동 시작, 복구, 장기 작업 관리",
       "required": true,
-      "status": "partial",
+      "status": "pass",
       "completionCriteria": [
         "설치 후 별도 실행파일을 찾지 않아도 업무엔진이 자동 시작된다.",
         "업무엔진 강제 종료 후 복구 또는 이해 가능한 재시작 안내가 동작한다.",
@@ -307,16 +307,22 @@
         "requiredFiles": [
           "docs/user-manual/gongmu-user-manual.html",
           "docs/operations/generated/lightweight-model-computer-use-actual-coverage-audit.json",
-          "docs/operations/2026-06-16-user-experience-docs-validation.md"
+          "docs/operations/2026-06-16-user-experience-docs-validation.md",
+          "docs/operations/generated/g09-ui-evidence/01-chat-overview.png",
+          "docs/operations/generated/g09-ui-evidence/02-schedule-calendar.png",
+          "docs/operations/generated/g09-ui-evidence/03-file-search.png",
+          "docs/operations/generated/g09-ui-evidence/04-knowledge-map.png",
+          "docs/operations/generated/g09-ui-evidence/05-document-authoring.png",
+          "docs/operations/generated/g09-ui-evidence/06-execution-log.png",
+          "docs/operations/generated/g09-ui-evidence/07-work-engine-popover.png",
+          "docs/operations/generated/g09-ui-evidence/08-right-panel-collapsed.png"
         ],
         "notes": [
           "README와 사용자 매뉴얼의 정식 명칭 및 최신 UI 설명은 2026-06-16 문서 점검으로 확인했다.",
-          "기존 computer-use evidence는 존재하지만 최종 릴리스 후보 변경 후 핵심 앱 화면 캡처 갱신은 별도 follow-up으로 남아 있다."
+          "최신 앱 기준 핵심 화면 캡처는 docs/operations/generated/g09-ui-evidence 아래 8개 PNG로 갱신했다."
         ]
       },
-      "blockingFollowUp": [
-        "최신 앱 기준 핵심 화면 evidence를 갱신한다."
-      ]
+      "blockingFollowUp": []
     },
     {
       "id": "G10",
