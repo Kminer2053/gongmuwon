@@ -35,7 +35,7 @@ export const LLM_PROVIDER_PRESETS: Record<LlmProviderKey, LlmProviderPreset> = {
     apiKeyPlaceholder: "보통 비워둡니다",
     helperLines: [
       "Ollama 기본 주소는 http://127.0.0.1:11434 입니다.",
-      "공무 앱은 sidecar를 통해 /api/chat을 호출하므로 브라우저 CORS 제약을 직접 받지 않습니다.",
+      "공무 앱은 업무엔진을 통해 /api/chat을 호출하므로 브라우저 CORS 제약을 직접 받지 않습니다.",
     ],
   },
   openai: {

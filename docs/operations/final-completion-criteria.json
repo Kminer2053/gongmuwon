@@ -306,15 +306,16 @@
         ],
         "requiredFiles": [
           "docs/user-manual/gongmu-user-manual.html",
-          "docs/operations/generated/lightweight-model-computer-use-actual-coverage-audit.json"
+          "docs/operations/generated/lightweight-model-computer-use-actual-coverage-audit.json",
+          "docs/operations/2026-06-16-user-experience-docs-validation.md"
         ],
         "notes": [
-          "기존 computer-use evidence는 존재하지만 최종 릴리스 후보 변경 후 갱신 여부를 확인해야 한다."
+          "README와 사용자 매뉴얼의 정식 명칭 및 최신 UI 설명은 2026-06-16 문서 점검으로 확인했다.",
+          "기존 computer-use evidence는 존재하지만 최종 릴리스 후보 변경 후 핵심 앱 화면 캡처 갱신은 별도 follow-up으로 남아 있다."
         ]
       },
       "blockingFollowUp": [
-        "최신 앱 기준 핵심 화면 evidence를 갱신한다.",
-        "README와 사용자 매뉴얼이 정식 명칭과 최신 UI를 반영하는지 확인한다."
+        "최신 앱 기준 핵심 화면 evidence를 갱신한다."
       ]
     },
     {
