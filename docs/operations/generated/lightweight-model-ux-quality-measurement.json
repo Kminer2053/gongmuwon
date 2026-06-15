@@ -1,31 +1,31 @@
 {
-  "runId": "lightweight-ux-quality-1779694297940",
-  "generatedAt": "2026-05-25T07:31:39.450Z",
+  "runId": "lightweight-ux-quality-1781540656078",
+  "generatedAt": "2026-06-15T16:24:19.559Z",
   "model": "gemma4:e2b",
-  "baseUrl": "http://127.0.0.1:8766",
+  "baseUrl": "http://127.0.0.1:8765",
   "maxScore": 1000,
-  "overallScore": 1000,
-  "overallGrade": "release-ready",
+  "overallScore": 929,
+  "overallGrade": "minor-polish",
   "latency": {
     "total": 7,
-    "passed": 7,
-    "failed": 0,
-    "passRate": 1,
-    "score": 1000,
-    "grade": "release-ready",
+    "passed": 6,
+    "failed": 1,
+    "passRate": 0.8571,
+    "score": 857,
+    "grade": "minor-polish",
     "items": [
       {
         "label": "health",
         "thresholdMs": 500,
         "samplesMs": [
-          51,
+          69,
           6,
           4,
           3,
-          3
+          4
         ],
-        "avgMs": 13,
-        "p95Ms": 51,
+        "avgMs": 17,
+        "p95Ms": 69,
         "status": "pass",
         "error": ""
       },
@@ -33,10 +33,25 @@
         "label": "ready",
         "thresholdMs": 800,
         "samplesMs": [
+          15,
+          6,
+          5,
+          8,
+          6
+        ],
+        "avgMs": 8,
+        "p95Ms": 15,
+        "status": "pass",
+        "error": ""
+      },
+      {
+        "label": "runtime-metrics",
+        "thresholdMs": 800,
+        "samplesMs": [
           6,
           5,
           5,
-          5,
+          4,
           5
         ],
         "avgMs": 5,
@@ -45,8 +60,8 @@
         "error": ""
       },
       {
-        "label": "runtime-metrics",
-        "thresholdMs": 800,
+        "label": "settings",
+        "thresholdMs": 1000,
         "samplesMs": [
           5,
           4,
@@ -60,32 +75,17 @@
         "error": ""
       },
       {
-        "label": "settings",
-        "thresholdMs": 1000,
-        "samplesMs": [
-          5,
-          3,
-          3,
-          3,
-          3
-        ],
-        "avgMs": 3,
-        "p95Ms": 5,
-        "status": "pass",
-        "error": ""
-      },
-      {
         "label": "work-sessions",
         "thresholdMs": 1000,
         "samplesMs": [
-          11,
-          11,
-          11,
-          10,
-          13
+          39,
+          20,
+          21,
+          20,
+          33
         ],
-        "avgMs": 11,
-        "p95Ms": 13,
+        "avgMs": 27,
+        "p95Ms": 39,
         "status": "pass",
         "error": ""
       },
@@ -93,14 +93,14 @@
         "label": "schedules",
         "thresholdMs": 1000,
         "samplesMs": [
+          5,
           3,
-          2,
-          2,
           3,
-          2
+          4,
+          3
         ],
-        "avgMs": 2,
-        "p95Ms": 3,
+        "avgMs": 4,
+        "p95Ms": 5,
         "status": "pass",
         "error": ""
       },
@@ -108,13 +108,13 @@
         "label": "file-search-empty",
         "thresholdMs": 1500,
         "samplesMs": [
-          523,
-          352,
-          344
+          1927,
+          617,
+          502
         ],
-        "avgMs": 406,
-        "p95Ms": 523,
-        "status": "pass",
+        "avgMs": 1015,
+        "p95Ms": 1927,
+        "status": "fail",
         "error": ""
       }
     ]
@@ -140,7 +140,7 @@
         "actualActions": [
           "schedule.create"
         ],
-        "latencyMs": 7,
+        "latencyMs": 9,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -260,7 +260,7 @@
         "actualActions": [
           "knowledge.search"
         ],
-        "latencyMs": 3,
+        "latencyMs": 4,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -290,7 +290,7 @@
         "actualActions": [
           "knowledge.search"
         ],
-        "latencyMs": 2,
+        "latencyMs": 3,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -305,7 +305,7 @@
         "actualActions": [
           "documents.generate"
         ],
-        "latencyMs": 2,
+        "latencyMs": 3,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -365,7 +365,7 @@
         "actualActions": [
           "help.guide"
         ],
-        "latencyMs": 2,
+        "latencyMs": 3,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -380,7 +380,7 @@
         "actualActions": [
           "help.guide"
         ],
-        "latencyMs": 2,
+        "latencyMs": 3,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -448,7 +448,7 @@
         "expectedActions": [],
         "actualRoute": "llm.chat",
         "actualActions": [],
-        "latencyMs": 3,
+        "latencyMs": 4,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -459,7 +459,7 @@
         "expectedActions": [],
         "actualRoute": "llm.chat",
         "actualActions": [],
-        "latencyMs": 2,
+        "latencyMs": 3,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -470,7 +470,7 @@
         "expectedActions": [],
         "actualRoute": "llm.chat",
         "actualActions": [],
-        "latencyMs": 3,
+        "latencyMs": 5,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -485,7 +485,7 @@
         "actualActions": [
           "documents.generate"
         ],
-        "latencyMs": 3,
+        "latencyMs": 4,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -500,7 +500,7 @@
         "actualActions": [
           "knowledge.search"
         ],
-        "latencyMs": 2,
+        "latencyMs": 4,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -515,7 +515,7 @@
         "actualActions": [
           "schedule.list"
         ],
-        "latencyMs": 3,
+        "latencyMs": 4,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -530,7 +530,7 @@
         "actualActions": [
           "schedule.delete"
         ],
-        "latencyMs": 3,
+        "latencyMs": 6,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -545,7 +545,7 @@
         "actualActions": [
           "help.guide"
         ],
-        "latencyMs": 2,
+        "latencyMs": 3,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -556,7 +556,7 @@
         "expectedActions": [],
         "actualRoute": "llm.chat",
         "actualActions": [],
-        "latencyMs": 2,
+        "latencyMs": 4,
         "status": "pass",
         "actionHitRate": 1
       },
@@ -575,7 +575,7 @@
           "schedule.list",
           "documents.generate"
         ],
-        "latencyMs": 3,
+        "latencyMs": 4,
         "status": "pass",
         "actionHitRate": 1
       }

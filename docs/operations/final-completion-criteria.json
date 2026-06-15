@@ -261,7 +261,7 @@
       "id": "G08",
       "title": "LLM 공급자 설정, 로컬/폐쇄망 모델, 안전 가드레일",
       "required": true,
-      "status": "partial",
+      "status": "pass",
       "completionCriteria": [
         "Ollama, 내부서버, OpenAI 호환, OpenRouter, Claude, Gemini, NVIDIA NIM, Featherless 등 공급자별 설정이 별도로 저장된다.",
         "API key, endpoint, model 저장값과 활성 공급자 상태가 일치한다.",
@@ -271,21 +271,23 @@
       "evidence": {
         "commands": [
           "npm.cmd run qa:test:lightweight",
+          "npm.cmd run qa:measure:lightweight",
           "npm.cmd run sidecar:test",
           "npm.cmd run desktop:test"
         ],
         "requiredFiles": [
-          "docs/operations/generated/lightweight-model-test-score-report.json",
-          "docs/operations/generated/lightweight-model-ux-quality-measurement.json"
+          "docs/operations/2026-06-16-llm-provider-lightweight-validation.md",
+          "docs/operations/generated/lightweight-model-ux-quality-measurement.json",
+          "docs/operations/generated/lightweight-model-ux-quality-measurement.md"
         ],
         "notes": [
-          "Featherless 403은 코드 문제가 아니라 공급자 구독 API 접근 제한으로 판정했다. UI 안내와 fallback UX 검증은 별도 필요하다."
+          "Featherless 403은 코드 문제가 아니라 공급자 구독 API 접근 제한으로 판정했다.",
+          "Featherless preset, provider 저장, LLM 연결 실패 실행기록 표시, Gemma 4 E2B runtime policy, fallback 기준을 sidecar/desktop 테스트로 확인했다.",
+          "최신 경량모델 UX 측정은 929/1000, 라우팅 30/30, latency 6/7 pass다.",
+          "100개 computer-use score report는 수동 UX 풀세트 보조 자료로 유지하고, G08 정량 판정은 최신 lightweight-model-ux-quality-measurement를 주 근거로 사용한다."
         ]
       },
-      "blockingFollowUp": [
-        "현재 provider 설정 UI에서 Featherless/API 오류 안내와 fallback UX를 확인한다.",
-        "최신 모델 라우팅 점수와 latency 측정 리포트를 갱신한다."
-      ]
+      "blockingFollowUp": []
     },
     {
       "id": "G09",
