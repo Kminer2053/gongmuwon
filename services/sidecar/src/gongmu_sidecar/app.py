@@ -4193,7 +4193,7 @@ class AppServices:
         compact_query = compact_filename_text(normalized_query)
         if not normalized_query:
             return {"items": [], "index_count": 0, "index_total_count": self._local_file_index_total_count()}
-        rows = self.db.fetch_all(
+        rows = self.db.fetch_all_readonly(
             """
             SELECT *
             FROM local_file_index
@@ -4248,8 +4248,19 @@ class AppServices:
         }
 
     def _local_file_index_total_count(self) -> int:
-        row = self.db.fetch_one("SELECT COUNT(*) AS count FROM local_file_index")
+        row = self.db.fetch_one_readonly("SELECT COUNT(*) AS count FROM local_file_index")
         return int(row["count"]) if row else 0
+
+    def _has_running_knowledge_ingestion(self) -> bool:
+        row = self.db.fetch_one_readonly(
+            """
+            SELECT COUNT(*) AS count
+            FROM knowledge_ingestion_jobs
+            WHERE status = ?
+            """,
+            ("running",),
+        )
+        return bool(row and int(row["count"]) > 0)
 
     def search_files(self, query: str, limit: int = 20) -> dict[str, Any]:
         knowledge_results = self.knowledge.search_source_files(query=query, limit=limit)
@@ -4259,6 +4270,7 @@ class AppServices:
         knowledge_paths = {item["file"]["file_path"] for item in knowledge_results["items"]}
         indexed_results = self._search_indexed_files(query=query, limit=limit)
         indexed_paths = {item["file"]["file_path"] for item in indexed_results["items"]}
+        merged_items = [*knowledge_results["items"], *indexed_results["items"]]
         if indexed_results["index_total_count"] > 0:
             local_results = {
                 "query": query,
@@ -4273,9 +4285,21 @@ class AppServices:
                 ),
                 "partial": False,
             }
+        elif merged_items and self._has_running_knowledge_ingestion():
+            local_results = {
+                "query": query,
+                "items": [],
+                "scope": "knowledge_index_during_ingestion",
+                "searched_roots": [],
+                "partial": True,
+                "fallback_skipped": True,
+                "fallback_skip_reason": (
+                    "GraphRAG indexing is running, so the expensive full-drive filename scan "
+                    "was skipped because knowledge results were already available."
+                ),
+            }
         else:
             local_results = search_local_files_by_name(query=query, limit=limit)
-        merged_items = [*knowledge_results["items"], *indexed_results["items"]]
 
         for item in local_results["items"]:
             if item["file"]["file_path"] in knowledge_paths or item["file"]["file_path"] in indexed_paths:

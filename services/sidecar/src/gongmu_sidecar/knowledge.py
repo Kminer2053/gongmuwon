@@ -302,7 +302,7 @@ class KnowledgeManager:
 
         safe_limit = max(1, min(limit, 50))
         query_tokens = set(tokenize(normalized_query))
-        candidates = self.db.fetch_all(
+        candidates = self.db.fetch_all_readonly(
             """
             SELECT *
             FROM knowledge_source_files
