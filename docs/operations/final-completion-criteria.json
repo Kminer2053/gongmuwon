@@ -104,7 +104,7 @@
       "id": "G03",
       "title": "업무엔진 런타임 자동 시작, 복구, 장기 작업 관리",
       "required": true,
-      "status": "pass",
+      "status": "partial",
       "completionCriteria": [
         "설치 후 별도 실행파일을 찾지 않아도 업무엔진이 자동 시작된다.",
         "업무엔진 강제 종료 후 복구 또는 이해 가능한 재시작 안내가 동작한다.",
@@ -293,7 +293,7 @@
       "id": "G09",
       "title": "사용자 경험과 화면 검증",
       "required": true,
-      "status": "partial",
+      "status": "pass",
       "completionCriteria": [
         "좌/중앙/우 패널 레이아웃이 작은 창, 확대/축소, 우측 패널 접기/폭 조절에서 깨지지 않는다.",
         "업무엔진이라는 사용자 표현이 UI 전반에 적용되고 sidecar 같은 기술 용어가 사용자 화면에 노출되지 않는다.",
