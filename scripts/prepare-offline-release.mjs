@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { evaluateSidecarBundleFreshness } from "./check-sidecar-bundle-freshness.mjs";
 
 const repoRoot = process.cwd();
 const desktopPackage = JSON.parse(
@@ -85,6 +86,13 @@ function compressArchive(packageDir, zipPath) {
   });
 }
 
+export function assertSidecarBundleFresh({ freshness = evaluateSidecarBundleFreshness() } = {}) {
+  if (freshness.status !== "fresh") {
+    throw new Error(`Refusing to prepare offline release with stale sidecar bundle: ${freshness.reason}`);
+  }
+  return freshness;
+}
+
 function buildReadme({ createdAt, installerName, installerSizeMb, installerSha, smokeCommand }) {
   return `# Gongmu Windows x64 폐쇄망 설치패키지
 
@@ -128,6 +136,7 @@ ${smokeCommand}
 }
 
 export function prepareOfflineRelease({ now = new Date(), skipZip = false } = {}) {
+  assertSidecarBundleFresh();
   const installer = findLatestNsisInstaller();
   const stamp = process.env.GONGMU_RELEASE_STAMP || buildStamp(now);
   const packageName = `Gongmu_${version}_windows_x64_offline_${stamp}`;

@@ -2014,6 +2014,94 @@ def test_email_user_scenario_preserves_request_deadline_and_evidence_without_int
     assert "카메라 현실성" in review_markdown
 
 
+def test_official_memo_uses_gongmun_body_pattern_without_repeating_context(tmp_path: Path) -> None:
+    artifact = write_public_hwpx_document(
+        title="AI 콘텐츠 제작 기준 적용 협조 요청",
+        purpose="AI 이미지 제작 기준을 관계부서에 안내하고 적용 가능 여부 회신을 요청",
+        template_key="official",
+        content_markdown="""# AI 콘텐츠 제작 기준 적용 협조 요청
+
+## WorkSessionBrief
+- 사용자는 AI 콘텐츠 제작 기준을 관계부서가 실무에 적용할 수 있도록 시행문 형태로 정리하기를 요청함.
+
+## DocumentPlan
+- 원스킬 시행문 구조처럼 관련 근거를 먼저 제시하고, 요청사항은 가./나. 개조식으로 압축함.
+
+## 핵심 내용
+- 조명 우선 원칙은 이미지의 사실감을 결정하는 핵심 기준임.
+- 카메라 현실성은 인물과 공간의 관계를 자연스럽게 보이게 함.
+
+## 조치안
+- 신규 AI 이미지 제작 요청서에 조명, 카메라, 질감 입력란을 포함함.
+- 시범 제작물 3건을 기준으로 적용 여부를 점검함.
+
+## 기대효과 및 요청
+- 2026년 6월 10일까지 부서별 적용 가능 여부를 회신 바람.
+
+## 수집 근거
+- AI 인플루언서 제작 가이드북50
+- 광야와 함께 연출공부 v3.0
+""",
+        output_path=tmp_path / "official-pattern.hwpx",
+        document_format="officialMemo",
+        audience_type="관계부서",
+        requested_action="2026년 6월 10일까지 부서별 적용 가능 여부 회신",
+        deadline="2026-06-10",
+        security_level="내부",
+    )
+
+    plain_text = _extract_hwpx_plain_text(Path(artifact["path"]))
+    assert "1. 관련:" in plain_text
+    assert "2. 위 호와 관련하여" in plain_text
+    assert "관련 사항입니다" not in plain_text
+    assert "주요 내용은 다음과 같습니다" not in plain_text
+    assert "가." in plain_text
+    assert "1) 조명 우선 원칙" not in plain_text
+    assert "붙임" in plain_text
+    assert "끝." in plain_text
+
+
+def test_email_content_uses_mail_body_structure_even_with_hwpx_output(tmp_path: Path) -> None:
+    artifact = write_public_hwpx_document(
+        title="AI 콘텐츠 제작 기준 공유 및 검토 요청",
+        purpose="회의 참석자에게 AI 콘텐츠 제작 기준과 검토 요청사항을 이메일로 공유",
+        template_key="email",
+        content_markdown="""# AI 콘텐츠 제작 기준 공유 및 검토 요청
+
+## WorkSessionBrief
+- 사용자는 AI 콘텐츠 제작 노하우를 회의 참석자에게 공유하고 검토 의견을 요청하고자 함.
+
+## DocumentPlan
+- 메일 첫 문단에 요청사항과 기한을 명확히 제시함.
+- 본문에는 핵심 기준과 근거자료를 짧게 정리함.
+
+## 핵심 내용
+- 조명 우선 원칙은 이미지의 사실감을 결정하는 핵심 기준임.
+- 카메라 현실성은 인물과 공간의 관계를 자연스럽게 보이게 함.
+
+## 요청사항
+- 참석자는 회의 전 기준안을 검토하고 수정 의견을 회신해야 함.
+
+## 수집 근거
+- AI 인플루언서 제작 가이드북50
+""",
+        output_path=tmp_path / "email-pattern.hwpx",
+        document_format="email",
+        audience_type="회의 참석자",
+        requested_action="회의 전 기준안 검토 및 수정 의견 회신",
+        deadline="2026-06-10",
+        security_level="내부",
+    )
+
+    review_markdown = Path(artifact["markdown_path"]).read_text(encoding="utf-8")
+    plain_text = _extract_hwpx_plain_text(Path(artifact["path"]))
+    assert "안녕하세요" in review_markdown
+    assert "회신을 요청드립니다" in review_markdown
+    assert "□ 요청사항" in review_markdown
+    assert "회의 전 기준안 검토 및 수정 의견 회신" in plain_text
+    assert "감사합니다." in plain_text
+
+
 def test_official_memo_mapping_does_not_reinsert_redundant_effect_labels() -> None:
     payload = build_public_document_payload(
         title="AI 콘텐츠 제작 기준 시행",

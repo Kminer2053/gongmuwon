@@ -177,10 +177,10 @@ GONGMUN_EXPANSION_RULES = [
     },
     {
         "key": "본문_가나",
-        "slots": ["목차_항목_001", "목차_항목_002"],
+        "slots": [],
         "para_pr": "26",
         "char_pr": "22",
-        "anchor": "목차_항목_002",
+        "anchor": "text_009",
         "slot_indent": "",
         "dynamic_indent": "",
         "dynamic_indent_xml": "  <hp:fwSpace/>",
@@ -1493,6 +1493,11 @@ def _numbered_items(items: list[str], *, suffix: str = ")") -> list[str]:
 
 def _lettered_items(items: list[str]) -> list[str]:
     letters = ["가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하"]
+    return [f"{letters[index] if index < len(letters) else index + 1}. {item}" for index, item in enumerate(items) if item]
+
+
+def _lettered_parenthesized_items(items: list[str]) -> list[str]:
+    letters = ["가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하"]
     return [f"{letters[index] if index < len(letters) else index + 1}) {item}" for index, item in enumerate(items) if item]
 
 
@@ -1717,24 +1722,75 @@ def _looks_like_generic_onepage_follow_up(value: str) -> bool:
     return any(_normalize_compare_text(phrase) in normalized for phrase in generic_phrases)
 
 
+def _official_related_clause(payload: PublicDocumentPayload, evidence: list[str]) -> str:
+    related = _dedupe_non_empty(evidence[:3] + ([payload.related] if payload.related else []))
+    if not related:
+        return "관련 업무 추진계획"
+    return "; ".join(_compact_public_sentence(item) for item in related if _compact_public_sentence(item))
+
+
+def _official_request_sentence(payload: PublicDocumentPayload) -> str:
+    request = _line_or(payload.requested_action, 0, "")
+    if not request:
+        request = _line_or(payload.actions, 0, "")
+    if not request:
+        request = "관련 사항"
+    request = _compact_public_sentence(request)
+    return f"위 호와 관련하여 {request}을 다음과 같이 알려드리니 기한 내 검토하여 주시기 바랍니다."
+
+
+def _official_detail_items(payload: PublicDocumentPayload) -> list[str]:
+    items = _dedupe_non_empty(
+        payload.summary
+        + payload.requested_action
+        + payload.expected_effects
+    )
+    return [_compact_public_sentence(item) for item in items if _compact_public_sentence(item)][:14]
+
+
+def _official_distinct_nested_items(items: list[str], parent_items: list[str], *, limit: int = 3) -> list[str]:
+    parent_keys = {_normalize_compare_text(item) for item in parent_items if item}
+    nested: list[str] = []
+    for item in items:
+        cleaned = _compact_public_sentence(item)
+        if not cleaned:
+            continue
+        key = _normalize_compare_text(cleaned)
+        if key in parent_keys:
+            continue
+        nested.append(cleaned)
+        if len(nested) >= limit:
+            break
+    return nested
+
+
+def _official_attachment_items(evidence: list[str]) -> list[str]:
+    if not evidence:
+        return ["붙임  관련자료 1부.  끝."]
+    items: list[str] = []
+    for index, item in enumerate(evidence[:6], start=1):
+        prefix = "붙임  " if index == 1 else "      "
+        suffix = "   끝." if index == min(len(evidence), 6) else ""
+        items.append(f"{prefix}{index}. {_compact_public_sentence(item)} 1부.{suffix}")
+    return items
+
+
 def _build_gongmun_values(payload: PublicDocumentPayload) -> dict[str, object]:
     evidence = _evidence_items(payload)
     dynamic_context = _flatten_report_core_sections(payload.report_core_sections)
     summary_source = _dedupe_non_empty(dynamic_context or payload.summary)
-    summary_items = _lettered_items(_dedupe_non_empty(summary_source + payload.solutions)[:7])
-    issue_items = _numbered_items(payload.issues or ["현황 정리"])
-    action_items = _lettered_items(payload.actions or payload.requested_action or ["후속 조치"])
-    evidence_parent_items = [f"(1) {_line_or(evidence, 0, '근거자료 확인')}"]
-    evidence_child_items = _circled_items(evidence[1:] or ["연결 파일 참고"])
-    attachment_items = [f"붙임: {item} 1부" for item in evidence[:6]] or ["붙임: 관련자료 1부"]
-    main_body_items = _dedupe_non_empty(
-        [
-            f"1. {payload.document_purpose or '관련 사항입니다.'}",
-            "2. 주요 내용은 다음과 같습니다.",
-            f"3. {_line_or(payload.requested_action, 0, '아래와 같이 검토 또는 조치를 요청합니다.')}",
-            f"4. {_line_or(payload.expected_effects, 0, '후속 절차를 명확히 합니다.')}",
-        ]
+    related_clause = _official_related_clause(payload, evidence)
+    request_sentence = _official_request_sentence(payload)
+    detail_items = _official_detail_items(payload)
+    summary_items = _lettered_items(detail_items)
+    issue_items = _numbered_items(_official_distinct_nested_items(payload.issues, detail_items))
+    action_items = _lettered_parenthesized_items(_official_distinct_nested_items(payload.actions, detail_items))
+    evidence_parent_items = [f"(1) {_compact_public_sentence(_line_or(evidence, 0, '근거자료 확인'))}"]
+    evidence_child_items = _circled_items(
+        [_compact_public_sentence(item) for item in evidence[1:4] if _compact_public_sentence(item)]
     )
+    attachment_items = _official_attachment_items(evidence)
+    main_body_items = [f"1. 관련: {related_clause}", f"2. {request_sentence}"]
     return {
         "표지_제목": payload.title,
         "text_001": "로컬 AI 업무 에이전트",
@@ -1744,16 +1800,16 @@ def _build_gongmun_values(payload: PublicDocumentPayload) -> dict[str, object]:
         "수신자": payload.recipient,
         "text_005": "",
         "text_006": payload.title,
-        "text_007": f"1. {payload.document_purpose or '관련 사항입니다.'}",
-        "text_008": "2. 아래와 같이 검토 또는 조치를 요청합니다.",
-        "text_009": _line_or(payload.requested_action, 0, "검토 요청"),
-        "목차_항목_001": f"가. {_line_or(payload.summary, 0, '주요 내용')}",
-        "목차_항목_002": f"나. {_line_or(payload.solutions, 0, '조치 계획')}",
-        "text_010": f"1) {_line_or(payload.issues, 0, '현황 정리')}",
-        "text_011": f"가) {_line_or(payload.actions, 0, '후속 조치')}",
-        "text_012": f"(1) {_line_or(evidence, 0, '근거자료 확인')}",
-        "text_013": f"① {_line_or(evidence, 1, '연결 파일 참고')}",
-        "목차_항목_003": f"붙임: {_line_or(evidence, 0, '관련자료')} 1부",
+        "text_007": main_body_items[0],
+        "text_008": "2. ",
+        "text_009": request_sentence,
+        "목차_항목_001": _line_or(summary_items, 0, ""),
+        "목차_항목_002": _line_or(summary_items, 1, ""),
+        "text_010": _line_or(issue_items, 0, ""),
+        "text_011": _line_or(action_items, 0, ""),
+        "text_012": _line_or(evidence_parent_items, 0, ""),
+        "text_013": _line_or(evidence_child_items, 0, ""),
+        "목차_항목_003": _line_or(attachment_items, 0, ""),
         "목차_항목_004": "끝.",
         "text_014": "공무원",
         "text_015": payload.recipient,
@@ -1895,16 +1951,38 @@ def _full_report_has_action_section(sections: list[OnePageCoreSection]) -> bool:
     return False
 
 
+def _email_summary_items(payload: PublicDocumentPayload) -> list[str]:
+    dynamic_context = _flatten_report_core_sections(payload.report_core_sections)
+    source = dynamic_context or ([payload.document_purpose, *payload.summary] if payload.document_purpose else payload.summary)
+    return _dedupe_non_empty([_compact_public_sentence(item) for item in source if _compact_public_sentence(item)])
+
+
+def _email_request_items(payload: PublicDocumentPayload) -> list[str]:
+    items = payload.requested_action or payload.actions or ["검토 의견 회신"]
+    return _dedupe_non_empty([_compact_public_sentence(item) for item in items if _compact_public_sentence(item)])
+
+
+def _email_request_sentence(payload: PublicDocumentPayload) -> str:
+    request = _line_or(_email_request_items(payload), 0, "검토 의견 회신")
+    if request.endswith(("요청드립니다.", "부탁드립니다.", "바랍니다.")):
+        return request
+    return f"{request}을 요청드립니다."
+
+
+def _email_greeting(payload: PublicDocumentPayload) -> str:
+    recipient = payload.recipient or "담당자"
+    sender = payload.sender or "공무 워크스페이스"
+    return f"{recipient}님 안녕하세요. {sender}입니다."
+
+
 def _build_email_values(payload: PublicDocumentPayload, lines: list[str]) -> dict[str, str]:
     evidence = _evidence_items(payload)
-    dynamic_context = _flatten_report_core_sections(payload.report_core_sections)
-    summary_items = dynamic_context or ([payload.document_purpose, *payload.summary] if payload.document_purpose else payload.summary)
-    follow_up_items = _dedupe_non_empty(payload.actions[:1] + payload.expected_effects + payload.actions[1:])
-    prioritized_summary = _prioritize_email_context(
-        summary_items + payload.background + payload.current_status + payload.issues,
+    email_summary_items = _prioritize_email_context(
+        _email_summary_items(payload) + payload.background + payload.current_status + payload.issues,
         preferred_tokens=["GraphRAG", "지식폴더"],
     )
-    email_summary_items = prioritized_summary if dynamic_context else _email_context_slots(prioritized_summary)
+    request_items = _email_request_items(payload)
+    follow_up_items = _dedupe_non_empty(payload.expected_effects + payload.actions)
     email_evidence_items = _email_context_slots(
         _prioritize_email_context(
             evidence + payload.background + payload.current_status + payload.issues,
@@ -1918,26 +1996,35 @@ def _build_email_values(payload: PublicDocumentPayload, lines: list[str]) -> dic
         "text_002": f"수신: {payload.recipient}",
         "text_003": f"발신: {payload.sender}",
         "text_004": f"작성일: {_safe_date_label()}",
-        "text_005": "1. 핵심 요약",
-        "text_006": _bullet_value(email_summary_items, 0, payload.document_purpose),
-        "text_007": _bullet_value(email_summary_items, 1),
-        "text_008": "2. 요청사항",
-        "text_009": _bullet_value(payload.requested_action, 0, "검토 요청"),
-        "text_010": _bullet_value(payload.requested_action, 1),
+        "text_005": "인사 및 요청",
+        "text_006": f"- {_email_greeting(payload)}",
+        "text_007": f"- {_email_request_sentence(payload)}",
+        "text_008": "□ 요청사항",
+        "text_009": _bullet_value(request_items, 0, "검토 의견 회신"),
+        "text_010": _bullet_value(request_items, 1),
         "text_011": f"- 요청 기한: {payload.deadline}",
-        "text_012": "3. 근거 및 연결 파일",
+        "text_012": "□ 주요 내용 및 근거",
         "text_013": _bullet_value(email_evidence_items, 0, payload.related),
         "text_014": _bullet_value(email_evidence_items, 1),
-        "text_015": "4. 후속 안내",
-        "text_016": _bullet_value(follow_up_items, 0),
-        "text_017": _bullet_value(follow_up_items, 1),
+        "text_015": "마무리",
+        "text_016": "- 빠른 확인 부탁드립니다. 감사합니다.",
+        "text_017": f"- {payload.sender}",
     }
     _append_clone_paragraphs(
         values,
         "text_007",
-        [_bullet_value(email_summary_items, index) for index in range(2, len(email_summary_items))],
+        [_bullet_value(email_summary_items, index) for index in range(0, len(email_summary_items))],
     )
-    _fill_numbered_text_tokens(values, lines, start=18, end=24)
+    _append_clone_paragraphs(
+        values,
+        "text_010",
+        [_bullet_value(request_items, index) for index in range(2, len(request_items))],
+    )
+    _append_clone_paragraphs(
+        values,
+        "text_014",
+        [_bullet_value(follow_up_items, index) for index in range(0, min(len(follow_up_items), 4))],
+    )
     return values
 
 
@@ -2526,20 +2613,15 @@ def _onepage_review_line(values: dict[str, object], token: str) -> str:
 def _render_official_memo(payload: PublicDocumentPayload) -> list[str]:
     lines = [payload.title, "", f"수신: {payload.recipient}", f"발신: {payload.sender}", ""]
     lines += _metadata_lines(payload)
-    lines.append(f"1. 관련: {payload.related}")
-    lines.append("2. 아래와 같이 협조 또는 조치를 요청하오니 기한 내 검토하여 주시기 바랍니다.")
+    evidence = _evidence_items(payload)
+    lines.append(f"1. 관련: {_official_related_clause(payload, evidence)}")
+    lines.append(f"2. {_official_request_sentence(payload)}")
     lines.append("")
-    lines.append("- 요청 내용 -")
+    for item in _lettered_items(_official_detail_items(payload)):
+        lines.append(item)
     lines.append("")
-    for item in payload.requested_action:
-        lines.append(f"- {item}")
-    lines.append(f"- 제출 기한: {payload.deadline}")
-    lines.append("")
-    lines.append("3. 근거 및 연결자료")
-    for item in _evidence_items(payload):
-        lines.append(f"- {item}")
-    lines.append("")
-    lines.append("4. 문의: 담당 부서")
+    for item in _official_attachment_items(evidence):
+        lines.append(item)
     lines.append("")
     return lines
 
@@ -2597,22 +2679,31 @@ def _full_report_section_lines(title: str, items: list[str]) -> list[str]:
 
 def _render_email(payload: PublicDocumentPayload) -> list[str]:
     lines = [f"제목: {payload.title}", "", f"수신: {payload.recipient}", f"발신: {payload.sender}", ""]
-    lines += _metadata_lines(payload)
-    if payload.report_core_sections:
-        lines += _section("요지", _flatten_report_core_sections(payload.report_core_sections)[:4])
-        lines += _section("요청사항", payload.requested_action)
-        lines += _section("근거 및 연결자료", _evidence_items(payload))
-        lines.append(f"- 요청 기한: {payload.deadline}")
-        lines.append("")
-        lines.append("감사합니다.")
-        lines.append("")
-        return lines
+    lines.append(_email_greeting(payload))
+    lines.append("")
+    lines.append(_email_request_sentence(payload))
+    lines.append("")
 
-    lines += _section("요지", payload.summary)
-    lines += _section("요청사항", payload.requested_action)
-    lines += _section("근거 및 연결자료", _evidence_items(payload))
+    summary_items = _email_summary_items(payload)
+    if summary_items:
+        lines.append("□ 주요 내용")
+        for item in summary_items[:8]:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    lines.append("□ 요청사항")
+    for item in _email_request_items(payload):
+        lines.append(f"- {item}")
     lines.append(f"- 요청 기한: {payload.deadline}")
     lines.append("")
-    lines.append("감사합니다.")
+
+    lines.append("□ 근거 및 연결자료")
+    for item in _evidence_items(payload):
+        lines.append(f"- {item}")
+    lines.append("")
+
+    lines.append("빠른 확인 부탁드립니다. 감사합니다.")
+    lines.append("")
+    lines.append(payload.sender)
     lines.append("")
     return lines

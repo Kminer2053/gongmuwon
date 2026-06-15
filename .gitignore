@@ -16,3 +16,9 @@ release/offline/
 release/ai-pack/
 release/alpha/20*-windows-*.md
 output/
+docs/operations/generated/bundled-sidecar-smoke-*.json
+docs/operations/generated/final-completion-*.json
+docs/operations/generated/final-completion-*.md
+docs/operations/generated/python-venv-report.*
+docs/operations/generated/release-hygiene-report.*
+docs/operations/generated/sidecar-bundle-freshness-report.json

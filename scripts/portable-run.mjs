@@ -8,9 +8,10 @@ const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(scriptPath), "..");
 
 function defaultProbeCommand(command, args = ["--version"]) {
-  const probe = spawnSync(command, args, { stdio: "ignore" });
+  const probe = spawnSync(command, args, { encoding: "utf8" });
   return {
     ok: !probe.error && probe.status === 0,
+    output: `${probe.stdout ?? ""} ${probe.stderr ?? ""}`.trim(),
   };
 }
 
@@ -45,16 +46,18 @@ function getVenvPythonCandidates(root, platform) {
   return [path.join(root, ".venv", "bin", "python")];
 }
 
-function getWindowsInstalledPythonCandidates(localAppData) {
-  if (!localAppData) {
-    return [];
-  }
-
+function getWindowsInstalledPythonCandidates(localAppData, programFiles, programFilesX86) {
   return [
-    path.win32.join(localAppData, "Programs", "Python", "Python311", "python.exe"),
-    path.win32.join(localAppData, "Programs", "Python", "Python310", "python.exe"),
-    path.win32.join(localAppData, "Programs", "Python", "Python313", "python.exe"),
+    ...(localAppData
+      ? [path.win32.join(localAppData, "Programs", "Python", "Python311", "python.exe")]
+      : []),
+    ...(programFiles ? [path.win32.join(programFiles, "Python311", "python.exe")] : []),
+    ...(programFilesX86 ? [path.win32.join(programFilesX86, "Python311", "python.exe")] : []),
   ];
+}
+
+function isPython311Probe(probe) {
+  return Boolean(probe?.ok && /Python 3\.11\./.test(probe.output ?? ""));
 }
 
 export function resolvePython({
@@ -63,27 +66,29 @@ export function resolvePython({
   isExecutable: executableCheck = isExecutable,
   probeCommand = defaultProbeCommand,
   localAppData = process.env.LOCALAPPDATA ?? "",
+  programFiles = process.env.ProgramFiles ?? "",
+  programFilesX86 = process.env["ProgramFiles(x86)"] ?? "",
 } = {}) {
   for (const candidate of getVenvPythonCandidates(root, platform)) {
-    if (executableCheck(candidate) && probeCommand(candidate).ok) {
+    if (executableCheck(candidate) && isPython311Probe(probeCommand(candidate))) {
       return candidate;
     }
   }
 
   if (platform === "win32") {
-    for (const candidate of getWindowsInstalledPythonCandidates(localAppData)) {
-      if (executableCheck(candidate)) {
+    for (const candidate of getWindowsInstalledPythonCandidates(localAppData, programFiles, programFilesX86)) {
+      if (executableCheck(candidate) && isPython311Probe(probeCommand(candidate))) {
         return candidate;
       }
     }
   }
 
   const pythonCandidates =
-    platform === "win32" ? ["python.exe", "python", "py.exe", "py"] : ["python3", "python"];
+    platform === "win32" ? ["python.exe", "python"] : ["python3", "python"];
 
   for (const candidate of pythonCandidates) {
     const probe = probeCommand(candidate);
-    if (probe.ok) {
+    if (isPython311Probe(probe)) {
       return candidate;
     }
   }
@@ -127,6 +132,8 @@ export function resolveCommand(
     localAppData = process.env.LOCALAPPDATA ?? "",
     isExecutable: executableCheck = isExecutable,
     probeCommand = defaultProbeCommand,
+    programFiles = process.env.ProgramFiles ?? "",
+    programFilesX86 = process.env["ProgramFiles(x86)"] ?? "",
   } = {},
 ) {
   if (kind === "python") {
@@ -136,6 +143,8 @@ export function resolveCommand(
       isExecutable: executableCheck,
       probeCommand,
       localAppData,
+      programFiles,
+      programFilesX86,
     });
   }
 

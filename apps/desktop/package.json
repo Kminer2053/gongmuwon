@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "tauri:dev": "tauri dev",
-    "build": "tsc -b && vite build",
-    "test": "vitest run"
+    "build": "tsc -b && vite build --configLoader runner",
+    "test": "vitest run --configLoader runner"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.76.1",

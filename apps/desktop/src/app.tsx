@@ -198,6 +198,11 @@ type ToastItem = {
   message: string;
 };
 
+type ScheduleReminderAlert = {
+  schedule: ScheduleItem;
+  shownAt: number;
+};
+
 const MENU_ITEMS: MenuItem[] = [
   { key: "chat", label: "업무대화", description: "업무 요청 라우터", icon: BotMessageSquare, iconSrc: "/icons/menu-chat.png" },
   { key: "schedule", label: "일정", description: "업무 연결 캘린더", icon: CalendarDays, iconSrc: "/icons/menu-schedule.png" },
@@ -211,6 +216,8 @@ const MENU_ITEMS: MenuItem[] = [
 ];
 const SELECTED_SESSION_STORAGE_KEY = "gongmu:selected-session-id";
 const SCHEDULE_COLOR_STORAGE_KEY = "gongmu:schedule-color-map:v1";
+const SCHEDULE_REMINDER_POLL_MS = 30_000;
+const SCHEDULE_REMINDER_LOOKBACK_MS = 5 * 60_000;
 const PROVIDER_OPTION_ORDER: LlmProviderKey[] = [
   "openai",
   "openrouter",
@@ -343,6 +350,27 @@ function formatDateTime(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+export function findDueScheduleReminder(
+  schedules: ScheduleItem[],
+  nowMs: number,
+  alreadyShown: Set<string>,
+) {
+  return (
+    [...schedules]
+      .sort((left, right) => new Date(left.starts_at).getTime() - new Date(right.starts_at).getTime())
+      .find((schedule) => {
+        if (alreadyShown.has(schedule.id)) {
+          return false;
+        }
+        const startMs = new Date(schedule.starts_at).getTime();
+        if (Number.isNaN(startMs)) {
+          return false;
+        }
+        return startMs <= nowMs && startMs >= nowMs - SCHEDULE_REMINDER_LOOKBACK_MS;
+      }) ?? null
+  );
 }
 
 function toIso(value: string) {
@@ -1508,6 +1536,7 @@ export function App() {
   const [chatModelOverride, setChatModelOverride] = useState("");
   const [chatImagePreviewOpen, setChatImagePreviewOpen] = useState<ChatAttachmentPreview | null>(null);
   const [toastItems, setToastItems] = useState<ToastItem[]>([]);
+  const [scheduleReminderAlert, setScheduleReminderAlert] = useState<ScheduleReminderAlert | null>(null);
   const [uiFontScale, setUiFontScale] = useState(1);
   const [sessionMessages, setSessionMessages] = useState<Record<string, WorkSessionMessageItem[]>>({});
   const [sessionContextSummaries, setSessionContextSummaries] = useState<Record<string, WorkSessionTurnContextSummary>>(
@@ -1608,6 +1637,7 @@ export function App() {
   });
   const toastIdRef = useRef(0);
   const toastTimeoutsRef = useRef<number[]>([]);
+  const scheduleReminderShownIdsRef = useRef<Set<string>>(new Set());
   const [detailCard, setDetailCard] = useState<DetailCardState>(null);
   const [selectedResponseContext, setSelectedResponseContext] = useState<string | null>(null);
   const [documentForm, setDocumentForm] = useState({
@@ -1800,6 +1830,26 @@ export function App() {
     setToastItems((current) => current.filter((toast) => toast.id !== id));
   }
 
+  function dismissScheduleReminder() {
+    setScheduleReminderAlert(null);
+  }
+
+  function openReminderSchedule(schedule: ScheduleItem) {
+    setSelectedScheduleId(schedule.id);
+    setSelectedPlannerSlotId(`existing-${schedule.id}`);
+    setPlannerAnchorAt(schedule.starts_at);
+    setScheduleForm({
+      title: schedule.title,
+      starts_at: schedule.starts_at.slice(0, 16),
+      ends_at: schedule.ends_at.slice(0, 16),
+      view: schedule.view,
+      color: scheduleColorById[schedule.id] ?? "auto",
+    });
+    setActiveMenu("schedule");
+    revealContextSection("upcoming");
+    setScheduleReminderAlert(null);
+  }
+
   useEffect(() => {
     return () => {
       for (const timeoutId of toastTimeoutsRef.current) {
@@ -1808,6 +1858,34 @@ export function App() {
       toastTimeoutsRef.current = [];
     };
   }, []);
+
+  useEffect(() => {
+    if (snapshot.schedules.length === 0) {
+      return;
+    }
+
+    const checkDueSchedules = () => {
+      const dueSchedule = findDueScheduleReminder(
+        snapshot.schedules,
+        Date.now(),
+        scheduleReminderShownIdsRef.current,
+      );
+      if (!dueSchedule) {
+        return;
+      }
+
+      scheduleReminderShownIdsRef.current.add(dueSchedule.id);
+      setScheduleReminderAlert({
+        schedule: dueSchedule,
+        shownAt: Date.now(),
+      });
+      pushToast("info", `일정 알림: ${dueSchedule.title}`);
+    };
+
+    checkDueSchedules();
+    const intervalId = window.setInterval(checkDueSchedules, SCHEDULE_REMINDER_POLL_MS);
+    return () => window.clearInterval(intervalId);
+  }, [snapshot.schedules]);
 
   useEffect(() => {
     if (!documentGenerateProgress) {
@@ -8806,6 +8884,40 @@ export function App() {
         ) : null}
         </div>
         </aside>
+      ) : null}
+      {scheduleReminderAlert ? (
+        <div className="schedule-reminder-backdrop">
+          <section
+            className="schedule-reminder-dialog"
+            role="dialog"
+            aria-label="일정 알림"
+            data-testid="schedule-reminder-dialog"
+          >
+            <div className="schedule-reminder-dialog__header">
+              <span className="schedule-reminder-dialog__icon">
+                <CalendarDays size={18} aria-hidden="true" />
+              </span>
+              <div>
+                <p className="schedule-reminder-dialog__eyebrow">일정 알림</p>
+                <h2>{scheduleReminderAlert.schedule.title}</h2>
+              </div>
+            </div>
+            <p className="schedule-reminder-dialog__body">등록한 일정 시간이 도래했습니다.</p>
+            <p className="schedule-reminder-dialog__time">
+              {formatDateTime(scheduleReminderAlert.schedule.starts_at)}
+              {" - "}
+              {formatDateTime(scheduleReminderAlert.schedule.ends_at)}
+            </p>
+            <div className="schedule-reminder-dialog__actions">
+              <button type="button" onClick={() => openReminderSchedule(scheduleReminderAlert.schedule)}>
+                일정 보기
+              </button>
+              <button type="button" className="button-secondary" onClick={dismissScheduleReminder}>
+                닫기
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
       {toastItems.length ? (
         <div className="toast-stack" data-testid="toast-stack" aria-live="polite">
