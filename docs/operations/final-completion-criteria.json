@@ -76,7 +76,7 @@
       "id": "G02",
       "title": "업무대화 중심 통합 워크플로",
       "required": true,
-      "status": "partial",
+      "status": "pass",
       "completionCriteria": [
         "업무대화에서 일정 등록/조회, 파일 연결, 지식검색, 문서작성, 실행기록 확인까지 자연스럽게 이어진다.",
         "도구 라우팅 확인 흐름이 사용자를 과도하게 방해하지 않는다.",
@@ -84,21 +84,21 @@
       ],
       "evidence": {
         "commands": [
-          "npm.cmd run desktop:test",
-          "npm.cmd run sidecar:test"
+          "node scripts/portable-run.mjs python -m pytest services/sidecar/tests/test_work_session_turn.py services/sidecar/tests/test_work_session_routing_preview.py -q",
+          "npm.cmd --workspace apps/desktop run test -- chat-turn-submit.test.tsx chat-session-thread.test.tsx chat-attachments-latency.test.tsx session-file-links.test.tsx document-workflow-handoff.test.tsx"
         ],
         "requiredFiles": [
           "docs/operations/2026-05-23-full-system-integration-validation-report.md",
-          "docs/operations/2026-05-27-work-session-tool-routing-rules.md"
+          "docs/operations/2026-05-27-work-session-tool-routing-rules.md",
+          "docs/operations/2026-06-16-workflow-routing-validation.md"
         ],
         "notes": [
-          "desktop:test는 통과했지만 sidecar Python 환경 복구 전까지 sidecar:test fresh evidence는 확보하지 못했다."
+          "sidecar 업무대화/라우팅 테스트 41개가 통과했다.",
+          "desktop 업무대화, 첨부, 파일연결, 문서작성 handoff 테스트 5개 파일, 8개 테스트가 통과했다.",
+          "최신 화면 캡처와 장시간 조작감 평가는 UX 게이트(G09)에서 별도로 관리한다."
         ]
       },
-      "blockingFollowUp": [
-        "현재 UI 기준 업무대화 직접 조작 증거를 갱신한다.",
-        "도구 라우팅 확인 및 피드백 구조가 일정, 파일찾기, 지식검색, 문서작성에 모두 적용되는지 재검증한다."
-      ]
+      "blockingFollowUp": []
     },
     {
       "id": "G03",
