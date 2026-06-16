@@ -157,6 +157,37 @@ function runChecks() {
     assert.match(report.markdown, /## JSON 상태 오류 상세/);
     assert.match(report.markdown, /smoke\.json status expected pass, got fail/);
   });
+
+  withTempProject((tempRoot) => {
+    fs.writeFileSync(path.join(tempRoot, "clean-evidence.json"), JSON.stringify({ ready: true }), "utf8");
+    const criteriaPath = writeCriteria(tempRoot, [
+      {
+        id: "G11",
+        title: "증거 기반 클린 설치 검증",
+        required: true,
+        status: "partial",
+        completionMode: "evidence",
+        completionCriteria: ["클린 설치 증거가 ready=true이면 수동 status 변경 없이 완료로 판단한다."],
+        evidence: {
+          requiredFiles: ["clean-evidence.json"],
+          jsonStatusChecks: [{ file: "clean-evidence.json", path: "ready", equals: true }],
+        },
+        blockingFollowUp: ["증거가 없으면 클린 설치 evidence를 반입한다."],
+      },
+    ]);
+
+    const result = runVerifier(tempRoot, criteriaPath);
+    assert.equal(result.status, 0, result.stderr);
+    const report = readReport(tempRoot);
+    assert.equal(report.json.summary.complete, true);
+    assert.equal(report.json.summary.partial, 1);
+    assert.equal(report.json.summary.blocking, 0);
+    assert.equal(report.json.results[0].complete, true);
+    assert.equal(report.json.results[0].blocksCompletion, false);
+    assert.equal(report.json.results[0].completionMode, "evidence");
+    assert.match(report.markdown, /증거 기반 클린 설치 검증/);
+    assert.match(report.markdown, /판정: 최종완성 조건 충족/);
+  });
 }
 
 runChecks();

@@ -7,6 +7,11 @@ const criteria = JSON.parse(fs.readFileSync(criteriaPath, "utf8"));
 
 const g11 = criteria.gates.find((gate) => gate.id === "G11");
 assert.ok(g11, "G11 clean install evidence gate must exist");
+assert.equal(
+  g11.completionMode,
+  "evidence",
+  "G11 must close from returned clean-account evidence without manual status editing",
+);
 
 const commands = g11.evidence?.commands ?? [];
 assert.ok(

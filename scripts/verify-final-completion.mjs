@@ -16,6 +16,7 @@ const outputJsonPath = path.join(outputDir, "final-completion-verification-repor
 const outputMarkdownPath = path.join(outputDir, "final-completion-verification-report.md");
 
 const allowedStatuses = new Set(["pass", "partial", "pending", "fail", "waived"]);
+const allowedCompletionModes = new Set(["manual", "evidence"]);
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -39,6 +40,7 @@ function normalizeArray(value) {
 
 function evaluateGate(gate) {
   const status = gate.status;
+  const completionMode = gate.completionMode ?? "manual";
   const requiredFiles = normalizeArray(gate.evidence?.requiredFiles);
   const jsonStatusChecks = normalizeArray(gate.evidence?.jsonStatusChecks);
   const missingFiles = requiredFiles.filter((filePath) => !existsFromRoot(filePath));
@@ -48,8 +50,12 @@ function evaluateGate(gate) {
   if (!gate.id) schemaErrors.push("missing id");
   if (!gate.title) schemaErrors.push("missing title");
   if (!allowedStatuses.has(status)) schemaErrors.push(`invalid status: ${status}`);
+  if (!allowedCompletionModes.has(completionMode)) schemaErrors.push(`invalid completionMode: ${completionMode}`);
   if (!Array.isArray(gate.completionCriteria) || gate.completionCriteria.length === 0) {
     schemaErrors.push("missing completionCriteria");
+  }
+  if (completionMode === "evidence" && requiredFiles.length === 0 && jsonStatusChecks.length === 0) {
+    schemaErrors.push("evidence completion mode requires evidence files or JSON status checks");
   }
 
   const required = gate.required !== false;
@@ -81,8 +87,9 @@ function evaluateGate(gate) {
     }
   }
 
-  const complete =
-    status === "pass" && missingFiles.length === 0 && schemaErrors.length === 0 && jsonStatusErrors.length === 0;
+  const evidenceSatisfied = missingFiles.length === 0 && schemaErrors.length === 0 && jsonStatusErrors.length === 0;
+  const statusSatisfied = status === "pass" || (completionMode === "evidence" && status !== "fail");
+  const complete = statusSatisfied && evidenceSatisfied;
   const blocksCompletion = required && !complete && status !== "waived";
 
   return {
@@ -90,6 +97,7 @@ function evaluateGate(gate) {
     title: gate.title,
     required,
     status,
+    completionMode,
     complete,
     blocksCompletion,
     missingFiles,

@@ -356,6 +356,7 @@
       "title": "폐쇄망 설치패키지와 clean install 증거",
       "required": true,
       "status": "partial",
+      "completionMode": "evidence",
       "completionCriteria": [
         "NSIS 설치파일, sidecar bundle, offline release zip을 최종 릴리스 후보에서 생성한다.",
         "설치파일 빌드 전에 최신 sidecar 리소스가 `/health`와 지식폴더 2.0 핵심 API smoke를 통과한다.",
