@@ -103,6 +103,12 @@ assert.match(
 );
 
 assert.match(
+  scripts["release:ai-pack:evidence:request:validate"] ?? "",
+  /validate-clean-account-evidence-request\.mjs/,
+  "release:ai-pack:evidence:request:validate must verify the handoff request matches the current AI pack artifact",
+);
+
+assert.match(
   scripts["verify:completion:test"] ?? "",
   /validate-clean-account-evidence\.test\.mjs/,
   "verify:completion:test must include clean-account evidence validation checks",
@@ -118,6 +124,12 @@ assert.match(
   scripts["verify:completion:test"] ?? "",
   /prepare-clean-account-evidence-request\.test\.mjs/,
   "verify:completion:test must include clean-account evidence request generation checks",
+);
+
+assert.match(
+  scripts["verify:completion:test"] ?? "",
+  /validate-clean-account-evidence-request\.test\.mjs/,
+  "verify:completion:test must include clean-account evidence request freshness checks",
 );
 
 assert.match(

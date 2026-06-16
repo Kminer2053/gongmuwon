@@ -183,6 +183,14 @@ const defaultConfig = {
       blockerHint: "최신 sidecar 번들을 재생성하고 Tauri 리소스로 동기화한다.",
     },
     {
+      id: "clean-account-request",
+      title: "Clean-account evidence request freshness",
+      command: "npm.cmd run release:ai-pack:evidence:request:validate",
+      required: true,
+      timeoutMs: 30_000,
+      blockerHint: "최신 AI pack 검증 리포트와 evidence 요청 폴더가 어긋납니다. npm.cmd run release:ai-pack:evidence:request를 다시 실행합니다.",
+    },
+    {
       id: "completion-audit",
       title: "Final completion audit",
       command: "npm.cmd run verify:completion:audit",

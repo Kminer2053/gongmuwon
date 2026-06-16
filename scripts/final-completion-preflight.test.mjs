@@ -131,6 +131,7 @@ withTempProject((tempRoot) => {
   assert.equal(fs.existsSync(jsonPath), true);
   const report = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
   assert.ok(report.results.some((item) => item.id === "release-hygiene"));
+  assert.ok(report.results.some((item) => item.id === "clean-account-request"));
   const pythonVenv = report.results.find((item) => item.id === "python-venv");
   assert.match(pythonVenv.command, /sidecar:venv:report/);
 });
