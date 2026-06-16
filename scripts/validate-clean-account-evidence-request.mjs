@@ -116,7 +116,7 @@ export async function validateCleanAccountEvidenceRequest(options = {}) {
   const errors = checks.filter((check) => !check.ok).map((check) => check.name);
   const report = {
     schemaVersion: 1,
-    createdAt: new Date().toISOString(),
+    createdAt: request.createdAt ?? artifact.createdAt ?? null,
     ready: errors.length === 0,
     artifactReportPath,
     requestPath,

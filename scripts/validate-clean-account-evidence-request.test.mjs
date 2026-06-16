@@ -90,6 +90,19 @@ async function main() {
     assert.equal(report.checks.every((check) => check.ok), true);
     assert.equal(report.request.artifact.zipSha256, artifactReport().zip.sha256);
     assert.match(await readFile(outMarkdown, "utf8"), /clean-account evidence request validation/);
+    const firstJson = await readFile(outJson, "utf8");
+    const firstMarkdown = await readFile(outMarkdown, "utf8");
+
+    await validateCleanAccountEvidenceRequest({
+      repoRoot: root,
+      artifactReportPath: artifactPath,
+      requestPath,
+      requestReadmePath: readmePath,
+      outJson,
+      outMarkdown,
+    });
+    assert.equal(await readFile(outJson, "utf8"), firstJson);
+    assert.equal(await readFile(outMarkdown, "utf8"), firstMarkdown);
 
     await writeJson(requestPath, requestJson({ artifact: { ...requestJson().artifact, zipSha256: "BAD" } }));
     const stale = await validateCleanAccountEvidenceRequest({

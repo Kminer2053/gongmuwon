@@ -1,6 +1,6 @@
 # clean-account evidence request validation
 
-- createdAt: 2026-06-16T03:33:01.252Z
+- createdAt: 2026-06-16T03:23:19.078Z
 - ready: true
 - artifactReportPath: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\docs\operations\generated\ai-pack-artifact-validation.json`
 - requestPath: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\clean-account-evidence-request\REQUEST.json`
