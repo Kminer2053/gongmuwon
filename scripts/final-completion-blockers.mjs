@@ -42,6 +42,40 @@ function blockerProblems(blocker) {
   return problems;
 }
 
+function nextExecutionPlan(blockers) {
+  if (blockers.some((blocker) => blocker.id === "G11")) {
+    return {
+      description:
+        "아래 순서는 클린계정/폐쇄망 증거 수집 루프입니다. 대상 PC에서 원클릭 검증을 실행한 뒤 evidence 폴더를 개발 저장소 inbox로 반입합니다.",
+      commands: [
+        "npm.cmd run release:ai-pack:evidence:request:validate",
+        "대상 PC에서 AI pack zip SHA256 확인",
+        "대상 PC에서 RUN_FULL_VALIDATION.bat 실행",
+        "대상 PC의 evidence 폴더를 release\\clean-account-evidence-inbox 로 복사",
+        "npm.cmd run release:ai-pack:evidence:finalize",
+        "npm.cmd run verify:completion",
+      ],
+    };
+  }
+
+  return {
+    description: "아래 순서는 Python 3.11 복구 후 stale sidecar 번들부터 다시 닫는 기본 루프입니다.",
+    commands: [
+      "npm.cmd run sidecar:venv:check",
+      'node scripts/repair-python-venv.mjs --repair --python "C:\\path\\to\\Python311\\python.exe"',
+      "npm.cmd run sidecar:bundle:windows",
+      "node scripts/sync-sidecar-bundle.mjs",
+      "npm.cmd run sidecar:bundle:freshness",
+      "npm.cmd run sidecar:smoke:bundled",
+      "npm.cmd run verify:all",
+      "npm.cmd run desktop:bundle",
+      "npm.cmd run desktop:smoke:nsis",
+      "npm.cmd run release:offline",
+      "npm.cmd run verify:completion",
+    ],
+  };
+}
+
 export function renderBlockerMarkdown(report) {
   const blockers = normalizeArray(report.results).filter((result) => result.blocksCompletion);
   const lines = [];
@@ -86,22 +120,10 @@ export function renderBlockerMarkdown(report) {
 
   lines.push("## 다음 실행 순서");
   lines.push("");
-  lines.push("아래 순서는 Python 3.11 복구 후 stale sidecar 번들부터 다시 닫는 기본 루프입니다.");
+  const nextPlan = nextExecutionPlan(blockers);
+  lines.push(nextPlan.description);
   lines.push("");
-  const remediationCommands = [
-    "npm.cmd run sidecar:venv:check",
-    'node scripts/repair-python-venv.mjs --repair --python "C:\\path\\to\\Python311\\python.exe"',
-    "npm.cmd run sidecar:bundle:windows",
-    "node scripts/sync-sidecar-bundle.mjs",
-    "npm.cmd run sidecar:bundle:freshness",
-    "npm.cmd run sidecar:smoke:bundled",
-    "npm.cmd run verify:all",
-    "npm.cmd run desktop:bundle",
-    "npm.cmd run desktop:smoke:nsis",
-    "npm.cmd run release:offline",
-    "npm.cmd run verify:completion",
-  ];
-  lines.push(renderCommandList(remediationCommands));
+  lines.push(renderCommandList(nextPlan.commands));
   lines.push("");
   lines.push("## 해석");
   lines.push("");

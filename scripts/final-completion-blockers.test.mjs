@@ -90,4 +90,56 @@ withTempProject((tempRoot) => {
   assert.match(markdown, /다음 실행 순서/);
 });
 
+withTempProject((tempRoot) => {
+  const reportPath = path.join(tempRoot, "docs", "operations", "generated", "final-completion-verification-report.json");
+  const outputPath = path.join(tempRoot, "docs", "operations", "generated", "final-completion-blockers.md");
+  fs.writeFileSync(
+    reportPath,
+    `${JSON.stringify(
+      {
+        generatedAt: "2026-06-16T00:00:00.000Z",
+        summary: {
+          complete: false,
+          blocking: 1,
+          jsonStatusErrors: 0,
+          missingEvidenceFiles: 3,
+        },
+        results: [
+          {
+            id: "G11",
+            title: "폐쇄망 설치패키지와 clean install 증거",
+            status: "partial",
+            blocksCompletion: true,
+            missingFiles: [
+              "docs/operations/generated/clean-account-evidence/ai-pack-clean-account-evidence.json",
+            ],
+            jsonStatusErrors: [],
+            blockingFollowUp: [
+              "clean-account 또는 VM에서 `RUN_FULL_VALIDATION.bat`를 실제 실행한다.",
+              "대상 PC의 `evidence` 폴더를 `release/clean-account-evidence-inbox`에 넣고 `npm.cmd run release:ai-pack:evidence:finalize`를 실행한다.",
+            ],
+            commands: [
+              "npm.cmd run release:ai-pack:evidence:request:validate",
+              "npm.cmd run release:ai-pack:evidence:finalize",
+              "npm.cmd run release:ai-pack:evidence:validate",
+            ],
+          },
+        ],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const result = runBlockerRenderer(tempRoot);
+  assert.equal(result.status, 0, result.stderr);
+  const markdown = fs.readFileSync(outputPath, "utf8");
+  assert.match(markdown, /클린계정\/폐쇄망 증거 수집 루프/);
+  assert.match(markdown, /RUN_FULL_VALIDATION\.bat/);
+  assert.match(markdown, /release\\clean-account-evidence-inbox/);
+  assert.match(markdown, /release:ai-pack:evidence:finalize/);
+  assert.doesNotMatch(markdown, /Python 3\.11 복구 후 stale sidecar/);
+});
+
 console.log("final-completion-blockers checks passed");
