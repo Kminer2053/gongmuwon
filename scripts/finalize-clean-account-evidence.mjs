@@ -1,10 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { copyFile, mkdir, stat } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { importCleanAccountEvidence } from "./import-clean-account-evidence.mjs";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const RUNTIME_EVIDENCE_FILE = "runtime-clean-account-evidence.json";
+const DEFAULT_RUNTIME_EVIDENCE_INBOX = "release/clean-account-evidence-inbox";
 
 function defaultNpmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
@@ -27,6 +30,54 @@ function commandResult(command, args, result) {
   };
 }
 
+async function exists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function sameResolvedPath(left, right) {
+  const normalizedLeft = resolve(left);
+  const normalizedRight = resolve(right);
+  if (process.platform === "win32") {
+    return normalizedLeft.toLowerCase() === normalizedRight.toLowerCase();
+  }
+  return normalizedLeft === normalizedRight;
+}
+
+async function importRuntimeEvidenceIfPresent({ repoRoot, sourceDir, inboxDir }) {
+  const sourcePath = join(sourceDir, RUNTIME_EVIDENCE_FILE);
+  const targetDir = resolve(repoRoot, inboxDir ?? DEFAULT_RUNTIME_EVIDENCE_INBOX);
+  const targetPath = join(targetDir, RUNTIME_EVIDENCE_FILE);
+  if (!(await exists(sourcePath))) {
+    return {
+      copied: false,
+      sourcePath,
+      targetPath,
+      reason: "runtime evidence file was not present in the imported evidence folder",
+    };
+  }
+  if (sameResolvedPath(sourcePath, targetPath)) {
+    return {
+      copied: false,
+      alreadyInPlace: true,
+      sourcePath,
+      targetPath,
+    };
+  }
+  await mkdir(targetDir, { recursive: true });
+  await copyFile(sourcePath, targetPath);
+  return {
+    copied: true,
+    alreadyInPlace: false,
+    sourcePath,
+    targetPath,
+  };
+}
+
 export async function finalizeCleanAccountEvidence(options = {}) {
   const repoRoot = resolve(options.repoRoot ?? REPO_ROOT);
   const npmCommand = options.npmCommand ?? defaultNpmCommand();
@@ -42,11 +93,17 @@ export async function finalizeCleanAccountEvidence(options = {}) {
   });
 
   const commands = [];
+  const runtimeImport = await importRuntimeEvidenceIfPresent({
+    repoRoot,
+    sourceDir: importReport.evidenceSourceDir ?? importReport.sourceDir,
+    inboxDir: options.runtimeEvidenceInbox,
+  });
   if (importReport.ready !== true) {
     return {
       schemaVersion: 1,
       ready: false,
       import: importReport,
+      runtimeImport,
       validation: importReport.validation,
       commands,
     };
@@ -65,6 +122,7 @@ export async function finalizeCleanAccountEvidence(options = {}) {
         schemaVersion: 1,
         ready: false,
         import: importReport,
+        runtimeImport,
         validation: importReport.validation,
         commands,
       };
@@ -75,6 +133,7 @@ export async function finalizeCleanAccountEvidence(options = {}) {
     schemaVersion: 1,
     ready: true,
     import: importReport,
+    runtimeImport,
     validation: importReport.validation,
     commands,
   };
@@ -96,7 +155,7 @@ async function main() {
   if (options.help) {
     console.log(`Usage: node scripts/finalize-clean-account-evidence.mjs [--from <target-evidence-dir-or-json>]
 
-Imports clean-account evidence, validates it, then reruns:
+Imports AI pack evidence and runtime evidence from the target evidence folder, validates them, then reruns:
   npm.cmd run release:runtime-evidence:validate
   npm.cmd run verify:completion:preflight
   npm.cmd run verify:completion:audit
@@ -109,6 +168,11 @@ Imports clean-account evidence, validates it, then reruns:
       {
         ready: report.ready,
         validationReady: report.validation.ready,
+        runtimeEvidenceAvailable:
+          report.runtimeImport?.copied === true || report.runtimeImport?.alreadyInPlace === true,
+        runtimeEvidenceImported: report.runtimeImport?.copied === true,
+        runtimeEvidenceAlreadyInPlace: report.runtimeImport?.alreadyInPlace === true,
+        runtimeEvidenceTarget: report.runtimeImport?.targetPath,
         commands: report.commands.map((item) => ({ command: item.command, status: item.status })),
         errors: report.validation.errors,
       },
