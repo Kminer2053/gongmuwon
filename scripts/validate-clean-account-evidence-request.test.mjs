@@ -52,12 +52,14 @@ function requestJson(overrides = {}) {
       "verify SHA256",
       "extract zip",
       "run RUN_FULL_VALIDATION.bat",
+      "run COLLECT_RUNTIME_EVIDENCE.bat after launching Gongmu",
       "copy evidence JSON back to repository",
     ],
     copyBack: {
       sourcePathOnTargetPc: "evidence",
       targetPath: "release/clean-account-evidence-inbox",
       validationCommand: "npm.cmd run release:ai-pack:evidence:finalize",
+      runtimeValidationCommand: "npm.cmd run release:runtime-evidence:validate",
     },
     ...overrides,
   };
@@ -77,7 +79,16 @@ async function main() {
     await writeJson(requestPath, requestJson());
     await writeText(
       readmePath,
-      "Run RUN_FULL_VALIDATION.bat, copy the evidence folder into release\\clean-account-evidence-inbox, then run release:ai-pack:evidence:finalize.\n",
+      "Run RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat, copy the evidence folder into release\\clean-account-evidence-inbox, then run release:ai-pack:evidence:finalize and release:runtime-evidence:validate.\n",
+    );
+    await writeText(
+      join(requestDir, "COLLECT_RUNTIME_EVIDENCE.ps1"),
+      "Invoke-RestMethod http://127.0.0.1:8765/health\nWork engine health OK\nruntime-clean-account-evidence.json\n",
+    );
+    await writeText(join(requestDir, "COLLECT_RUNTIME_EVIDENCE.bat"), "COLLECT_RUNTIME_EVIDENCE.ps1\n");
+    await writeText(
+      join(requestDir, "runtime-clean-account-evidence.template.json"),
+      JSON.stringify({ checks: [{ name: "Work engine health OK" }] }),
     );
 
     const report = await validateCleanAccountEvidenceRequest({
@@ -91,6 +102,14 @@ async function main() {
 
     assert.equal(report.ready, true);
     assert.equal(report.checks.every((check) => check.ok), true);
+    assert.ok(
+      report.checks.some((check) => check.name === "request includes runtime evidence collector"),
+      "request validator should check the runtime evidence collector",
+    );
+    assert.ok(
+      report.checks.some((check) => check.name === "request includes runtime validation command"),
+      "request validator should check the runtime validation command",
+    );
     assert.equal(report.request.artifact.zipSha256, artifactReport().zip.sha256);
     assert.match(await readFile(outMarkdown, "utf8"), /clean-account evidence request validation/);
     const firstJson = await readFile(outJson, "utf8");

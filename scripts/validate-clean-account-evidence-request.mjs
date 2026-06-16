@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -20,6 +20,23 @@ function addCheck(checks, name, ok, detail) {
 
 async function readJson(path) {
   return JSON.parse(await readFile(path, "utf8"));
+}
+
+async function readOptionalText(path) {
+  try {
+    return await readFile(path, "utf8");
+  } catch {
+    return "";
+  }
+}
+
+async function exists(path) {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function buildMarkdown(report) {
@@ -51,6 +68,13 @@ export async function validateCleanAccountEvidenceRequest(options = {}) {
   const artifact = await readJson(artifactReportPath);
   const request = await readJson(requestPath);
   const readme = await readFile(requestReadmePath, "utf8");
+  const requestDir = dirname(requestPath);
+  const runtimeScriptPath = join(requestDir, "COLLECT_RUNTIME_EVIDENCE.ps1");
+  const runtimeBatchPath = join(requestDir, "COLLECT_RUNTIME_EVIDENCE.bat");
+  const runtimeTemplatePath = join(requestDir, "runtime-clean-account-evidence.template.json");
+  const runtimeScript = await readOptionalText(runtimeScriptPath);
+  const runtimeBatch = await readOptionalText(runtimeBatchPath);
+  const runtimeTemplate = await readOptionalText(runtimeTemplatePath);
   const checks = [];
 
   addCheck(checks, "AI pack artifact validation is ready", artifact.ready === true, `ready=${artifact.ready}`);
@@ -110,6 +134,27 @@ export async function validateCleanAccountEvidenceRequest(options = {}) {
     "request includes repository finalization command",
     String(request.copyBack?.validationCommand ?? "").includes("release:ai-pack:evidence:finalize"),
     `${request.copyBack?.validationCommand ?? ""}`,
+  );
+  addCheck(
+    checks,
+    "request includes runtime validation command",
+    String(request.copyBack?.runtimeValidationCommand ?? "").includes("release:runtime-evidence:validate") &&
+      (request.targetPcSteps ?? []).some((step) => String(step).includes("COLLECT_RUNTIME_EVIDENCE.bat")) &&
+      readme.includes("COLLECT_RUNTIME_EVIDENCE.bat"),
+    `${request.copyBack?.runtimeValidationCommand ?? ""}`,
+  );
+  addCheck(
+    checks,
+    "request includes runtime evidence collector",
+    (await exists(runtimeScriptPath)) &&
+      (await exists(runtimeBatchPath)) &&
+      (await exists(runtimeTemplatePath)) &&
+      runtimeScript.includes("Invoke-RestMethod") &&
+      runtimeScript.includes("Work engine health OK") &&
+      runtimeScript.includes("runtime-clean-account-evidence.json") &&
+      runtimeBatch.includes("COLLECT_RUNTIME_EVIDENCE.ps1") &&
+      runtimeTemplate.includes("Work engine health OK"),
+    `${runtimeScriptPath}; ${runtimeBatchPath}; ${runtimeTemplatePath}`,
   );
 
   const errors = checks.filter((check) => !check.ok).map((check) => check.name);

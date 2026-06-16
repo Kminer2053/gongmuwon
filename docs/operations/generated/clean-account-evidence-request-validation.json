@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "createdAt": "2026-06-16T04:43:02.896Z",
+  "createdAt": "2026-06-16T04:55:26.722Z",
   "ready": true,
   "artifactReportPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\docs\\operations\\generated\\ai-pack-artifact-validation.json",
   "requestPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\REQUEST.json",
@@ -37,6 +37,7 @@
       "extract zip",
       "run RUN_FULL_VALIDATION.bat",
       "or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step",
+      "run COLLECT_RUNTIME_EVIDENCE.bat after launching Gongmu",
       "copy evidence folder back to repository inbox",
       "run release:ai-pack:evidence:finalize",
       "run release:runtime-evidence:validate"
@@ -81,7 +82,7 @@
     {
       "name": "target PC steps prefer one-click validation",
       "ok": true,
-      "detail": "copy AI Pack zip | verify SHA256 | extract zip | run RUN_FULL_VALIDATION.bat | or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step | copy evidence folder back to repository inbox | run release:ai-pack:evidence:finalize | run release:runtime-evidence:validate"
+      "detail": "copy AI Pack zip | verify SHA256 | extract zip | run RUN_FULL_VALIDATION.bat | or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step | run COLLECT_RUNTIME_EVIDENCE.bat after launching Gongmu | copy evidence folder back to repository inbox | run release:ai-pack:evidence:finalize | run release:runtime-evidence:validate"
     },
     {
       "name": "README mentions one-click validation launcher",
@@ -97,6 +98,16 @@
       "name": "request includes repository finalization command",
       "ok": true,
       "detail": "npm.cmd run release:ai-pack:evidence:finalize"
+    },
+    {
+      "name": "request includes runtime validation command",
+      "ok": true,
+      "detail": "npm.cmd run release:runtime-evidence:validate"
+    },
+    {
+      "name": "request includes runtime evidence collector",
+      "ok": true,
+      "detail": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\COLLECT_RUNTIME_EVIDENCE.ps1; C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\COLLECT_RUNTIME_EVIDENCE.bat; C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\runtime-clean-account-evidence.template.json"
     }
   ],
   "errors": []

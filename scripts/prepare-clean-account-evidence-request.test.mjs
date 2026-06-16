@@ -63,6 +63,7 @@ async function main() {
     assert.match(readme, /release[\\/]clean-account-evidence-inbox/);
     assert.match(readme, /release:ai-pack:evidence:finalize/);
     assert.match(readme, /runtime-clean-account-evidence\.template\.json/);
+    assert.match(readme, /COLLECT_RUNTIME_EVIDENCE\.bat/);
     assert.match(readme, /release:runtime-evidence:validate/);
     assert.match(readme, /B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC/);
 
@@ -82,6 +83,14 @@ async function main() {
       runtimeTemplate.checks.some((check) => check.name === "Work engine health OK"),
       "runtime evidence template should ask for work engine health confirmation",
     );
+
+    const runtimeScript = await readFile(join(outDir, "COLLECT_RUNTIME_EVIDENCE.ps1"), "utf8");
+    assert.match(runtimeScript, /runtime-clean-account-evidence\.json/);
+    assert.match(runtimeScript, /Work engine health OK/);
+    assert.match(runtimeScript, /Invoke-RestMethod/);
+
+    const runtimeBatch = await readFile(join(outDir, "COLLECT_RUNTIME_EVIDENCE.bat"), "utf8");
+    assert.match(runtimeBatch, /COLLECT_RUNTIME_EVIDENCE\.ps1/);
 
     const badArtifactPath = join(root, "bad-ai-pack-artifact-validation.json");
     await writeJson(badArtifactPath, artifactReport({ ready: false, zip: { present: false } }));

@@ -80,7 +80,9 @@ ${request.artifact.zipSha256}
 4. 권장 경로: 압축 해제 폴더에서 \`RUN_FULL_VALIDATION.bat\`을 실행합니다.
 5. 이 런처가 설치, 검증, 증거 수집을 순서대로 실행합니다.
 6. 단계별 확인이 필요하면 \`START_INSTALL.bat\`, \`VALIDATE_INSTALL.bat\`, \`COLLECT_EVIDENCE.bat\`을 순서대로 실행합니다.
-7. Gongmu 앱을 실행해 업무엔진 상태를 확인한 뒤 \`runtime-clean-account-evidence.template.json\`을 \`runtime-clean-account-evidence.json\`으로 복사해 실제 결과를 채웁니다.
+7. Gongmu 앱을 실행해 업무엔진 상태를 확인한 뒤 \`COLLECT_RUNTIME_EVIDENCE.bat\`을 실행합니다.
+   - 앱 실행/복구/장기작업 응답성을 직접 확인했다면 예: \`COLLECT_RUNTIME_EVIDENCE.bat -AppLaunched -RecoveryObserved -LongJobResponsive\`
+   - 이 런처는 \`runtime-clean-account-evidence.template.json\`과 같은 구조의 \`evidence\\runtime-clean-account-evidence.json\`을 생성합니다.
 8. 생성된 \`evidence\` 폴더를 개발 저장소의 반입 경로로 복사합니다.
 
 ## 개발 저장소 반입 경로
@@ -183,6 +185,113 @@ function buildRuntimeEvidenceTemplate() {
   };
 }
 
+function buildRuntimeEvidenceScript() {
+  return `param(
+  [string]$EvidenceDir = ".\\evidence",
+  [string]$HealthUrl = "http://127.0.0.1:8765/health",
+  [string]$InstallPath = "",
+  [switch]$AppLaunched,
+  [switch]$RecoveryObserved,
+  [switch]$LongJobResponsive
+)
+
+$ErrorActionPreference = "Continue"
+New-Item -ItemType Directory -Force -Path $EvidenceDir | Out-Null
+$LogPath = Join-Path $EvidenceDir "runtime-clean-account-evidence.log"
+$OutJson = Join-Path $EvidenceDir "runtime-clean-account-evidence.json"
+
+function Write-RuntimeLog {
+  param([string]$Message)
+  $line = "{0} {1}" -f (Get-Date).ToUniversalTime().ToString("o"), $Message
+  Add-Content -Path $LogPath -Encoding UTF8 -Value $line
+}
+
+function New-Check {
+  param([string]$Name, [bool]$Passed, [string]$Detail)
+  return [ordered]@{
+    name = $Name
+    passed = $Passed
+    detail = $Detail
+  }
+}
+
+$startedAt = (Get-Date).ToUniversalTime().ToString("o")
+Write-RuntimeLog "runtime evidence collection started"
+
+$processFound = $false
+try {
+  $processFound = [bool](Get-Process | Where-Object { $_.ProcessName -match "gongmu|공무" } | Select-Object -First 1)
+} catch {
+  Write-RuntimeLog ("process discovery failed: " + $_.Exception.Message)
+}
+
+$healthOk = $false
+$healthDetail = ""
+try {
+  $health = Invoke-RestMethod -Uri $HealthUrl -Method Get -TimeoutSec 5
+  $healthDetail = ($health | ConvertTo-Json -Compress -Depth 6)
+  $healthOk = ($health.status -eq "ok")
+} catch {
+  $healthDetail = $_.Exception.Message
+  Write-RuntimeLog ("health check failed: " + $healthDetail)
+}
+
+$installDetail = if ($InstallPath) { $InstallPath } else { "install path not provided" }
+$appOk = [bool]$AppLaunched -or $processFound
+$checks = @(
+  (New-Check "Gongmu app launched" $appOk ("appLaunched={0}; processFound={1}; {2}" -f [bool]$AppLaunched, $processFound, $installDetail)),
+  (New-Check "Work engine health OK" $healthOk $healthDetail),
+  (New-Check "Engine restart or recovery guidance observed" ([bool]$RecoveryObserved) "Set -RecoveryObserved after confirming restart/recovery guidance on target PC."),
+  (New-Check "Long job remained responsive" ([bool]$LongJobResponsive) "Set -LongJobResponsive after confirming chat/file-search response during a long job."),
+  (New-Check "Runtime logs captured" (Test-Path $LogPath) $LogPath)
+)
+
+$completedAt = (Get-Date).ToUniversalTime().ToString("o")
+$ready = -not [bool]($checks | Where-Object { -not $_.passed })
+$logHash = ""
+if (Test-Path $LogPath) {
+  $logHash = (Get-FileHash -Path $LogPath -Algorithm SHA256).Hash
+}
+
+$evidence = [ordered]@{
+  schemaVersion = 1
+  title = "Gongmu runtime clean-account evidence"
+  ready = $ready
+  startedAt = $startedAt
+  completedAt = $completedAt
+  computerName = $env:COMPUTERNAME
+  userName = $env:USERNAME
+  installPath = $InstallPath
+  appVersion = ""
+  engineHealthUrl = $HealthUrl
+  runtimeLog = [ordered]@{
+    path = $LogPath
+    exists = (Test-Path $LogPath)
+    sha256 = $logHash
+  }
+  screenshots = @()
+  checks = $checks
+}
+
+$evidence | ConvertTo-Json -Depth 8 | Set-Content -Path $OutJson -Encoding UTF8
+Write-RuntimeLog ("runtime evidence collection completed ready=" + $ready)
+Write-Host "runtime evidence written: $OutJson"
+Write-Host "ready: $ready"
+if (-not $ready) {
+  Write-Host "Tip: rerun with -AppLaunched -RecoveryObserved -LongJobResponsive after confirming those UI/runtime behaviors."
+  exit 1
+}
+`;
+}
+
+function buildRuntimeEvidenceBatch() {
+  return `@echo off
+setlocal
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0COLLECT_RUNTIME_EVIDENCE.ps1" %*
+exit /b %ERRORLEVEL%
+`;
+}
+
 export async function prepareCleanAccountEvidenceRequest(options = {}) {
   const repoRoot = resolve(options.repoRoot ?? REPO_ROOT);
   const artifactReportPath = resolve(repoRoot, options.artifactReportPath ?? DEFAULT_ARTIFACT_REPORT);
@@ -214,6 +323,7 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
       "extract zip",
       "run RUN_FULL_VALIDATION.bat",
       "or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step",
+      "run COLLECT_RUNTIME_EVIDENCE.bat after launching Gongmu",
       "copy evidence folder back to repository inbox",
       "run release:ai-pack:evidence:finalize",
       "run release:runtime-evidence:validate",
@@ -230,6 +340,8 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
     `${JSON.stringify(buildRuntimeEvidenceTemplate(), null, 2)}\n`,
     "utf8",
   );
+  await writeFile(join(outDir, "COLLECT_RUNTIME_EVIDENCE.ps1"), buildRuntimeEvidenceScript(), "utf8");
+  await writeFile(join(outDir, "COLLECT_RUNTIME_EVIDENCE.bat"), buildRuntimeEvidenceBatch(), "utf8");
 
   return request;
 }
