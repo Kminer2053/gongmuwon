@@ -102,8 +102,29 @@ B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC
 - 앱 화면의 업무엔진 상태 스크린샷
 - 업무대화 텍스트 질문/이미지 질문 실패 화면
 
+## 개발 저장소로 증거 반입 후 검증
+
+대상 PC에서 생성된 `evidence\ai-pack-clean-account-evidence.json`을 개발 저장소의 아래 경로로 복사한다.
+
+```text
+docs\operations\generated\clean-account-evidence\ai-pack-clean-account-evidence.json
+```
+
+그 다음 개발 저장소에서 아래 명령을 실행한다.
+
+```powershell
+npm.cmd run release:ai-pack:evidence:validate
+```
+
+기대 결과:
+
+- `ready: true`
+- 모든 필수 점검 항목 `PASS`
+- `docs\operations\generated\clean-account-evidence-validation.json` 생성
+- `docs\operations\generated\clean-account-evidence-validation.md` 생성
+
 ## 현재 남은 완료 조건
 
-이 문서와 자동 검증 리포트는 산출물 구조, 포함 파일, 런처 문법, dry-run, 해시 동일성을 증명한다. 다만 최종 완료 게이트 G11을 완전히 닫으려면 실제 클린계정 또는 VM에서 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 실행한 로그와 `ready: true` 증거가 필요하다.
+이 문서와 자동 검증 리포트는 산출물 구조, 포함 파일, 런처 문법, dry-run, 해시 동일성을 증명한다. 다만 최종 완료 게이트 G11을 완전히 닫으려면 실제 클린계정 또는 VM에서 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 실행한 로그와 `ready: true` 증거가 필요하다. 반입한 evidence는 반드시 `npm.cmd run release:ai-pack:evidence:validate`로 재검증한다.
 
 따라서 현재 상태는 “배포 산출물 준비 및 자동 검증 완료, 클린계정 실사용 증거 대기”로 판정한다.

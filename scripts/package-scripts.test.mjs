@@ -85,6 +85,18 @@ assert.match(
 );
 
 assert.match(
+  scripts["release:ai-pack:evidence:validate"] ?? "",
+  /validate-clean-account-evidence\.mjs/,
+  "release:ai-pack:evidence:validate must validate clean-account evidence from a target PC",
+);
+
+assert.match(
+  scripts["verify:completion:test"] ?? "",
+  /validate-clean-account-evidence\.test\.mjs/,
+  "verify:completion:test must include clean-account evidence validation checks",
+);
+
+assert.match(
   scripts["verify:completion:preflight"] ?? "",
   /final-completion-preflight\.mjs/,
   "verify:completion:preflight must generate the final completion preflight report",
