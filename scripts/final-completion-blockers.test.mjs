@@ -140,7 +140,11 @@ withTempProject((tempRoot) => {
   assert.match(markdown, /release\\clean-account-evidence-inbox/);
   assert.match(markdown, /release:ai-pack:evidence:finalize/);
   assert.match(markdown, /runtime-clean-account-evidence\.json/);
-  assert.match(markdown, /release:runtime-evidence:validate/);
+  assert.doesNotMatch(
+    markdown,
+    /^- `npm\.cmd run release:runtime-evidence:validate`/m,
+    "next execution plan should not ask users to run runtime validation separately after finalize",
+  );
   assert.doesNotMatch(markdown, /Python 3\.11 복구 후 stale sidecar/);
 });
 

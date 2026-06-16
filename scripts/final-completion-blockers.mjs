@@ -54,7 +54,6 @@ function nextExecutionPlan(blockers) {
         "대상 PC에서 앱 실행, 업무엔진 health/restart/장기작업 응답성을 확인하고 runtime-clean-account-evidence.json 작성",
         "대상 PC의 evidence 폴더를 release\\clean-account-evidence-inbox 로 복사",
         "npm.cmd run release:ai-pack:evidence:finalize",
-        "npm.cmd run release:runtime-evidence:validate",
         "npm.cmd run verify:completion",
       ],
     };

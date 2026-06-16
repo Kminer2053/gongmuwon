@@ -65,6 +65,11 @@ async function main() {
     assert.match(readme, /runtime-clean-account-evidence\.template\.json/);
     assert.match(readme, /COLLECT_RUNTIME_EVIDENCE\.bat/);
     assert.match(readme, /release:runtime-evidence:validate/);
+    assert.doesNotMatch(
+      readme,
+      /release:ai-pack:evidence:finalize\r?\nnpm\.cmd run release:runtime-evidence:validate/,
+      "README should not ask users to run runtime validation as a second command after finalize",
+    );
     assert.match(readme, /B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC/);
 
     const sha = await readFile(join(outDir, "EXPECTED_SHA256.txt"), "utf8");
@@ -74,6 +79,11 @@ async function main() {
     assert.match(copyTargets, /evidence folder/);
     assert.match(copyTargets, /release\/clean-account-evidence-inbox/);
     assert.match(copyTargets, /runtime-clean-account-evidence\.json/);
+    assert.doesNotMatch(
+      copyTargets,
+      /^  npm\.cmd run release:runtime-evidence:validate/m,
+      "COPY_TARGETS should keep finalize as the single primary repository command",
+    );
 
     const runtimeTemplate = JSON.parse(
       await readFile(join(outDir, "runtime-clean-account-evidence.template.json"), "utf8"),

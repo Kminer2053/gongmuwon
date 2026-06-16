@@ -95,8 +95,10 @@ ${request.copyBack.targetPath}
 
 \`\`\`powershell
 ${request.copyBack.validationCommand}
-${request.copyBack.runtimeValidationCommand}
 \`\`\`
+
+\`release:ai-pack:evidence:finalize\`는 AI pack 증거 반입, runtime evidence 반입, \`${request.copyBack.runtimeValidationCommand}\`, final preflight/audit를 한 번에 실행합니다.
+런타임 증거만 따로 재검증해야 할 때만 \`${request.copyBack.runtimeValidationCommand}\`를 직접 실행합니다.
 
 ## 반드시 같이 보관할 파일
 
@@ -129,7 +131,9 @@ function buildCopyTargets(request) {
     "",
     "Then run:",
     `  ${request.copyBack.validationCommand}`,
-    `  ${request.copyBack.runtimeValidationCommand}`,
+    "",
+    "The finalizer imports runtime-clean-account-evidence.json and runs runtime evidence validation automatically.",
+    `Fallback runtime-only validation: ${request.copyBack.runtimeValidationCommand}`,
     "",
     "Runtime evidence template:",
     "  runtime-clean-account-evidence.template.json -> evidence/runtime-clean-account-evidence.json",
@@ -326,7 +330,6 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
       "run COLLECT_RUNTIME_EVIDENCE.bat after launching Gongmu",
       "copy evidence folder back to repository inbox",
       "run release:ai-pack:evidence:finalize",
-      "run release:runtime-evidence:validate",
     ],
   };
 
