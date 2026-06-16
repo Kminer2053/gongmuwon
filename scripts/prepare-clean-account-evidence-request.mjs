@@ -76,9 +76,9 @@ ${request.artifact.zipSha256}
 \`\`\`
 
 3. zip을 로컬 폴더에 압축 해제합니다.
-4. 압축 해제 폴더에서 \`START_INSTALL.bat\`을 실행합니다.
-5. 설치 완료 후 같은 폴더에서 \`VALIDATE_INSTALL.bat\`을 실행합니다.
-6. 검증 완료 후 같은 폴더에서 \`COLLECT_EVIDENCE.bat\`을 실행합니다.
+4. 권장 경로: 압축 해제 폴더에서 \`RUN_FULL_VALIDATION.bat\`을 실행합니다.
+5. 이 런처가 설치, 검증, 증거 수집을 순서대로 실행합니다.
+6. 단계별 확인이 필요하면 \`START_INSTALL.bat\`, \`VALIDATE_INSTALL.bat\`, \`COLLECT_EVIDENCE.bat\`을 순서대로 실행합니다.
 7. 생성된 \`evidence\\ai-pack-clean-account-evidence.json\`을 개발 저장소의 반입 경로로 복사합니다.
 
 ## 개발 저장소 반입 경로
@@ -153,9 +153,8 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
       "copy AI Pack zip",
       "verify SHA256",
       "extract zip",
-      "run START_INSTALL.bat",
-      "run VALIDATE_INSTALL.bat",
-      "run COLLECT_EVIDENCE.bat",
+      "run RUN_FULL_VALIDATION.bat",
+      "or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step",
       "copy evidence JSON back to repository",
       "run release:ai-pack:evidence:validate",
     ],

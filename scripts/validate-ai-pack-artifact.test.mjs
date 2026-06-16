@@ -43,6 +43,7 @@ async function main() {
     await writeFixture(join(packageDir, "START_INSTALL.bat"), "@echo off\r\necho dry\r\n");
     await writeFixture(join(packageDir, "VALIDATE_INSTALL.bat"), "@echo off\r\necho dry\r\n");
     await writeFixture(join(packageDir, "COLLECT_EVIDENCE.bat"), "@echo off\r\necho collect\r\n");
+    await writeFixture(join(packageDir, "RUN_FULL_VALIDATION.bat"), "@echo off\r\necho full validation\r\n");
     await writeFixture(join(packageDir, "install-gongmu-ai.ps1"), "Write-Output 'install'\n");
     await writeFixture(join(packageDir, "validate-gongmu-ai.ps1"), "Write-Output 'validate'\n");
     await writeFixture(join(packageDir, "collect-clean-account-evidence.ps1"), "Write-Output 'evidence'\n");
@@ -78,6 +79,7 @@ async function main() {
     assert.equal(report.launchers.startInstall.present, true);
     assert.equal(report.launchers.validateInstall.present, true);
     assert.equal(report.launchers.collectEvidence.present, true);
+    assert.equal(report.launchers.fullValidation.present, true);
 
     const json = JSON.parse(await readFile(outJson, "utf8"));
     assert.equal(json.ready, true);

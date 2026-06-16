@@ -80,6 +80,14 @@ async function main() {
     assert.equal(await exists(join(result.packageDir, "VALIDATE_INSTALL.bat")), true);
     assert.equal(await exists(join(result.packageDir, "COLLECT_EVIDENCE.bat")), true);
 
+    const fullValidationBatch = await readFile(join(result.packageDir, "RUN_FULL_VALIDATION.bat"), "utf8");
+    assert.match(fullValidationBatch, /install-gongmu-ai\.ps1/);
+    assert.match(fullValidationBatch, /validate-gongmu-ai\.ps1/);
+    assert.match(fullValidationBatch, /collect-clean-account-evidence\.ps1/);
+    assert.match(fullValidationBatch, /GONGMU_AI_PACK_DRY_RUN/);
+    assert.match(fullValidationBatch, /install-gongmu-ai\.log/);
+    assert.match(fullValidationBatch, /evidence\\ai-pack-clean-account-evidence\.md/);
+
     const validateScript = await readFile(join(result.packageDir, "validate-gongmu-ai.ps1"), "utf8");
     assert.match(validateScript, /Find-Python311/);
     assert.match(validateScript, /Find-OllamaExe/);
@@ -103,6 +111,7 @@ async function main() {
     assert.match(readme, /START_INSTALL\.bat/);
     assert.match(readme, /VALIDATE_INSTALL\.bat/);
     assert.match(readme, /COLLECT_EVIDENCE\.bat/);
+    assert.match(readme, /RUN_FULL_VALIDATION\.bat/);
 
     const notices = await readFile(join(result.packageDir, "THIRD_PARTY_NOTICES.md"), "utf8");
     assert.match(notices, /Ollama/);

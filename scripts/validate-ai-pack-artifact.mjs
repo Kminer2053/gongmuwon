@@ -190,6 +190,7 @@ ${report.requiredFiles
 - START_INSTALL.bat dry-run: ${report.launchers.startInstall.dryRun?.ok ?? "not-run"}
 - VALIDATE_INSTALL.bat dry-run: ${report.launchers.validateInstall.dryRun?.ok ?? "not-run"}
 - COLLECT_EVIDENCE.bat dry-run: ${report.launchers.collectEvidence.dryRun?.ok ?? "not-run"}
+- RUN_FULL_VALIDATION.bat dry-run: ${report.launchers.fullValidation.dryRun?.ok ?? "not-run"}
 - install-gongmu-ai.ps1 parse: ${report.powerShell.install?.ok ?? "not-run"}
 - validate-gongmu-ai.ps1 parse: ${report.powerShell.validate?.ok ?? "not-run"}
 - collect-clean-account-evidence.ps1 parse: ${report.powerShell.collect?.ok ?? "not-run"}
@@ -237,6 +238,7 @@ export async function validateAiPackArtifact(options = {}) {
     ["start launcher", "START_INSTALL.bat", join(packageDir, "START_INSTALL.bat")],
     ["validate launcher", "VALIDATE_INSTALL.bat", join(packageDir, "VALIDATE_INSTALL.bat")],
     ["evidence launcher", "COLLECT_EVIDENCE.bat", join(packageDir, "COLLECT_EVIDENCE.bat")],
+    ["full validation launcher", "RUN_FULL_VALIDATION.bat", join(packageDir, "RUN_FULL_VALIDATION.bat")],
     ["install script", "install-gongmu-ai.ps1", join(packageDir, "install-gongmu-ai.ps1")],
     ["validate script", "validate-gongmu-ai.ps1", join(packageDir, "validate-gongmu-ai.ps1")],
     ["evidence script", "collect-clean-account-evidence.ps1", join(packageDir, "collect-clean-account-evidence.ps1")],
@@ -275,6 +277,7 @@ export async function validateAiPackArtifact(options = {}) {
   const startLauncher = join(packageDir, "START_INSTALL.bat");
   const validateLauncher = join(packageDir, "VALIDATE_INSTALL.bat");
   const collectLauncher = join(packageDir, "COLLECT_EVIDENCE.bat");
+  const fullValidationLauncher = join(packageDir, "RUN_FULL_VALIDATION.bat");
   const installPs = join(packageDir, "install-gongmu-ai.ps1");
   const validatePs = join(packageDir, "validate-gongmu-ai.ps1");
   const collectPs = join(packageDir, "collect-clean-account-evidence.ps1");
@@ -295,6 +298,11 @@ export async function validateAiPackArtifact(options = {}) {
       present: await exists(collectLauncher),
       dryRun: options.runLauncherDryRun ? runLauncherDryRun(collectLauncher, packageDir) : null,
     },
+    fullValidation: {
+      path: fullValidationLauncher,
+      present: await exists(fullValidationLauncher),
+      dryRun: options.runLauncherDryRun ? runLauncherDryRun(fullValidationLauncher, packageDir) : null,
+    },
   };
 
   if (launchers.startInstall.dryRun && !launchers.startInstall.dryRun.ok) {
@@ -305,6 +313,9 @@ export async function validateAiPackArtifact(options = {}) {
   }
   if (launchers.collectEvidence.dryRun && !launchers.collectEvidence.dryRun.ok) {
     errors.push("COLLECT_EVIDENCE.bat dry-run failed");
+  }
+  if (launchers.fullValidation.dryRun && !launchers.fullValidation.dryRun.ok) {
+    errors.push("RUN_FULL_VALIDATION.bat dry-run failed");
   }
 
   const powerShell = {

@@ -54,6 +54,7 @@ async function main() {
     assert.equal(request.copyBack.targetPath.endsWith("docs/operations/generated/clean-account-evidence/ai-pack-clean-account-evidence.json"), true);
 
     const readme = await readFile(join(outDir, "README.md"), "utf8");
+    assert.match(readme, /RUN_FULL_VALIDATION\.bat/);
     assert.match(readme, /START_INSTALL\.bat/);
     assert.match(readme, /VALIDATE_INSTALL\.bat/);
     assert.match(readme, /COLLECT_EVIDENCE\.bat/);

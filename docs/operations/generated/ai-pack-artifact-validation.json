@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
-  "createdAt": "2026-06-16T02:12:49.031Z",
+  "createdAt": "2026-06-16T03:23:03.156Z",
   "ready": true,
-  "packageDir": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046",
+  "packageDir": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213",
   "manifest": {
     "package": {
       "name": "gongmu-ollama-gemma4-e2b-it-ai-pack",
-      "createdAt": "2026-06-16T01:47:21.457Z",
-      "packageDir": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046",
-      "zipPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046.zip"
+      "createdAt": "2026-06-16T03:14:30.119Z",
+      "packageDir": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213",
+      "zipPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213.zip"
     },
     "app": {
       "name": "Local AI Agent Workplace : Gongmuwon",
@@ -19,11 +19,11 @@
       "version": "3.11",
       "requiredForBundledApp": false,
       "installerIncluded": true,
-      "installerSource": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\cache\\python\\python-3.11.9-amd64.exe"
+      "installerSource": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\python\\python-3.11.9-amd64.exe"
     },
     "ollama": {
       "installerIncluded": true,
-      "installerSource": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\cache\\ollama\\OllamaSetup.exe",
+      "installerSource": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\ollama\\OllamaSetup.exe",
       "host": "127.0.0.1:11434"
     },
     "model": {
@@ -32,7 +32,7 @@
       "source": "ollama-library",
       "multimodal": true,
       "embedded": true,
-      "modelStoreSource": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\runtime-workspace\\cache\\ollama-models\\gemma4-e2b"
+      "modelStoreSource": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\models"
     }
   },
   "checks": [
@@ -69,109 +69,115 @@
     {
       "label": "manifest",
       "relativePath": "manifest.json",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\manifest.json",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\manifest.json",
       "present": true
     },
     {
       "label": "readme",
       "relativePath": "README.md",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\README.md",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\README.md",
       "present": true
     },
     {
       "label": "third party notices",
       "relativePath": "THIRD_PARTY_NOTICES.md",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\THIRD_PARTY_NOTICES.md",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\THIRD_PARTY_NOTICES.md",
       "present": true
     },
     {
       "label": "sha256 sums",
       "relativePath": "SHA256SUMS.txt",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\SHA256SUMS.txt",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\SHA256SUMS.txt",
       "present": true
     },
     {
       "label": "start launcher",
       "relativePath": "START_INSTALL.bat",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\START_INSTALL.bat",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\START_INSTALL.bat",
       "present": true
     },
     {
       "label": "validate launcher",
       "relativePath": "VALIDATE_INSTALL.bat",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\VALIDATE_INSTALL.bat",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\VALIDATE_INSTALL.bat",
       "present": true
     },
     {
       "label": "evidence launcher",
       "relativePath": "COLLECT_EVIDENCE.bat",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\COLLECT_EVIDENCE.bat",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\COLLECT_EVIDENCE.bat",
+      "present": true
+    },
+    {
+      "label": "full validation launcher",
+      "relativePath": "RUN_FULL_VALIDATION.bat",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\RUN_FULL_VALIDATION.bat",
       "present": true
     },
     {
       "label": "install script",
       "relativePath": "install-gongmu-ai.ps1",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\install-gongmu-ai.ps1",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\install-gongmu-ai.ps1",
       "present": true
     },
     {
       "label": "validate script",
       "relativePath": "validate-gongmu-ai.ps1",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\validate-gongmu-ai.ps1",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\validate-gongmu-ai.ps1",
       "present": true
     },
     {
       "label": "evidence script",
       "relativePath": "collect-clean-account-evidence.ps1",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\collect-clean-account-evidence.ps1",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\collect-clean-account-evidence.ps1",
       "present": true
     },
     {
       "label": "app installer",
       "relativePath": "gongmu\\Gongmu_0.1.0_x64-setup.exe",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\gongmu\\Gongmu_0.1.0_x64-setup.exe",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\gongmu\\Gongmu_0.1.0_x64-setup.exe",
       "present": true
     },
     {
       "label": "Ollama installer",
       "relativePath": "ollama/OllamaSetup.exe",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\ollama\\OllamaSetup.exe",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\ollama\\OllamaSetup.exe",
       "present": true
     },
     {
       "label": "Python 3.11 installer",
       "relativePath": "python/python-3.11.9-amd64.exe",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\python\\python-3.11.9-amd64.exe",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\python\\python-3.11.9-amd64.exe",
       "present": true
     },
     {
       "label": "Gemma model manifest",
       "relativePath": "models/manifests/registry.ollama.ai/library/gemma4/e2b",
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\models\\manifests\\registry.ollama.ai\\library\\gemma4\\e2b",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\models\\manifests\\registry.ollama.ai\\library\\gemma4\\e2b",
       "present": true
     }
   ],
   "modelStore": {
-    "manifestPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\models\\manifests\\registry.ollama.ai\\library\\gemma4\\e2b",
+    "manifestPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\models\\manifests\\registry.ollama.ai\\library\\gemma4\\e2b",
     "hasManifest": true,
     "blobCount": 4,
     "blobBytes": 7162405886
   },
   "zip": {
-    "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046.zip",
+    "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213.zip",
     "present": true,
-    "sizeBytes": 8016696189,
-    "sha256": "B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC"
+    "sizeBytes": 8016697130,
+    "sha256": "E0ADF41DD714E5E35F961363B62543C4EC90CB827BFAC6EF9ACDBA2B44EC05B7"
   },
   "hashes": {
     "appInstallerSha256": null
   },
   "launchers": {
     "startInstall": {
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\START_INSTALL.bat",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\START_INSTALL.bat",
       "present": true,
       "dryRun": {
-        "command": "cmd.exe /c C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\START_INSTALL.bat",
+        "command": "cmd.exe /c C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\START_INSTALL.bat",
         "status": 0,
         "ok": true,
         "stdout": "============================================================\r\n Gongmu Local AI Setup\r\n Python 3.11 check + Ollama + GEMMA4 E2B IT Multimodal\r\n============================================================\r\n\r\nDo not close this window until setup finishes.\r\nIf setup fails, check install-gongmu-ai.log in this folder.\r\n\r\nDry run mode: launcher syntax is OK.",
@@ -179,10 +185,10 @@
       }
     },
     "validateInstall": {
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\VALIDATE_INSTALL.bat",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\VALIDATE_INSTALL.bat",
       "present": true,
       "dryRun": {
-        "command": "cmd.exe /c C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\VALIDATE_INSTALL.bat",
+        "command": "cmd.exe /c C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\VALIDATE_INSTALL.bat",
         "status": 0,
         "ok": true,
         "stdout": "============================================================\r\n Gongmu Local AI Validation\r\n============================================================\r\n\r\nDry run mode: launcher syntax is OK.",
@@ -190,34 +196,45 @@
       }
     },
     "collectEvidence": {
-      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\COLLECT_EVIDENCE.bat",
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\COLLECT_EVIDENCE.bat",
       "present": true,
       "dryRun": {
-        "command": "cmd.exe /c C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\COLLECT_EVIDENCE.bat",
+        "command": "cmd.exe /c C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\COLLECT_EVIDENCE.bat",
         "status": 0,
         "ok": true,
         "stdout": "============================================================\r\n Gongmu Clean Account Evidence Collection\r\n============================================================\r\n\r\nDry run mode: launcher syntax is OK.",
+        "stderr": ""
+      }
+    },
+    "fullValidation": {
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\RUN_FULL_VALIDATION.bat",
+      "present": true,
+      "dryRun": {
+        "command": "cmd.exe /c C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\RUN_FULL_VALIDATION.bat",
+        "status": 0,
+        "ok": true,
+        "stdout": "============================================================\r\n Gongmu Local AI Full Validation\r\n Setup + validation + clean-account evidence\r\n============================================================\r\n\r\nThis one-click path runs:\r\n 1. install-gongmu-ai.ps1\r\n 2. validate-gongmu-ai.ps1\r\n 3. collect-clean-account-evidence.ps1\r\n\r\nLogs:\r\n - install-gongmu-ai.log\r\n - validate-gongmu-ai.log\r\n - evidence\\ai-pack-clean-account-evidence.md\r\n\r\nDry run mode: launcher syntax is OK.",
         "stderr": ""
       }
     }
   },
   "powerShell": {
     "install": {
-      "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command [scriptblock]::Create((Get-Content -Raw -LiteralPath 'C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\install-gongmu-ai.ps1')) | Out-Null",
+      "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command [scriptblock]::Create((Get-Content -Raw -LiteralPath 'C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\install-gongmu-ai.ps1')) | Out-Null",
       "status": 0,
       "ok": true,
       "stdout": "",
       "stderr": ""
     },
     "validate": {
-      "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command [scriptblock]::Create((Get-Content -Raw -LiteralPath 'C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\validate-gongmu-ai.ps1')) | Out-Null",
+      "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command [scriptblock]::Create((Get-Content -Raw -LiteralPath 'C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\validate-gongmu-ai.ps1')) | Out-Null",
       "status": 0,
       "ok": true,
       "stdout": "",
       "stderr": ""
     },
     "collect": {
-      "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command [scriptblock]::Create((Get-Content -Raw -LiteralPath 'C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046\\collect-clean-account-evidence.ps1')) | Out-Null",
+      "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command [scriptblock]::Create((Get-Content -Raw -LiteralPath 'C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\ai-pack\\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213\\collect-clean-account-evidence.ps1')) | Out-Null",
       "status": 0,
       "ok": true,
       "stdout": "",

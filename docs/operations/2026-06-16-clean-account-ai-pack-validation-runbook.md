@@ -37,6 +37,8 @@ node scripts/validate-ai-pack-artifact.mjs --require-zip --min-zip-bytes 1000000
 - `ready: true`
 - `START_INSTALL.bat` dry-run 통과
 - `VALIDATE_INSTALL.bat` dry-run 통과
+- `COLLECT_EVIDENCE.bat` dry-run 통과
+- `RUN_FULL_VALIDATION.bat` dry-run 통과
 - `install-gongmu-ai.ps1` PowerShell 문법 검증 통과
 - `validate-gongmu-ai.ps1` PowerShell 문법 검증 통과
 - Python 3.11 설치파일 포함 확인
@@ -65,9 +67,9 @@ B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC
 ```
 
 3. zip을 로컬 폴더에 압축 해제한다.
-4. 압축 해제 폴더에서 `START_INSTALL.bat`을 더블클릭한다.
-5. 설치 완료 후 같은 폴더의 `VALIDATE_INSTALL.bat`을 더블클릭한다.
-6. 검증 완료 후 같은 폴더의 `COLLECT_EVIDENCE.bat`을 더블클릭한다.
+4. 권장 경로: 압축 해제 폴더에서 `RUN_FULL_VALIDATION.bat`을 더블클릭한다.
+5. 이 런처가 설치, 검증, 증거 수집을 순서대로 실행한다.
+6. 단계별 확인이 필요하면 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 순서대로 더블클릭한다.
 7. 공무원 앱을 실행한다.
 8. 환경설정의 기본 LLM 공급자가 Ollama local profile로 잡혔는지 확인한다.
 9. 업무대화에서 짧은 텍스트 질문을 입력한다.
@@ -148,7 +150,7 @@ docs\operations\generated\clean-account-evidence-import.md
 
 ## 현재 남은 완료 조건
 
-이 문서와 자동 검증 리포트는 산출물 구조, 포함 파일, 런처 문법, dry-run, 해시 동일성을 증명한다. 다만 최종 완료 게이트 G11을 완전히 닫으려면 실제 클린계정 또는 VM에서 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 실행한 로그와 `ready: true` 증거가 필요하다. 반입한 evidence는 반드시 `npm.cmd run release:ai-pack:evidence:import` 또는 `npm.cmd run release:ai-pack:evidence:validate`로 재검증한다.
+이 문서와 자동 검증 리포트는 산출물 구조, 포함 파일, 런처 문법, dry-run, 해시 동일성을 증명한다. 다만 최종 완료 게이트 G11을 완전히 닫으려면 실제 클린계정 또는 VM에서 `RUN_FULL_VALIDATION.bat` 또는 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 실행한 로그와 `ready: true` 증거가 필요하다. 반입한 evidence는 반드시 `npm.cmd run release:ai-pack:evidence:import` 또는 `npm.cmd run release:ai-pack:evidence:validate`로 재검증한다.
 
 따라서 현재 상태는 “배포 산출물 준비 및 자동 검증 완료, 클린계정 실사용 증거 대기”로 판정한다.
 
@@ -168,7 +170,7 @@ release\clean-account-evidence-request
 
 생성 파일:
 
-- `README.md`: 대상 PC에서 zip 해시 확인, `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat` 실행, evidence 반입 순서를 안내한다.
+- `README.md`: 대상 PC에서 zip 해시 확인, `RUN_FULL_VALIDATION.bat` 우선 실행 또는 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat` 단계별 실행, evidence 반입 순서를 안내한다.
 - `REQUEST.json`: 현재 AI pack zip 경로, SHA256, 모델명, 멀티모달/내장 여부, 반입 대상 경로를 기계가 읽을 수 있는 형식으로 기록한다.
 - `EXPECTED_SHA256.txt`: 대상 PC에서 `Get-FileHash` 결과와 대조할 zip SHA256을 기록한다.
 - `COPY_TARGETS.txt`: 대상 PC에서 생성된 `evidence\ai-pack-clean-account-evidence.json`을 개발 저장소의 어느 경로로 복사해야 하는지 기록한다.

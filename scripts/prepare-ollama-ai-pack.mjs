@@ -157,6 +157,16 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "",
     "## Beginner path",
     "",
+    "For the simplest clean-account validation, double-click:",
+    "",
+    "```text",
+    "RUN_FULL_VALIDATION.bat",
+    "```",
+    "",
+    "This runs setup, validation, and evidence collection in sequence. It writes `install-gongmu-ai.log`, `validate-gongmu-ai.log`, and `evidence/ai-pack-clean-account-evidence.json`.",
+    "",
+    "If you prefer step-by-step execution, run the files below in order.",
+    "",
     "Double-click:",
     "",
     "```text",
@@ -868,12 +878,67 @@ exit /b %EXIT_CODE%
 `;
 }
 
+function fullValidationBatchScriptContent() {
+  return `@echo off
+chcp 65001 > nul
+title Gongmu Local AI Full Validation
+cd /d "%~dp0"
+echo.
+echo ============================================================
+echo  Gongmu Local AI Full Validation
+echo  Setup + validation + clean-account evidence
+echo ============================================================
+echo.
+echo This one-click path runs:
+echo  1. install-gongmu-ai.ps1
+echo  2. validate-gongmu-ai.ps1
+echo  3. collect-clean-account-evidence.ps1
+echo.
+echo Logs:
+echo  - install-gongmu-ai.log
+echo  - validate-gongmu-ai.log
+echo  - evidence\\ai-pack-clean-account-evidence.md
+echo.
+if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
+  echo Dry run mode: launcher syntax is OK.
+  exit /b 0
+)
+
+set "EXIT_CODE=0"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-gongmu-ai.ps1"
+set "INSTALL_EXIT=%ERRORLEVEL%"
+if not "%INSTALL_EXIT%"=="0" set "EXIT_CODE=%INSTALL_EXIT%"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0validate-gongmu-ai.ps1"
+set "VALIDATE_EXIT=%ERRORLEVEL%"
+if "%EXIT_CODE%"=="0" if not "%VALIDATE_EXIT%"=="0" set "EXIT_CODE=%VALIDATE_EXIT%"
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0collect-clean-account-evidence.ps1"
+set "EVIDENCE_EXIT=%ERRORLEVEL%"
+if "%EXIT_CODE%"=="0" if not "%EVIDENCE_EXIT%"=="0" set "EXIT_CODE=%EVIDENCE_EXIT%"
+
+echo.
+if not "%EXIT_CODE%"=="0" (
+  echo Full validation finished with failures. Error code: %EXIT_CODE%
+  echo Check install-gongmu-ai.log, validate-gongmu-ai.log, and evidence\\ai-pack-clean-account-evidence.md.
+) else (
+  echo Full validation completed.
+  echo Send evidence\\ai-pack-clean-account-evidence.json back to the development repository.
+)
+echo.
+pause
+exit /b %EXIT_CODE%
+`;
+}
+
 async function writeBatchLaunchers(packageDir) {
   const installContent = installBatchScriptContent();
   await writeTextFile(join(packageDir, "START_INSTALL.bat"), installContent);
   await writeTextFile(join(packageDir, "install-gongmu-ai.bat"), installContent);
   await writeTextFile(join(packageDir, "VALIDATE_INSTALL.bat"), validateBatchScriptContent());
   await writeTextFile(join(packageDir, "COLLECT_EVIDENCE.bat"), collectEvidenceBatchScriptContent());
+  await writeTextFile(join(packageDir, "RUN_FULL_VALIDATION.bat"), fullValidationBatchScriptContent());
 }
 
 async function writeShaSums(packageDir) {
