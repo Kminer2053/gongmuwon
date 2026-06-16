@@ -65,6 +65,9 @@ async function main() {
     assert.match(readme, /runtime-clean-account-evidence\.template\.json/);
     assert.match(readme, /COLLECT_RUNTIME_EVIDENCE\.bat/);
     assert.match(readme, /release:runtime-evidence:validate/);
+    assert.match(readme, /클린계정\/폐쇄망 검증 요청서/);
+    assert.match(readme, /대상 PC에서 실행할 순서/);
+    assert.doesNotMatch(readme, /[怨媛利濡蹂寃]/, "README should not contain mojibake characters");
     assert.doesNotMatch(
       readme,
       /release:ai-pack:evidence:finalize\r?\nnpm\.cmd run release:runtime-evidence:validate/,
@@ -92,6 +95,15 @@ async function main() {
     assert.ok(
       runtimeTemplate.checks.some((check) => check.name === "Work engine health OK"),
       "runtime evidence template should ask for work engine health confirmation",
+    );
+    assert.ok(
+      runtimeTemplate.checks.some((check) => String(check.detail).includes("업무엔진")),
+      "runtime evidence template details should be readable Korean",
+    );
+    assert.doesNotMatch(
+      JSON.stringify(runtimeTemplate),
+      /[怨媛利濡蹂寃]/,
+      "runtime evidence template should not contain mojibake characters",
     );
 
     const runtimeScript = await readFile(join(outDir, "COLLECT_RUNTIME_EVIDENCE.ps1"), "utf8");

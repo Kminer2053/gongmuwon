@@ -79,7 +79,12 @@ async function main() {
     await writeJson(requestPath, requestJson());
     await writeText(
       readmePath,
-      "Run RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat, copy the evidence folder into release\\clean-account-evidence-inbox, then run release:ai-pack:evidence:finalize and release:runtime-evidence:validate.\n",
+      [
+        "Run RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat.",
+        "Copy the evidence folder into release\\clean-account-evidence-inbox.",
+        "Then run release:ai-pack:evidence:finalize.",
+        "Use release:runtime-evidence:validate only as a runtime-only fallback.",
+      ].join("\n"),
     );
     await writeText(
       join(requestDir, "COLLECT_RUNTIME_EVIDENCE.ps1"),
@@ -102,6 +107,10 @@ async function main() {
 
     assert.equal(report.ready, true);
     assert.equal(report.checks.every((check) => check.ok), true);
+    assert.ok(
+      report.checks.some((check) => check.name === "README keeps finalizer as the single primary repository command"),
+      "request validator should reject duplicate post-finalize runtime validation instructions",
+    );
     assert.ok(
       report.checks.some((check) => check.name === "request includes runtime evidence collector"),
       "request validator should check the runtime evidence collector",
@@ -137,6 +146,26 @@ async function main() {
     });
     assert.equal(stale.ready, false);
     assert.ok(stale.errors.some((error) => error.includes("zip SHA256")));
+
+    await writeJson(requestPath, requestJson());
+    await writeText(
+      readmePath,
+      "Run RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat, then run release:ai-pack:evidence:finalize and release:runtime-evidence:validate.\n",
+    );
+    const duplicateRuntimeValidation = await validateCleanAccountEvidenceRequest({
+      repoRoot: root,
+      artifactReportPath: artifactPath,
+      requestPath,
+      requestReadmePath: readmePath,
+      outJson,
+      outMarkdown,
+    });
+    assert.equal(duplicateRuntimeValidation.ready, false);
+    assert.ok(
+      duplicateRuntimeValidation.errors.some((error) =>
+        error.includes("single primary repository command"),
+      ),
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }

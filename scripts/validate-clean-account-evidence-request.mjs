@@ -57,6 +57,13 @@ ${report.errors.length === 0 ? "- none" : report.errors.map((error) => `- ${erro
 `;
 }
 
+function readmeKeepsSinglePrimaryFinalizer(readme) {
+  const normalized = readme.replace(/\r\n/g, "\n");
+  const directDuplicatePattern =
+    /run\s+(?:npm\.cmd\s+run\s+)?release:ai-pack:evidence:finalize\s+(?:and|then|&|\n)\s*(?:run\s+)?(?:npm\.cmd\s+run\s+)?release:runtime-evidence:validate/i;
+  return !directDuplicatePattern.test(normalized);
+}
+
 export async function validateCleanAccountEvidenceRequest(options = {}) {
   const repoRoot = resolve(options.repoRoot ?? REPO_ROOT);
   const artifactReportPath = resolve(repoRoot, options.artifactReportPath ?? DEFAULT_ARTIFACT_REPORT);
@@ -134,6 +141,12 @@ export async function validateCleanAccountEvidenceRequest(options = {}) {
     "request includes repository finalization command",
     String(request.copyBack?.validationCommand ?? "").includes("release:ai-pack:evidence:finalize"),
     `${request.copyBack?.validationCommand ?? ""}`,
+  );
+  addCheck(
+    checks,
+    "README keeps finalizer as the single primary repository command",
+    readmeKeepsSinglePrimaryFinalizer(readme),
+    "release:runtime-evidence:validate may be mentioned only as a runtime-only fallback or as work performed inside the finalizer",
   );
   addCheck(
     checks,
