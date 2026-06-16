@@ -55,9 +55,9 @@ function requestJson(overrides = {}) {
       "copy evidence JSON back to repository",
     ],
     copyBack: {
-      sourcePathOnTargetPc: "evidence\\ai-pack-clean-account-evidence.json",
-      targetPath: "docs/operations/generated/clean-account-evidence/ai-pack-clean-account-evidence.json",
-      validationCommand: "npm.cmd run release:ai-pack:evidence:validate",
+      sourcePathOnTargetPc: "evidence",
+      targetPath: "release/clean-account-evidence-inbox",
+      validationCommand: "npm.cmd run release:ai-pack:evidence:finalize",
     },
     ...overrides,
   };
@@ -75,7 +75,10 @@ async function main() {
 
     await writeJson(artifactPath, artifactReport());
     await writeJson(requestPath, requestJson());
-    await writeText(readmePath, "Run RUN_FULL_VALIDATION.bat, then return evidence\\ai-pack-clean-account-evidence.json.\n");
+    await writeText(
+      readmePath,
+      "Run RUN_FULL_VALIDATION.bat, copy the evidence folder into release\\clean-account-evidence-inbox, then run release:ai-pack:evidence:finalize.\n",
+    );
 
     const report = await validateCleanAccountEvidenceRequest({
       repoRoot: root,

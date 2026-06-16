@@ -51,21 +51,25 @@ async function main() {
     assert.equal(request.artifact.modelName, "gemma4:e2b");
     assert.equal(request.artifact.multimodal, true);
     assert.equal(request.artifact.zipSha256, "B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC");
-    assert.equal(request.copyBack.targetPath.endsWith("docs/operations/generated/clean-account-evidence/ai-pack-clean-account-evidence.json"), true);
+    assert.equal(request.copyBack.sourcePathOnTargetPc, "evidence");
+    assert.equal(request.copyBack.targetPath.endsWith("release/clean-account-evidence-inbox"), true);
+    assert.equal(request.copyBack.validationCommand, "npm.cmd run release:ai-pack:evidence:finalize");
 
     const readme = await readFile(join(outDir, "README.md"), "utf8");
     assert.match(readme, /RUN_FULL_VALIDATION\.bat/);
     assert.match(readme, /START_INSTALL\.bat/);
     assert.match(readme, /VALIDATE_INSTALL\.bat/);
     assert.match(readme, /COLLECT_EVIDENCE\.bat/);
-    assert.match(readme, /release:ai-pack:evidence:validate/);
+    assert.match(readme, /release[\\/]clean-account-evidence-inbox/);
+    assert.match(readme, /release:ai-pack:evidence:finalize/);
     assert.match(readme, /B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC/);
 
     const sha = await readFile(join(outDir, "EXPECTED_SHA256.txt"), "utf8");
     assert.match(sha, /B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC/);
 
     const copyTargets = await readFile(join(outDir, "COPY_TARGETS.txt"), "utf8");
-    assert.match(copyTargets, /ai-pack-clean-account-evidence\.json/);
+    assert.match(copyTargets, /evidence folder/);
+    assert.match(copyTargets, /release\/clean-account-evidence-inbox/);
 
     const badArtifactPath = join(root, "bad-ai-pack-artifact-validation.json");
     await writeJson(badArtifactPath, artifactReport({ ready: false, zip: { present: false } }));

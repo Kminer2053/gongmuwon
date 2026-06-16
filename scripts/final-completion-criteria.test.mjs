@@ -14,6 +14,10 @@ assert.ok(
   "G11 must validate that the clean-account evidence request matches the latest AI pack",
 );
 assert.ok(
+  commands.includes("npm.cmd run release:ai-pack:evidence:finalize"),
+  "G11 must finalize imported clean-account evidence and rerun final completion gates",
+);
+assert.ok(
   commands.includes("npm.cmd run release:ai-pack:evidence:validate"),
   "G11 must validate imported clean-account evidence after the target PC run",
 );
@@ -33,6 +37,16 @@ assert.match(
   notesAndFollowUps,
   /RUN_FULL_VALIDATION\.bat/,
   "G11 must make the one-click clean-account validation launcher the primary target-PC path",
+);
+assert.match(
+  notesAndFollowUps,
+  /clean-account-evidence-inbox/,
+  "G11 must direct returned target-PC evidence into the repository inbox",
+);
+assert.match(
+  notesAndFollowUps,
+  /release:ai-pack:evidence:finalize/,
+  "G11 must use the one-command evidence finalizer after evidence is returned",
 );
 assert.match(
   notesAndFollowUps,

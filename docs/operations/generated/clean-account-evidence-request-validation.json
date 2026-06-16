@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "createdAt": "2026-06-16T03:23:19.078Z",
+  "createdAt": "2026-06-16T04:03:53.620Z",
   "ready": true,
   "artifactReportPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\docs\\operations\\generated\\ai-pack-artifact-validation.json",
   "requestPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\REQUEST.json",
@@ -26,9 +26,9 @@
       "zipName": "Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213.zip"
     },
     "copyBack": {
-      "sourcePathOnTargetPc": "evidence\\ai-pack-clean-account-evidence.json",
-      "targetPath": "docs/operations/generated/clean-account-evidence/ai-pack-clean-account-evidence.json",
-      "validationCommand": "npm.cmd run release:ai-pack:evidence:validate"
+      "sourcePathOnTargetPc": "evidence",
+      "targetPath": "release/clean-account-evidence-inbox",
+      "validationCommand": "npm.cmd run release:ai-pack:evidence:finalize"
     },
     "targetPcSteps": [
       "copy AI Pack zip",
@@ -36,8 +36,8 @@
       "extract zip",
       "run RUN_FULL_VALIDATION.bat",
       "or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step",
-      "copy evidence JSON back to repository",
-      "run release:ai-pack:evidence:validate"
+      "copy evidence folder back to repository inbox",
+      "run release:ai-pack:evidence:finalize"
     ]
   },
   "checks": [
@@ -79,7 +79,7 @@
     {
       "name": "target PC steps prefer one-click validation",
       "ok": true,
-      "detail": "copy AI Pack zip | verify SHA256 | extract zip | run RUN_FULL_VALIDATION.bat | or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step | copy evidence JSON back to repository | run release:ai-pack:evidence:validate"
+      "detail": "copy AI Pack zip | verify SHA256 | extract zip | run RUN_FULL_VALIDATION.bat | or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step | copy evidence folder back to repository inbox | run release:ai-pack:evidence:finalize"
     },
     {
       "name": "README mentions one-click validation launcher",
@@ -87,14 +87,14 @@
       "detail": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\README.md"
     },
     {
-      "name": "request points to clean-account evidence JSON",
+      "name": "request points to clean-account evidence inbox",
       "ok": true,
-      "detail": "evidence\\ai-pack-clean-account-evidence.json -> docs/operations/generated/clean-account-evidence/ai-pack-clean-account-evidence.json"
+      "detail": "evidence -> release/clean-account-evidence-inbox"
     },
     {
-      "name": "request includes repository validation command",
+      "name": "request includes repository finalization command",
       "ok": true,
-      "detail": "npm.cmd run release:ai-pack:evidence:validate"
+      "detail": "npm.cmd run release:ai-pack:evidence:finalize"
     }
   ],
   "errors": []

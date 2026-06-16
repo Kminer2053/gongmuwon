@@ -100,16 +100,15 @@ export async function validateCleanAccountEvidenceRequest(options = {}) {
   );
   addCheck(
     checks,
-    "request points to clean-account evidence JSON",
-    String(request.copyBack?.sourcePathOnTargetPc ?? "").includes("ai-pack-clean-account-evidence.json") &&
-      String(request.copyBack?.targetPath ?? "").includes("ai-pack-clean-account-evidence.json"),
+    "request points to clean-account evidence inbox",
+    String(request.copyBack?.sourcePathOnTargetPc ?? "").replace(/\\/g, "/").includes("evidence") &&
+      String(request.copyBack?.targetPath ?? "").replace(/\\/g, "/").includes("release/clean-account-evidence-inbox"),
     `${request.copyBack?.sourcePathOnTargetPc ?? ""} -> ${request.copyBack?.targetPath ?? ""}`,
   );
   addCheck(
     checks,
-    "request includes repository validation command",
-    String(request.copyBack?.validationCommand ?? "").includes("release:ai-pack:evidence:validate") ||
-      String(request.copyBack?.validationCommand ?? "").includes("release:ai-pack:evidence:import"),
+    "request includes repository finalization command",
+    String(request.copyBack?.validationCommand ?? "").includes("release:ai-pack:evidence:finalize"),
     `${request.copyBack?.validationCommand ?? ""}`,
   );
 

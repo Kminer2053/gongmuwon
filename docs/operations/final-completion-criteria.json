@@ -376,6 +376,7 @@
           "node scripts/prepare-ollama-ai-pack.mjs --include-models runtime-workspace\\cache\\ollama-models\\gemma4-e2b --include-ollama-installer runtime-workspace\\cache\\ollama\\OllamaSetup.exe --include-python-installer runtime-workspace\\cache\\python\\python-3.11.9-amd64.exe",
           "npm.cmd run release:ai-pack:validate",
           "npm.cmd run release:ai-pack:evidence:request:validate",
+          "npm.cmd run release:ai-pack:evidence:finalize",
           "npm.cmd run release:ai-pack:evidence:validate"
         ],
         "requiredFiles": [
@@ -437,14 +438,17 @@
           "2026-06-16 AI pack artifact validation은 zip SHA256, 필수 파일, 모델 저장소, START/VALIDATE/COLLECT/RUN_FULL_VALIDATION 배치 dry-run, PowerShell 문법 검증을 모두 통과했다.",
           "클린계정/폐쇄망 PC에서는 docs/operations/2026-06-16-clean-account-ai-pack-validation-runbook.md 절차에 따라 `RUN_FULL_VALIDATION.bat`을 1순위로 실행해 설치, 검증, 증거 수집 로그와 evidence ready=true를 확보해야 G11을 완전히 닫을 수 있다.",
           "대상 PC에서 단계별 확인이 필요하면 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`를 순서대로 실행하는 fallback 경로를 사용한다.",
+          "대상 PC에서 생성된 `evidence` 폴더는 개발 저장소의 `release/clean-account-evidence-inbox`로 반입한다.",
           "대상 PC에 넘기는 evidence request 폴더는 `npm.cmd run release:ai-pack:evidence:request:validate`로 최신 AI pack zip, SHA256, 크기, multimodal/embedded 모델 조건과 일치하는지 먼저 검증한다.",
+          "반입 후에는 `npm.cmd run release:ai-pack:evidence:finalize`로 증거 복사, 수용 검증, final preflight/audit를 한 번에 실행한다.",
           "반입된 evidence JSON은 `npm.cmd run release:ai-pack:evidence:validate`로 수용 검증한다."
         ]
       },
       "blockingFollowUp": [
         "가능하면 별도 계정 또는 VM install/run/uninstall 증거를 갱신한다.",
         "clean-account 또는 VM에서 `RUN_FULL_VALIDATION.bat`를 실제 실행해 Python/Ollama/Gemma/Gongmu 설정 검증 로그와 `evidence/ai-pack-clean-account-evidence.json` ready=true를 확보한다.",
-        "원클릭 실행이 막히면 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`를 순서대로 실행해 같은 evidence JSON을 확보한다."
+        "원클릭 실행이 막히면 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`를 순서대로 실행해 같은 evidence JSON을 확보한다.",
+        "대상 PC의 `evidence` 폴더를 `release/clean-account-evidence-inbox`에 넣고 `npm.cmd run release:ai-pack:evidence:finalize`를 실행한다."
       ]
     },
     {

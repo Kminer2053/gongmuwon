@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_ARTIFACT_REPORT = "docs/operations/generated/ai-pack-artifact-validation.json";
 const DEFAULT_OUT_DIR = "release/clean-account-evidence-request";
-const DEFAULT_COPY_BACK_TARGET = "docs/operations/generated/clean-account-evidence/ai-pack-clean-account-evidence.json";
-const DEFAULT_VALIDATION_COMMAND = "npm.cmd run release:ai-pack:evidence:validate";
+const DEFAULT_COPY_BACK_TARGET = "release/clean-account-evidence-inbox";
+const DEFAULT_VALIDATION_COMMAND = "npm.cmd run release:ai-pack:evidence:finalize";
 
 function hasText(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -79,7 +79,7 @@ ${request.artifact.zipSha256}
 4. 권장 경로: 압축 해제 폴더에서 \`RUN_FULL_VALIDATION.bat\`을 실행합니다.
 5. 이 런처가 설치, 검증, 증거 수집을 순서대로 실행합니다.
 6. 단계별 확인이 필요하면 \`START_INSTALL.bat\`, \`VALIDATE_INSTALL.bat\`, \`COLLECT_EVIDENCE.bat\`을 순서대로 실행합니다.
-7. 생성된 \`evidence\\ai-pack-clean-account-evidence.json\`을 개발 저장소의 반입 경로로 복사합니다.
+7. 생성된 \`evidence\` 폴더를 개발 저장소의 반입 경로로 복사합니다.
 
 ## 개발 저장소 반입 경로
 
@@ -114,10 +114,10 @@ ${request.copyBack.validationCommand}
 
 function buildCopyTargets(request) {
   return [
-    "Copy this file from target PC:",
-    "  evidence\\ai-pack-clean-account-evidence.json",
+    "Copy this evidence folder from target PC:",
+    "  evidence folder",
     "",
-    "Into this repository path:",
+    "Into this repository inbox path:",
     `  ${request.copyBack.targetPath}`,
     "",
     "Then run:",
@@ -145,7 +145,7 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
     outDir,
     artifact,
     copyBack: {
-      sourcePathOnTargetPc: "evidence\\ai-pack-clean-account-evidence.json",
+      sourcePathOnTargetPc: "evidence",
       targetPath: copyBackTarget,
       validationCommand,
     },
@@ -155,8 +155,8 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
       "extract zip",
       "run RUN_FULL_VALIDATION.bat",
       "or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step",
-      "copy evidence JSON back to repository",
-      "run release:ai-pack:evidence:validate",
+      "copy evidence folder back to repository inbox",
+      "run release:ai-pack:evidence:finalize",
     ],
   };
 

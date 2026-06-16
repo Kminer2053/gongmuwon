@@ -106,42 +106,41 @@ B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC
 
 ## 개발 저장소로 증거 반입 후 검증
 
-대상 PC에서 생성된 `evidence\ai-pack-clean-account-evidence.json`을 개발 저장소의 아래 경로로 복사한다.
+대상 PC에서 생성된 `evidence` 폴더 전체를 개발 저장소의 아래 inbox 경로로 복사한다. 이 방식이 기본 경로이며, JSON뿐 아니라 설치 로그, 검증 로그, 검토용 Markdown을 함께 보존한다.
 
 ```text
-docs\operations\generated\clean-account-evidence\ai-pack-clean-account-evidence.json
+release\clean-account-evidence-inbox
 ```
 
 그 다음 개발 저장소에서 아래 명령을 실행한다.
 
 ```powershell
-npm.cmd run release:ai-pack:evidence:validate
+npm.cmd run release:ai-pack:evidence:finalize
 ```
 
 기대 결과:
 
 - `ready: true`
 - 모든 필수 점검 항목 `PASS`
+- `docs\operations\generated\clean-account-evidence\` 아래로 evidence 파일과 로그 복사
 - `docs\operations\generated\clean-account-evidence-validation.json` 생성
 - `docs\operations\generated\clean-account-evidence-validation.md` 생성
+- `docs\operations\generated\clean-account-evidence-import.json` 생성
+- `verify:completion:preflight`와 `verify:completion:audit` 재실행
 
-대상 PC의 `evidence` 폴더 전체를 가져온 경우에는 아래 폴더에 복사한 뒤 import 명령을 사용할 수 있다. 압축 해제된 AI pack 루트 폴더 전체를 가져온 경우에도 루트 안의 `evidence` 하위 폴더를 자동으로 찾아 처리한다. 검증자가 `ai-pack-clean-account-evidence.json` 파일 하나만 전달한 경우에도 `--from`에 해당 JSON 파일 경로를 직접 지정하면 같은 수용 검증을 실행할 수 있다.
-
-```text
-release\clean-account-evidence-inbox
-```
+검증자가 `ai-pack-clean-account-evidence.json` 파일 하나만 전달한 경우, 또는 압축 해제된 AI pack 루트 폴더 전체를 가져온 경우에는 `--from`에 해당 경로를 직접 지정할 수 있다.
 
 ```powershell
-npm.cmd run release:ai-pack:evidence:import
+node scripts/finalize-clean-account-evidence.mjs --from "D:\받은증거\ai-pack-clean-account-evidence.json"
 ```
 
-JSON 파일 하나만 직접 반입하는 예:
+수용 검증만 따로 재실행해야 할 때는 아래 명령을 사용할 수 있다.
 
 ```powershell
-node scripts/import-clean-account-evidence.mjs --from "D:\받은증거\ai-pack-clean-account-evidence.json"
+npm.cmd run release:ai-pack:evidence:validate
 ```
 
-이 명령은 `ai-pack-clean-account-evidence.json`, 검토용 Markdown, evidence 수집 로그, 설치 로그, 검증 로그를 `docs\operations\generated\clean-account-evidence\` 아래로 복사한 뒤 즉시 `release:ai-pack:evidence:validate`와 동일한 수용 검증을 실행한다. 반입 리포트는 아래 경로에 남는다.
+finalize/import 명령은 `ai-pack-clean-account-evidence.json`, 검토용 Markdown, evidence 수집 로그, 설치 로그, 검증 로그를 `docs\operations\generated\clean-account-evidence\` 아래로 복사한 뒤 즉시 수용 검증을 실행한다. 반입 리포트는 아래 경로에 남는다.
 
 ```text
 docs\operations\generated\clean-account-evidence-import.json
