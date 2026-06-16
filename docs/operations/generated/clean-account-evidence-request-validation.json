@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "createdAt": "2026-06-16T04:03:53.620Z",
+  "createdAt": "2026-06-16T04:43:02.896Z",
   "ready": true,
   "artifactReportPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\docs\\operations\\generated\\ai-pack-artifact-validation.json",
   "requestPath": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\REQUEST.json",
@@ -28,7 +28,8 @@
     "copyBack": {
       "sourcePathOnTargetPc": "evidence",
       "targetPath": "release/clean-account-evidence-inbox",
-      "validationCommand": "npm.cmd run release:ai-pack:evidence:finalize"
+      "validationCommand": "npm.cmd run release:ai-pack:evidence:finalize",
+      "runtimeValidationCommand": "npm.cmd run release:runtime-evidence:validate"
     },
     "targetPcSteps": [
       "copy AI Pack zip",
@@ -37,7 +38,8 @@
       "run RUN_FULL_VALIDATION.bat",
       "or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step",
       "copy evidence folder back to repository inbox",
-      "run release:ai-pack:evidence:finalize"
+      "run release:ai-pack:evidence:finalize",
+      "run release:runtime-evidence:validate"
     ]
   },
   "checks": [
@@ -79,7 +81,7 @@
     {
       "name": "target PC steps prefer one-click validation",
       "ok": true,
-      "detail": "copy AI Pack zip | verify SHA256 | extract zip | run RUN_FULL_VALIDATION.bat | or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step | copy evidence folder back to repository inbox | run release:ai-pack:evidence:finalize"
+      "detail": "copy AI Pack zip | verify SHA256 | extract zip | run RUN_FULL_VALIDATION.bat | or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step | copy evidence folder back to repository inbox | run release:ai-pack:evidence:finalize | run release:runtime-evidence:validate"
     },
     {
       "name": "README mentions one-click validation launcher",

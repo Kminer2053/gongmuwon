@@ -7,6 +7,7 @@ const DEFAULT_ARTIFACT_REPORT = "docs/operations/generated/ai-pack-artifact-vali
 const DEFAULT_OUT_DIR = "release/clean-account-evidence-request";
 const DEFAULT_COPY_BACK_TARGET = "release/clean-account-evidence-inbox";
 const DEFAULT_VALIDATION_COMMAND = "npm.cmd run release:ai-pack:evidence:finalize";
+const DEFAULT_RUNTIME_VALIDATION_COMMAND = "npm.cmd run release:runtime-evidence:validate";
 
 function hasText(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -47,7 +48,7 @@ function artifactFromReport(report) {
 function buildReadme(request) {
   return `# 클린계정/폐쇄망 검증 요청서
 
-이 폴더는 최종 완료 게이트 G11을 닫기 위해 대상 PC에서 실행할 절차만 모아둔 요청서입니다. 현재 개발 PC의 dry-run 증거를 실제 클린계정/VM 증거로 대체하지 않습니다.
+이 폴더는 최종 완료 게이트 G03/G11을 닫기 위해 대상 PC에서 실행할 절차만 모아둔 요청서입니다. 현재 개발 PC의 dry-run 증거를 실제 클린계정/VM 증거로 대체하지 않습니다.
 
 ## 검증 대상 산출물
 
@@ -79,7 +80,8 @@ ${request.artifact.zipSha256}
 4. 권장 경로: 압축 해제 폴더에서 \`RUN_FULL_VALIDATION.bat\`을 실행합니다.
 5. 이 런처가 설치, 검증, 증거 수집을 순서대로 실행합니다.
 6. 단계별 확인이 필요하면 \`START_INSTALL.bat\`, \`VALIDATE_INSTALL.bat\`, \`COLLECT_EVIDENCE.bat\`을 순서대로 실행합니다.
-7. 생성된 \`evidence\` 폴더를 개발 저장소의 반입 경로로 복사합니다.
+7. Gongmu 앱을 실행해 업무엔진 상태를 확인한 뒤 \`runtime-clean-account-evidence.template.json\`을 \`runtime-clean-account-evidence.json\`으로 복사해 실제 결과를 채웁니다.
+8. 생성된 \`evidence\` 폴더를 개발 저장소의 반입 경로로 복사합니다.
 
 ## 개발 저장소 반입 경로
 
@@ -91,6 +93,7 @@ ${request.copyBack.targetPath}
 
 \`\`\`powershell
 ${request.copyBack.validationCommand}
+${request.copyBack.runtimeValidationCommand}
 \`\`\`
 
 ## 반드시 같이 보관할 파일
@@ -100,6 +103,7 @@ ${request.copyBack.validationCommand}
 - \`evidence\\collect-clean-account-evidence.log\`
 - \`evidence\\ai-pack-clean-account-evidence.json\`
 - \`evidence\\ai-pack-clean-account-evidence.md\`
+- \`evidence\\runtime-clean-account-evidence.json\`
 
 ## 합격 기준
 
@@ -109,6 +113,7 @@ ${request.copyBack.validationCommand}
 - 이미지 채팅 응답 성공
 - Gongmu 설정이 Ollama 로컬 모델을 가리킴
 - 설치 로그와 검증 로그가 존재함
+- Gongmu 앱 실행, 업무엔진 health OK, 재시작/복구 안내, 장기 작업 중 응답성, 런타임 로그가 확인됨
 `;
 }
 
@@ -122,8 +127,60 @@ function buildCopyTargets(request) {
     "",
     "Then run:",
     `  ${request.copyBack.validationCommand}`,
+    `  ${request.copyBack.runtimeValidationCommand}`,
+    "",
+    "Runtime evidence template:",
+    "  runtime-clean-account-evidence.template.json -> evidence/runtime-clean-account-evidence.json",
     "",
   ].join("\n");
+}
+
+function buildRuntimeEvidenceTemplate() {
+  return {
+    schemaVersion: 1,
+    title: "Gongmu runtime clean-account evidence",
+    ready: false,
+    startedAt: "",
+    completedAt: "",
+    computerName: "",
+    userName: "",
+    installPath: "",
+    appVersion: "",
+    engineHealthUrl: "http://127.0.0.1:8765/health",
+    runtimeLog: {
+      path: "",
+      exists: false,
+      sha256: "",
+    },
+    screenshots: [],
+    checks: [
+      {
+        name: "Gongmu app launched",
+        passed: false,
+        detail: "앱 메인 화면이 표시되고 사용자가 조작 가능한지 기록합니다.",
+      },
+      {
+        name: "Work engine health OK",
+        passed: false,
+        detail: "업무엔진 상태 또는 /health status=ok 확인 내용을 기록합니다.",
+      },
+      {
+        name: "Engine restart or recovery guidance observed",
+        passed: false,
+        detail: "업무엔진 강제 종료 후 자동 복구 또는 이해 가능한 재시작 안내를 기록합니다.",
+      },
+      {
+        name: "Long job remained responsive",
+        passed: false,
+        detail: "GraphRAG 인덱싱 같은 장기 작업 중 파일찾기/업무대화가 응답했는지 기록합니다.",
+      },
+      {
+        name: "Runtime logs captured",
+        passed: false,
+        detail: "검증 로그 파일 경로와 해시를 runtimeLog에 기록합니다.",
+      },
+    ],
+  };
 }
 
 export async function prepareCleanAccountEvidenceRequest(options = {}) {
@@ -132,6 +189,7 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
   const outDir = resolve(repoRoot, options.outDir ?? DEFAULT_OUT_DIR);
   const copyBackTarget = normalizeSlash(options.copyBackTarget ?? DEFAULT_COPY_BACK_TARGET);
   const validationCommand = options.validationCommand ?? DEFAULT_VALIDATION_COMMAND;
+  const runtimeValidationCommand = options.runtimeValidationCommand ?? DEFAULT_RUNTIME_VALIDATION_COMMAND;
 
   const report = JSON.parse(await readFile(artifactReportPath, "utf8"));
   const artifact = artifactFromReport(report);
@@ -148,6 +206,7 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
       sourcePathOnTargetPc: "evidence",
       targetPath: copyBackTarget,
       validationCommand,
+      runtimeValidationCommand,
     },
     targetPcSteps: [
       "copy AI Pack zip",
@@ -157,6 +216,7 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
       "or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step",
       "copy evidence folder back to repository inbox",
       "run release:ai-pack:evidence:finalize",
+      "run release:runtime-evidence:validate",
     ],
   };
 
@@ -165,6 +225,11 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
   await writeFile(join(outDir, "README.md"), buildReadme(request), "utf8");
   await writeFile(join(outDir, "EXPECTED_SHA256.txt"), `${artifact.zipSha256}  ${artifact.zipName}\n`, "utf8");
   await writeFile(join(outDir, "COPY_TARGETS.txt"), buildCopyTargets(request), "utf8");
+  await writeFile(
+    join(outDir, "runtime-clean-account-evidence.template.json"),
+    `${JSON.stringify(buildRuntimeEvidenceTemplate(), null, 2)}\n`,
+    "utf8",
+  );
 
   return request;
 }

@@ -1,6 +1,6 @@
 # clean-account evidence request validation
 
-- createdAt: 2026-06-16T04:03:53.620Z
+- createdAt: 2026-06-16T04:43:02.896Z
 - ready: true
 - artifactReportPath: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\docs\operations\generated\ai-pack-artifact-validation.json`
 - requestPath: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\clean-account-evidence-request\REQUEST.json`
@@ -14,7 +14,7 @@
 - PASS request zip size matches latest AI pack: 8016697130
 - PASS request model matches latest AI pack: gemma4:e2b
 - PASS request keeps multimodal embedded model flags: multimodal=true; embedded=true
-- PASS target PC steps prefer one-click validation: copy AI Pack zip | verify SHA256 | extract zip | run RUN_FULL_VALIDATION.bat | or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step | copy evidence folder back to repository inbox | run release:ai-pack:evidence:finalize
+- PASS target PC steps prefer one-click validation: copy AI Pack zip | verify SHA256 | extract zip | run RUN_FULL_VALIDATION.bat | or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step | copy evidence folder back to repository inbox | run release:ai-pack:evidence:finalize | run release:runtime-evidence:validate
 - PASS README mentions one-click validation launcher: C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\clean-account-evidence-request\README.md
 - PASS request points to clean-account evidence inbox: evidence -> release/clean-account-evidence-inbox
 - PASS request includes repository finalization command: npm.cmd run release:ai-pack:evidence:finalize
