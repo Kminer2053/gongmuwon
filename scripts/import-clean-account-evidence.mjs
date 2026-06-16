@@ -40,6 +40,33 @@ async function assertDirectory(path, label) {
   }
 }
 
+async function detectEvidenceSource(sourceDir) {
+  const directEvidence = join(sourceDir, REQUIRED_EVIDENCE_JSON);
+  if (await exists(directEvidence)) {
+    return {
+      kind: "evidence-folder",
+      sourceDir,
+      evidenceDir: sourceDir,
+      packageRoot: sourceDir,
+    };
+  }
+
+  const nestedEvidenceDir = join(sourceDir, "evidence");
+  const nestedEvidence = join(nestedEvidenceDir, REQUIRED_EVIDENCE_JSON);
+  if (await exists(nestedEvidence)) {
+    return {
+      kind: "package-root",
+      sourceDir,
+      evidenceDir: nestedEvidenceDir,
+      packageRoot: sourceDir,
+    };
+  }
+
+  throw new Error(
+    `Required evidence file not found. Expected ${directEvidence} or ${nestedEvidence}.`,
+  );
+}
+
 async function copyIfPresent(sourceDir, outputDir, fileName, required = false) {
   const source = join(sourceDir, fileName);
   const present = await exists(source);
@@ -59,6 +86,19 @@ async function copyIfPresent(sourceDir, outputDir, fileName, required = false) {
     bytes: info.size,
     required,
   };
+}
+
+async function copyFirstPresent(sourceDirs, outputDir, fileName, required = false) {
+  for (const sourceDir of sourceDirs) {
+    const item = await copyIfPresent(sourceDir, outputDir, fileName, false);
+    if (item) {
+      return item;
+    }
+  }
+  if (required) {
+    throw new Error(`Required evidence file not found: ${sourceDirs.map((dir) => join(dir, fileName)).join(" or ")}`);
+  }
+  return null;
 }
 
 function buildMarkdown(report) {
@@ -94,26 +134,28 @@ export async function importCleanAccountEvidence(options = {}) {
   const importMarkdown = resolve(repoRoot, options.importMarkdown ?? DEFAULT_IMPORT_MARKDOWN);
 
   await assertDirectory(sourceDir, "Evidence source directory");
+  const detected = await detectEvidenceSource(sourceDir);
   await mkdir(outputDir, { recursive: true });
   await mkdir(dirname(validationJson), { recursive: true });
   await mkdir(dirname(importJson), { recursive: true });
 
   const copied = [];
-  copied.push(await copyIfPresent(sourceDir, outputDir, REQUIRED_EVIDENCE_JSON, true));
+  copied.push(await copyIfPresent(detected.evidenceDir, outputDir, REQUIRED_EVIDENCE_JSON, true));
+  const candidateDirs = [detected.evidenceDir, detected.packageRoot];
   for (const fileName of OPTIONAL_EVIDENCE_FILES) {
-    const item = await copyIfPresent(sourceDir, outputDir, fileName, false);
+    const item = await copyFirstPresent(candidateDirs, outputDir, fileName, false);
     if (item) {
       copied.push(item);
     }
   }
 
-  const extraFiles = (await readdir(sourceDir, { withFileTypes: true }))
+  const extraFiles = (await readdir(detected.evidenceDir, { withFileTypes: true }))
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
     .filter((name) => name.endsWith(".png") || name.endsWith(".jpg") || name.endsWith(".jpeg"))
     .sort();
   for (const fileName of extraFiles) {
-    const item = await copyIfPresent(sourceDir, outputDir, fileName, false);
+    const item = await copyIfPresent(detected.evidenceDir, outputDir, fileName, false);
     if (item) {
       copied.push(item);
     }
@@ -131,6 +173,8 @@ export async function importCleanAccountEvidence(options = {}) {
     createdAt: new Date().toISOString(),
     ready: validation.ready,
     sourceDir,
+    detectedSourceKind: detected.kind,
+    evidenceSourceDir: detected.evidenceDir,
     outputDir,
     evidencePath,
     validationJson,
@@ -170,6 +214,7 @@ async function main() {
 
 Options:
   --from <dir>     Directory copied from target PC. Defaults to release/clean-account-evidence-inbox.
+                 Accepts either the evidence folder itself or the extracted AI pack root that contains evidence\\.
   --out-dir <dir>  Repository evidence output directory.
 `);
     return;

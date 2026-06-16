@@ -123,7 +123,7 @@ npm.cmd run release:ai-pack:evidence:validate
 - `docs\operations\generated\clean-account-evidence-validation.json` 생성
 - `docs\operations\generated\clean-account-evidence-validation.md` 생성
 
-대상 PC의 `evidence` 폴더 전체를 가져온 경우에는 아래 폴더에 복사한 뒤 import 명령을 사용할 수 있다.
+대상 PC의 `evidence` 폴더 전체를 가져온 경우에는 아래 폴더에 복사한 뒤 import 명령을 사용할 수 있다. 압축 해제된 AI pack 루트 폴더 전체를 가져온 경우에도 루트 안의 `evidence` 하위 폴더를 자동으로 찾아 처리한다.
 
 ```text
 release\clean-account-evidence-inbox

@@ -80,6 +80,31 @@ async function main() {
     assert.equal(await exists(join(outputDir, "collect-clean-account-evidence.log")), true);
     assert.match(await readFile(validationMd, "utf8"), /Clean-account evidence validation/);
 
+    const packageRoot = join(root, "target-package-root");
+    const packageEvidenceDir = join(packageRoot, "evidence");
+    const packageOutputDir = join(root, "repo-package", "docs", "operations", "generated", "clean-account-evidence");
+    await mkdir(packageEvidenceDir, { recursive: true });
+    await writeJson(join(packageEvidenceDir, "ai-pack-clean-account-evidence.json"), sampleEvidence());
+    await writeFile(join(packageEvidenceDir, "ai-pack-clean-account-evidence.md"), "# package evidence\n", "utf8");
+    await writeFile(join(packageEvidenceDir, "collect-clean-account-evidence.log"), "package collect ok\n", "utf8");
+    await writeFile(join(packageRoot, "install-gongmu-ai.log"), "package install ok\n", "utf8");
+    await writeFile(join(packageRoot, "validate-gongmu-ai.log"), "package validate ok\n", "utf8");
+
+    const packageReport = await importCleanAccountEvidence({
+      sourceDir: packageRoot,
+      outputDir: packageOutputDir,
+      validationJson: join(root, "repo-package", "docs", "operations", "generated", "clean-account-evidence-validation.json"),
+      validationMarkdown: join(root, "repo-package", "docs", "operations", "generated", "clean-account-evidence-validation.md"),
+      importJson: join(root, "repo-package", "docs", "operations", "generated", "clean-account-evidence-import.json"),
+      importMarkdown: join(root, "repo-package", "docs", "operations", "generated", "clean-account-evidence-import.md"),
+    });
+
+    assert.equal(packageReport.ready, true);
+    assert.equal(packageReport.detectedSourceKind, "package-root");
+    assert.equal(packageReport.files.length, 5);
+    assert.equal(await readFile(join(packageOutputDir, "install-gongmu-ai.log"), "utf8"), "package install ok\n");
+    assert.equal(await readFile(join(packageOutputDir, "validate-gongmu-ai.log"), "utf8"), "package validate ok\n");
+
     await assert.rejects(
       () =>
         importCleanAccountEvidence({
