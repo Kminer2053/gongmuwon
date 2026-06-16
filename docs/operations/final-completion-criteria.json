@@ -372,7 +372,8 @@
           "npm.cmd run desktop:smoke:nsis",
           "node scripts/prepare-offline-release.test.mjs",
           "npm.cmd run release:offline",
-          "npm.cmd run release:ai-pack"
+          "node scripts/prepare-ollama-ai-pack.test.mjs",
+          "node scripts/prepare-ollama-ai-pack.mjs --include-models runtime-workspace\\cache\\ollama-models\\gemma4-e2b --include-ollama-installer runtime-workspace\\cache\\ollama\\OllamaSetup.exe --include-python-installer runtime-workspace\\cache\\python\\python-3.11.9-amd64.exe"
         ],
         "requiredFiles": [
           "docs/operations/2026-04-22-windows-interactive-install-validation.md",
@@ -402,15 +403,16 @@
         "notes": [
           "`desktop:bundle`과 `desktop:bundle:debug`는 이제 `sidecar:bundle:windows -> sync-sidecar-bundle -> sidecar:smoke:bundled -> tauri build` 순서로 동작한다.",
           "`release:offline`은 이제 sidecar bundle freshness가 stale이면 최신 NSIS exe를 복사하지 않고 실패한다.",
-          "2026-06-16 현재 HEAD에서 `desktop:bundle`, `desktop:smoke:nsis`, `release:offline`, `release:ai-pack`를 재실행했다.",
+          "2026-06-16 현재 HEAD에서 `desktop:bundle`, `desktop:smoke:nsis`, `release:offline`, AI 풀팩 생성기를 재실행했다.",
           "NSIS smoke는 설치, bundled 업무엔진 `/health`, uninstall cleanup `remaining_install_files: []`를 통과했다.",
-          "AI pack은 초보자용 설치 스크립트 패키지로 생성됐고, 이번 패키지는 Gemma 모델 바이너리를 포함하지 않은 상태다.",
+          "AI 풀팩 `Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-0941.zip`은 Python 3.11.9 설치파일, OllamaSetup.exe, `gemma4:e2b` 모델 캐시, 초보자용 `START_INSTALL.bat`, 설치 후 `VALIDATE_INSTALL.bat`를 포함한다.",
+          "AI 풀팩 manifest는 `model.embedded=true`, `model.multimodal=true`, `python.installerIncluded=true`, `ollama.installerIncluded=true`를 기록한다.",
           "최종 릴리스 후보 기준 clean-account/VM GUI click-through 증거는 아직 별도 운영 증거로 남아 있다."
         ]
       },
       "blockingFollowUp": [
         "가능하면 별도 계정 또는 VM install/run/uninstall 증거를 갱신한다.",
-        "폐쇄망 AI pack에 Gemma 모델 바이너리까지 포함할지, 현재처럼 Ollama 설치/모델 pull 스크립트 패키지로 둘지 출고 정책을 확정한다."
+        "clean-account 또는 VM에서 `START_INSTALL.bat`와 `VALIDATE_INSTALL.bat`를 실제 실행해 Python/Ollama/Gemma/Gongmu 설정 검증 로그를 확보한다."
       ]
     },
     {

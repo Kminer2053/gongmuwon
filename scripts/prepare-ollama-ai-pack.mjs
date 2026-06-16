@@ -16,7 +16,7 @@ import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 
 const MODEL_NAME = "gemma4:e2b";
-const MODEL_DISPLAY_NAME = "GEMMA4 E2B IT 멀티모달";
+const MODEL_DISPLAY_NAME = "GEMMA4 E2B IT Multimodal";
 const PACKAGE_PREFIX = "Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal";
 
 async function pathExists(path) {
@@ -130,88 +130,56 @@ async function findDefaultModelStore() {
   return null;
 }
 
-async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, hasGongmuInstaller }) {
-  const modelStatus = hasModelStore
-    ? "이 패키지에는 `gemma4:e2b` Ollama 모델 캐시가 포함되어 있어 폐쇄망 PC에서 바로 가져올 수 있습니다."
-    : "`models` 폴더에는 모델 캐시가 아직 없습니다. 인터넷이 되는 제작 PC에서 `ollama pull gemma4:e2b` 후 `npm run release:ai-pack -- --include-models \"%USERPROFILE%\\.ollama\\models\"`로 다시 생성하세요.";
-  const ollamaStatus = hasOllamaInstaller
-    ? "이 패키지에는 Windows용 Ollama 설치파일이 포함되어 있습니다."
-    : "Ollama 설치파일은 포함되어 있지 않습니다. `ollama/OllamaSetup.exe`를 추가하거나 설치 대상 PC에 Ollama를 먼저 설치하세요.";
-  const gongmuStatus = hasGongmuInstaller
-    ? "이 패키지에는 최신 공무원 Windows 설치파일이 함께 포함되어 있습니다."
-    : "공무원 앱 설치파일은 발견되지 않아 포함하지 못했습니다.";
-
-  await writeTextFile(
-    path,
-    `# 로컬 AI에이전트 워크플레이스 : 공무원 AI 원클릭 셋업 팩
-
-이 팩은 폐쇄망 또는 내부망 PC에서 공무원 앱을 Ollama 기반 로컬 모델과 연결하기 위한 보조 설치 패키지입니다.
-
-## 포함 모델
-
-- 모델: \`${MODEL_NAME}\`
-- 표시명: ${MODEL_DISPLAY_NAME}
-- 용도: 업무대화 텍스트 응답 + 이미지 첨부 입력을 받는 멀티모달 테스트
-- 공급 방식: Ollama 로컬 런타임
-
-## 현재 패키지 상태
-
-- 공무원 앱 설치파일: ${hasGongmuInstaller ? "포함" : "미포함"}
-- Ollama 설치파일: ${hasOllamaInstaller ? "포함" : "미포함"}
-- Gemma4 E2B IT 모델 캐시: ${hasModelStore ? "포함" : "미포함"}
-
-${gongmuStatus}
-
-${ollamaStatus}
-
-${modelStatus}
-
-## 설치 방법
-
-가장 쉬운 방법은 압축을 푼 뒤 아래 파일을 더블클릭하는 것입니다.
-
-\`\`\`text
-START_INSTALL.bat
-\`\`\`
-
-아래 파일들도 같은 작업을 수행합니다.
-
-\`\`\`text
-설치_시작.bat
-install-gongmu-ai.bat
-\`\`\`
-
-직접 PowerShell에서 실행하려면 관리자 권한 또는 일반 권한 PowerShell을 열고 아래 명령을 실행합니다.
-
-\`\`\`powershell
-Set-ExecutionPolicy -Scope Process Bypass -Force
-.\\install-gongmu-ai.ps1
-\`\`\`
-
-모델 캐시가 없는 제작용 패키지에서 인터넷 연결을 허용해 내려받고 싶으면 아래처럼 실행합니다.
-
-\`\`\`powershell
-.\\install-gongmu-ai.ps1 -AllowDownload
-\`\`\`
-
-## 설치 스크립트가 하는 일
-
-1. 공무원 설치파일이 있으면 실행합니다.
-2. Ollama가 없고 설치파일이 있으면 설치를 안내합니다.
-3. Ollama 서버를 \`127.0.0.1:11434\`에서 실행합니다.
-4. 포함된 \`models\` 캐시가 있으면 \`%USERPROFILE%\\.ollama\\models\`로 복사합니다.
-5. \`${MODEL_NAME}\` 모델이 준비되었는지 확인합니다.
-6. 공무원 설정을 Ollama + \`${MODEL_NAME}\` 기준으로 저장합니다.
-7. 텍스트 응답과 이미지 입력 API가 동작하는지 짧게 점검합니다.
-
-## 폐쇄망 반입 전 체크
-
-- \`models/manifests/registry.ollama.ai/library/gemma4/e2b\` 파일이 있어야 모델 포함 패키지입니다.
-- \`models/blobs\` 폴더에 실제 모델 레이어가 있어야 합니다.
-- \`ollama/OllamaSetup.exe\`가 있으면 대상 PC에서 Ollama 설치까지 진행할 수 있습니다.
-- \`SHA256SUMS.txt\`로 파일 무결성을 확인하세요.
-`,
-  );
+async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, hasPythonInstaller, hasGongmuInstaller }) {
+  const lines = [
+    "# Local AI Agent Workplace : Gongmuwon AI Setup Pack",
+    "",
+    "This package prepares a closed-network or clean Windows account for Gongmu local AI use.",
+    "",
+    "## What START_INSTALL.bat does",
+    "",
+    "1. Installs Gongmu when a Windows NSIS installer is bundled in `gongmu/`.",
+    "2. Detects Python 3.11. Gongmu's bundled desktop app can run without system Python, but Python 3.11 is useful for repair, diagnostics, and development-mode support.",
+    "3. Installs Python 3.11 when a CPython installer is bundled in `python/`.",
+    "4. Detects or installs Ollama from `ollama/OllamaSetup.exe`.",
+    "5. Copies the packaged Ollama model store from `models/` into `%USERPROFILE%\\.ollama\\models`.",
+    "6. Starts Ollama on `127.0.0.1:11434`.",
+    `7. Verifies that ${MODEL_NAME} is available.`,
+    "8. Writes Gongmu settings so the app uses Ollama local-first mode.",
+    "9. Runs a text response check and an image-input API check.",
+    "",
+    "## Package status",
+    "",
+    `- Gongmu installer: ${hasGongmuInstaller ? "included" : "not included"}`,
+    `- Python 3.11 installer: ${hasPythonInstaller ? "included" : "not included"}`,
+    `- Ollama installer: ${hasOllamaInstaller ? "included" : "not included"}`,
+    `- Ollama model cache for ${MODEL_NAME}: ${hasModelStore ? "included" : "not included"}`,
+    "",
+    "## Beginner path",
+    "",
+    "Double-click:",
+    "",
+    "```text",
+    "START_INSTALL.bat",
+    "```",
+    "",
+    "After setup, double-click:",
+    "",
+    "```text",
+    "VALIDATE_INSTALL.bat",
+    "```",
+    "",
+    "If setup fails, open `install-gongmu-ai.log`. If validation fails, open `validate-gongmu-ai.log`.",
+    "",
+    "## Closed-network checklist",
+    "",
+    "- `models/manifests/registry.ollama.ai/library/gemma4/e2b` must exist for a fully offline model install.",
+    "- `models/blobs/` must contain the referenced model layers.",
+    "- `ollama/OllamaSetup.exe` must exist when the target PC does not already have Ollama.",
+    "- `python/python-3.11.x-amd64.exe` is optional for the bundled app, but useful for repair and diagnostics.",
+    "- Use `SHA256SUMS.txt` to verify file integrity after copying the package.",
+  ];
+  await writeTextFile(path, `${lines.join("\n")}\n`);
 }
 
 async function writeThirdPartyNotices(path) {
@@ -219,60 +187,52 @@ async function writeThirdPartyNotices(path) {
     path,
     `# Third Party Notices
 
+## Python
+
+- Component: CPython 3.11 Windows installer, when supplied at build time.
+- License: Python Software Foundation License.
+- Project: https://www.python.org/
+- Note: The packaged Gongmu desktop app uses a bundled sidecar executable and does not require system Python for normal operation.
+
 ## Ollama
 
-- Component: Ollama Windows runtime
-- License: MIT
+- Component: Ollama Windows runtime, when supplied at build time.
+- License: MIT.
 - Project: https://github.com/ollama/ollama
-- Note: This AI pack may include the Windows installer when supplied at build time.
 
 ## Gemma 4 E2B IT
 
-- Component: \`${MODEL_NAME}\` via Ollama model library
-- License: Apache-2.0
-- Model page: https://huggingface.co/google/gemma-4-e2b-it
-- Note: Include model weights only when your organization has reviewed and accepted the model terms and distribution policy.
+- Component: \`${MODEL_NAME}\` via Ollama model library.
+- License: Apache-2.0 metadata is expected for the requested model family, but your organization should review the authoritative model terms before redistributing weights.
+- Note: Include model weights only when your organization has approved the model distribution policy.
 `,
   );
 }
 
 async function writeLicenseFiles(packageDir) {
   await writeTextFile(
-    join(packageDir, "licenses", "ollama", "LICENSE"),
-    `Ollama is distributed under the MIT License.
-
-Refer to the official project license for the authoritative text:
-https://github.com/ollama/ollama/blob/main/LICENSE
-`,
+    join(packageDir, "licenses", "python", "NOTICE.txt"),
+    "If a CPython installer is included, verify the authoritative Python license at https://www.python.org/downloads/.\n",
   );
   await writeTextFile(
-    join(packageDir, "licenses", "gemma4-e2b-it", "LICENSE"),
-    `Gemma 4 E2B IT is listed with Apache-2.0 licensing metadata.
-
-Refer to the model page for authoritative license and usage terms:
-https://huggingface.co/google/gemma-4-e2b-it
-`,
+    join(packageDir, "licenses", "ollama", "NOTICE.txt"),
+    "If OllamaSetup.exe is included, verify the authoritative Ollama license at https://github.com/ollama/ollama.\n",
+  );
+  await writeTextFile(
+    join(packageDir, "licenses", "gemma4-e2b-it", "NOTICE.txt"),
+    "If model weights are included, verify the authoritative model license and usage terms before redistribution.\n",
   );
 }
 
-function installScriptContent() {
-  return `#requires -Version 5.1
-param(
-  [string]$ModelName = "${MODEL_NAME}",
-  [string]$OllamaHost = "127.0.0.1:11434",
-  [string]$OllamaModels = "$env:USERPROFILE\\.ollama\\models",
-  [switch]$AllowDownload,
-  [switch]$SkipGongmuInstall
-)
-
-$ErrorActionPreference = "Stop"
-$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$LogPath = Join-Path $ScriptRoot "install-gongmu-ai.log"
-Start-Transcript -Path $LogPath -Append | Out-Null
-
+function commonPowerShellFunctions() {
+  return String.raw`
 function Write-Step([string]$Message) {
   Write-Host ""
   Write-Host "==> $Message" -ForegroundColor Cyan
+}
+
+function Write-Warn([string]$Message) {
+  Write-Host "WARNING: $Message" -ForegroundColor Yellow
 }
 
 function Test-HttpOk([string]$Url) {
@@ -284,67 +244,45 @@ function Test-HttpOk([string]$Url) {
   }
 }
 
-function Get-OllamaExe {
-  $cmd = Get-Command ollama -ErrorAction SilentlyContinue
-  if ($cmd) { return $cmd.Source }
-  $local = Join-Path $env:LOCALAPPDATA "Programs\\Ollama\\ollama.exe"
-  if (Test-Path $local) { return $local }
-  $programFiles = Join-Path $env:ProgramFiles "Ollama\\ollama.exe"
-  if (Test-Path $programFiles) { return $programFiles }
+function Find-Python311 {
+  $py = Get-Command py -ErrorAction SilentlyContinue
+  if ($py) {
+    try {
+      $version = & py -3.11 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+      if ($LASTEXITCODE -eq 0 -and ($version | Select-Object -First 1).Trim() -eq "3.11") {
+        return "py -3.11"
+      }
+    } catch {}
+  }
+
+  $candidates = @(
+    (Get-Command python -ErrorAction SilentlyContinue).Source,
+    "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+    "$env:ProgramFiles\Python311\python.exe"
+  ) | Where-Object { $_ -and (Test-Path $_) }
+
+  foreach ($candidate in $candidates) {
+    try {
+      $version = & $candidate -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>$null
+      if ($LASTEXITCODE -eq 0 -and ($version | Select-Object -First 1).Trim() -eq "3.11") {
+        return $candidate
+      }
+    } catch {}
+  }
   return $null
 }
 
-function Start-OllamaServer([string]$OllamaExe) {
-  $env:OLLAMA_HOST = $OllamaHost
-  $env:OLLAMA_MODELS = $OllamaModels
-  if (Test-HttpOk "http://$OllamaHost/api/tags") {
-    Write-Host "Ollama 서버가 이미 실행 중입니다."
-    return
-  }
-  Write-Step "Ollama 서버 시작"
-  Start-Process -FilePath $OllamaExe -ArgumentList "serve" -WindowStyle Hidden
-  for ($i = 0; $i -lt 30; $i++) {
-    Start-Sleep -Seconds 1
-    if (Test-HttpOk "http://$OllamaHost/api/tags") {
-      Write-Host "Ollama 서버 연결 확인 완료"
-      return
-    }
-  }
-  throw "Ollama 서버가 30초 안에 응답하지 않았습니다."
+function Find-OllamaExe {
+  $cmd = Get-Command ollama -ErrorAction SilentlyContinue
+  if ($cmd) { return $cmd.Source }
+  $candidates = @(
+    "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe",
+    "$env:ProgramFiles\Ollama\ollama.exe"
+  ) | Where-Object { $_ -and (Test-Path $_) }
+  return $candidates | Select-Object -First 1
 }
 
-function Install-OllamaIfNeeded {
-  $ollama = Get-OllamaExe
-  if ($ollama) { return $ollama }
-  $installer = Join-Path $ScriptRoot "ollama\\OllamaSetup.exe"
-  if (!(Test-Path $installer)) {
-    throw "Ollama가 설치되어 있지 않고 ollama\\OllamaSetup.exe도 없습니다."
-  }
-  Write-Step "Ollama 설치파일 실행"
-  Write-Host "설치 마법사가 열리면 설치를 완료하세요. 완료 후 이 창으로 돌아오면 자동으로 계속 확인합니다."
-  Start-Process -FilePath $installer -Wait
-  for ($i = 0; $i -lt 20; $i++) {
-    $ollama = Get-OllamaExe
-    if ($ollama) { return $ollama }
-    Start-Sleep -Seconds 2
-  }
-  throw "Ollama 설치 후 ollama.exe를 찾지 못했습니다."
-}
-
-function Import-PackagedModelStore {
-  $source = Join-Path $ScriptRoot "models"
-  $manifest = Join-Path $source "manifests\\registry.ollama.ai\\library\\gemma4\\e2b"
-  if (!(Test-Path $manifest)) {
-    Write-Host "포함된 Gemma4 E2B IT 모델 캐시가 없습니다."
-    return $false
-  }
-  Write-Step "포함 모델 캐시 복사"
-  New-Item -ItemType Directory -Force -Path $OllamaModels | Out-Null
-  Copy-Item -Path (Join-Path $source "*") -Destination $OllamaModels -Recurse -Force
-  return $true
-}
-
-function Get-OllamaModels {
+function Get-OllamaModelNames([string]$OllamaHost) {
   try {
     $tags = Invoke-RestMethod -Uri "http://$OllamaHost/api/tags" -Method Get -TimeoutSec 5
     return @($tags.models | ForEach-Object { $_.name })
@@ -352,110 +290,296 @@ function Get-OllamaModels {
     return @()
   }
 }
+`;
+}
 
-function Ensure-Model([string]$OllamaExe) {
-  $models = Get-OllamaModels
-  if ($models -contains $ModelName) {
-    Write-Host "$ModelName 모델 확인 완료"
+function installScriptContent() {
+  return `#requires -Version 5.1
+param(
+  [string]$ModelName = "${MODEL_NAME}",
+  [string]$OllamaHost = "127.0.0.1:11434",
+  [string]$OllamaModels = "$env:USERPROFILE\\.ollama\\models",
+  [switch]$AllowDownload,
+  [switch]$SkipGongmuInstall,
+  [switch]$RequirePython
+)
+
+$ErrorActionPreference = "Stop"
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$LogPath = Join-Path $ScriptRoot "install-gongmu-ai.log"
+Start-Transcript -Path $LogPath -Append | Out-Null
+
+${commonPowerShellFunctions()}
+
+function Install-Python311IfAvailable {
+  Write-Step "Checking Python 3.11"
+  $python = Find-Python311
+  if ($python) {
+    Write-Host "Python 3.11 found: $python"
     return
   }
-  $imported = Import-PackagedModelStore
-  if ($imported) {
-    $models = Get-OllamaModels
-    if ($models -contains $ModelName) {
-      Write-Host "$ModelName 모델 캐시 등록 확인 완료"
+
+  $installer = Get-ChildItem -Path (Join-Path $ScriptRoot "python") -Filter "python-3.11*-amd64.exe" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
+
+  if ($installer) {
+    Write-Step "Installing Python 3.11"
+    $args = "/quiet InstallAllUsers=0 PrependPath=1 Include_launcher=1 Include_pip=1 Include_test=0"
+    Start-Process -FilePath $installer.FullName -ArgumentList $args -Wait
+    $python = Find-Python311
+    if ($python) {
+      Write-Host "Python 3.11 installed: $python"
       return
     }
-  }
-  if ($AllowDownload) {
-    Write-Step "$ModelName 모델 다운로드"
-    & $OllamaExe pull $ModelName
+    if ($RequirePython) { throw "Python 3.11 installer ran, but Python 3.11 was not detected." }
+    Write-Warn "Python 3.11 installer ran, but Python 3.11 was not detected."
     return
   }
-  throw "$ModelName 모델을 찾지 못했습니다. 폐쇄망 반입 전 모델 캐시를 포함하거나 -AllowDownload로 실행하세요."
-}
 
-function Invoke-OllamaChat($Body) {
-  $json = $Body | ConvertTo-Json -Depth 20 -Compress
-  return Invoke-RestMethod -Uri "http://$OllamaHost/api/chat" -Method Post -ContentType "application/json" -Body $json -TimeoutSec 120
-}
-
-function Test-GemmaMultimodal {
-  Write-Step "Gemma4 E2B IT 텍스트 응답 점검"
-  $textResult = Invoke-OllamaChat @{
-    model = $ModelName
-    stream = $false
-    messages = @(
-      @{ role = "system"; content = "한국어로 짧고 정확하게 답하세요." },
-      @{ role = "user"; content = "공무원 앱 연결 테스트입니다. 한 문장으로 응답하세요." }
-    )
-  }
-  if (!$textResult.message.content) { throw "텍스트 응답이 비어 있습니다." }
-  Write-Host $textResult.message.content
-
-  Write-Step "Gemma4 E2B IT 이미지 입력 API 점검"
-  $onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lJ9W5QAAAABJRU5ErkJggg=="
-  $imageResult = Invoke-OllamaChat @{
-    model = $ModelName
-    stream = $false
-    messages = @(
-      @{ role = "user"; content = "첨부 이미지를 볼 수 있는지 한국어로 짧게 답하세요."; images = @($onePixelPng) }
-    )
-  }
-  if (!$imageResult.message.content) { throw "이미지 입력 응답이 비어 있습니다." }
-  Write-Host $imageResult.message.content
-}
-
-function Write-GongmuSettings {
-  Write-Step "공무원 업무엔진 모델 설정 저장"
-  $workspace = Join-Path $env:LOCALAPPDATA "kr.gongmu.workspace\\runtime-workspace"
-  New-Item -ItemType Directory -Force -Path $workspace | Out-Null
-  $settingsPath = Join-Path $workspace "settings.json"
-  $settings = [ordered]@{
-    llm_mode = "local_first"
-    llm_provider = "ollama"
-    llm_model = $ModelName
-    internal_api_base_url = "http://$OllamaHost"
-    embedding_provider = "deterministic"
-    embedding_model = ""
-    embedding_base_url = ""
-    llm_profiles = @{
-      ollama = @{
-        provider = "ollama"
-        mode = "local_first"
-        model = $ModelName
-        base_url = "http://$OllamaHost"
-        api_key = ""
-        enabled = $true
-      }
-    }
-  }
-  $settings | ConvertTo-Json -Depth 20 | Set-Content -Path $settingsPath -Encoding UTF8
-  Write-Host "settings.json 저장: $settingsPath"
+  $message = "Gongmu bundled app can run without system Python. Python 3.11 is only needed for diagnostics, repair, and development-mode support."
+  if ($RequirePython) { throw "Python 3.11 not found and python/python-3.11.x-amd64.exe is missing. $message" }
+  Write-Warn $message
 }
 
 function Install-GongmuIfPresent {
   if ($SkipGongmuInstall) { return }
   $gongmuDir = Join-Path $ScriptRoot "gongmu"
-  $installer = Get-ChildItem -Path $gongmuDir -Filter "*.exe" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+  $installer = Get-ChildItem -Path $gongmuDir -Filter "*.exe" -ErrorAction SilentlyContinue |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
   if (!$installer) {
-    Write-Host "공무원 설치파일이 없어 앱 설치 단계는 건너뜁니다."
+    Write-Warn "No Gongmu installer found in gongmu/. Skipping app install."
     return
   }
-  Write-Step "공무원 설치파일 실행"
+  Write-Step "Starting Gongmu installer"
   Start-Process -FilePath $installer.FullName -Wait
 }
 
+function Install-OllamaIfNeeded {
+  Write-Step "Checking Ollama"
+  $ollama = Find-OllamaExe
+  if ($ollama) {
+    Write-Host "Ollama found: $ollama"
+    return $ollama
+  }
+
+  $installer = Join-Path $ScriptRoot "ollama\\OllamaSetup.exe"
+  if (!(Test-Path $installer)) {
+    throw "Ollama is not installed and ollama/OllamaSetup.exe is missing."
+  }
+
+  Write-Step "Starting Ollama installer"
+  Write-Host "Complete the Ollama installer if a setup window appears. This script will continue after the installer exits."
+  Start-Process -FilePath $installer -Wait
+
+  for ($i = 0; $i -lt 20; $i++) {
+    $ollama = Find-OllamaExe
+    if ($ollama) { return $ollama }
+    Start-Sleep -Seconds 2
+  }
+  throw "Ollama installer finished, but ollama.exe was not detected."
+}
+
+function Import-PackagedModelStore {
+  $source = Join-Path $ScriptRoot "models"
+  $manifest = Join-Path $source "manifests\\registry.ollama.ai\\library\\gemma4\\e2b"
+  if (!(Test-Path $manifest)) {
+    Write-Warn "Packaged model cache is missing."
+    return $false
+  }
+
+  Write-Step "Copying packaged Ollama model cache"
+  New-Item -ItemType Directory -Force -Path $OllamaModels | Out-Null
+  Copy-Item -Path (Join-Path $source "*") -Destination $OllamaModels -Recurse -Force
+  return $true
+}
+
+function Start-OllamaServer([string]$OllamaExe) {
+  $env:OLLAMA_HOST = $OllamaHost
+  $env:OLLAMA_MODELS = $OllamaModels
+  if (Test-HttpOk "http://$OllamaHost/api/tags") {
+    Write-Host "Ollama server is already responding."
+    return
+  }
+
+  Write-Step "Starting Ollama server"
+  Start-Process -FilePath $OllamaExe -ArgumentList "serve" -WindowStyle Hidden
+  for ($i = 0; $i -lt 30; $i++) {
+    Start-Sleep -Seconds 1
+    if (Test-HttpOk "http://$OllamaHost/api/tags") {
+      Write-Host "Ollama server is ready."
+      return
+    }
+  }
+  throw "Ollama server did not respond within 30 seconds."
+}
+
+function Ensure-Model([string]$OllamaExe) {
+  $models = Get-OllamaModelNames $OllamaHost
+  if ($models -contains $ModelName) {
+    Write-Host "$ModelName model is available."
+    return
+  }
+
+  if ($AllowDownload) {
+    Write-Step "Downloading $ModelName"
+    & $OllamaExe pull $ModelName
+    if ($LASTEXITCODE -ne 0) { throw "ollama pull $ModelName failed." }
+    return
+  }
+
+  throw "$ModelName model is not available. Include models/ for closed-network install or rerun with -AllowDownload on an online PC."
+}
+
+function Invoke-OllamaChat($Body) {
+  $json = $Body | ConvertTo-Json -Depth 20 -Compress
+  return Invoke-RestMethod -Uri "http://$OllamaHost/api/chat" -Method Post -ContentType "application/json" -Body $json -TimeoutSec 180
+}
+
+function Test-GemmaMultimodal {
+  Write-Step "Testing text response"
+  $textResult = Invoke-OllamaChat @{
+    model = $ModelName
+    stream = $false
+    messages = @(
+      @{ role = "system"; content = "Answer briefly in Korean." },
+      @{ role = "user"; content = "Gongmu local AI setup check. Reply with one short sentence." }
+    )
+  }
+  if (!$textResult.message.content) { throw "Text response was empty." }
+  Write-Host $textResult.message.content
+
+  Write-Step "Testing image input API"
+  $onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lJ9W5QAAAABJRU5ErkJggg=="
+  $imageResult = Invoke-OllamaChat @{
+    model = $ModelName
+    stream = $false
+    messages = @(
+      @{ role = "user"; content = "Can you receive the attached image? Reply briefly in Korean."; images = @($onePixelPng) }
+    )
+  }
+  if (!$imageResult.message.content) { throw "Image input response was empty." }
+  Write-Host $imageResult.message.content
+}
+
+function Write-GongmuSettings {
+  Write-Step "Writing Gongmu model settings"
+  $workspace = Join-Path $env:LOCALAPPDATA "kr.gongmu.workspace\\runtime-workspace"
+  New-Item -ItemType Directory -Force -Path $workspace | Out-Null
+  $settingsPath = Join-Path $workspace "settings.json"
+  $baseUrl = "http://$OllamaHost"
+  $profile = @{
+    provider = "ollama"
+    model = $ModelName
+    api_key = $null
+    base_url = $baseUrl
+    site_url = $null
+    application_name = $null
+  }
+  $settings = [ordered]@{
+    llm_mode = "local_first"
+    llm_provider = "ollama"
+    llm_model = $ModelName
+    llm_api_key = $null
+    llm_site_url = $null
+    llm_application_name = $null
+    internal_api_base_url = $baseUrl
+    llm_profiles = @{
+      local_first = $profile
+      internal_server = @{
+        provider = "openai_compatible"
+        model = "gpt-4.1-mini"
+        api_key = $null
+        base_url = "http://127.0.0.1:9000/v1"
+        site_url = $null
+        application_name = $null
+      }
+      external_model = @{
+        active_provider = "ollama"
+        providers = @{
+          ollama = $profile
+        }
+      }
+    }
+    embedding_provider = "deterministic"
+    embedding_model = "nomic-embed-text"
+    embedding_base_url = $baseUrl
+    embedding_fallback_enabled = $true
+    graphrag_vector_backend = "chromadb"
+  }
+  $settings | ConvertTo-Json -Depth 30 | Set-Content -Path $settingsPath -Encoding UTF8
+  Write-Host "Settings written: $settingsPath"
+}
+
 try {
-  Write-Step "로컬 AI에이전트 워크플레이스 : 공무원 AI 셋업 시작"
+  Write-Step "Gongmu local AI setup"
   Install-GongmuIfPresent
+  Install-Python311IfAvailable
   $ollamaExe = Install-OllamaIfNeeded
+  Import-PackagedModelStore | Out-Null
   Start-OllamaServer $ollamaExe
   Ensure-Model $ollamaExe
   Write-GongmuSettings
   Test-GemmaMultimodal
-  Write-Step "완료"
-  Write-Host "공무원 앱에서 모델 공급자를 Ollama / $ModelName 으로 선택해 테스트하세요."
+  Write-Step "Setup complete"
+  Write-Host "Open Gongmu and check Settings -> model provider: Ollama / $ModelName."
+} finally {
+  Stop-Transcript | Out-Null
+}
+`;
+}
+
+function validateScriptContent() {
+  return `#requires -Version 5.1
+param(
+  [string]$ModelName = "${MODEL_NAME}",
+  [string]$OllamaHost = "127.0.0.1:11434"
+)
+
+$ErrorActionPreference = "Stop"
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$LogPath = Join-Path $ScriptRoot "validate-gongmu-ai.log"
+Start-Transcript -Path $LogPath -Append | Out-Null
+
+${commonPowerShellFunctions()}
+
+try {
+  Write-Step "Validating Python 3.11"
+  $python = Find-Python311
+  if ($python) {
+    Write-Host "Python 3.11 found: $python"
+  } else {
+    Write-Warn "Python 3.11 not found. This does not block normal bundled app use."
+  }
+
+  Write-Step "Validating Ollama"
+  $ollama = Find-OllamaExe
+  if (!$ollama) { throw "Ollama executable was not found." }
+  Write-Host "Ollama found: $ollama"
+
+  if (!(Test-HttpOk "http://$OllamaHost/api/tags")) {
+    throw "Ollama server is not responding at http://$OllamaHost. Run START_INSTALL.bat first."
+  }
+
+  $models = Get-OllamaModelNames $OllamaHost
+  if (!($models -contains $ModelName)) {
+    throw "$ModelName is not listed by Ollama."
+  }
+  Write-Host "$ModelName model is available."
+
+  Write-Step "Validating Gongmu settings"
+  $settingsPath = Join-Path $env:LOCALAPPDATA "kr.gongmu.workspace\\runtime-workspace\\settings.json"
+  if (!(Test-Path $settingsPath)) {
+    throw "Gongmu settings.json was not found: $settingsPath"
+  }
+  $settingsText = Get-Content -Raw -Path $settingsPath
+  if ($settingsText -notmatch "ollama" -or $settingsText -notmatch [regex]::Escape($ModelName)) {
+    throw "Gongmu settings.json does not point to Ollama / $ModelName."
+  }
+  Write-Host "Settings OK: $settingsPath"
+
+  Write-Step "Validation complete"
 } finally {
   Stop-Transcript | Out-Null
 }
@@ -466,15 +590,19 @@ async function writeInstallScript(path) {
   await writeTextFile(path, `\uFEFF${installScriptContent()}`);
 }
 
-function batchScriptContent() {
+async function writeValidateScript(path) {
+  await writeTextFile(path, `\uFEFF${validateScriptContent()}`);
+}
+
+function installBatchScriptContent() {
   return `@echo off
 chcp 65001 > nul
-title Gongmu AI Pack Installer
+title Gongmu Local AI Setup
 cd /d "%~dp0"
 echo.
 echo ============================================================
-echo  Gongmu AI Pack Installer
-echo  Ollama + GEMMA4 E2B IT Multimodal Setup
+echo  Gongmu Local AI Setup
+echo  Python 3.11 check + Ollama + GEMMA4 E2B IT Multimodal
 echo ============================================================
 echo.
 echo Do not close this window until setup finishes.
@@ -499,11 +627,40 @@ exit /b %EXIT_CODE%
 `;
 }
 
+function validateBatchScriptContent() {
+  return `@echo off
+chcp 65001 > nul
+title Gongmu Local AI Validation
+cd /d "%~dp0"
+echo.
+echo ============================================================
+echo  Gongmu Local AI Validation
+echo ============================================================
+echo.
+if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
+  echo Dry run mode: launcher syntax is OK.
+  exit /b 0
+)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0validate-gongmu-ai.ps1"
+set EXIT_CODE=%ERRORLEVEL%
+echo.
+if not "%EXIT_CODE%"=="0" (
+  echo Validation failed. Error code: %EXIT_CODE%
+  echo Check validate-gongmu-ai.log.
+) else (
+  echo Validation completed.
+)
+echo.
+pause
+exit /b %EXIT_CODE%
+`;
+}
+
 async function writeBatchLaunchers(packageDir) {
-  const content = batchScriptContent();
-  await writeTextFile(join(packageDir, "START_INSTALL.bat"), content);
-  await writeTextFile(join(packageDir, "install-gongmu-ai.bat"), content);
-  await writeTextFile(join(packageDir, "설치_시작.bat"), content);
+  const installContent = installBatchScriptContent();
+  await writeTextFile(join(packageDir, "START_INSTALL.bat"), installContent);
+  await writeTextFile(join(packageDir, "install-gongmu-ai.bat"), installContent);
+  await writeTextFile(join(packageDir, "VALIDATE_INSTALL.bat"), validateBatchScriptContent());
 }
 
 async function writeShaSums(packageDir) {
@@ -548,6 +705,8 @@ function parseArgs(argv) {
       options.includeModels = argv[++index];
     } else if (arg === "--include-ollama-installer") {
       options.includeOllamaInstaller = argv[++index];
+    } else if (arg === "--include-python-installer") {
+      options.includePythonInstaller = argv[++index];
     } else if (arg === "--out-dir") {
       options.outRoot = argv[++index];
     } else if (arg === "--stamp") {
@@ -578,6 +737,9 @@ export async function prepareOllamaAiPack(options = {}) {
   const ollamaInstaller = options.includeOllamaInstaller ? resolve(options.includeOllamaInstaller) : null;
   const hasOllamaInstaller = Boolean(ollamaInstaller && (await pathExists(ollamaInstaller)));
 
+  const pythonInstaller = options.includePythonInstaller ? resolve(options.includePythonInstaller) : null;
+  const hasPythonInstaller = Boolean(pythonInstaller && (await pathExists(pythonInstaller)));
+
   const latestOffline = await findLatestOfflineRelease(repoRoot);
   const hasGongmuInstaller = Boolean(latestOffline?.installer);
   if (!hasGongmuInstaller && !options.allowMissingGongmu) {
@@ -587,7 +749,16 @@ export async function prepareOllamaAiPack(options = {}) {
   if (hasGongmuInstaller) {
     await copyRecursive(latestOffline.dir, join(packageDir, "gongmu"));
   } else {
-    await writeTextFile(join(packageDir, "gongmu", "README.md"), "공무원 설치파일이 포함되지 않았습니다.\n");
+    await writeTextFile(join(packageDir, "gongmu", "README.md"), "Gongmu installer is not bundled in this test package.\n");
+  }
+
+  if (hasPythonInstaller) {
+    await copyRecursive(pythonInstaller, join(packageDir, "python", pythonInstaller.split(/[\\/]/).pop()));
+  } else {
+    await writeTextFile(
+      join(packageDir, "python", "README.md"),
+      "Optional: place python-3.11.x-amd64.exe here if the target PC needs Python diagnostics or repair support.\n",
+    );
   }
 
   if (hasOllamaInstaller) {
@@ -595,7 +766,7 @@ export async function prepareOllamaAiPack(options = {}) {
   } else {
     await writeTextFile(
       join(packageDir, "ollama", "README.md"),
-      "OllamaSetup.exe를 이 폴더에 넣으면 설치 스크립트가 Ollama 설치까지 안내합니다.\n",
+      "Place OllamaSetup.exe here when the target PC does not already have Ollama installed.\n",
     );
   }
 
@@ -604,13 +775,19 @@ export async function prepareOllamaAiPack(options = {}) {
   } else {
     await writeTextFile(
       join(packageDir, "models", "README.md"),
-      "모델 캐시가 포함되지 않았습니다. gemma4:e2b를 pull한 뒤 ~/.ollama/models를 --include-models로 지정해 다시 생성하세요.\n",
+      "Model cache is not bundled. Run npm run release:download:gemma4 on an online PC, then rebuild with --include-models.\n",
     );
   }
 
   await writeInstallScript(join(packageDir, "install-gongmu-ai.ps1"));
+  await writeValidateScript(join(packageDir, "validate-gongmu-ai.ps1"));
   await writeBatchLaunchers(packageDir);
-  await writePackageReadme(join(packageDir, "README.md"), { hasModelStore, hasOllamaInstaller, hasGongmuInstaller });
+  await writePackageReadme(join(packageDir, "README.md"), {
+    hasModelStore,
+    hasOllamaInstaller,
+    hasPythonInstaller,
+    hasGongmuInstaller,
+  });
   await writeThirdPartyNotices(join(packageDir, "THIRD_PARTY_NOTICES.md"));
   await writeLicenseFiles(packageDir);
 
@@ -622,9 +799,15 @@ export async function prepareOllamaAiPack(options = {}) {
       zipPath: options.skipZip ? null : zipPath,
     },
     app: {
-      name: "로컬 AI에이전트 워크플레이스 : 공무원",
+      name: "Local AI Agent Workplace : Gongmuwon",
       installerIncluded: hasGongmuInstaller,
       installerSource: latestOffline?.dir ?? null,
+    },
+    python: {
+      version: "3.11",
+      requiredForBundledApp: false,
+      installerIncluded: hasPythonInstaller,
+      installerSource: pythonInstaller,
     },
     ollama: {
       installerIncluded: hasOllamaInstaller,
@@ -657,6 +840,7 @@ if (resolve(process.argv[1] ?? "") === currentFile) {
       console.log(`AI pack created: ${result.packageDir}`);
       if (result.zipPath) console.log(`AI pack zip: ${result.zipPath}`);
       console.log(`Model embedded: ${result.manifest.model.embedded ? "yes" : "no"}`);
+      console.log(`Python installer embedded: ${result.manifest.python.installerIncluded ? "yes" : "no"}`);
     })
     .catch((error) => {
       console.error(error.message);

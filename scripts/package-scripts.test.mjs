@@ -67,6 +67,12 @@ assert.match(
 );
 
 assert.match(
+  scripts["verify:completion:test"] ?? "",
+  /prepare-ollama-ai-pack\.test\.mjs/,
+  "verify:completion:test must include AI pack package checks",
+);
+
+assert.match(
   scripts["verify:completion:preflight"] ?? "",
   /final-completion-preflight\.mjs/,
   "verify:completion:preflight must generate the final completion preflight report",

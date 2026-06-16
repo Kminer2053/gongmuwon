@@ -20,14 +20,17 @@ async function writeFixture(path, content) {
 }
 
 async function main() {
-    const root = await mkdtemp(join(tmpdir(), "gongmu-ai-pack-test-"));
+  const root = await mkdtemp(join(tmpdir(), "gongmu-ai-pack-test-"));
   try {
-    const offlineDir = join(root, "release", "offline", "Gongmu_0.1.0_windows_x64_offline_20260526-120000");
-    const installerPath = join(offlineDir, "Local AI Agent Workplace - Gongmuwon_0.1.0_x64-setup.exe");
+    const offlineDir = join(root, "release", "offline", "Gongmu_0.1.0_windows_x64_offline_20260616_0211");
+    const installerPath = join(offlineDir, "Gongmu_0.1.0_x64-setup.exe");
     await writeFixture(installerPath, "fake nsis installer");
 
     const ollamaInstaller = join(root, "OllamaSetup.exe");
     await writeFixture(ollamaInstaller, "fake ollama installer");
+
+    const pythonInstaller = join(root, "python-3.11.9-amd64.exe");
+    await writeFixture(pythonInstaller, "fake python installer");
 
     const modelStore = join(root, "ollama-models");
     await writeFixture(
@@ -40,53 +43,72 @@ async function main() {
       repoRoot: root,
       outRoot: join(root, "release", "ai-pack"),
       includeOllamaInstaller: ollamaInstaller,
+      includePythonInstaller: pythonInstaller,
       includeModels: modelStore,
       skipZip: true,
-      stamp: "20260526-130000",
+      stamp: "20260616-030000",
     });
 
+    assert.equal(result.manifest.app.installerIncluded, true);
+    assert.equal(result.manifest.python.installerIncluded, true);
+    assert.equal(result.manifest.python.requiredForBundledApp, false);
+    assert.equal(result.manifest.ollama.installerIncluded, true);
     assert.equal(result.manifest.model.name, "gemma4:e2b");
     assert.equal(result.manifest.model.multimodal, true);
-    assert.match(result.manifest.model.displayName, /GEMMA4 E2B IT/);
-    assert.equal(result.manifest.model.source, "ollama-library");
+    assert.equal(result.manifest.model.embedded, true);
 
     const installScript = await readFile(join(result.packageDir, "install-gongmu-ai.ps1"), "utf8");
-    assert.match(installScript, /gemma4:e2b/);
+    assert.match(installScript, /Find-Python311/);
+    assert.match(installScript, /Install-Python311IfAvailable/);
+    assert.match(installScript, /Gongmu bundled app can run without system Python/);
+    assert.match(installScript, /Find-OllamaExe/);
+    assert.match(installScript, /Start-OllamaServer/);
+    assert.match(installScript, /Import-PackagedModelStore/);
+    assert.match(installScript, /Test-GemmaMultimodal/);
     assert.match(installScript, /\/api\/chat/);
     assert.match(installScript, /images/);
-    assert.match(installScript, /OLLAMA_MODELS/);
     assert.match(installScript, /settings\.json/);
-    assert.match(installScript, /업무엔진/);
+    assert.match(installScript, /llm_profiles/);
 
-    const batchScript = await readFile(join(result.packageDir, "install-gongmu-ai.bat"), "utf8");
+    const batchScript = await readFile(join(result.packageDir, "START_INSTALL.bat"), "utf8");
     assert.match(batchScript, /powershell\.exe/);
     assert.match(batchScript, /ExecutionPolicy Bypass/);
     assert.match(batchScript, /install-gongmu-ai\.ps1/);
     assert.match(batchScript, /GONGMU_AI_PACK_DRY_RUN/);
     assert.match(batchScript, /pause/);
-    assert.equal(await exists(join(result.packageDir, "START_INSTALL.bat")), true);
-    assert.equal(await exists(join(result.packageDir, "설치_시작.bat")), true);
+    assert.equal(await exists(join(result.packageDir, "install-gongmu-ai.bat")), true);
+    assert.equal(await exists(join(result.packageDir, "VALIDATE_INSTALL.bat")), true);
+
+    const validateScript = await readFile(join(result.packageDir, "validate-gongmu-ai.ps1"), "utf8");
+    assert.match(validateScript, /Find-Python311/);
+    assert.match(validateScript, /Find-OllamaExe/);
+    assert.match(validateScript, /gemma4:e2b/);
+    assert.match(validateScript, /settings\.json/);
 
     const readme = await readFile(join(result.packageDir, "README.md"), "utf8");
-    assert.match(readme, /GEMMA4 E2B IT/);
-    assert.match(readme, /멀티모달/);
-    assert.match(readme, /폐쇄망/);
+    assert.match(readme, /Local AI Agent Workplace/);
+    assert.match(readme, /Python 3\.11/);
+    assert.match(readme, /Ollama/);
+    assert.match(readme, /gemma4:e2b/);
     assert.match(readme, /START_INSTALL\.bat/);
-    assert.match(readme, /설치_시작\.bat/);
+    assert.match(readme, /VALIDATE_INSTALL\.bat/);
 
     const notices = await readFile(join(result.packageDir, "THIRD_PARTY_NOTICES.md"), "utf8");
     assert.match(notices, /Ollama/);
     assert.match(notices, /MIT/);
-    assert.match(notices, /Gemma 4 E2B IT/);
+    assert.match(notices, /Gemma/);
     assert.match(notices, /Apache-2\.0/);
+    assert.match(notices, /Python/);
 
+    assert.equal(await exists(join(result.packageDir, "python", "python-3.11.9-amd64.exe")), true);
     assert.equal(await exists(join(result.packageDir, "ollama", "OllamaSetup.exe")), true);
     assert.equal(
       await exists(join(result.packageDir, "models", "manifests", "registry.ollama.ai", "library", "gemma4", "e2b")),
       true,
     );
     assert.equal(await exists(join(result.packageDir, "models", "blobs", "sha256-abc")), true);
-    assert.equal(await exists(join(result.packageDir, "gongmu", "Local AI Agent Workplace - Gongmuwon_0.1.0_x64-setup.exe")), true);
+    assert.equal(await exists(join(result.packageDir, "gongmu", "Gongmu_0.1.0_x64-setup.exe")), true);
+    assert.equal(await exists(join(result.packageDir, "SHA256SUMS.txt")), true);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
