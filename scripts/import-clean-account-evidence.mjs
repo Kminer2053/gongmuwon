@@ -28,19 +28,36 @@ async function exists(path) {
   }
 }
 
-async function assertDirectory(path, label) {
+async function readSourceInfo(path) {
   let info;
   try {
     info = await stat(path);
   } catch {
-    throw new Error(`${label} not found: ${path}`);
+    throw new Error(`Evidence source directory not found: ${path}`);
   }
-  if (!info.isDirectory()) {
-    throw new Error(`${label} must be a directory: ${path}`);
-  }
+  return info;
 }
 
-async function detectEvidenceSource(sourceDir) {
+async function detectEvidenceSource(sourcePath) {
+  const sourceInfo = await readSourceInfo(sourcePath);
+  if (sourceInfo.isFile()) {
+    if (basename(sourcePath) !== REQUIRED_EVIDENCE_JSON) {
+      throw new Error(`Evidence source file must be ${REQUIRED_EVIDENCE_JSON}: ${sourcePath}`);
+    }
+    const evidenceDir = dirname(sourcePath);
+    return {
+      kind: "evidence-json-file",
+      sourceDir: sourcePath,
+      evidenceDir,
+      packageRoot: basename(evidenceDir).toLowerCase() === "evidence" ? dirname(evidenceDir) : evidenceDir,
+    };
+  }
+
+  if (!sourceInfo.isDirectory()) {
+    throw new Error(`Evidence source directory must be a directory or ${REQUIRED_EVIDENCE_JSON} file: ${sourcePath}`);
+  }
+
+  const sourceDir = sourcePath;
   const directEvidence = join(sourceDir, REQUIRED_EVIDENCE_JSON);
   if (await exists(directEvidence)) {
     return {
@@ -107,6 +124,7 @@ function buildMarkdown(report) {
 - createdAt: ${report.createdAt}
 - ready: ${report.ready}
 - sourceDir: \`${report.sourceDir}\`
+- detectedSourceKind: ${report.detectedSourceKind}
 - outputDir: \`${report.outputDir}\`
 - validationReady: ${report.validation.ready}
 
@@ -133,7 +151,6 @@ export async function importCleanAccountEvidence(options = {}) {
   const importJson = resolve(repoRoot, options.importJson ?? DEFAULT_IMPORT_JSON);
   const importMarkdown = resolve(repoRoot, options.importMarkdown ?? DEFAULT_IMPORT_MARKDOWN);
 
-  await assertDirectory(sourceDir, "Evidence source directory");
   const detected = await detectEvidenceSource(sourceDir);
   await mkdir(outputDir, { recursive: true });
   await mkdir(dirname(validationJson), { recursive: true });
@@ -210,11 +227,12 @@ function parseArgs(argv) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (options.help) {
-    console.log(`Usage: node scripts/import-clean-account-evidence.mjs --from <target-evidence-dir>
+    console.log(`Usage: node scripts/import-clean-account-evidence.mjs --from <target-evidence-dir-or-json>
 
 Options:
-  --from <dir>     Directory copied from target PC. Defaults to release/clean-account-evidence-inbox.
-                 Accepts either the evidence folder itself or the extracted AI pack root that contains evidence\\.
+  --from <path>    Evidence copied from target PC. Defaults to release/clean-account-evidence-inbox.
+                 Accepts the evidence folder, the extracted AI pack root that contains evidence\\,
+                 or the ai-pack-clean-account-evidence.json file itself.
   --out-dir <dir>  Repository evidence output directory.
 `);
     return;

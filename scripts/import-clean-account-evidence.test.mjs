@@ -105,6 +105,26 @@ async function main() {
     assert.equal(await readFile(join(packageOutputDir, "install-gongmu-ai.log"), "utf8"), "package install ok\n");
     assert.equal(await readFile(join(packageOutputDir, "validate-gongmu-ai.log"), "utf8"), "package validate ok\n");
 
+    const singleJsonDir = join(root, "single-json");
+    const singleJsonPath = join(singleJsonDir, "ai-pack-clean-account-evidence.json");
+    const singleJsonOutputDir = join(root, "repo-single-json", "docs", "operations", "generated", "clean-account-evidence");
+    await mkdir(singleJsonDir, { recursive: true });
+    await writeJson(singleJsonPath, sampleEvidence());
+
+    const singleJsonReport = await importCleanAccountEvidence({
+      sourceDir: singleJsonPath,
+      outputDir: singleJsonOutputDir,
+      validationJson: join(root, "repo-single-json", "docs", "operations", "generated", "clean-account-evidence-validation.json"),
+      validationMarkdown: join(root, "repo-single-json", "docs", "operations", "generated", "clean-account-evidence-validation.md"),
+      importJson: join(root, "repo-single-json", "docs", "operations", "generated", "clean-account-evidence-import.json"),
+      importMarkdown: join(root, "repo-single-json", "docs", "operations", "generated", "clean-account-evidence-import.md"),
+    });
+
+    assert.equal(singleJsonReport.ready, true);
+    assert.equal(singleJsonReport.detectedSourceKind, "evidence-json-file");
+    assert.equal(singleJsonReport.files.length, 1);
+    assert.equal(await exists(join(singleJsonOutputDir, "ai-pack-clean-account-evidence.json")), true);
+
     await assert.rejects(
       () =>
         importCleanAccountEvidence({
