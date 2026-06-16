@@ -19,8 +19,10 @@
 - PASS request points to clean-account evidence inbox: evidence -> release/clean-account-evidence-inbox
 - PASS request includes repository finalization command: npm.cmd run release:ai-pack:evidence:finalize
 - PASS README keeps finalizer as the single primary repository command: release:runtime-evidence:validate may be mentioned only as a runtime-only fallback or as work performed inside the finalizer
+- PASS README has readable Korean operator guidance: README must include readable Korean headings/instructions for target-PC operators and no likely mojibake
 - PASS request includes runtime validation command: npm.cmd run release:runtime-evidence:validate
 - PASS request includes runtime evidence collector: C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\clean-account-evidence-request\COLLECT_RUNTIME_EVIDENCE.ps1; C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\clean-account-evidence-request\COLLECT_RUNTIME_EVIDENCE.bat; C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\clean-account-evidence-request\runtime-clean-account-evidence.template.json
+- PASS runtime evidence template has readable Korean guidance: runtime evidence template must keep Korean check details readable and no likely mojibake
 
 ## Errors
 

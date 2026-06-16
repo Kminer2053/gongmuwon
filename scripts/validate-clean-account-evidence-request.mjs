@@ -64,6 +64,14 @@ function readmeKeepsSinglePrimaryFinalizer(readme) {
   return !directDuplicatePattern.test(normalized);
 }
 
+function hasLikelyMojibake(text) {
+  return /[\uFFFD\u4E00-\u9FFF]/u.test(text);
+}
+
+function hasReadableKoreanGuidance(text, requiredPhrases) {
+  return requiredPhrases.every((phrase) => text.includes(phrase)) && !hasLikelyMojibake(text);
+}
+
 export async function validateCleanAccountEvidenceRequest(options = {}) {
   const repoRoot = resolve(options.repoRoot ?? REPO_ROOT);
   const artifactReportPath = resolve(repoRoot, options.artifactReportPath ?? DEFAULT_ARTIFACT_REPORT);
@@ -150,6 +158,12 @@ export async function validateCleanAccountEvidenceRequest(options = {}) {
   );
   addCheck(
     checks,
+    "README has readable Korean operator guidance",
+    hasReadableKoreanGuidance(readme, ["클린계정", "대상 PC", "업무엔진"]),
+    "README must include readable Korean headings/instructions for target-PC operators and no likely mojibake",
+  );
+  addCheck(
+    checks,
     "request includes runtime validation command",
     String(request.copyBack?.runtimeValidationCommand ?? "").includes("release:runtime-evidence:validate") &&
       (request.targetPcSteps ?? []).some((step) => String(step).includes("COLLECT_RUNTIME_EVIDENCE.bat")) &&
@@ -168,6 +182,12 @@ export async function validateCleanAccountEvidenceRequest(options = {}) {
       runtimeBatch.includes("COLLECT_RUNTIME_EVIDENCE.ps1") &&
       runtimeTemplate.includes("Work engine health OK"),
     `${runtimeScriptPath}; ${runtimeBatchPath}; ${runtimeTemplatePath}`,
+  );
+  addCheck(
+    checks,
+    "runtime evidence template has readable Korean guidance",
+    hasReadableKoreanGuidance(runtimeTemplate, ["업무엔진"]),
+    "runtime evidence template must keep Korean check details readable and no likely mojibake",
   );
 
   const errors = checks.filter((check) => !check.ok).map((check) => check.name);

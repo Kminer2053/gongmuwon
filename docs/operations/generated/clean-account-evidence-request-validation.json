@@ -105,6 +105,11 @@
       "detail": "release:runtime-evidence:validate may be mentioned only as a runtime-only fallback or as work performed inside the finalizer"
     },
     {
+      "name": "README has readable Korean operator guidance",
+      "ok": true,
+      "detail": "README must include readable Korean headings/instructions for target-PC operators and no likely mojibake"
+    },
+    {
       "name": "request includes runtime validation command",
       "ok": true,
       "detail": "npm.cmd run release:runtime-evidence:validate"
@@ -113,6 +118,11 @@
       "name": "request includes runtime evidence collector",
       "ok": true,
       "detail": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\COLLECT_RUNTIME_EVIDENCE.ps1; C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\COLLECT_RUNTIME_EVIDENCE.bat; C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\release\\clean-account-evidence-request\\runtime-clean-account-evidence.template.json"
+    },
+    {
+      "name": "runtime evidence template has readable Korean guidance",
+      "ok": true,
+      "detail": "runtime evidence template must keep Korean check details readable and no likely mojibake"
     }
   ],
   "errors": []

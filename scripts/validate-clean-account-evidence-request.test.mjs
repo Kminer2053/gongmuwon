@@ -80,10 +80,13 @@ async function main() {
     await writeText(
       readmePath,
       [
+        "# 클린계정/폐쇄망 검증 요청서",
+        "대상 PC에서 실행할 순서입니다.",
         "Run RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat.",
         "Copy the evidence folder into release\\clean-account-evidence-inbox.",
         "Then run release:ai-pack:evidence:finalize.",
         "Use release:runtime-evidence:validate only as a runtime-only fallback.",
+        "업무엔진 상태와 런타임 증거를 함께 확인합니다.",
       ].join("\n"),
     );
     await writeText(
@@ -93,7 +96,7 @@ async function main() {
     await writeText(join(requestDir, "COLLECT_RUNTIME_EVIDENCE.bat"), "COLLECT_RUNTIME_EVIDENCE.ps1\n");
     await writeText(
       join(requestDir, "runtime-clean-account-evidence.template.json"),
-      JSON.stringify({ checks: [{ name: "Work engine health OK" }] }),
+      JSON.stringify({ checks: [{ name: "Work engine health OK", detail: "업무엔진 /health 상태를 확인합니다." }] }),
     );
 
     const report = await validateCleanAccountEvidenceRequest({
@@ -110,6 +113,14 @@ async function main() {
     assert.ok(
       report.checks.some((check) => check.name === "README keeps finalizer as the single primary repository command"),
       "request validator should reject duplicate post-finalize runtime validation instructions",
+    );
+    assert.ok(
+      report.checks.some((check) => check.name === "README has readable Korean operator guidance"),
+      "request validator should check that target-PC operator guidance is readable Korean",
+    );
+    assert.ok(
+      report.checks.some((check) => check.name === "runtime evidence template has readable Korean guidance"),
+      "request validator should check that runtime evidence template guidance is readable Korean",
     );
     assert.ok(
       report.checks.some((check) => check.name === "request includes runtime evidence collector"),
@@ -150,7 +161,7 @@ async function main() {
     await writeJson(requestPath, requestJson());
     await writeText(
       readmePath,
-      "Run RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat, then run release:ai-pack:evidence:finalize and release:runtime-evidence:validate.\n",
+      "클린계정 검증 요청서\nRun RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat, then run release:ai-pack:evidence:finalize and release:runtime-evidence:validate.\n",
     );
     const duplicateRuntimeValidation = await validateCleanAccountEvidenceRequest({
       repoRoot: root,
@@ -165,6 +176,28 @@ async function main() {
       duplicateRuntimeValidation.errors.some((error) =>
         error.includes("single primary repository command"),
       ),
+    );
+
+    await writeJson(requestPath, requestJson());
+    await writeText(
+      readmePath,
+      [
+        "# ?대┛怨꾩젙/?먯뇙留?寃利??붿껌??",
+        "Run RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat.",
+        "Then run release:ai-pack:evidence:finalize.",
+      ].join("\n"),
+    );
+    const mojibakeReadme = await validateCleanAccountEvidenceRequest({
+      repoRoot: root,
+      artifactReportPath: artifactPath,
+      requestPath,
+      requestReadmePath: readmePath,
+      outJson,
+      outMarkdown,
+    });
+    assert.equal(mojibakeReadme.ready, false);
+    assert.ok(
+      mojibakeReadme.errors.some((error) => error.includes("readable Korean")),
     );
   } finally {
     await rm(root, { recursive: true, force: true });
