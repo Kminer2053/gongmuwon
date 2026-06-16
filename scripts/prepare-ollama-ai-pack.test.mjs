@@ -78,12 +78,22 @@ async function main() {
     assert.match(batchScript, /pause/);
     assert.equal(await exists(join(result.packageDir, "install-gongmu-ai.bat")), true);
     assert.equal(await exists(join(result.packageDir, "VALIDATE_INSTALL.bat")), true);
+    assert.equal(await exists(join(result.packageDir, "COLLECT_EVIDENCE.bat")), true);
 
     const validateScript = await readFile(join(result.packageDir, "validate-gongmu-ai.ps1"), "utf8");
     assert.match(validateScript, /Find-Python311/);
     assert.match(validateScript, /Find-OllamaExe/);
     assert.match(validateScript, /gemma4:e2b/);
     assert.match(validateScript, /settings\.json/);
+
+    const evidenceScript = await readFile(join(result.packageDir, "collect-clean-account-evidence.ps1"), "utf8");
+    assert.match(evidenceScript, /Gongmu clean-account evidence/);
+    assert.match(evidenceScript, /install-gongmu-ai\.log/);
+    assert.match(evidenceScript, /validate-gongmu-ai\.log/);
+    assert.match(evidenceScript, /ai-pack-clean-account-evidence\.json/);
+    assert.match(evidenceScript, /ai-pack-clean-account-evidence\.md/);
+    assert.match(evidenceScript, /\/api\/chat/);
+    assert.match(evidenceScript, /images/);
 
     const readme = await readFile(join(result.packageDir, "README.md"), "utf8");
     assert.match(readme, /Local AI Agent Workplace/);
@@ -92,6 +102,7 @@ async function main() {
     assert.match(readme, /gemma4:e2b/);
     assert.match(readme, /START_INSTALL\.bat/);
     assert.match(readme, /VALIDATE_INSTALL\.bat/);
+    assert.match(readme, /COLLECT_EVIDENCE\.bat/);
 
     const notices = await readFile(join(result.packageDir, "THIRD_PARTY_NOTICES.md"), "utf8");
     assert.match(notices, /Ollama/);

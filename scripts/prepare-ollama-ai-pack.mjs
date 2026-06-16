@@ -171,6 +171,14 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "",
     "If setup fails, open `install-gongmu-ai.log`. If validation fails, open `validate-gongmu-ai.log`.",
     "",
+    "For clean-account or closed-network release evidence, run after validation:",
+    "",
+    "```text",
+    "COLLECT_EVIDENCE.bat",
+    "```",
+    "",
+    "This writes `evidence/ai-pack-clean-account-evidence.json` and `evidence/ai-pack-clean-account-evidence.md`.",
+    "",
     "## Closed-network checklist",
     "",
     "- `models/manifests/registry.ollama.ai/library/gemma4/e2b` must exist for a fully offline model install.",
@@ -586,12 +594,186 @@ try {
 `;
 }
 
+function evidenceScriptContent() {
+  return `#requires -Version 5.1
+param(
+  [string]$ModelName = "${MODEL_NAME}",
+  [string]$OllamaHost = "127.0.0.1:11434",
+  [string]$OutputDir = ""
+)
+
+$ErrorActionPreference = "Stop"
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (!$OutputDir) { $OutputDir = Join-Path $ScriptRoot "evidence" }
+New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
+$LogPath = Join-Path $OutputDir "collect-clean-account-evidence.log"
+Start-Transcript -Path $LogPath -Append | Out-Null
+
+${commonPowerShellFunctions()}
+
+function Add-Check([string]$Name, [bool]$Passed, [string]$Detail) {
+  $script:Checks += [ordered]@{
+    name = $Name
+    passed = $Passed
+    detail = $Detail
+  }
+}
+
+function Invoke-OllamaChatEvidence($Body) {
+  $json = $Body | ConvertTo-Json -Depth 20 -Compress
+  return Invoke-RestMethod -Uri "http://$OllamaHost/api/chat" -Method Post -ContentType "application/json" -Body $json -TimeoutSec 180
+}
+
+function Get-FileHashOrNull([string]$Path) {
+  if (!(Test-Path $Path)) { return $null }
+  return (Get-FileHash -Path $Path -Algorithm SHA256).Hash
+}
+
+$script:Checks = @()
+$StartedAt = (Get-Date).ToString("o")
+$InstallLog = Join-Path $ScriptRoot "install-gongmu-ai.log"
+$ValidateLog = Join-Path $ScriptRoot "validate-gongmu-ai.log"
+$SettingsPath = Join-Path $env:LOCALAPPDATA "kr.gongmu.workspace\\runtime-workspace\\settings.json"
+$TextResponse = $null
+$ImageResponse = $null
+$ModelNames = @()
+
+try {
+  Write-Step "Gongmu clean-account evidence"
+
+  $python = Find-Python311
+  Add-Check "Python 3.11 detected or optional" $true ($(if ($python) { "Python 3.11: $python" } else { "Python 3.11 not detected; bundled app does not require system Python." }))
+
+  $ollama = Find-OllamaExe
+  Add-Check "Ollama executable detected" ([bool]$ollama) ($(if ($ollama) { $ollama } else { "ollama.exe not found" }))
+
+  $serverOk = Test-HttpOk "http://$OllamaHost/api/tags"
+  Add-Check "Ollama server responding" $serverOk "http://$OllamaHost/api/tags"
+
+  if ($serverOk) {
+    $ModelNames = Get-OllamaModelNames $OllamaHost
+    Add-Check "$ModelName model listed" ($ModelNames -contains $ModelName) ($ModelNames -join ", ")
+
+    try {
+      $textResult = Invoke-OllamaChatEvidence @{
+        model = $ModelName
+        stream = $false
+        messages = @(
+          @{ role = "system"; content = "Answer briefly in Korean." },
+          @{ role = "user"; content = "Gongmu clean account validation. Reply with one short sentence." }
+        )
+      }
+      $TextResponse = $textResult.message.content
+      Add-Check "Text chat response" ([bool]$TextResponse) $TextResponse
+    } catch {
+      Add-Check "Text chat response" $false $_.Exception.Message
+    }
+
+    try {
+      $onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lJ9W5QAAAABJRU5ErkJggg=="
+      $imageResult = Invoke-OllamaChatEvidence @{
+        model = $ModelName
+        stream = $false
+        messages = @(
+          @{ role = "user"; content = "Can you receive this image input? Reply briefly in Korean."; images = @($onePixelPng) }
+        )
+      }
+      $ImageResponse = $imageResult.message.content
+      Add-Check "Image chat response" ([bool]$ImageResponse) $ImageResponse
+    } catch {
+      Add-Check "Image chat response" $false $_.Exception.Message
+    }
+  }
+
+  $settingsExists = Test-Path $SettingsPath
+  $settingsText = if ($settingsExists) { Get-Content -Raw -Path $SettingsPath } else { "" }
+  Add-Check "Gongmu settings file exists" $settingsExists $SettingsPath
+  Add-Check "Gongmu settings point to Ollama model" ($settingsText -match "ollama" -and $settingsText -match [regex]::Escape($ModelName)) $SettingsPath
+
+  Add-Check "Install log exists" (Test-Path $InstallLog) $InstallLog
+  Add-Check "Validation log exists" (Test-Path $ValidateLog) $ValidateLog
+
+  $Ready = -not ($Checks | Where-Object { -not $_.passed })
+  $EvidenceJson = Join-Path $OutputDir "ai-pack-clean-account-evidence.json"
+  $EvidenceMd = Join-Path $OutputDir "ai-pack-clean-account-evidence.md"
+  $CompletedAt = (Get-Date).ToString("o")
+
+  $Report = [ordered]@{
+    schemaVersion = 1
+    title = "Gongmu clean-account evidence"
+    ready = $Ready
+    startedAt = $StartedAt
+    completedAt = $CompletedAt
+    computerName = $env:COMPUTERNAME
+    userName = $env:USERNAME
+    os = (Get-CimInstance Win32_OperatingSystem | Select-Object Caption, Version, BuildNumber)
+    packageDir = $ScriptRoot
+    modelName = $ModelName
+    ollamaHost = $OllamaHost
+    python = $python
+    ollamaExe = $ollama
+    modelNames = $ModelNames
+    settingsPath = $SettingsPath
+    installLog = @{
+      path = $InstallLog
+      exists = Test-Path $InstallLog
+      sha256 = Get-FileHashOrNull $InstallLog
+    }
+    validateLog = @{
+      path = $ValidateLog
+      exists = Test-Path $ValidateLog
+      sha256 = Get-FileHashOrNull $ValidateLog
+    }
+    textResponse = $TextResponse
+    imageResponse = $ImageResponse
+    checks = $Checks
+  }
+
+  $Report | ConvertTo-Json -Depth 30 | Set-Content -Path $EvidenceJson -Encoding UTF8
+
+  $lines = @()
+  $lines += "# Gongmu clean-account evidence"
+  $lines += ""
+  $lines += "- ready: $Ready"
+  $lines += "- computerName: $env:COMPUTERNAME"
+  $lines += "- userName: $env:USERNAME"
+  $lines += "- modelName: $ModelName"
+  $lines += "- ollamaHost: $OllamaHost"
+  $lines += "- settingsPath: $SettingsPath"
+  $lines += ""
+  $lines += "## Checks"
+  foreach ($check in $Checks) {
+    $status = if ($check.passed) { "PASS" } else { "FAIL" }
+    $lines += "- $status $($check.name): $($check.detail)"
+  }
+  $lines += ""
+  $lines += "## Evidence files"
+  $lines += "- JSON: $EvidenceJson"
+  $lines += "- Markdown: $EvidenceMd"
+  $lines += "- Collector log: $LogPath"
+  $lines | Set-Content -Path $EvidenceMd -Encoding UTF8
+
+  Write-Host "Evidence JSON: $EvidenceJson"
+  Write-Host "Evidence Markdown: $EvidenceMd"
+  if (!$Ready) {
+    throw "Clean-account evidence has failing checks. See $EvidenceMd"
+  }
+} finally {
+  Stop-Transcript | Out-Null
+}
+`;
+}
+
 async function writeInstallScript(path) {
   await writeTextFile(path, `\uFEFF${installScriptContent()}`);
 }
 
 async function writeValidateScript(path) {
   await writeTextFile(path, `\uFEFF${validateScriptContent()}`);
+}
+
+async function writeEvidenceScript(path) {
+  await writeTextFile(path, `\uFEFF${evidenceScriptContent()}`);
 }
 
 function installBatchScriptContent() {
@@ -656,11 +838,42 @@ exit /b %EXIT_CODE%
 `;
 }
 
+function collectEvidenceBatchScriptContent() {
+  return `@echo off
+chcp 65001 > nul
+title Gongmu Clean Account Evidence
+cd /d "%~dp0"
+echo.
+echo ============================================================
+echo  Gongmu Clean Account Evidence Collection
+echo ============================================================
+echo.
+if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
+  echo Dry run mode: launcher syntax is OK.
+  exit /b 0
+)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0collect-clean-account-evidence.ps1"
+set EXIT_CODE=%ERRORLEVEL%
+echo.
+if not "%EXIT_CODE%"=="0" (
+  echo Evidence collection found failing checks. Error code: %EXIT_CODE%
+  echo Check evidence\\ai-pack-clean-account-evidence.md.
+) else (
+  echo Evidence collection completed.
+  echo Check evidence\\ai-pack-clean-account-evidence.md.
+)
+echo.
+pause
+exit /b %EXIT_CODE%
+`;
+}
+
 async function writeBatchLaunchers(packageDir) {
   const installContent = installBatchScriptContent();
   await writeTextFile(join(packageDir, "START_INSTALL.bat"), installContent);
   await writeTextFile(join(packageDir, "install-gongmu-ai.bat"), installContent);
   await writeTextFile(join(packageDir, "VALIDATE_INSTALL.bat"), validateBatchScriptContent());
+  await writeTextFile(join(packageDir, "COLLECT_EVIDENCE.bat"), collectEvidenceBatchScriptContent());
 }
 
 async function writeShaSums(packageDir) {
@@ -781,6 +994,7 @@ export async function prepareOllamaAiPack(options = {}) {
 
   await writeInstallScript(join(packageDir, "install-gongmu-ai.ps1"));
   await writeValidateScript(join(packageDir, "validate-gongmu-ai.ps1"));
+  await writeEvidenceScript(join(packageDir, "collect-clean-account-evidence.ps1"));
   await writeBatchLaunchers(packageDir);
   await writePackageReadme(join(packageDir, "README.md"), {
     hasModelStore,

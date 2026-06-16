@@ -189,8 +189,10 @@ ${report.requiredFiles
 
 - START_INSTALL.bat dry-run: ${report.launchers.startInstall.dryRun?.ok ?? "not-run"}
 - VALIDATE_INSTALL.bat dry-run: ${report.launchers.validateInstall.dryRun?.ok ?? "not-run"}
+- COLLECT_EVIDENCE.bat dry-run: ${report.launchers.collectEvidence.dryRun?.ok ?? "not-run"}
 - install-gongmu-ai.ps1 parse: ${report.powerShell.install?.ok ?? "not-run"}
 - validate-gongmu-ai.ps1 parse: ${report.powerShell.validate?.ok ?? "not-run"}
+- collect-clean-account-evidence.ps1 parse: ${report.powerShell.collect?.ok ?? "not-run"}
 
 ## 실패 항목
 
@@ -234,8 +236,10 @@ export async function validateAiPackArtifact(options = {}) {
     ["sha256 sums", "SHA256SUMS.txt", join(packageDir, "SHA256SUMS.txt")],
     ["start launcher", "START_INSTALL.bat", join(packageDir, "START_INSTALL.bat")],
     ["validate launcher", "VALIDATE_INSTALL.bat", join(packageDir, "VALIDATE_INSTALL.bat")],
+    ["evidence launcher", "COLLECT_EVIDENCE.bat", join(packageDir, "COLLECT_EVIDENCE.bat")],
     ["install script", "install-gongmu-ai.ps1", join(packageDir, "install-gongmu-ai.ps1")],
     ["validate script", "validate-gongmu-ai.ps1", join(packageDir, "validate-gongmu-ai.ps1")],
+    ["evidence script", "collect-clean-account-evidence.ps1", join(packageDir, "collect-clean-account-evidence.ps1")],
     ["app installer", appInstaller ? appInstaller.slice(packageDir.length + 1) : "gongmu/*.exe", appInstaller],
     ["Ollama installer", "ollama/OllamaSetup.exe", join(packageDir, "ollama", "OllamaSetup.exe")],
     ["Python 3.11 installer", "python/python-3.11.9-amd64.exe", join(packageDir, "python", "python-3.11.9-amd64.exe")],
@@ -270,8 +274,10 @@ export async function validateAiPackArtifact(options = {}) {
 
   const startLauncher = join(packageDir, "START_INSTALL.bat");
   const validateLauncher = join(packageDir, "VALIDATE_INSTALL.bat");
+  const collectLauncher = join(packageDir, "COLLECT_EVIDENCE.bat");
   const installPs = join(packageDir, "install-gongmu-ai.ps1");
   const validatePs = join(packageDir, "validate-gongmu-ai.ps1");
+  const collectPs = join(packageDir, "collect-clean-account-evidence.ps1");
 
   const launchers = {
     startInstall: {
@@ -284,6 +290,11 @@ export async function validateAiPackArtifact(options = {}) {
       present: await exists(validateLauncher),
       dryRun: options.runLauncherDryRun ? runLauncherDryRun(validateLauncher, packageDir) : null,
     },
+    collectEvidence: {
+      path: collectLauncher,
+      present: await exists(collectLauncher),
+      dryRun: options.runLauncherDryRun ? runLauncherDryRun(collectLauncher, packageDir) : null,
+    },
   };
 
   if (launchers.startInstall.dryRun && !launchers.startInstall.dryRun.ok) {
@@ -292,16 +303,23 @@ export async function validateAiPackArtifact(options = {}) {
   if (launchers.validateInstall.dryRun && !launchers.validateInstall.dryRun.ok) {
     errors.push("VALIDATE_INSTALL.bat dry-run failed");
   }
+  if (launchers.collectEvidence.dryRun && !launchers.collectEvidence.dryRun.ok) {
+    errors.push("COLLECT_EVIDENCE.bat dry-run failed");
+  }
 
   const powerShell = {
     install: options.parsePowerShell ? parsePowerShellScript(installPs, packageDir) : null,
     validate: options.parsePowerShell ? parsePowerShellScript(validatePs, packageDir) : null,
+    collect: options.parsePowerShell ? parsePowerShellScript(collectPs, packageDir) : null,
   };
   if (powerShell.install && !powerShell.install.ok) {
     errors.push("install-gongmu-ai.ps1 PowerShell parse failed");
   }
   if (powerShell.validate && !powerShell.validate.ok) {
     errors.push("validate-gongmu-ai.ps1 PowerShell parse failed");
+  }
+  if (powerShell.collect && !powerShell.collect.ok) {
+    errors.push("collect-clean-account-evidence.ps1 PowerShell parse failed");
   }
 
   const zipHash = options.hashZip && zipPresent ? await sha256(zipPath) : null;

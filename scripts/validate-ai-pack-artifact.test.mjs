@@ -42,8 +42,10 @@ async function main() {
     await writeFixture(join(packageDir, "SHA256SUMS.txt"), "hash  START_INSTALL.bat\n");
     await writeFixture(join(packageDir, "START_INSTALL.bat"), "@echo off\r\necho dry\r\n");
     await writeFixture(join(packageDir, "VALIDATE_INSTALL.bat"), "@echo off\r\necho dry\r\n");
+    await writeFixture(join(packageDir, "COLLECT_EVIDENCE.bat"), "@echo off\r\necho collect\r\n");
     await writeFixture(join(packageDir, "install-gongmu-ai.ps1"), "Write-Output 'install'\n");
     await writeFixture(join(packageDir, "validate-gongmu-ai.ps1"), "Write-Output 'validate'\n");
+    await writeFixture(join(packageDir, "collect-clean-account-evidence.ps1"), "Write-Output 'evidence'\n");
     await writeFixture(join(packageDir, "gongmu", "Gongmu_0.1.0_x64-setup.exe"), "fake app installer\n");
     await writeFixture(join(packageDir, "ollama", "OllamaSetup.exe"), "fake ollama installer\n");
     await writeFixture(join(packageDir, "python", "python-3.11.9-amd64.exe"), "fake python installer\n");
@@ -75,6 +77,7 @@ async function main() {
     assert.equal(report.modelStore.blobCount, 1);
     assert.equal(report.launchers.startInstall.present, true);
     assert.equal(report.launchers.validateInstall.present, true);
+    assert.equal(report.launchers.collectEvidence.present, true);
 
     const json = JSON.parse(await readFile(outJson, "utf8"));
     assert.equal(json.ready, true);

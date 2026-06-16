@@ -10,8 +10,8 @@
 
 ## 검증 대상 산출물
 
-- AI Pack zip: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\ai-pack\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-0941.zip`
-- AI Pack folder: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\ai-pack\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-0941`
+- AI Pack zip: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\ai-pack\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046.zip`
+- AI Pack folder: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\ai-pack\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046`
 - App installer inside pack: `gongmu\Gongmu_0.1.0_x64-setup.exe`
 - Ollama installer inside pack: `ollama\OllamaSetup.exe`
 - Python installer inside pack: `python\python-3.11.9-amd64.exe`
@@ -19,8 +19,8 @@
 
 ## 산출물 동일성
 
-- Zip size: `8,016,692,659 bytes`
-- Zip SHA256: `DEF75FF14C2FE99C0DF6AB36ED1E818A3135509D9C69E95BFE3C39525108D293`
+- Zip size: `8,016,696,189 bytes`
+- Zip SHA256: `B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC`
 - Embedded model blob bytes: `7,162,405,886 bytes`
 - Embedded model blob count: `4`
 
@@ -51,27 +51,28 @@ node scripts/validate-ai-pack-artifact.mjs --require-zip --min-zip-bytes 1000000
 
 ## 클린계정/폐쇄망 PC 검증 절차
 
-1. `Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-0941.zip`을 대상 PC로 복사한다.
+1. `Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046.zip`을 대상 PC로 복사한다.
 2. 대상 PC에서 zip SHA256을 확인한다.
 
 ```powershell
-Get-FileHash .\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-0941.zip -Algorithm SHA256
+Get-FileHash .\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1046.zip -Algorithm SHA256
 ```
 
 기대값:
 
 ```text
-DEF75FF14C2FE99C0DF6AB36ED1E818A3135509D9C69E95BFE3C39525108D293
+B8A86027570FA8F7262E403B64AB7BCF23545469ABB0FBBB1C63DAECCC0D75DC
 ```
 
 3. zip을 로컬 폴더에 압축 해제한다.
 4. 압축 해제 폴더에서 `START_INSTALL.bat`을 더블클릭한다.
 5. 설치 완료 후 같은 폴더의 `VALIDATE_INSTALL.bat`을 더블클릭한다.
-6. 공무원 앱을 실행한다.
-7. 환경설정의 기본 LLM 공급자가 Ollama local profile로 잡혔는지 확인한다.
-8. 업무대화에서 짧은 텍스트 질문을 입력한다.
-9. 업무대화에서 이미지 1장을 첨부한 뒤 이미지 관련 질문을 입력한다.
-10. 앱 종료 후 재실행하여 업무엔진이 자동 시작되는지 확인한다.
+6. 검증 완료 후 같은 폴더의 `COLLECT_EVIDENCE.bat`을 더블클릭한다.
+7. 공무원 앱을 실행한다.
+8. 환경설정의 기본 LLM 공급자가 Ollama local profile로 잡혔는지 확인한다.
+9. 업무대화에서 짧은 텍스트 질문을 입력한다.
+10. 업무대화에서 이미지 1장을 첨부한 뒤 이미지 관련 질문을 입력한다.
+11. 앱 종료 후 재실행하여 업무엔진이 자동 시작되는지 확인한다.
 
 ## 기대 결과
 
@@ -83,6 +84,8 @@ DEF75FF14C2FE99C0DF6AB36ED1E818A3135509D9C69E95BFE3C39525108D293
 - `http://127.0.0.1:11434/api/chat` 이미지 요청이 성공한다.
 - 공무원 앱의 업무엔진 상태가 정상으로 표시된다.
 - 업무대화에서 로컬 LLM 응답이 생성된다.
+- `evidence\ai-pack-clean-account-evidence.json`이 생성되고 `ready: true`가 기록된다.
+- `evidence\ai-pack-clean-account-evidence.md`가 생성되고 각 점검 항목이 `PASS`로 기록된다.
 
 ## 실패 시 수집할 증거
 
@@ -90,6 +93,9 @@ DEF75FF14C2FE99C0DF6AB36ED1E818A3135509D9C69E95BFE3C39525108D293
 
 - `install-gongmu-ai.log`
 - `validate-gongmu-ai.log`
+- `evidence\collect-clean-account-evidence.log`
+- `evidence\ai-pack-clean-account-evidence.json`
+- `evidence\ai-pack-clean-account-evidence.md`
 - `settings.json`
 - `ollama list` 출력
 - `Get-Process ollama` 출력
@@ -98,6 +104,6 @@ DEF75FF14C2FE99C0DF6AB36ED1E818A3135509D9C69E95BFE3C39525108D293
 
 ## 현재 남은 완료 조건
 
-이 문서와 자동 검증 리포트는 산출물 구조, 포함 파일, 런처 문법, dry-run, 해시 동일성을 증명한다. 다만 최종 완료 게이트 G11을 완전히 닫으려면 실제 클린계정 또는 VM에서 `START_INSTALL.bat`과 `VALIDATE_INSTALL.bat`을 실행한 로그가 필요하다.
+이 문서와 자동 검증 리포트는 산출물 구조, 포함 파일, 런처 문법, dry-run, 해시 동일성을 증명한다. 다만 최종 완료 게이트 G11을 완전히 닫으려면 실제 클린계정 또는 VM에서 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 실행한 로그와 `ready: true` 증거가 필요하다.
 
 따라서 현재 상태는 “배포 산출물 준비 및 자동 검증 완료, 클린계정 실사용 증거 대기”로 판정한다.
