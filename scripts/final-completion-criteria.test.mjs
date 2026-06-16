@@ -22,6 +22,17 @@ assert.ok(
   (g03.evidence?.commands ?? []).includes("npm.cmd run release:runtime-evidence:validate"),
   "G03 must validate returned runtime clean-account evidence",
 );
+const g03NotesAndFollowUps = [...(g03.evidence?.notes ?? []), ...(g03.blockingFollowUp ?? [])].join("\n");
+assert.match(
+  g03NotesAndFollowUps,
+  /release:ai-pack:evidence:finalize/,
+  "G03 must direct normal clean-account evidence return through the finalizer that imports and validates runtime evidence",
+);
+assert.doesNotMatch(
+  g03NotesAndFollowUps,
+  /evidence 폴더를 `release\/clean-account-evidence-inbox`에 넣고 `npm\.cmd run release:runtime-evidence:validate`/,
+  "G03 must not make runtime-only validation the primary evidence return path",
+);
 
 const g11 = criteria.gates.find((gate) => gate.id === "G11");
 assert.ok(g11, "G11 clean install evidence gate must exist");

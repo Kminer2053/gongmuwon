@@ -147,12 +147,13 @@
           "현재 리소스와 release 폴더의 `gongmu-sidecar.exe`는 2026-05-23 산출물이며 최신 2026-06-15 소스를 포함하지 않는다.",
           "GraphRAG 인제스트 중 파일검색/업무대화 병렬 smoke에서 파일검색 137.25ms, 업무대화 29.73ms로 응답했다.",
           "clean-account 또는 VM 기준 GUI 설치, 실행, 종료, 복구 증거는 최종 릴리스 후보 기준으로 다시 확보해야 한다.",
-          "대상 PC에서 앱 실행, 업무엔진 health, 강제 종료 후 복구 안내 또는 재시작, 장기 작업 중 응답성, 런타임 로그를 `runtime-clean-account-evidence.json`에 기록해 `release/clean-account-evidence-inbox`로 반입한다."
+          "대상 PC에서 앱 실행, 업무엔진 health, 강제 종료 후 복구 안내 또는 재시작, 장기 작업 중 응답성, 런타임 로그를 `runtime-clean-account-evidence.json`에 기록해 AI pack evidence와 같은 `evidence` 폴더에 담는다.",
+          "반입 후에는 `npm.cmd run release:ai-pack:evidence:finalize`가 runtime evidence 반입, `npm.cmd run release:runtime-evidence:validate`, final preflight/audit를 한 번에 실행한다."
         ]
       },
       "blockingFollowUp": [
-        "clean-account 또는 VM에서 앱 설치 후 `runtime-clean-account-evidence.json`을 작성한다.",
-        "대상 PC의 evidence 폴더를 `release/clean-account-evidence-inbox`에 넣고 `npm.cmd run release:runtime-evidence:validate`를 실행한다."
+        "clean-account 또는 VM에서 앱 설치 후 `runtime-clean-account-evidence.json`을 작성해 AI pack evidence와 같은 `evidence` 폴더에 둔다.",
+        "대상 PC의 `evidence` 폴더를 `release/clean-account-evidence-inbox`에 넣고 `npm.cmd run release:ai-pack:evidence:finalize`를 실행한다."
       ]
     },
     {
