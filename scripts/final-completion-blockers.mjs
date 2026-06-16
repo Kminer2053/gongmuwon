@@ -43,16 +43,18 @@ function blockerProblems(blocker) {
 }
 
 function nextExecutionPlan(blockers) {
-  if (blockers.some((blocker) => blocker.id === "G11")) {
+  if (blockers.some((blocker) => blocker.id === "G11" || blocker.id === "G03")) {
     return {
       description:
-        "아래 순서는 클린계정/폐쇄망 증거 수집 루프입니다. 대상 PC에서 원클릭 검증을 실행한 뒤 evidence 폴더를 개발 저장소 inbox로 반입합니다.",
+        "아래 순서는 클린계정/폐쇄망 증거 수집 루프입니다. 대상 PC에서 AI pack 원클릭 검증과 앱 런타임 확인을 실행한 뒤 evidence 폴더를 개발 저장소 inbox로 반입합니다.",
       commands: [
         "npm.cmd run release:ai-pack:evidence:request:validate",
         "대상 PC에서 AI pack zip SHA256 확인",
         "대상 PC에서 RUN_FULL_VALIDATION.bat 실행",
+        "대상 PC에서 앱 실행, 업무엔진 health/restart/장기작업 응답성을 확인하고 runtime-clean-account-evidence.json 작성",
         "대상 PC의 evidence 폴더를 release\\clean-account-evidence-inbox 로 복사",
         "npm.cmd run release:ai-pack:evidence:finalize",
+        "npm.cmd run release:runtime-evidence:validate",
         "npm.cmd run verify:completion",
       ],
     };

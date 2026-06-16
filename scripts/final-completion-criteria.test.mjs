@@ -5,6 +5,24 @@ import path from "node:path";
 const criteriaPath = path.resolve("docs/operations/final-completion-criteria.json");
 const criteria = JSON.parse(fs.readFileSync(criteriaPath, "utf8"));
 
+const g03 = criteria.gates.find((gate) => gate.id === "G03");
+assert.ok(g03, "G03 runtime evidence gate must exist");
+assert.equal(
+  g03.completionMode,
+  "evidence",
+  "G03 must close from runtime clean-account evidence without manual status editing",
+);
+assert.ok(
+  (g03.evidence?.requiredFiles ?? []).includes(
+    "release/clean-account-evidence-inbox/runtime-clean-account-evidence.json",
+  ),
+  "G03 must require the runtime clean-account evidence JSON",
+);
+assert.ok(
+  (g03.evidence?.commands ?? []).includes("npm.cmd run release:runtime-evidence:validate"),
+  "G03 must validate returned runtime clean-account evidence",
+);
+
 const g11 = criteria.gates.find((gate) => gate.id === "G11");
 assert.ok(g11, "G11 clean install evidence gate must exist");
 assert.equal(

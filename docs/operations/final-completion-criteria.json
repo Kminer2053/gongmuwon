@@ -105,6 +105,7 @@
       "title": "업무엔진 런타임 자동 시작, 복구, 장기 작업 관리",
       "required": true,
       "status": "partial",
+      "completionMode": "evidence",
       "completionCriteria": [
         "설치 후 별도 실행파일을 찾지 않아도 업무엔진이 자동 시작된다.",
         "업무엔진 강제 종료 후 복구 또는 이해 가능한 재시작 안내가 동작한다.",
@@ -116,31 +117,42 @@
           "npm.cmd run sidecar:smoke:bundled",
           "npm.cmd run sidecar:test",
           "npm.cmd run desktop:smoke:nsis",
-          ".venv\\Scripts\\python.exe scripts\\runtime-concurrency-smoke.py"
+          ".venv\\Scripts\\python.exe scripts\\runtime-concurrency-smoke.py",
+          "npm.cmd run release:runtime-evidence:validate"
         ],
         "requiredFiles": [
           "docs/operations/2026-05-23-routing-multitask-implementation-report.md",
           "docs/operations/2026-05-23-full-system-integration-validation-report.md",
           "docs/operations/generated/bundled-sidecar-smoke-2026-06-15.json",
           "scripts/runtime-concurrency-smoke.py",
-          "docs/operations/2026-06-16-runtime-concurrency-validation.md"
+          "docs/operations/2026-06-16-runtime-concurrency-validation.md",
+          "release/clean-account-evidence-inbox/runtime-clean-account-evidence.json",
+          "docs/operations/generated/runtime-clean-account-evidence-validation.json",
+          "docs/operations/generated/runtime-clean-account-evidence-validation.md"
         ],
         "jsonStatusChecks": [
           {
             "file": "docs/operations/generated/bundled-sidecar-smoke-2026-06-15.json",
             "path": "status",
             "equals": "pass"
+          },
+          {
+            "file": "docs/operations/generated/runtime-clean-account-evidence-validation.json",
+            "path": "ready",
+            "equals": true
           }
         ],
         "notes": [
           "번들 업무엔진 exe는 2026-06-15 격리 workspace 기준 `/health status=ok`까지는 응답했지만, 신규 지식폴더 2.0 API `/api/knowledge/work-profile`는 404로 실패했다.",
           "현재 리소스와 release 폴더의 `gongmu-sidecar.exe`는 2026-05-23 산출물이며 최신 2026-06-15 소스를 포함하지 않는다.",
           "GraphRAG 인제스트 중 파일검색/업무대화 병렬 smoke에서 파일검색 137.25ms, 업무대화 29.73ms로 응답했다.",
-          "clean-account 또는 VM 기준 GUI 설치, 실행, 종료, 복구 증거는 최종 릴리스 후보 기준으로 다시 확보해야 한다."
+          "clean-account 또는 VM 기준 GUI 설치, 실행, 종료, 복구 증거는 최종 릴리스 후보 기준으로 다시 확보해야 한다.",
+          "대상 PC에서 앱 실행, 업무엔진 health, 강제 종료 후 복구 안내 또는 재시작, 장기 작업 중 응답성, 런타임 로그를 `runtime-clean-account-evidence.json`에 기록해 `release/clean-account-evidence-inbox`로 반입한다."
         ]
       },
       "blockingFollowUp": [
-        "clean-account 또는 VM 설치 증거를 갱신한다."
+        "clean-account 또는 VM에서 앱 설치 후 `runtime-clean-account-evidence.json`을 작성한다.",
+        "대상 PC의 evidence 폴더를 `release/clean-account-evidence-inbox`에 넣고 `npm.cmd run release:runtime-evidence:validate`를 실행한다."
       ]
     },
     {
