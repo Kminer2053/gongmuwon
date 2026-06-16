@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "projectName": "로컬 AI에이전트 워크플레이스 : 공무원",
-  "updatedAt": "2026-06-15",
+  "updatedAt": "2026-06-16",
   "completionRule": "최종 완성은 모든 required gate가 pass이고, 각 gate의 증거가 현재 릴리스 후보 코드 상태를 직접 검증할 때만 인정한다.",
   "statusLegend": {
     "pass": "현재 릴리스 후보 기준 직접 증거가 있고 요구사항을 충족한다.",
@@ -373,7 +373,8 @@
           "node scripts/prepare-offline-release.test.mjs",
           "npm.cmd run release:offline",
           "node scripts/prepare-ollama-ai-pack.test.mjs",
-          "node scripts/prepare-ollama-ai-pack.mjs --include-models runtime-workspace\\cache\\ollama-models\\gemma4-e2b --include-ollama-installer runtime-workspace\\cache\\ollama\\OllamaSetup.exe --include-python-installer runtime-workspace\\cache\\python\\python-3.11.9-amd64.exe"
+          "node scripts/prepare-ollama-ai-pack.mjs --include-models runtime-workspace\\cache\\ollama-models\\gemma4-e2b --include-ollama-installer runtime-workspace\\cache\\ollama\\OllamaSetup.exe --include-python-installer runtime-workspace\\cache\\python\\python-3.11.9-amd64.exe",
+          "npm.cmd run release:ai-pack:validate"
         ],
         "requiredFiles": [
           "docs/operations/2026-04-22-windows-interactive-install-validation.md",
@@ -381,7 +382,10 @@
           "docs/operations/2026-06-16-offline-package-refresh.md",
           "docs/operations/generated/final-completion-preflight-report.json",
           "docs/operations/generated/sidecar-bundle-freshness-report.json",
-          "docs/operations/generated/bundled-sidecar-smoke-2026-06-15.json"
+          "docs/operations/generated/bundled-sidecar-smoke-2026-06-15.json",
+          "docs/operations/2026-06-16-clean-account-ai-pack-validation-runbook.md",
+          "docs/operations/generated/ai-pack-artifact-validation.json",
+          "docs/operations/generated/ai-pack-artifact-validation.md"
         ],
         "jsonStatusChecks": [
           {
@@ -398,6 +402,11 @@
             "file": "docs/operations/generated/bundled-sidecar-smoke-2026-06-15.json",
             "path": "status",
             "equals": "pass"
+          },
+          {
+            "file": "docs/operations/generated/ai-pack-artifact-validation.json",
+            "path": "ready",
+            "equals": true
           }
         ],
         "notes": [
@@ -407,7 +416,9 @@
           "NSIS smoke는 설치, bundled 업무엔진 `/health`, uninstall cleanup `remaining_install_files: []`를 통과했다.",
           "AI 풀팩 `Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-0941.zip`은 Python 3.11.9 설치파일, OllamaSetup.exe, `gemma4:e2b` 모델 캐시, 초보자용 `START_INSTALL.bat`, 설치 후 `VALIDATE_INSTALL.bat`를 포함한다.",
           "AI 풀팩 manifest는 `model.embedded=true`, `model.multimodal=true`, `python.installerIncluded=true`, `ollama.installerIncluded=true`를 기록한다.",
-          "최종 릴리스 후보 기준 clean-account/VM GUI click-through 증거는 아직 별도 운영 증거로 남아 있다."
+          "최종 릴리스 후보 기준 clean-account/VM GUI click-through 증거는 아직 별도 운영 증거로 남아 있다.",
+          "2026-06-16 AI pack artifact validation은 zip SHA256, 필수 파일, 모델 저장소, START/VALIDATE 배치 dry-run, PowerShell 문법 검증을 모두 통과했다.",
+          "클린계정/폐쇄망 PC에서는 docs/operations/2026-06-16-clean-account-ai-pack-validation-runbook.md 절차에 따라 START_INSTALL.bat과 VALIDATE_INSTALL.bat 실제 실행 로그를 확보해야 G11을 완전히 닫을 수 있다."
         ]
       },
       "blockingFollowUp": [

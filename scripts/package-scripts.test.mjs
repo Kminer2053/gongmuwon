@@ -73,6 +73,18 @@ assert.match(
 );
 
 assert.match(
+  scripts["verify:completion:test"] ?? "",
+  /validate-ai-pack-artifact\.test\.mjs/,
+  "verify:completion:test must include AI pack artifact validation checks",
+);
+
+assert.match(
+  scripts["release:ai-pack:validate"] ?? "",
+  /validate-ai-pack-artifact\.mjs/,
+  "release:ai-pack:validate must validate the generated AI pack artifact",
+);
+
+assert.match(
   scripts["verify:completion:preflight"] ?? "",
   /final-completion-preflight\.mjs/,
   "verify:completion:preflight must generate the final completion preflight report",
