@@ -14,6 +14,7 @@ apps/desktop/src-tauri/resources/sidecar/windows-x64/
 release/sidecar/
 release/offline/
 release/ai-pack/
+release/clean-account-evidence-request/
 release/alpha/20*-windows-*.md
 output/
 docs/operations/generated/bundled-sidecar-smoke-*.json

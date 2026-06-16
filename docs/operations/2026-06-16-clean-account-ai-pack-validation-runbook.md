@@ -128,3 +128,26 @@ npm.cmd run release:ai-pack:evidence:validate
 이 문서와 자동 검증 리포트는 산출물 구조, 포함 파일, 런처 문법, dry-run, 해시 동일성을 증명한다. 다만 최종 완료 게이트 G11을 완전히 닫으려면 실제 클린계정 또는 VM에서 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 실행한 로그와 `ready: true` 증거가 필요하다. 반입한 evidence는 반드시 `npm.cmd run release:ai-pack:evidence:validate`로 재검증한다.
 
 따라서 현재 상태는 “배포 산출물 준비 및 자동 검증 완료, 클린계정 실사용 증거 대기”로 판정한다.
+
+## 클린계정 증거 요청 폴더 생성
+
+대상 PC 검증자에게 전달할 실행 순서와 반입 경로를 별도 폴더로 생성하려면 개발 저장소에서 아래 명령을 실행한다.
+
+```powershell
+npm.cmd run release:ai-pack:evidence:request
+```
+
+생성 위치:
+
+```text
+release\clean-account-evidence-request
+```
+
+생성 파일:
+
+- `README.md`: 대상 PC에서 zip 해시 확인, `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat` 실행, evidence 반입 순서를 안내한다.
+- `REQUEST.json`: 현재 AI pack zip 경로, SHA256, 모델명, 멀티모달/내장 여부, 반입 대상 경로를 기계가 읽을 수 있는 형식으로 기록한다.
+- `EXPECTED_SHA256.txt`: 대상 PC에서 `Get-FileHash` 결과와 대조할 zip SHA256을 기록한다.
+- `COPY_TARGETS.txt`: 대상 PC에서 생성된 `evidence\ai-pack-clean-account-evidence.json`을 개발 저장소의 어느 경로로 복사해야 하는지 기록한다.
+
+이 요청 폴더는 최종 완료 증거가 아니라 검증 누락을 줄이기 위한 전달물이다. 최종 G11 완료 판정은 대상 PC에서 생성된 evidence JSON을 반입하고 `npm.cmd run release:ai-pack:evidence:validate`가 `ready: true`로 통과해야만 인정한다.
