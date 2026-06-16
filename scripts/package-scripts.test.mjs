@@ -91,6 +91,12 @@ assert.match(
 );
 
 assert.match(
+  scripts["release:ai-pack:evidence:import"] ?? "",
+  /import-clean-account-evidence\.mjs/,
+  "release:ai-pack:evidence:import must copy target-PC evidence and run validation",
+);
+
+assert.match(
   scripts["release:ai-pack:evidence:request"] ?? "",
   /prepare-clean-account-evidence-request\.mjs/,
   "release:ai-pack:evidence:request must generate target-PC clean-account evidence handoff instructions",
@@ -100,6 +106,12 @@ assert.match(
   scripts["verify:completion:test"] ?? "",
   /validate-clean-account-evidence\.test\.mjs/,
   "verify:completion:test must include clean-account evidence validation checks",
+);
+
+assert.match(
+  scripts["verify:completion:test"] ?? "",
+  /import-clean-account-evidence\.test\.mjs/,
+  "verify:completion:test must include clean-account evidence import checks",
 );
 
 assert.match(

@@ -123,6 +123,23 @@ npm.cmd run release:ai-pack:evidence:validate
 - `docs\operations\generated\clean-account-evidence-validation.json` 생성
 - `docs\operations\generated\clean-account-evidence-validation.md` 생성
 
+대상 PC의 `evidence` 폴더 전체를 가져온 경우에는 아래 폴더에 복사한 뒤 import 명령을 사용할 수 있다.
+
+```text
+release\clean-account-evidence-inbox
+```
+
+```powershell
+npm.cmd run release:ai-pack:evidence:import
+```
+
+이 명령은 `ai-pack-clean-account-evidence.json`, 검토용 Markdown, evidence 수집 로그, 설치 로그, 검증 로그를 `docs\operations\generated\clean-account-evidence\` 아래로 복사한 뒤 즉시 `release:ai-pack:evidence:validate`와 동일한 수용 검증을 실행한다. 반입 리포트는 아래 경로에 남는다.
+
+```text
+docs\operations\generated\clean-account-evidence-import.json
+docs\operations\generated\clean-account-evidence-import.md
+```
+
 ## 현재 남은 완료 조건
 
 이 문서와 자동 검증 리포트는 산출물 구조, 포함 파일, 런처 문법, dry-run, 해시 동일성을 증명한다. 다만 최종 완료 게이트 G11을 완전히 닫으려면 실제 클린계정 또는 VM에서 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 실행한 로그와 `ready: true` 증거가 필요하다. 반입한 evidence는 반드시 `npm.cmd run release:ai-pack:evidence:validate`로 재검증한다.

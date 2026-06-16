@@ -15,6 +15,7 @@ release/sidecar/
 release/offline/
 release/ai-pack/
 release/clean-account-evidence-request/
+release/clean-account-evidence-inbox/
 release/alpha/20*-windows-*.md
 output/
 docs/operations/generated/bundled-sidecar-smoke-*.json
