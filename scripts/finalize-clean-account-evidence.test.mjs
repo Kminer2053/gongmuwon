@@ -62,9 +62,33 @@ await withTempRepo(async (repoRoot) => {
 
   assert.equal(result.ready, true);
   assert.deepEqual(commands, [
+    "npm.cmd run release:runtime-evidence:validate",
     "npm.cmd run verify:completion:preflight",
     "npm.cmd run verify:completion:audit",
   ]);
+});
+
+await withTempRepo(async (repoRoot) => {
+  const sourceDir = join(repoRoot, "incoming-evidence-runtime-fail");
+  await writeJson(join(sourceDir, "ai-pack-clean-account-evidence.json"), sampleEvidence());
+
+  const commands = [];
+  const result = await finalizeCleanAccountEvidence({
+    repoRoot,
+    sourceDir,
+    runCommand(command, args) {
+      const rendered = [command, ...args].join(" ");
+      commands.push(rendered);
+      return {
+        status: rendered.includes("release:runtime-evidence:validate") ? 1 : 0,
+        stdout: "",
+        stderr: "runtime evidence missing",
+      };
+    },
+  });
+
+  assert.equal(result.ready, false);
+  assert.deepEqual(commands, ["npm.cmd run release:runtime-evidence:validate"]);
 });
 
 await withTempRepo(async (repoRoot) => {

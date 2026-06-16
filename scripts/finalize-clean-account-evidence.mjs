@@ -53,6 +53,7 @@ export async function finalizeCleanAccountEvidence(options = {}) {
   }
 
   for (const args of [
+    ["run", "release:runtime-evidence:validate"],
     ["run", "verify:completion:preflight"],
     ["run", "verify:completion:audit"],
   ]) {
@@ -96,6 +97,7 @@ async function main() {
     console.log(`Usage: node scripts/finalize-clean-account-evidence.mjs [--from <target-evidence-dir-or-json>]
 
 Imports clean-account evidence, validates it, then reruns:
+  npm.cmd run release:runtime-evidence:validate
   npm.cmd run verify:completion:preflight
   npm.cmd run verify:completion:audit
 `);
