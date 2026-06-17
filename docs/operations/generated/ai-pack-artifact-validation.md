@@ -1,11 +1,11 @@
 # AI pack artifact validation
 
-- createdAt: 2026-06-16T03:23:03.156Z
+- createdAt: 2026-06-17T06:16:59.798Z
 - ready: true
-- packageDir: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\ai-pack\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213`
-- zipPath: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\ai-pack\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213.zip`
-- zipSizeBytes: 8016697130
-- zipSha256: E0ADF41DD714E5E35F961363B62543C4EC90CB827BFAC6EF9ACDBA2B44EC05B7
+- packageDir: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\ai-pack\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260617-1503`
+- zipPath: `C:\Users\USER\Agent_Gongmu\Agent_Gongmu_Codex\release\ai-pack\Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260617-1503.zip`
+- zipSizeBytes: 8016700295
+- zipSha256: A957C2D14B0EF4ED12ED30C64016F581E83B4F855044DF8EC6811E448D8F68F5
 - model: gemma4:e2b
 - multimodal: true
 - embeddedModelStore: true

@@ -136,6 +136,8 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "",
     "This package prepares a closed-network or clean Windows account for Gongmu local AI use.",
     "",
+    "Korean first-time install guide: `INSTALL_GUIDE_KO.md`",
+    "",
     "## What START_INSTALL.bat does",
     "",
     "1. Installs Gongmu when a Windows NSIS installer is bundled in `gongmu/`.",
@@ -147,6 +149,16 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     `7. Verifies that ${MODEL_NAME} is available.`,
     "8. Writes Gongmu settings so the app uses Ollama local-first mode.",
     "9. Runs a text response check and an image-input API check.",
+    "",
+    "## Important install-window behavior",
+    "",
+    "- The Gongmu app installer runs first because the desktop app must be installed before local AI settings can be written safely.",
+    "- Finish the Gongmu installer wizard completely. If Gongmu opens after installation, close the app window and the installer completion window.",
+    "- If the Ollama installer or Ollama app opens, finish it and close it so the batch file can continue.",
+    "- Do not close the command window. Python/Ollama/Gemma setup continues only after the Gongmu installer exits.",
+    "- Gemma model cache copy can take several minutes. The command window will print copy progress during this step.",
+    "- WSL is not required for Gongmu or native Windows Ollama. The setup scripts only record WSL status as optional diagnostics.",
+    "- If the window looks paused, check whether the Gongmu installer or Gongmu app is still open behind another window.",
     "",
     "## Package status",
     "",
@@ -196,6 +208,135 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "- `ollama/OllamaSetup.exe` must exist when the target PC does not already have Ollama.",
     "- `python/python-3.11.x-amd64.exe` is optional for the bundled app, but useful for repair and diagnostics.",
     "- Use `SHA256SUMS.txt` to verify file integrity after copying the package.",
+  ];
+  await writeTextFile(path, `${lines.join("\n")}\n`);
+}
+
+async function writeKoreanInstallGuide(path, { hasModelStore, hasOllamaInstaller, hasPythonInstaller, hasGongmuInstaller }) {
+  const lines = [
+    "# 공무원 AI 설치팩 설치 안내",
+    "",
+    "이 파일은 외부 인터넷이 없거나 새 Windows 계정에서 `로컬 AI에이전트 워크플레이스 : 공무원`을 처음 설치하는 사용자를 위한 안내문입니다.",
+    "",
+    "## 설치팩에 포함된 항목",
+    "",
+    `- 공무원 앱 설치파일: ${hasGongmuInstaller ? "포함됨" : "포함되지 않음"}`,
+    `- Python 3.11 설치파일: ${hasPythonInstaller ? "포함됨" : "포함되지 않음"}`,
+    `- Ollama 설치파일: ${hasOllamaInstaller ? "포함됨" : "포함되지 않음"}`,
+    `- Gemma4 E2B IT 멀티모달 모델 캐시: ${hasModelStore ? "포함됨" : "포함되지 않음"}`,
+    "",
+    "## 처음 설치하는 사용자를 위한 순서",
+    "",
+    "1. 설치팩 폴더를 압축 해제합니다.",
+    "2. `RUN_FULL_VALIDATION.bat`을 더블클릭합니다.",
+    "3. 공무원 앱 설치 마법사가 먼저 실행됩니다.",
+    "4. 설치 마법사의 안내에 따라 공무원 앱 설치를 끝까지 완료합니다.",
+    "5. 설치 완료 직후 앱이 자동으로 실행되면 앱 창을 닫아주세요.",
+    "6. 설치 마법사 완료 창도 닫아주세요.",
+    "7. 배치파일 창은 닫지 마세요.",
+    "8. 공무원 설치 창이 완전히 종료된 뒤 Python, Ollama, Gemma 모델 설치와 검증이 이어집니다.",
+    "9. 모든 과정이 끝나면 `evidence` 폴더에 검증 결과 파일이 생성됩니다.",
+    "",
+    "## 왜 중간에 멈춘 것처럼 보이나요?",
+    "",
+    "배치파일은 공무원 앱 설치파일을 실행한 뒤 설치 마법사가 종료될 때까지 기다립니다.",
+    "따라서 공무원 설치 창이나 공무원 앱 창이 아직 열려 있으면 다음 단계로 넘어가지 않습니다.",
+    "",
+    "이럴 때는 아래를 확인하세요.",
+    "",
+    "- 공무원 설치 마법사가 다른 창 뒤에 숨어 있지 않은지 확인합니다.",
+    "- 설치 완료 화면에서 `마침`을 눌렀는지 확인합니다.",
+    "- 공무원 앱이 자동 실행되었다면 앱 창을 닫습니다.",
+    "- 배치파일 창은 닫지 말고 그대로 둡니다.",
+    "",
+    "## 단계별로 설치하고 싶을 때",
+    "",
+    "- 설치만 실행: `START_INSTALL.bat`",
+    "- 설치 상태 검증: `VALIDATE_INSTALL.bat`",
+    "- 설치 증거 수집: `COLLECT_EVIDENCE.bat`",
+    "- 설치부터 검증과 증거 수집까지 한 번에 실행: `RUN_FULL_VALIDATION.bat`",
+    "",
+    "처음 설치하는 경우에는 `RUN_FULL_VALIDATION.bat`을 권장합니다.",
+    "",
+    "## 문제가 생겼을 때 확인할 파일",
+    "",
+    "- 설치 로그: `install-gongmu-ai.log`",
+    "- 검증 로그: `validate-gongmu-ai.log`",
+    "- 설치 증거 요약: `evidence/ai-pack-clean-account-evidence.md`",
+    "- 설치 증거 원본: `evidence/ai-pack-clean-account-evidence.json`",
+    "",
+    "## 설치 후 확인할 내용",
+    "",
+    "- 공무원 앱이 실행되는지 확인합니다.",
+    "- 업무엔진 상태가 정상인지 확인합니다.",
+    "- 모델 설정에서 Ollama 로컬 모델이 선택되어 있는지 확인합니다.",
+    "- 업무대화에서 짧은 문장을 입력해 응답이 생성되는지 확인합니다.",
+    "- 이미지 첨부가 필요한 경우 Gemma4 E2B IT 멀티모달 모델 검증 결과를 확인합니다.",
+    "",
+    "## 주의사항",
+    "",
+    "- 인터넷이 없는 PC에서는 설치팩 내부의 `models` 폴더가 반드시 필요합니다.",
+    "- Ollama가 이미 설치되어 있으면 설치팩은 기존 Ollama를 우선 감지합니다.",
+    "- Python 3.11은 공무원 앱 자체 실행에는 필수는 아니지만, 진단과 복구를 위해 설치팩에 포함할 수 있습니다.",
+    "- 설치가 실패해도 먼저 로그 파일을 확인하고 같은 배치파일을 다시 실행할 수 있습니다.",
+  ];
+  await writeTextFile(path, `\uFEFF${lines.join("\n")}\n`);
+}
+
+function koreanStatus(value) {
+  return value ? "\uD3EC\uD568\uB428" : "\uD3EC\uD568\uB418\uC9C0 \uC54A\uC74C";
+}
+
+async function writeKoreanInstallGuideV2(path, { hasModelStore, hasOllamaInstaller, hasPythonInstaller, hasGongmuInstaller }) {
+  const lines = [
+    "\uFEFF# \uACF5\uBB34\uC6D0 AI \uC124\uCE58\uD329 \uC124\uCE58 \uC548\uB0B4",
+    "",
+    "\uC774 \uBB38\uC11C\uB294 \uC778\uD130\uB137\uC774 \uC5C6\uAC70\uB098 \uC0C8 Windows \uACC4\uC815\uC5D0\uC11C \uCC98\uC74C \uC124\uCE58\uD558\uB294 \uC0AC\uC6A9\uC790\uB97C \uC704\uD55C \uC548\uB0B4\uBB38\uC785\uB2C8\uB2E4.",
+    "",
+    "## \uC124\uCE58\uD329\uC5D0 \uD3EC\uD568\uB41C \uD56D\uBAA9",
+    "",
+    `- \uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58\uD30C\uC77C: ${koreanStatus(hasGongmuInstaller)}`,
+    `- Python 3.11 \uC124\uCE58\uD30C\uC77C: ${koreanStatus(hasPythonInstaller)}`,
+    `- Ollama \uC124\uCE58\uD30C\uC77C: ${koreanStatus(hasOllamaInstaller)}`,
+    `- Gemma4 E2B IT \uBA40\uD2F0\uBAA8\uB2EC \uBAA8\uB378 \uCE90\uC2DC: ${koreanStatus(hasModelStore)}`,
+    "",
+    "## \uCC98\uC74C \uC124\uCE58\uD558\uB294 \uC0AC\uC6A9\uC790\uB97C \uC704\uD55C \uC21C\uC11C",
+    "",
+    "1. \uC124\uCE58\uD329 \uD3F4\uB354\uB97C \uC555\uCD95 \uD574\uC81C\uD569\uB2C8\uB2E4.",
+    "2. RUN_FULL_VALIDATION.bat\uC744 \uB354\uBE14\uD074\uB9AD\uD569\uB2C8\uB2E4.",
+    "3. \uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58 \uB9C8\uBC95\uC0AC\uAC00 \uBA3C\uC800 \uC2E4\uD589\uB429\uB2C8\uB2E4.",
+    "4. \uACF5\uBB34\uC6D0 \uC124\uCE58\uB97C \uB05D\uAE4C\uC9C0 \uC644\uB8CC\uD558\uACE0 \uC124\uCE58 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
+    "5. \uC571\uC774 \uC790\uB3D9\uC73C\uB85C \uC2E4\uD589\uB418\uBA74 \uC571 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
+    "6. Ollama \uC124\uCE58 \uB9C8\uBC95\uC0AC\uB3C4 \uC644\uB8CC\uD558\uACE0 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
+    "7. Ollama \uC571\uC774\uB098 \uC548\uB0B4 \uCC3D\uC774 \uC790\uB3D9\uC73C\uB85C \uC5F4\uB9AC\uBA74 \uADF8 \uCC3D\uB3C4 \uB2EB\uC544\uC8FC\uC138\uC694.",
+    "8. \uBC30\uCE58\uD30C\uC77C \uCC3D\uC740 \uB2EB\uC9C0 \uB9C8\uC138\uC694.",
+    "9. \uACF5\uBB34\uC6D0\uACFC Ollama \uC124\uCE58 \uCC3D\uC774 \uBAA8\uB450 \uC885\uB8CC\uB41C \uB4A4 Python, Ollama, Gemma \uBAA8\uB378 \uC124\uCE58\uC640 \uAC80\uC99D\uC774 \uC774\uC5B4\uC9D1\uB2C8\uB2E4.",
+    "10. Gemma \uBAA8\uB378 \uCE90\uC2DC \uBCF5\uC0AC\uB294 \uBA87 \uBD84 \uC774\uC0C1 \uAC78\uB9B4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBC30\uCE58\uCC3D\uC5D0 \uBCF5\uC0AC \uC9C4\uD589 \uB85C\uADF8\uAC00 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
+    "11. WSL\uC740 \uACF5\uBB34\uC6D0\uACFC Windows\uC6A9 Ollama \uC2E4\uD589\uC5D0 \uD544\uC218\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC124\uCE58\uD329\uC740 WSL \uC0C1\uD0DC\uB9CC \uC120\uD0DD \uC9C4\uB2E8 \uC815\uBCF4\uB85C \uAE30\uB85D\uD569\uB2C8\uB2E4.",
+    "",
+    "## \uC911\uAC04\uC5D0 \uBA48\uCD98 \uAC83\uCC98\uB7FC \uBCF4\uC77C \uB54C",
+    "",
+    "\uC124\uCE58 \uCC3D\uC774\uB098 \uC571 \uCC3D\uC774 \uC5F4\uB824 \uC788\uC73C\uBA74 \uB2E4\uC74C \uB2E8\uACC4\uB85C \uB118\uC5B4\uAC00\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.",
+    "",
+    "- \uACF5\uBB34\uC6D0 \uC124\uCE58 \uCC3D\uC774 \uB2E4\uB978 \uCC3D \uB4A4\uC5D0 \uC228\uC5B4 \uC788\uB294\uC9C0 \uD655\uC778\uD569\uB2C8\uB2E4.",
+    "- \uACF5\uBB34\uC6D0 \uC571\uC774 \uC790\uB3D9 \uC2E4\uD589\uB418\uC5C8\uB2E4\uBA74 \uC571 \uCC3D\uC744 \uB2EB\uC2B5\uB2C8\uB2E4.",
+    "- Ollama \uC124\uCE58 \uCC3D\uC774 \uC644\uB8CC\uB418\uC5C8\uB294\uC9C0 \uD655\uC778\uD569\uB2C8\uB2E4.",
+    "- Ollama \uC571 \uB610\uB294 \uC548\uB0B4 \uCC3D\uC774 \uC790\uB3D9 \uC2E4\uD589\uB418\uC5C8\uB2E4\uBA74 \uD574\uB2F9 \uCC3D\uB3C4 \uB2EB\uC2B5\uB2C8\uB2E4.",
+    "- \uBC30\uCE58\uD30C\uC77C \uCC3D\uC740 \uB2EB\uC9C0 \uB9D0\uACE0 \uADF8\uB300\uB85C \uB461\uB2C8\uB2E4.",
+    "",
+    "## \uB2E8\uACC4\uBCC4 \uC2E4\uD589 \uD30C\uC77C",
+    "",
+    "- \uC124\uCE58\uB9CC \uC2E4\uD589: START_INSTALL.bat",
+    "- \uC124\uCE58 \uC0C1\uD0DC \uAC80\uC99D: VALIDATE_INSTALL.bat",
+    "- \uC124\uCE58 \uC99D\uAC70 \uC218\uC9D1: COLLECT_EVIDENCE.bat",
+    "- \uC124\uCE58\uBD80\uD130 \uAC80\uC99D\uACFC \uC99D\uAC70 \uC218\uC9D1\uAE4C\uC9C0 \uD55C \uBC88\uC5D0 \uC2E4\uD589: RUN_FULL_VALIDATION.bat",
+    "",
+    "## \uBB38\uC81C\uAC00 \uC0DD\uACBC\uC744 \uB54C \uD655\uC778\uD560 \uD30C\uC77C",
+    "",
+    "- \uC124\uCE58 \uB85C\uADF8: install-gongmu-ai.log",
+    "- \uAC80\uC99D \uB85C\uADF8: validate-gongmu-ai.log",
+    "- \uC124\uCE58 \uC99D\uAC70 \uC694\uC57D: evidence/ai-pack-clean-account-evidence.md",
+    "- \uC124\uCE58 \uC99D\uAC70 \uC6D0\uBCF8: evidence/ai-pack-clean-account-evidence.json",
   ];
   await writeTextFile(path, `${lines.join("\n")}\n`);
 }
@@ -308,6 +449,36 @@ function Get-OllamaModelNames([string]$OllamaHost) {
     return @()
   }
 }
+
+function Get-WslStatus {
+  $cmd = Get-Command wsl.exe -ErrorAction SilentlyContinue
+  if (!$cmd) {
+    return [ordered]@{
+      installed = $false
+      detail = "wsl.exe not found. WSL is optional for Gongmu and native Windows Ollama."
+    }
+  }
+
+  try {
+    $status = (& wsl.exe --status 2>&1 | Out-String).Trim()
+    if (!$status) { $status = "wsl.exe detected." }
+    return [ordered]@{
+      installed = $true
+      detail = "wsl.exe detected. WSL is optional for Gongmu and native Windows Ollama. $status"
+    }
+  } catch {
+    return [ordered]@{
+      installed = $true
+      detail = "wsl.exe detected, but status command failed. WSL is optional for Gongmu and native Windows Ollama. $($_.Exception.Message)"
+    }
+  }
+}
+
+function Write-WslOptionalStatus {
+  Write-Step "Checking optional WSL"
+  $wsl = Get-WslStatus
+  Write-Host $wsl.detail
+}
 `;
 }
 
@@ -389,6 +560,7 @@ function Install-OllamaIfNeeded {
 
   Write-Step "Starting Ollama installer"
   Write-Host "Complete the Ollama installer if a setup window appears. This script will continue after the installer exits."
+  Write-Host "If the Ollama app or installer window opens after installation, close it so setup can continue."
   Start-Process -FilePath $installer -Wait
 
   for ($i = 0; $i -lt 20; $i++) {
@@ -408,8 +580,16 @@ function Import-PackagedModelStore {
   }
 
   Write-Step "Copying packaged Ollama model cache"
+  Write-Host "Copying the packaged model cache can take several minutes. Keep this window open."
+  Write-Host "Source: $source"
+  Write-Host "Destination: $OllamaModels"
   New-Item -ItemType Directory -Force -Path $OllamaModels | Out-Null
-  Copy-Item -Path (Join-Path $source "*") -Destination $OllamaModels -Recurse -Force
+  $robocopyArgs = @($source, $OllamaModels, "/E", "/R:2", "/W:2", "/ETA")
+  & robocopy @robocopyArgs
+  $robocopyExit = $LASTEXITCODE
+  if ($robocopyExit -ge 8) {
+    throw "robocopy failed while copying the packaged model cache. Exit code: $robocopyExit"
+  }
   return $true
 }
 
@@ -469,7 +649,7 @@ function Test-GemmaMultimodal {
   Write-Host $textResult.message.content
 
   Write-Step "Testing image input API"
-  $onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lJ9W5QAAAABJRU5ErkJggg=="
+  $onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII="
   $imageResult = Invoke-OllamaChat @{
     model = $ModelName
     stream = $false
@@ -534,6 +714,7 @@ try {
   Write-Step "Gongmu local AI setup"
   Install-GongmuIfPresent
   Install-Python311IfAvailable
+  Write-WslOptionalStatus
   $ollamaExe = Install-OllamaIfNeeded
   Import-PackagedModelStore | Out-Null
   Start-OllamaServer $ollamaExe
@@ -654,6 +835,9 @@ try {
   $python = Find-Python311
   Add-Check "Python 3.11 detected or optional" $true ($(if ($python) { "Python 3.11: $python" } else { "Python 3.11 not detected; bundled app does not require system Python." }))
 
+  $wsl = Get-WslStatus
+  Add-Check "WSL optional status" $true $wsl.detail
+
   $ollama = Find-OllamaExe
   Add-Check "Ollama executable detected" ([bool]$ollama) ($(if ($ollama) { $ollama } else { "ollama.exe not found" }))
 
@@ -680,7 +864,7 @@ try {
     }
 
     try {
-      $onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lJ9W5QAAAABJRU5ErkJggg=="
+      $onePixelPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII="
       $imageResult = Invoke-OllamaChatEvidence @{
         model = $ModelName
         stream = $false
@@ -798,6 +982,18 @@ echo  Python 3.11 check + Ollama + GEMMA4 E2B IT Multimodal
 echo ============================================================
 echo.
 echo Do not close this window until setup finishes.
+echo.
+echo Important:
+echo  1. Gongmu app installer runs first.
+echo  2. Please finish the Gongmu installer wizard.
+echo  3. If the Gongmu app opens, close the app window.
+echo  4. If the Ollama installer or Ollama app opens, finish it and close it.
+echo  5. Python, Ollama, and Gemma setup continue after the installer exits.
+echo  6. After Ollama, the Gemma model cache copy can take several minutes.
+echo.
+echo If this window seems paused, check whether the Gongmu installer
+echo or Gongmu app, Ollama installer, or Ollama app is still open behind another window.
+echo.
 echo If setup fails, check install-gongmu-ai.log in this folder.
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
@@ -893,6 +1089,18 @@ echo This one-click path runs:
 echo  1. install-gongmu-ai.ps1
 echo  2. validate-gongmu-ai.ps1
 echo  3. collect-clean-account-evidence.ps1
+echo.
+echo Important:
+echo  - Gongmu app installer runs first.
+echo  - Please finish the installer wizard before waiting for the next step.
+echo  - If Gongmu launches after installation, close the app window.
+echo  - If the Ollama installer or Ollama app opens, finish it and close it.
+echo  - Do not close this command window.
+echo  - Python, Ollama, and Gemma setup continue after the installer exits.
+echo  - After Ollama, the Gemma model cache copy can take several minutes.
+echo.
+echo If this window seems paused, check whether the Gongmu installer
+echo or Gongmu app, Ollama installer, or Ollama app is still open behind another window.
 echo.
 echo Logs:
 echo  - install-gongmu-ai.log
@@ -1062,6 +1270,12 @@ export async function prepareOllamaAiPack(options = {}) {
   await writeEvidenceScript(join(packageDir, "collect-clean-account-evidence.ps1"));
   await writeBatchLaunchers(packageDir);
   await writePackageReadme(join(packageDir, "README.md"), {
+    hasModelStore,
+    hasOllamaInstaller,
+    hasPythonInstaller,
+    hasGongmuInstaller,
+  });
+  await writeKoreanInstallGuideV2(join(packageDir, "INSTALL_GUIDE_KO.md"), {
     hasModelStore,
     hasOllamaInstaller,
     hasPythonInstaller,
