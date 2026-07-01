@@ -40,11 +40,13 @@ async function main() {
     await writeFixture(join(packageDir, "README.md"), "# Local AI Agent Workplace\n");
     await writeFixture(join(packageDir, "THIRD_PARTY_NOTICES.md"), "# Notices\n");
     await writeFixture(join(packageDir, "SHA256SUMS.txt"), "hash  START_INSTALL.bat\n");
+    await writeFixture(join(packageDir, "START_INSTALL_GUI.bat"), "@echo off\r\necho gui dry\r\n");
     await writeFixture(join(packageDir, "START_INSTALL.bat"), "@echo off\r\necho dry\r\n");
     await writeFixture(join(packageDir, "VALIDATE_INSTALL.bat"), "@echo off\r\necho dry\r\n");
     await writeFixture(join(packageDir, "COLLECT_EVIDENCE.bat"), "@echo off\r\necho collect\r\n");
     await writeFixture(join(packageDir, "RUN_FULL_VALIDATION.bat"), "@echo off\r\necho full validation\r\n");
     await writeFixture(join(packageDir, "install-gongmu-ai.ps1"), "Write-Output 'install'\n");
+    await writeFixture(join(packageDir, "install-gongmu-ai-gui.ps1"), "Add-Type -AssemblyName System.Windows.Forms\n");
     await writeFixture(join(packageDir, "validate-gongmu-ai.ps1"), "Write-Output 'validate'\n");
     await writeFixture(join(packageDir, "collect-clean-account-evidence.ps1"), "Write-Output 'evidence'\n");
     await writeFixture(join(packageDir, "gongmu", "Gongmu_0.1.0_x64-setup.exe"), "fake app installer\n");
@@ -77,6 +79,7 @@ async function main() {
     assert.equal(report.modelStore.hasManifest, true);
     assert.equal(report.modelStore.blobCount, 1);
     assert.equal(report.launchers.startInstall.present, true);
+    assert.equal(report.launchers.guiInstall.present, true);
     assert.equal(report.launchers.validateInstall.present, true);
     assert.equal(report.launchers.collectEvidence.present, true);
     assert.equal(report.launchers.fullValidation.present, true);
@@ -86,6 +89,7 @@ async function main() {
     const markdown = await readFile(outMarkdown, "utf8");
     assert.match(markdown, /AI pack artifact validation/);
     assert.match(markdown, /gemma4:e2b/);
+    assert.match(markdown, /START_INSTALL_GUI\.bat/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

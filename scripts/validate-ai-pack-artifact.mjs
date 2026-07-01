@@ -188,10 +188,12 @@ ${report.requiredFiles
 ## 런처/스크립트 검증
 
 - START_INSTALL.bat dry-run: ${report.launchers.startInstall.dryRun?.ok ?? "not-run"}
+- START_INSTALL_GUI.bat dry-run: ${report.launchers.guiInstall.dryRun?.ok ?? "not-run"}
 - VALIDATE_INSTALL.bat dry-run: ${report.launchers.validateInstall.dryRun?.ok ?? "not-run"}
 - COLLECT_EVIDENCE.bat dry-run: ${report.launchers.collectEvidence.dryRun?.ok ?? "not-run"}
 - RUN_FULL_VALIDATION.bat dry-run: ${report.launchers.fullValidation.dryRun?.ok ?? "not-run"}
 - install-gongmu-ai.ps1 parse: ${report.powerShell.install?.ok ?? "not-run"}
+- install-gongmu-ai-gui.ps1 parse: ${report.powerShell.guiInstall?.ok ?? "not-run"}
 - validate-gongmu-ai.ps1 parse: ${report.powerShell.validate?.ok ?? "not-run"}
 - collect-clean-account-evidence.ps1 parse: ${report.powerShell.collect?.ok ?? "not-run"}
 
@@ -235,10 +237,12 @@ export async function validateAiPackArtifact(options = {}) {
     ["readme", "README.md", join(packageDir, "README.md")],
     ["third party notices", "THIRD_PARTY_NOTICES.md", join(packageDir, "THIRD_PARTY_NOTICES.md")],
     ["sha256 sums", "SHA256SUMS.txt", join(packageDir, "SHA256SUMS.txt")],
+    ["guided monitor launcher", "START_INSTALL_GUI.bat", join(packageDir, "START_INSTALL_GUI.bat")],
     ["start launcher", "START_INSTALL.bat", join(packageDir, "START_INSTALL.bat")],
     ["validate launcher", "VALIDATE_INSTALL.bat", join(packageDir, "VALIDATE_INSTALL.bat")],
     ["evidence launcher", "COLLECT_EVIDENCE.bat", join(packageDir, "COLLECT_EVIDENCE.bat")],
     ["full validation launcher", "RUN_FULL_VALIDATION.bat", join(packageDir, "RUN_FULL_VALIDATION.bat")],
+    ["guided monitor script", "install-gongmu-ai-gui.ps1", join(packageDir, "install-gongmu-ai-gui.ps1")],
     ["install script", "install-gongmu-ai.ps1", join(packageDir, "install-gongmu-ai.ps1")],
     ["validate script", "validate-gongmu-ai.ps1", join(packageDir, "validate-gongmu-ai.ps1")],
     ["evidence script", "collect-clean-account-evidence.ps1", join(packageDir, "collect-clean-account-evidence.ps1")],
@@ -274,15 +278,22 @@ export async function validateAiPackArtifact(options = {}) {
     errors.push(`Zip artifact is too small: ${zipSizeBytes} < ${minZipBytes}`);
   }
 
+  const guiLauncher = join(packageDir, "START_INSTALL_GUI.bat");
   const startLauncher = join(packageDir, "START_INSTALL.bat");
   const validateLauncher = join(packageDir, "VALIDATE_INSTALL.bat");
   const collectLauncher = join(packageDir, "COLLECT_EVIDENCE.bat");
   const fullValidationLauncher = join(packageDir, "RUN_FULL_VALIDATION.bat");
+  const guiInstallPs = join(packageDir, "install-gongmu-ai-gui.ps1");
   const installPs = join(packageDir, "install-gongmu-ai.ps1");
   const validatePs = join(packageDir, "validate-gongmu-ai.ps1");
   const collectPs = join(packageDir, "collect-clean-account-evidence.ps1");
 
   const launchers = {
+    guiInstall: {
+      path: guiLauncher,
+      present: await exists(guiLauncher),
+      dryRun: options.runLauncherDryRun ? runLauncherDryRun(guiLauncher, packageDir) : null,
+    },
     startInstall: {
       path: startLauncher,
       present: await exists(startLauncher),
@@ -305,6 +316,9 @@ export async function validateAiPackArtifact(options = {}) {
     },
   };
 
+  if (launchers.guiInstall.dryRun && !launchers.guiInstall.dryRun.ok) {
+    errors.push("START_INSTALL_GUI.bat dry-run failed");
+  }
   if (launchers.startInstall.dryRun && !launchers.startInstall.dryRun.ok) {
     errors.push("START_INSTALL.bat dry-run failed");
   }
@@ -319,10 +333,14 @@ export async function validateAiPackArtifact(options = {}) {
   }
 
   const powerShell = {
+    guiInstall: options.parsePowerShell ? parsePowerShellScript(guiInstallPs, packageDir) : null,
     install: options.parsePowerShell ? parsePowerShellScript(installPs, packageDir) : null,
     validate: options.parsePowerShell ? parsePowerShellScript(validatePs, packageDir) : null,
     collect: options.parsePowerShell ? parsePowerShellScript(collectPs, packageDir) : null,
   };
+  if (powerShell.guiInstall && !powerShell.guiInstall.ok) {
+    errors.push("install-gongmu-ai-gui.ps1 PowerShell parse failed");
+  }
   if (powerShell.install && !powerShell.install.ok) {
     errors.push("install-gongmu-ai.ps1 PowerShell parse failed");
   }

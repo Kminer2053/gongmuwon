@@ -138,6 +138,8 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "",
     "Korean first-time install guide: `INSTALL_GUIDE_KO.md`",
     "",
+    "Recommended guided monitor launcher: `START_INSTALL_GUI.bat`",
+    "",
     "## What START_INSTALL.bat does",
     "",
     "1. Installs Gongmu when a Windows NSIS installer is bundled in `gongmu/`.",
@@ -169,6 +171,14 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "",
     "## Beginner path",
     "",
+    "For the most user-friendly setup, double-click:",
+    "",
+    "```text",
+    "START_INSTALL_GUI.bat",
+    "```",
+    "",
+    "This opens a guided monitor window that shows the current setup stage, elapsed time, helpful instructions, and recent log output.",
+    "",
     "For the simplest clean-account validation, double-click:",
     "",
     "```text",
@@ -191,7 +201,7 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "VALIDATE_INSTALL.bat",
     "```",
     "",
-    "If setup fails, open `install-gongmu-ai.log`. If validation fails, open `validate-gongmu-ai.log`.",
+    "If guided setup fails, open `install-gongmu-ai-gui.log` and `install-gongmu-ai.log`. If validation fails, open `validate-gongmu-ai.log`.",
     "",
     "For clean-account or closed-network release evidence, run after validation:",
     "",
@@ -303,16 +313,18 @@ async function writeKoreanInstallGuideV2(path, { hasModelStore, hasOllamaInstall
     "## \uCC98\uC74C \uC124\uCE58\uD558\uB294 \uC0AC\uC6A9\uC790\uB97C \uC704\uD55C \uC21C\uC11C",
     "",
     "1. \uC124\uCE58\uD329 \uD3F4\uB354\uB97C \uC555\uCD95 \uD574\uC81C\uD569\uB2C8\uB2E4.",
-    "2. RUN_FULL_VALIDATION.bat\uC744 \uB354\uBE14\uD074\uB9AD\uD569\uB2C8\uB2E4.",
-    "3. \uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58 \uB9C8\uBC95\uC0AC\uAC00 \uBA3C\uC800 \uC2E4\uD589\uB429\uB2C8\uB2E4.",
-    "4. \uACF5\uBB34\uC6D0 \uC124\uCE58\uB97C \uB05D\uAE4C\uC9C0 \uC644\uB8CC\uD558\uACE0 \uC124\uCE58 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
-    "5. \uC571\uC774 \uC790\uB3D9\uC73C\uB85C \uC2E4\uD589\uB418\uBA74 \uC571 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
-    "6. Ollama \uC124\uCE58 \uB9C8\uBC95\uC0AC\uB3C4 \uC644\uB8CC\uD558\uACE0 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
-    "7. Ollama \uC571\uC774\uB098 \uC548\uB0B4 \uCC3D\uC774 \uC790\uB3D9\uC73C\uB85C \uC5F4\uB9AC\uBA74 \uADF8 \uCC3D\uB3C4 \uB2EB\uC544\uC8FC\uC138\uC694.",
-    "8. \uBC30\uCE58\uD30C\uC77C \uCC3D\uC740 \uB2EB\uC9C0 \uB9C8\uC138\uC694.",
-    "9. \uACF5\uBB34\uC6D0\uACFC Ollama \uC124\uCE58 \uCC3D\uC774 \uBAA8\uB450 \uC885\uB8CC\uB41C \uB4A4 Python, Ollama, Gemma \uBAA8\uB378 \uC124\uCE58\uC640 \uAC80\uC99D\uC774 \uC774\uC5B4\uC9D1\uB2C8\uB2E4.",
-    "10. Gemma \uBAA8\uB378 \uCE90\uC2DC \uBCF5\uC0AC\uB294 \uBA87 \uBD84 \uC774\uC0C1 \uAC78\uB9B4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBC30\uCE58\uCC3D\uC5D0 \uBCF5\uC0AC \uC9C4\uD589 \uB85C\uADF8\uAC00 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
-    "11. WSL\uC740 \uACF5\uBB34\uC6D0\uACFC Windows\uC6A9 Ollama \uC2E4\uD589\uC5D0 \uD544\uC218\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC124\uCE58\uD329\uC740 WSL \uC0C1\uD0DC\uB9CC \uC120\uD0DD \uC9C4\uB2E8 \uC815\uBCF4\uB85C \uAE30\uB85D\uD569\uB2C8\uB2E4.",
+    "2. START_INSTALL_GUI.bat\uC744 \uB354\uBE14\uD074\uB9AD\uD558\uBA74 \uC124\uCE58 \uBAA8\uB2C8\uD130\uAC00 \uC5F4\uB9BD\uB2C8\uB2E4.",
+    "3. \uC124\uCE58 \uBAA8\uB2C8\uD130\uC5D0 \uD604\uC7AC \uB2E8\uACC4, \uACBD\uACFC \uC2DC\uAC04, \uD544\uC694\uD55C \uC791\uC5C5 \uC548\uB0B4, \uCD5C\uADFC \uB85C\uADF8\uAC00 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
+    "4. \uD074\uB9B0\uACC4\uC815 \uC99D\uAC70\uAE4C\uC9C0 \uD55C \uBC88\uC5D0 \uB0A8\uAE30\uB824\uBA74 RUN_FULL_VALIDATION.bat\uC744 \uC2E4\uD589\uD569\uB2C8\uB2E4.",
+    "5. \uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58 \uB9C8\uBC95\uC0AC\uAC00 \uBA3C\uC800 \uC2E4\uD589\uB429\uB2C8\uB2E4.",
+    "6. \uACF5\uBB34\uC6D0 \uC124\uCE58\uB97C \uB05D\uAE4C\uC9C0 \uC644\uB8CC\uD558\uACE0 \uC124\uCE58 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
+    "7. \uC571\uC774 \uC790\uB3D9\uC73C\uB85C \uC2E4\uD589\uB418\uBA74 \uC571 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
+    "8. Ollama \uC124\uCE58 \uB9C8\uBC95\uC0AC\uB3C4 \uC644\uB8CC\uD558\uACE0 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694.",
+    "9. Ollama \uC571\uC774\uB098 \uC548\uB0B4 \uCC3D\uC774 \uC790\uB3D9\uC73C\uB85C \uC5F4\uB9AC\uBA74 \uADF8 \uCC3D\uB3C4 \uB2EB\uC544\uC8FC\uC138\uC694.",
+    "10. \uBC30\uCE58\uD30C\uC77C \uCC3D\uC740 \uB2EB\uC9C0 \uB9C8\uC138\uC694.",
+    "11. \uACF5\uBB34\uC6D0\uACFC Ollama \uC124\uCE58 \uCC3D\uC774 \uBAA8\uB450 \uC885\uB8CC\uB41C \uB4A4 Python, Ollama, Gemma \uBAA8\uB378 \uC124\uCE58\uC640 \uAC80\uC99D\uC774 \uC774\uC5B4\uC9D1\uB2C8\uB2E4.",
+    "12. Gemma \uBAA8\uB378 \uCE90\uC2DC \uBCF5\uC0AC\uB294 \uBA87 \uBD84 \uC774\uC0C1 \uAC78\uB9B4 \uC218 \uC788\uC2B5\uB2C8\uB2E4. \uBC30\uCE58\uCC3D\uC5D0 \uBCF5\uC0AC \uC9C4\uD589 \uB85C\uADF8\uAC00 \uD45C\uC2DC\uB429\uB2C8\uB2E4.",
+    "13. WSL\uC740 \uACF5\uBB34\uC6D0\uACFC Windows\uC6A9 Ollama \uC2E4\uD589\uC5D0 \uD544\uC218\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC124\uCE58\uD329\uC740 WSL \uC0C1\uD0DC\uB9CC \uC120\uD0DD \uC9C4\uB2E8 \uC815\uBCF4\uB85C \uAE30\uB85D\uD569\uB2C8\uB2E4.",
     "",
     "## \uC911\uAC04\uC5D0 \uBA48\uCD98 \uAC83\uCC98\uB7FC \uBCF4\uC77C \uB54C",
     "",
@@ -326,6 +338,7 @@ async function writeKoreanInstallGuideV2(path, { hasModelStore, hasOllamaInstall
     "",
     "## \uB2E8\uACC4\uBCC4 \uC2E4\uD589 \uD30C\uC77C",
     "",
+    "- \uC548\uB0B4\uD615 \uC124\uCE58 \uBAA8\uB2C8\uD130: START_INSTALL_GUI.bat",
     "- \uC124\uCE58\uB9CC \uC2E4\uD589: START_INSTALL.bat",
     "- \uC124\uCE58 \uC0C1\uD0DC \uAC80\uC99D: VALIDATE_INSTALL.bat",
     "- \uC124\uCE58 \uC99D\uAC70 \uC218\uC9D1: COLLECT_EVIDENCE.bat",
@@ -334,6 +347,7 @@ async function writeKoreanInstallGuideV2(path, { hasModelStore, hasOllamaInstall
     "## \uBB38\uC81C\uAC00 \uC0DD\uACBC\uC744 \uB54C \uD655\uC778\uD560 \uD30C\uC77C",
     "",
     "- \uC124\uCE58 \uB85C\uADF8: install-gongmu-ai.log",
+    "- \uC124\uCE58 \uBAA8\uB2C8\uD130 \uB85C\uADF8: install-gongmu-ai-gui.log",
     "- \uAC80\uC99D \uB85C\uADF8: validate-gongmu-ai.log",
     "- \uC124\uCE58 \uC99D\uAC70 \uC694\uC57D: evidence/ai-pack-clean-account-evidence.md",
     "- \uC124\uCE58 \uC99D\uAC70 \uC6D0\uBCF8: evidence/ai-pack-clean-account-evidence.json",
@@ -970,6 +984,321 @@ async function writeEvidenceScript(path) {
   await writeTextFile(path, `\uFEFF${evidenceScriptContent()}`);
 }
 
+function guiInstallScriptContent() {
+  const windowTitle = "\uACF5\uBB34\uC6D0 AI \uC124\uCE58 \uBAA8\uB2C8\uD130";
+  const currentStage = "\uD604\uC7AC \uB2E8\uACC4";
+  const helpTitle = "\uD544\uC694\uD55C \uC791\uC5C5 \uC548\uB0B4";
+  const logTitle = "\uCD5C\uADFC \uC124\uCE58 \uB85C\uADF8";
+  const openLog = "\uB85C\uADF8 \uC5F4\uAE30";
+  const openFolder = "\uD3F4\uB354 \uC5F4\uAE30";
+  const closeText = "\uB2EB\uAE30";
+  const preparing = "\uC124\uCE58 \uC900\uBE44 \uC911";
+  const preparingHelp = "\uC7A0\uC2DC \uD6C4 \uC124\uCE58\uB97C \uC2DC\uC791\uD569\uB2C8\uB2E4. \uC774 \uCC3D\uC740 \uB2EB\uC9C0 \uB9C8\uC138\uC694.";
+  const noLog = "\uC544\uC9C1 \uB85C\uADF8\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4. \uC124\uCE58\uAC00 \uC2DC\uC791\uB418\uBA74 \uC774\uACF3\uC5D0 \uC9C4\uD589 \uB0B4\uC6A9\uC774 \uD45C\uC2DC\uB429\uB2C8\uB2E4.";
+  const completed = "\uC124\uCE58 \uC644\uB8CC";
+  const completedHelp = "\uAE30\uBCF8 \uC124\uCE58\uC640 AI \uC751\uB2F5 \uAC80\uC99D\uC774 \uC644\uB8CC\uB418\uC5C8\uC2B5\uB2C8\uB2E4. \uD544\uC694\uD558\uBA74 VALIDATE_INSTALL.bat\uB85C \uCD94\uAC00 \uAC80\uC99D\uC744 \uC2E4\uD589\uD558\uC138\uC694.";
+  const failed = "\uC124\uCE58 \uD655\uC778 \uD544\uC694";
+  const failedHelp = "\uC124\uCE58 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4. \uB85C\uADF8 \uC5F4\uAE30\uB85C \uC0C1\uC138 \uC624\uB958\uB97C \uD655\uC778\uD558\uACE0, \uBA48\uCD98 \uC124\uCE58 \uCC3D\uC774 \uC788\uB294\uC9C0 \uD655\uC778\uD574\uC8FC\uC138\uC694.";
+
+  return String.raw`#requires -Version 5.1
+$ErrorActionPreference = "Stop"
+$ScriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$InstallScript = Join-Path $ScriptRoot "install-gongmu-ai.ps1"
+$InstallLogPath = Join-Path $ScriptRoot "install-gongmu-ai.log"
+$MonitorLogPath = Join-Path $ScriptRoot "install-gongmu-ai-gui.log"
+
+try {
+  Add-Type -AssemblyName System.Windows.Forms
+  Add-Type -AssemblyName System.Drawing
+} catch {
+  Write-Host "Windows Forms is not available. Falling back to console setup."
+  & $InstallScript
+  exit $LASTEXITCODE
+}
+
+if (!(Test-Path $InstallScript)) {
+  [System.Windows.Forms.MessageBox]::Show("install-gongmu-ai.ps1 was not found in this folder.", "${windowTitle}", "OK", "Error") | Out-Null
+  exit 1
+}
+
+function Read-TextTail([string]$Path, [int]$MaxChars = 16000) {
+  if (!(Test-Path $Path)) { return "" }
+  try {
+    $text = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    if ($text.Length -gt $MaxChars) {
+      return $text.Substring($text.Length - $MaxChars)
+    }
+    return $text
+  } catch {
+    return "Unable to read log: $($_.Exception.Message)"
+  }
+}
+
+function Format-Elapsed([datetime]$Start) {
+  $elapsed = New-TimeSpan -Start $Start -End (Get-Date)
+  return "{0:00}:{1:00}:{2:00}" -f [int]$elapsed.TotalHours, $elapsed.Minutes, $elapsed.Seconds
+}
+
+function Convert-UiText([string]$Text) {
+  return [regex]::Replace($Text, "\\u([0-9a-fA-F]{4})", {
+    param($Match)
+    return [char][Convert]::ToInt32($Match.Groups[1].Value, 16)
+  })
+}
+
+$script:Stages = @(
+  [pscustomobject]@{ Pattern = "Gongmu local AI setup"; Name = "\uC124\uCE58 \uC900\uBE44"; Help = "\uC124\uCE58 \uD658\uACBD\uC744 \uD655\uC778\uD558\uACE0 \uC2DC\uC791\uD569\uB2C8\uB2E4."; Percent = 5 },
+  [pscustomobject]@{ Pattern = "Starting Gongmu installer"; Name = "\uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58"; Help = "\uACF5\uBB34\uC6D0 \uC124\uCE58 \uB9C8\uBC95\uC0AC\uB97C \uC644\uB8CC\uD558\uACE0, \uC571\uC774 \uC5F4\uB9AC\uBA74 \uC571 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694."; Percent = 10 },
+  [pscustomobject]@{ Pattern = "Checking Python 3.11"; Name = "Python 3.11 \uD655\uC778"; Help = "Python\uC740 \uBC88\uB4E4 \uC571 \uC2E4\uD589\uC5D0 \uD544\uC218\uB294 \uC544\uB2C8\uC9C0\uB9CC, \uC9C4\uB2E8\uACFC \uBCF5\uAD6C\uC6A9\uC73C\uB85C \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 20 },
+  [pscustomobject]@{ Pattern = "Installing Python 3.11"; Name = "Python 3.11 \uC124\uCE58"; Help = "Python \uC124\uCE58\uAC00 \uC9C4\uD589 \uC911\uC785\uB2C8\uB2E4. \uC774 \uCC3D\uC740 \uB2EB\uC9C0 \uB9C8\uC138\uC694."; Percent = 25 },
+  [pscustomobject]@{ Pattern = "Checking optional WSL"; Name = "WSL \uC120\uD0DD \uC9C4\uB2E8"; Help = "WSL\uC740 \uACF5\uBB34\uC6D0\uACFC Windows\uC6A9 Ollama \uC2E4\uD589\uC5D0 \uD544\uC218\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC0C1\uD0DC\uB9CC \uAE30\uB85D\uD569\uB2C8\uB2E4."; Percent = 30 },
+  [pscustomobject]@{ Pattern = "Checking Ollama"; Name = "Ollama \uD655\uC778"; Help = "\uB85C\uCEEC AI \uC5D4\uC9C4\uC778 Ollama\uAC00 \uC124\uCE58\uB418\uC5C8\uB294\uC9C0 \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 40 },
+  [pscustomobject]@{ Pattern = "Starting Ollama installer"; Name = "Ollama \uC124\uCE58"; Help = "Ollama \uC124\uCE58 \uB9C8\uBC95\uC0AC\uAC00 \uC5F4\uB9AC\uBA74 \uC644\uB8CC\uD558\uACE0 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694."; Percent = 50 },
+  [pscustomobject]@{ Pattern = "Copying packaged Ollama model cache"; Name = "Gemma \uBAA8\uB378 \uBCF5\uC0AC"; Help = "Gemma \uBAA8\uB378 \uCE90\uC2DC\uB97C \uBCF5\uC0AC\uD569\uB2C8\uB2E4. \uBA87 \uBD84 \uC774\uC0C1 \uAC78\uB9B4 \uC218 \uC788\uC73C\uB2C8 \uAE30\uB2E4\uB824\uC8FC\uC138\uC694."; Percent = 65 },
+  [pscustomobject]@{ Pattern = "Starting Ollama server"; Name = "Ollama \uC11C\uBC84 \uC2DC\uC791"; Help = "\uB85C\uCEEC AI \uC11C\uBC84\uB97C \uC2DC\uC791\uD558\uACE0 \uC751\uB2F5 \uC0C1\uD0DC\uB97C \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 75 },
+  [pscustomobject]@{ Pattern = "Testing text response"; Name = "\uD14D\uC2A4\uD2B8 \uC751\uB2F5 \uAC80\uC99D"; Help = "Gemma \uBAA8\uB378\uC758 \uAE30\uBCF8 \uB300\uD654 \uC751\uB2F5\uC744 \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 85 },
+  [pscustomobject]@{ Pattern = "Testing image input API"; Name = "\uC774\uBBF8\uC9C0 \uC785\uB825 \uAC80\uC99D"; Help = "\uBA40\uD2F0\uBAA8\uB2EC \uC774\uBBF8\uC9C0 \uC785\uB825 API\uAC00 \uC751\uB2F5\uD558\uB294\uC9C0 \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 92 },
+  [pscustomobject]@{ Pattern = "Writing Gongmu model settings"; Name = "\uACF5\uBB34\uC6D0 \uBAA8\uB378 \uC124\uC815"; Help = "\uC571\uC774 Ollama/Gemma\uB97C \uC0AC\uC6A9\uD558\uB3C4\uB85D \uC124\uC815\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4."; Percent = 96 },
+  [pscustomobject]@{ Pattern = "Setup complete"; Name = "${completed}"; Help = "${completedHelp}"; Percent = 100 }
+)
+
+function Get-LatestStage([string]$LogText) {
+  $latest = $script:Stages[0]
+  foreach ($stage in $script:Stages) {
+    if ($LogText -match [regex]::Escape($stage.Pattern)) {
+      $latest = $stage
+    }
+  }
+  return $latest
+}
+
+[System.Windows.Forms.Application]::EnableVisualStyles()
+
+$form = New-Object System.Windows.Forms.Form
+$form.Text = "${windowTitle}"
+$form.Size = New-Object System.Drawing.Size(760, 620)
+$form.MinimumSize = New-Object System.Drawing.Size(680, 540)
+$form.StartPosition = "CenterScreen"
+$form.BackColor = [System.Drawing.Color]::FromArgb(250, 250, 248)
+$form.Font = New-Object System.Drawing.Font("Malgun Gothic", 10)
+
+$titleLabel = New-Object System.Windows.Forms.Label
+$titleLabel.Text = "${windowTitle}"
+$titleLabel.Font = New-Object System.Drawing.Font("Malgun Gothic", 18, [System.Drawing.FontStyle]::Bold)
+$titleLabel.AutoSize = $false
+$titleLabel.Location = New-Object System.Drawing.Point(24, 18)
+$titleLabel.Size = New-Object System.Drawing.Size(700, 42)
+$form.Controls.Add($titleLabel)
+
+$stageCaption = New-Object System.Windows.Forms.Label
+$stageCaption.Text = "${currentStage}"
+$stageCaption.Location = New-Object System.Drawing.Point(26, 78)
+$stageCaption.Size = New-Object System.Drawing.Size(160, 24)
+$form.Controls.Add($stageCaption)
+
+$stageLabel = New-Object System.Windows.Forms.Label
+$stageLabel.Text = "${preparing}"
+$stageLabel.Font = New-Object System.Drawing.Font("Malgun Gothic", 14, [System.Drawing.FontStyle]::Bold)
+$stageLabel.Location = New-Object System.Drawing.Point(26, 104)
+$stageLabel.Size = New-Object System.Drawing.Size(500, 34)
+$form.Controls.Add($stageLabel)
+$script:StageLabel = $stageLabel
+
+$elapsedLabel = New-Object System.Windows.Forms.Label
+$elapsedLabel.Text = "00:00:00"
+$elapsedLabel.TextAlign = "MiddleRight"
+$elapsedLabel.Location = New-Object System.Drawing.Point(560, 106)
+$elapsedLabel.Size = New-Object System.Drawing.Size(150, 28)
+$form.Controls.Add($elapsedLabel)
+$script:ElapsedLabel = $elapsedLabel
+
+$progressBar = New-Object System.Windows.Forms.ProgressBar
+$progressBar.Location = New-Object System.Drawing.Point(28, 148)
+$progressBar.Size = New-Object System.Drawing.Size(690, 22)
+$progressBar.Minimum = 0
+$progressBar.Maximum = 100
+$progressBar.Value = 3
+$form.Controls.Add($progressBar)
+$script:ProgressBar = $progressBar
+
+$helpCaption = New-Object System.Windows.Forms.Label
+$helpCaption.Text = "${helpTitle}"
+$helpCaption.Font = New-Object System.Drawing.Font("Malgun Gothic", 11, [System.Drawing.FontStyle]::Bold)
+$helpCaption.Location = New-Object System.Drawing.Point(26, 194)
+$helpCaption.Size = New-Object System.Drawing.Size(690, 24)
+$form.Controls.Add($helpCaption)
+
+$helpBox = New-Object System.Windows.Forms.TextBox
+$helpBox.Multiline = $true
+$helpBox.ReadOnly = $true
+$helpBox.BorderStyle = "FixedSingle"
+$helpBox.BackColor = [System.Drawing.Color]::White
+$helpBox.Location = New-Object System.Drawing.Point(28, 224)
+$helpBox.Size = New-Object System.Drawing.Size(690, 86)
+$helpBox.Anchor = "Top,Left,Right"
+$helpBox.Text = "${preparingHelp}"
+$form.Controls.Add($helpBox)
+$script:HelpBox = $helpBox
+
+$logCaption = New-Object System.Windows.Forms.Label
+$logCaption.Text = "${logTitle}"
+$logCaption.Font = New-Object System.Drawing.Font("Malgun Gothic", 11, [System.Drawing.FontStyle]::Bold)
+$logCaption.Location = New-Object System.Drawing.Point(26, 334)
+$logCaption.Size = New-Object System.Drawing.Size(690, 24)
+$form.Controls.Add($logCaption)
+
+$logBox = New-Object System.Windows.Forms.TextBox
+$logBox.Multiline = $true
+$logBox.ReadOnly = $true
+$logBox.ScrollBars = "Vertical"
+$logBox.WordWrap = $false
+$logBox.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18)
+$logBox.ForeColor = [System.Drawing.Color]::FromArgb(235, 235, 235)
+$logBox.Font = New-Object System.Drawing.Font("Consolas", 9)
+$logBox.Location = New-Object System.Drawing.Point(28, 362)
+$logBox.Size = New-Object System.Drawing.Size(690, 150)
+$logBox.Anchor = "Top,Left,Right,Bottom"
+$logBox.Text = "${noLog}"
+$form.Controls.Add($logBox)
+$script:LogBox = $logBox
+
+$openLogButton = New-Object System.Windows.Forms.Button
+$openLogButton.Text = "${openLog}"
+$openLogButton.Location = New-Object System.Drawing.Point(28, 528)
+$openLogButton.Size = New-Object System.Drawing.Size(120, 34)
+$openLogButton.Anchor = "Left,Bottom"
+$openLogButton.Add_Click({
+  if (Test-Path $InstallLogPath) {
+    Start-Process notepad.exe $InstallLogPath
+  } else {
+    [System.Windows.Forms.MessageBox]::Show("${noLog}", "${windowTitle}") | Out-Null
+  }
+})
+$form.Controls.Add($openLogButton)
+
+$openFolderButton = New-Object System.Windows.Forms.Button
+$openFolderButton.Text = "${openFolder}"
+$openFolderButton.Location = New-Object System.Drawing.Point(158, 528)
+$openFolderButton.Size = New-Object System.Drawing.Size(120, 34)
+$openFolderButton.Anchor = "Left,Bottom"
+$openFolderButton.Add_Click({ Start-Process explorer.exe $ScriptRoot })
+$form.Controls.Add($openFolderButton)
+
+$closeButton = New-Object System.Windows.Forms.Button
+$closeButton.Text = "${closeText}"
+$closeButton.Location = New-Object System.Drawing.Point(598, 528)
+$closeButton.Size = New-Object System.Drawing.Size(120, 34)
+$closeButton.Anchor = "Right,Bottom"
+$closeButton.Add_Click({ $form.Close() })
+$form.Controls.Add($closeButton)
+
+$script:StartedAt = Get-Date
+$script:Process = $null
+
+function Start-InstallProcess {
+  "[$(Get-Date -Format o)] Launching install-gongmu-ai.ps1" | Set-Content -LiteralPath $MonitorLogPath -Encoding UTF8
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = "powershell.exe"
+  $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File " + '"' + $InstallScript + '"'
+  $psi.WorkingDirectory = $ScriptRoot
+  $psi.UseShellExecute = $true
+  $psi.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Hidden
+  $script:Process = [System.Diagnostics.Process]::Start($psi)
+}
+
+function Update-Monitor {
+  $combined = ((Read-TextTail $MonitorLogPath 3000) + [Environment]::NewLine + (Read-TextTail $InstallLogPath 16000)).Trim()
+  if ([string]::IsNullOrWhiteSpace($combined)) {
+    $combined = "${noLog}"
+  }
+
+  $stage = Get-LatestStage $combined
+  $script:StageLabel.Text = Convert-UiText $stage.Name
+  $script:HelpBox.Text = Convert-UiText $stage.Help
+  $script:ElapsedLabel.Text = Format-Elapsed $script:StartedAt
+  if ($stage.Percent -ge 0 -and $stage.Percent -le 100) {
+    $script:ProgressBar.Value = [int]$stage.Percent
+  }
+
+  $script:LogBox.Text = $combined
+  $script:LogBox.SelectionStart = $script:LogBox.TextLength
+  $script:LogBox.ScrollToCaret()
+
+  if ($script:Process -and $script:Process.HasExited) {
+    $script:Timer.Stop()
+    if ($script:Process.ExitCode -eq 0) {
+      $script:StageLabel.Text = "${completed}"
+      $script:HelpBox.Text = "${completedHelp}"
+      $script:ProgressBar.Value = 100
+    } else {
+      $script:StageLabel.Text = "${failed}"
+      $script:HelpBox.Text = "${failedHelp}" + [Environment]::NewLine + "Exit code: $($script:Process.ExitCode)"
+      $script:ProgressBar.Value = [Math]::Max($script:ProgressBar.Value, 5)
+    }
+  }
+}
+
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 1000
+$timer.Add_Tick({ Update-Monitor })
+$script:Timer = $timer
+
+$form.Add_Shown({
+  try {
+    Start-InstallProcess
+    Update-Monitor
+    $script:Timer.Start()
+  } catch {
+    $script:StageLabel.Text = "${failed}"
+    $script:HelpBox.Text = "${failedHelp}" + [Environment]::NewLine + $_.Exception.Message
+    Add-Content -LiteralPath $MonitorLogPath -Value $_.Exception.ToString() -Encoding UTF8
+  }
+})
+
+[void]$form.ShowDialog()
+if ($script:Process -and $script:Process.HasExited) {
+  exit $script:Process.ExitCode
+}
+exit 0
+`;
+}
+
+async function writeGuiInstallScript(path) {
+  await writeTextFile(path, `\uFEFF${guiInstallScriptContent()}`);
+}
+
+function guiInstallBatchScriptContent() {
+  return `@echo off
+chcp 65001 > nul
+title Gongmu AI Setup Monitor
+cd /d "%~dp0"
+echo.
+echo ============================================================
+echo  Gongmu AI Setup Monitor
+echo ============================================================
+echo.
+echo This opens a guided setup monitor window.
+echo It shows the current stage, elapsed time, instructions, and recent logs.
+echo.
+if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
+  echo Dry run mode: GUI launcher syntax is OK.
+  exit /b 0
+)
+powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0install-gongmu-ai-gui.ps1"
+set EXIT_CODE=%ERRORLEVEL%
+echo.
+if not "%EXIT_CODE%"=="0" (
+  echo Guided setup failed or needs attention. Error code: %EXIT_CODE%
+  echo Check install-gongmu-ai.log and install-gongmu-ai-gui.log.
+) else (
+  echo Guided setup completed.
+)
+echo.
+pause
+exit /b %EXIT_CODE%
+`;
+}
+
 function installBatchScriptContent() {
   return `@echo off
 chcp 65001 > nul
@@ -1142,6 +1471,7 @@ exit /b %EXIT_CODE%
 
 async function writeBatchLaunchers(packageDir) {
   const installContent = installBatchScriptContent();
+  await writeTextFile(join(packageDir, "START_INSTALL_GUI.bat"), guiInstallBatchScriptContent());
   await writeTextFile(join(packageDir, "START_INSTALL.bat"), installContent);
   await writeTextFile(join(packageDir, "install-gongmu-ai.bat"), installContent);
   await writeTextFile(join(packageDir, "VALIDATE_INSTALL.bat"), validateBatchScriptContent());
@@ -1266,6 +1596,7 @@ export async function prepareOllamaAiPack(options = {}) {
   }
 
   await writeInstallScript(join(packageDir, "install-gongmu-ai.ps1"));
+  await writeGuiInstallScript(join(packageDir, "install-gongmu-ai-gui.ps1"));
   await writeValidateScript(join(packageDir, "validate-gongmu-ai.ps1"));
   await writeEvidenceScript(join(packageDir, "collect-clean-account-evidence.ps1"));
   await writeBatchLaunchers(packageDir);
