@@ -69,6 +69,11 @@ assert.ok(
 const notesAndFollowUps = [...(g11.evidence?.notes ?? []), ...(g11.blockingFollowUp ?? [])].join("\n");
 assert.match(
   notesAndFollowUps,
+  /START_INSTALL_GUI\.bat/,
+  "G11 must document the guided setup monitor launcher for normal target-PC setup",
+);
+assert.match(
+  notesAndFollowUps,
   /RUN_FULL_VALIDATION\.bat/,
   "G11 must make the one-click clean-account validation launcher the primary target-PC path",
 );

@@ -51,6 +51,7 @@ function requestJson(overrides = {}) {
       "copy AI Pack zip",
       "verify SHA256",
       "extract zip",
+      "run START_INSTALL_GUI.bat for guided setup",
       "run RUN_FULL_VALIDATION.bat",
       "run COLLECT_RUNTIME_EVIDENCE.bat after launching Gongmu",
       "copy evidence JSON back to repository",
@@ -82,6 +83,7 @@ async function main() {
       [
         "# 클린계정/폐쇄망 검증 요청서",
         "대상 PC에서 실행할 순서입니다.",
+        "일반 사용자는 START_INSTALL_GUI.bat 설치 모니터를 실행합니다.",
         "Run RUN_FULL_VALIDATION.bat and COLLECT_RUNTIME_EVIDENCE.bat.",
         "Copy the evidence folder into release\\clean-account-evidence-inbox.",
         "Then run release:ai-pack:evidence:finalize.",
@@ -113,6 +115,14 @@ async function main() {
     assert.ok(
       report.checks.some((check) => check.name === "README keeps finalizer as the single primary repository command"),
       "request validator should reject duplicate post-finalize runtime validation instructions",
+    );
+    assert.ok(
+      report.checks.some((check) => check.name === "target PC steps include guided setup monitor"),
+      "request validator should require the guided setup monitor step",
+    );
+    assert.ok(
+      report.checks.some((check) => check.name === "README mentions guided setup monitor launcher"),
+      "request validator should require guided setup monitor guidance",
     );
     assert.ok(
       report.checks.some((check) => check.name === "README has readable Korean operator guidance"),

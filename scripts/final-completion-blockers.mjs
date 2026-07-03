@@ -50,6 +50,7 @@ function nextExecutionPlan(blockers) {
       commands: [
         "npm.cmd run release:ai-pack:evidence:request:validate",
         "대상 PC에서 AI pack zip SHA256 확인",
+        "대상 PC에서 START_INSTALL_GUI.bat 안내형 설치 모니터 실행",
         "대상 PC에서 RUN_FULL_VALIDATION.bat 실행",
         "대상 PC에서 앱 실행, 업무엔진 health/restart/장기작업 응답성을 확인하고 runtime-clean-account-evidence.json 작성",
         "대상 PC의 evidence 폴더를 release\\clean-account-evidence-inbox 로 복사",

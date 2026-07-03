@@ -127,9 +127,21 @@ export async function validateCleanAccountEvidenceRequest(options = {}) {
   );
   addCheck(
     checks,
+    "target PC steps include guided setup monitor",
+    Array.isArray(request.targetPcSteps) && request.targetPcSteps.includes("run START_INSTALL_GUI.bat for guided setup"),
+    (request.targetPcSteps ?? []).join(" | "),
+  );
+  addCheck(
+    checks,
     "target PC steps prefer one-click validation",
     Array.isArray(request.targetPcSteps) && request.targetPcSteps.includes("run RUN_FULL_VALIDATION.bat"),
     (request.targetPcSteps ?? []).join(" | "),
+  );
+  addCheck(
+    checks,
+    "README mentions guided setup monitor launcher",
+    readme.includes("START_INSTALL_GUI.bat") && readme.includes("설치 모니터"),
+    requestReadmePath,
   );
   addCheck(
     checks,

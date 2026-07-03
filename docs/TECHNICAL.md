@@ -64,6 +64,7 @@ npm.cmd run release:offline
 | `services/sidecar/src/gongmu_sidecar/document_parsers.py` | PDF/DOCX/XLSX/PPTX/TXT/MD/HWPX 파서 |
 | `services/sidecar/src/gongmu_sidecar/graphrag_ingestion.py` | background ingestion, chunking, 품질 로그 |
 | `services/sidecar/src/gongmu_sidecar/graphrag_backends.py` | ChromaDB optional vector backend와 SQLite fallback |
+| `services/sidecar/src/gongmu_sidecar/work_aware_recon.py` | 업무 프로필, 폴더 분석, 문서 역할/문서군 분류, 업무 중심 ranking boost |
 | `services/sidecar/src/gongmu_sidecar/hwpx_writer.py` | HWPX 산출 helper |
 
 ## 6. 데이터 흐름
@@ -79,17 +80,20 @@ npm.cmd run release:offline
 
 1. 사용자가 로컬 폴더를 지식 소스로 등록한다.
 2. 스캔 단계가 파일 메타데이터와 해시를 수집한다.
-3. ingestion 단계가 파서, structured document model, section-aware chunking을 수행한다.
-4. embedding backend가 활성화되어 있으면 ChromaDB에 chunk를 upsert한다.
-5. SQLite graph mirror에 document, chunk, keyword, ontology relation을 저장한다.
-6. 검색/질문 시 vector retrieval과 graph relation을 함께 사용하고 출처를 반환한다.
+3. 업무 프로필과 파일/폴더명 기반 Folder Recon이 기관, 부서, 업무, 문서번호, 규정, 문서군 후보를 추출한다.
+4. Work-Aware 분류기가 문서 역할(`policy_source`, `work_product`, `data_source`, `template_source` 등), 문서군, 검토 필요 항목을 저장한다.
+5. ingestion 단계가 파서, structured document model, section-aware chunking을 수행한다.
+6. embedding backend가 활성화되어 있으면 ChromaDB에 chunk를 upsert한다.
+7. SQLite graph mirror에 document, chunk, keyword, ontology relation, 업무 맥락 relation을 저장한다.
+8. 검색/질문 시 vector retrieval과 graph relation을 함께 사용하고, 업무절차/문서작성/리서치/데이터 질의 의도에 따라 ranking boost와 출처를 반환한다.
 
 ### 문서작성
 
-1. 업무대화 세션, 연결 파일, Reference Set 또는 직접 개요를 출발점으로 한다.
-2. Content Base Markdown을 생성한다.
-3. 출력 유형은 시행문, 1페이지 보고서, 풀버전 보고서, 이메일을 기준으로 한다.
-4. 승인 후 HWPX 또는 텍스트 산출물로 저장한다.
+1. 업무대화 세션 또는 바로 작성을 출발점으로 한다.
+2. 세션 대화내용, 연결 일정, 연결 파일, 첨부 파일 요약, 지식폴더 RAG 근거를 모아 WorkSessionBrief를 만든다.
+3. 출력 유형은 시행문, 1페이지 보고서, 풀버전 보고서, 이메일, 별도 지정 양식을 기준으로 한다.
+4. Content Base Markdown과 DocumentPlan을 만든 뒤 선택 양식의 구조에 맞춰 HWPX 산출물을 생성한다.
+5. 검토용 Markdown과 HWPX 파일 경로를 함께 저장하고, 앱에서는 파일/폴더 열기 링크로 제공한다.
 
 ## 7. 폐쇄망 패키징
 
@@ -103,11 +107,20 @@ npm.cmd run release:offline
 
 `desktop:bundle`은 PyInstaller 업무엔진 번들을 만들고 Tauri NSIS 설치파일을 생성한다. `release:offline`은 최신 NSIS 설치파일을 `release/offline/Gongmu_<version>_windows_x64_offline_<timestamp>` 폴더로 복사하고 SHA256 및 설치 안내 README를 생성한 뒤 zip으로 묶는다.
 
+Ollama와 `gemma4:e2b` 멀티모달 모델까지 포함하는 AI 풀팩은 아래 흐름으로 생성/검증한다.
+
+```powershell
+npm.cmd run release:ai-pack
+npm.cmd run release:ai-pack:validate
+```
+
+대상 PC의 일반 설치 경로는 `START_INSTALL_GUI.bat`이다. 이 런처는 `install-gongmu-ai-gui.ps1` 안내형 설치 모니터를 띄워 현재 단계, 사용자 조치, 로그 경로를 표시한다. 클린계정 증거를 한 번에 남기는 검증 경로는 `RUN_FULL_VALIDATION.bat`이며, GUI가 어려운 환경에서는 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat` 순서의 콘솔 fallback을 유지한다.
+
 ## 8. 보안과 운영 경계
 
 - 기본 저장 위치는 로컬 작업공간이다.
 - 외부 LLM provider는 사용자가 명시적으로 endpoint/API key를 설정해야 한다.
-- 폐쇄망 PC의 로컬 LLM 모델 파일은 설치패키지에 포함하지 않는다.
+- 일반 앱 설치패키지는 로컬 LLM 모델 파일을 포함하지 않는다. Ollama/Gemma 모델까지 필요한 경우 별도 AI 풀팩을 사용한다.
 - API key, 비밀번호, 민감정보는 업무대화 응답에서 노출하지 않도록 provider/system prompt guardrail을 유지해야 한다.
 - ChromaDB embedded mode는 sidecar 단일 writer 원칙을 따른다.
 

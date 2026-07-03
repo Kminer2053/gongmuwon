@@ -56,10 +56,13 @@ async function main() {
     assert.equal(request.copyBack.validationCommand, "npm.cmd run release:ai-pack:evidence:finalize");
 
     const readme = await readFile(join(outDir, "README.md"), "utf8");
+    assert.match(readme, /START_INSTALL_GUI\.bat/);
+    assert.match(readme, /설치 모니터/);
     assert.match(readme, /RUN_FULL_VALIDATION\.bat/);
     assert.match(readme, /START_INSTALL\.bat/);
     assert.match(readme, /VALIDATE_INSTALL\.bat/);
     assert.match(readme, /COLLECT_EVIDENCE\.bat/);
+    assert.match(readme, /install-gongmu-ai-gui\.log/);
     assert.match(readme, /release[\\/]clean-account-evidence-inbox/);
     assert.match(readme, /release:ai-pack:evidence:finalize/);
     assert.match(readme, /runtime-clean-account-evidence\.template\.json/);

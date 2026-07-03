@@ -136,6 +136,7 @@ withTempProject((tempRoot) => {
   assert.equal(result.status, 0, result.stderr);
   const markdown = fs.readFileSync(outputPath, "utf8");
   assert.match(markdown, /클린계정\/폐쇄망 증거 수집 루프/);
+  assert.match(markdown, /START_INSTALL_GUI\.bat/);
   assert.match(markdown, /RUN_FULL_VALIDATION\.bat/);
   assert.match(markdown, /release\\clean-account-evidence-inbox/);
   assert.match(markdown, /release:ai-pack:evidence:finalize/);

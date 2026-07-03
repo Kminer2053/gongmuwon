@@ -26,9 +26,9 @@
 | --- | --- |
 | 업무대화 | 로컬/내부/외부 LLM 프로필 연결, 파일 첨부, 이미지 첨부, 세션별 기록 저장, 지식폴더 기반 답변 |
 | 일정 | 월/주/일 캘린더, 셀 클릭 등록, 일정-대화 세션 연결, 가까운 일정 확인 |
-| 파일찾기 | 로컬 파일명 검색, 업무대화 세션과 파일 경로 연결, Reference Set 기반 문서작성 handoff |
-| 내 지식폴더 | 로컬 업무폴더 등록, 문서 스캔, GraphRAG 인덱싱, 추출 품질 확인, 업무지식 그래프 탐색 |
-| 문서작성 | 업무대화/연결파일/Reference Set을 기반으로 Content Base를 만들고 HWPX 산출 흐름으로 연결 |
+| 파일찾기 | Anything 없이 자체 로컬 파일명/경로 인덱스를 갱신하고 검색, 결과 파일을 업무대화 세션에 연결 |
+| 내 지식폴더 | 업무 프로필, 폴더 분석, 문서 역할/문서군 분류, Work-Aware GraphRAG 인덱싱, 업무지식 그래프 탐색 |
+| 문서작성 | 업무대화/연결파일/직접 입력을 바탕으로 Content Base와 보고서 계획을 만들고 HWPX 산출 흐름으로 연결 |
 | 실행기록/승인 | 민감한 작업의 승인 흐름, 최근 실행 이력, 작업 상태 확인 |
 
 ## 빠른 시작
@@ -39,6 +39,18 @@
 2. zip을 풀고 `Gongmu_0.1.0_x64-setup.exe`를 실행합니다.
 3. 앱 실행 후 우측 상단 업무엔진 신호등이 정상인지 확인합니다.
 4. 로컬 LLM을 쓰려면 Ollama 또는 OpenAI-compatible endpoint를 환경설정에 등록합니다.
+
+### 폐쇄망 AI 풀팩 설치
+
+Ollama와 `gemma4:e2b` 멀티모달 모델까지 함께 준비해야 하는 PC에는 AI 풀팩 zip을 사용합니다.
+
+1. AI 풀팩 zip을 대상 PC에 복사하고 압축을 풉니다.
+2. 일반 사용자는 `START_INSTALL_GUI.bat`을 실행합니다.
+3. 설치 모니터가 현재 단계, 사용자가 닫아야 하는 설치창/앱창, 로그 위치를 안내합니다.
+4. 설치 증거를 한 번에 남겨야 하는 검증자는 `RUN_FULL_VALIDATION.bat`을 실행합니다.
+5. GUI 실행이 어려운 환경에서는 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`을 순서대로 실행합니다.
+
+자세한 절차는 [클린계정/폐쇄망 AI Pack 설치 검증 런북](docs/operations/2026-06-16-clean-account-ai-pack-validation-runbook.md)을 참고합니다.
 
 ### 개발 실행
 
@@ -66,8 +78,10 @@ flowchart LR
   C --> D[SQLite Workspace]
   C --> E[Local File System]
   C --> F[GraphRAG Pipeline]
+  C --> K[Work-Aware Recon]
   F --> G[ChromaDB Vector Store]
   F --> H[SQLite Graph Mirror]
+  K --> H
   C --> I[LLM Providers]
   C --> J[Document Authoring]
 ```
@@ -79,6 +93,7 @@ flowchart LR
 | SQLite Workspace | 세션, 일정, 설정, 실행기록, 그래프 mirror 저장 |
 | Local File System | 지식폴더, 첨부파일, 문서 산출물, 로컬 파일찾기 대상 |
 | GraphRAG Pipeline | parser, chunking, embedding, ontology, retrieval 처리 |
+| Work-Aware Recon | 업무 프로필, 기관/부서/규정 후보, 문서 역할, 문서군, 업무 중심 ranking boost 처리 |
 | ChromaDB Vector Store | 선택형 vector backend |
 | LLM Providers | Ollama, 내부 서버, OpenAI-compatible, OpenRouter, Claude, Gemini, NVIDIA NIM |
 | Document Authoring | Content Base에서 HWPX/보고서 산출 흐름으로 연결 |
@@ -100,12 +115,13 @@ release/alpha/             알파 릴리스 문서 스테이징
 - [사용자 매뉴얼](docs/user-manual/gongmu-user-manual.html)
 - [기술 부속문서](docs/TECHNICAL.md)
 - [현재 구현 스펙](docs/operations/2026-05-06-current-implementation-spec.md)
+- [클린계정/폐쇄망 AI Pack 설치 검증 런북](docs/operations/2026-06-16-clean-account-ai-pack-validation-runbook.md)
 - [최신 UI/기능 검증 보고서](docs/operations/2026-05-20-second-feedback-ui-validation-report.md)
 - [GraphRAG 품질 게이트 계획](docs/superpowers/plans/2026-05-06-graphrag-ingestion-quality-gate-plan.md)
 
 ## 현재 상태
 
-로컬 AI에이전트 워크플레이스 : 공무원은 MVP 이후 기능 고도화 단계입니다. 업무대화 중심 레이아웃, 자체 파일찾기, 지식폴더 GraphRAG, 문서작성 HWPX 흐름, Windows NSIS 패키징이 구현되어 있습니다. 실제 기관 양식 HWPX 렌더링 품질, 대규모 지식폴더 파서 품질, 폐쇄망 PC별 LLM endpoint 구성은 계속 검증해야 하는 운영 항목입니다.
+로컬 AI에이전트 워크플레이스 : 공무원은 MVP 이후 기능 고도화 단계입니다. 업무대화 중심 레이아웃, 자체 파일찾기, Work-Aware GraphRAG 2.0의 업무 프로필/문서 역할 분석, 문서작성 HWPX 흐름, Windows NSIS 패키징, Ollama + Gemma AI 풀팩 안내형 설치 모니터가 구현되어 있습니다. 실제 기관 양식 HWPX 렌더링 품질, 대규모 지식폴더 파서 품질, 폐쇄망 PC별 LLM endpoint 구성은 계속 검증해야 하는 운영 항목입니다.
 
 ## 라이선스
 

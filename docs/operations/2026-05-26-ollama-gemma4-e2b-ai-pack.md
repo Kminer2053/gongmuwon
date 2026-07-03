@@ -9,7 +9,10 @@
 - 공무원 Windows 오프라인 설치파일
 - Ollama Windows 설치파일(제작 시 제공한 경우)
 - Ollama 모델 캐시 `gemma4:e2b`(제작 PC에 pull되어 있고 `--include-models`로 지정한 경우)
-- `install-gongmu-ai.ps1` 원클릭 설정 스크립트
+- `START_INSTALL_GUI.bat` 안내형 설치 모니터 실행 배치
+- `install-gongmu-ai-gui.ps1` 안내형 설치 모니터
+- `install-gongmu-ai.ps1` 콘솔 기반 설정 스크립트
+- `RUN_FULL_VALIDATION.bat` 설치/검증/증거수집 통합 실행 배치
 - 라이선스/고지 문서와 SHA256 무결성 목록
 
 ## 모델 기준
@@ -46,9 +49,15 @@ release/ai-pack/Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_YYYYMMDD-HHMM.zip
 
 ## 폐쇄망 PC에서 설치
 
+일반 사용자는 압축 해제 폴더에서 `START_INSTALL_GUI.bat`을 실행한다. 이 런처는 설치 모니터를 띄워 현재 단계, 사용자가 닫아야 하는 설치창/앱창, 로그 위치를 보여준다.
+
+클린계정 증거까지 한 번에 남겨야 하는 검증자는 `RUN_FULL_VALIDATION.bat`을 실행한다. GUI가 열리지 않는 환경에서는 아래 콘솔 fallback을 사용할 수 있다.
+
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\install-gongmu-ai.ps1
+.\validate-gongmu-ai.ps1
+.\collect-clean-account-evidence.ps1
 ```
 
 스크립트가 수행하는 작업:
@@ -60,6 +69,8 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 - `gemma4:e2b` 모델 존재 확인
 - 공무원 설정파일을 Ollama + `gemma4:e2b` 기준으로 저장
 - 텍스트 응답과 이미지 입력 API를 짧게 검증
+
+설치 모니터 로그는 `install-gongmu-ai-gui.log`, 콘솔 설치 로그는 `install-gongmu-ai.log`에 남는다.
 
 ## 현재 Windows 개발 PC의 주의점
 

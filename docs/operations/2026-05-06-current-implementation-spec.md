@@ -20,34 +20,34 @@
 일정 <-> 업무대화(세션)
 ```
 
-문서작성은 `Content Base(Markdown) -> Template -> 최종 산출물` 흐름을 기본 원칙으로 유지한다. 폐쇄망 PC에서도 설치와 실행이 가능하도록 sidecar와 주요 런타임은 로컬 우선으로 동작한다.
+문서작성은 `Content Base(Markdown) -> Template -> 최종 산출물` 흐름을 기본 원칙으로 유지한다. 폐쇄망 PC에서도 설치와 실행이 가능하도록 업무엔진과 주요 런타임은 로컬 우선으로 동작한다.
 
 ## 2. 기술 스택
 
 - Desktop: Tauri 2, React 19, TypeScript, Vite, Vitest, lucide-react
-- Backend: Python 3.11, FastAPI, SQLite, ChromaDB optional vector store, PyInstaller sidecar bundle
-- Runtime: Windows NSIS installer, bundled sidecar, Microsoft Edge WebView2 Runtime
-- 기본 sidecar 주소: `http://127.0.0.1:8765`
+- Backend: Python 3.11, FastAPI, SQLite, ChromaDB optional vector store, PyInstaller 업무엔진 bundle
+- Runtime: Windows NSIS installer, bundled 업무엔진, Microsoft Edge WebView2 Runtime
+- 기본 업무엔진 주소: `http://127.0.0.1:8765`
 - 기본 개발 루프: `sidecar:serve`, `desktop:dev`, `sidecar:test`, `desktop:test`
 
 ## 3. 현재 UI 구조
 
 현재 UI는 Codex 스타일의 3분할 작업 환경을 지향한다.
 
-- 상단: 제품 제목, 설명, 새로고침, 우측 패널 토글, sidecar 신호등, 현재 배율 표시
+- 상단: 제품 제목, 설명, 새로고침, 우측 패널 토글, 업무엔진 신호등, 현재 배율 표시
 - 좌측: 기능 아이콘과 업무대화 세션 목록
 - 중앙: 현재 선택 기능의 메인 작업 화면
 - 우측: 현재 컨텍스트, 승인 요청, 최근 실행 정보 패널
 
 우측 패널은 접기/펼치기와 폭 조절이 가능하다. 패널을 접으면 중앙 작업 영역이 오른쪽으로 확장된다. 승인 요청 등 사용자 주의가 필요한 작업이 발생하면 관련 섹션이 자연스럽게 열리도록 구성되어 있다.
 
-## 4. Sidecar 및 런타임 관리
+## 4. 업무엔진 및 런타임 관리
 
-- 설치 앱 최초 실행 시 bundled sidecar 자동 시작을 시도한다.
+- 설치 앱 최초 실행 시 bundled 업무엔진 자동 시작을 시도한다.
 - release build에서는 `resources/sidecar/windows-x64/gongmu-sidecar/gongmu-sidecar.exe`를 우선 사용한다.
-- 개발 모드에서는 Python 3.11 venv 기반 sidecar 실행을 사용한다.
-- sidecar 강제 종료 시 상태 감지 후 재시작을 시도한다.
-- 상단 우측 신호등 버튼에서 sidecar 상태, 로그 경로, 시작/재시작/종료 조작을 확인할 수 있다.
+- 개발 모드에서는 Python 3.11 venv 기반 업무엔진 실행을 사용한다.
+- 업무엔진 강제 종료 시 상태 감지 후 재시작을 시도한다.
+- 상단 우측 신호등 버튼에서 업무엔진 상태, 로그 경로, 시작/재시작/종료 조작을 확인할 수 있다.
 
 ## 5. 업무대화
 
@@ -89,6 +89,7 @@
 - Ollama
 - OpenAI
 - OpenRouter
+- Featherless API
 - Anthropic Claude
 - Google Gemini
 - NVIDIA NIM
@@ -96,9 +97,9 @@
 
 로컬 Ollama 기본값은 `http://127.0.0.1:11434`를 사용한다. Ollama는 OpenAI 호환 endpoint만 가정하지 않고 native `/api/chat` 응답도 처리한다. Qwen/Gemma 계열처럼 assistant text가 reasoning 필드에 들어오는 경우를 완화하기 위해 여러 응답 필드를 fallback으로 읽는다.
 
-## 8. 파일찾기 및 Reference Set
+## 8. 파일찾기
 
-파일찾기는 Anything/Docufinder 의존만으로 가지 않고 자체 로컬 파일명 검색을 병행한다.
+파일찾기는 Anything/Docufinder 의존 없이 자체 로컬 파일명/경로 인덱스를 기본 흐름으로 사용한다.
 
 - `/api/files/search`
 - `/api/files/index/rebuild`
@@ -107,8 +108,10 @@
 - compact filename match
 - 검색 결과를 업무대화 세션 파일 링크로 연결
 - 연결된 파일 수 표시 및 연결 파일 목록 확인
+- 검색 결과 선택 시 우측 패널 미리보기/세부정보 연계
+- 검색 결과 경로 복사와 파일/폴더 열기
 
-Reference Set은 문서작성으로 여러 파일/자료 묶음을 넘기는 handoff 컨테이너로 유지하되, 업무대화 중심 작업에서는 개별 파일 링크가 기본 흐름이다.
+Reference Set은 과거 handoff 호환 레이어로 남을 수 있으나, 현재 사용자 흐름의 기본 단위는 업무대화 세션에 연결된 개별 파일 링크다.
 
 ## 9. Anything / Docufinder 연계
 
@@ -125,7 +128,7 @@ Anything은 `chrisryugj/Docufinder` 계열 외부 프로그램으로 보고, 라
 - Anything 결과 경로를 Reference Set으로 import
 - import 후 문서작성 화면으로 handoff
 
-장기 방향은 파일찾기 핵심 기능을 자체 구현하고 Anything은 선택형 보조 도구로 유지하는 것이다.
+현재 제품 방향은 파일찾기 핵심 기능을 자체 구현하는 것이다. Anything/Docufinder 연계 API는 호환성 검토용 레거시 경로로 남아 있을 수 있으나, 사용자 UI의 기본 파일찾기 흐름에서는 사용하지 않는다.
 
 ## 10. 지식폴더 및 GraphRAG
 
@@ -134,6 +137,13 @@ Anything은 `chrisryugj/Docufinder` 계열 외부 프로그램으로 보고, 라
 현재 구현:
 
 - 지식 소스 폴더 등록
+- 업무 프로필 저장: 기관명, 부서명, 팀명, 직위, 담당업무 키워드
+- 지식 소스별 업무 맥락 분석 실행
+- Folder Recon: 파일명, 경로, 수정일, 크기, 해시, 상위 폴더명 기반 후보 추출
+- Identity/Governance Discovery: 조직도, 업무분장, 직제규정, 위임전결, 문서관리, 보안, 개인정보, 계약, 예산 규정 후보 탐지
+- Document Family Detection: 초안/수정/최종/제출본/PDF 변환본 등 동일 문서군 후보 묶음
+- Document Role Classification: `org_source`, `policy_source`, `work_product`, `collaboration_record`, `data_source`, `template_source`, `reference_material`, `decision_record` 분류
+- 업무절차/문서작성/리서치/데이터 질의 의도별 ranking boost
 - 등록 폴더 스캔
 - 하위 파일 메타데이터 수집
 - GraphRAG ingestion job 생성/조회/실행
@@ -210,20 +220,17 @@ Graph backend는 현재 KuzuDB를 핵심 의존성으로 삼지 않는다. Kuzu 
 
 ## 12. 문서작성
 
-문서작성은 Content Base 기반 흐름을 유지한다.
+문서작성은 Content Base 기반 흐름을 유지하되, 사용자 입력 흐름은 `대화세션/바로 작성 선택 -> 파일등록 -> 산출보고서 선택 -> 작업지시 -> 보고서 완성`으로 단순화되어 있다.
 
-- 문서 제목/목적 입력
-- 출력 유형 선택
-- 업무대화 세션 지정
-- 세션의 대화, 연결 일정, 연결 파일을 문서 맥락으로 사용
-- 세션 없이 바로 작성할 경우 개요 및 직접 파일 경로 입력
-- Reference Set 선택
-- Content Base Markdown 생성
-- stale 보호
-- 최종 저장 요청
-- 승인 후 최종 저장 apply
-- 사용자 HWPX/HWTX 템플릿 업로드 준비
-- custom template 목록 조회
+- 대화세션 기반 작성 또는 세션 없이 바로 작성 선택
+- 세션의 대화, 연결 일정, 연결 파일, 지식폴더 RAG 근거를 WorkSessionBrief로 수집
+- 첨부/연결 파일별 주요 내용과 활용 목적 입력
+- 파일 크기/컨텍스트 제한 안내와 부분 추출 경고
+- 출력 유형 선택: 시행문, 1페이지 보고서, 풀버전 보고서, 이메일, 별도 지정
+- 기본 내장 HWPX/HWTX 양식 또는 사용자 지정 양식 선택
+- Content Base Markdown과 DocumentPlan 생성
+- 양식별 글쓰기 규칙에 맞춘 HWPX 산출
+- 결과 파일과 검토용 Markdown 경로를 카드형 링크로 제공
 
 출력 유형은 다음 4개를 중심으로 정리되어 있다.
 
@@ -232,7 +239,7 @@ Graph backend는 현재 KuzuDB를 핵심 의존성으로 삼지 않는다. Kuzu 
 - 풀버전 보고서
 - 이메일
 
-HwpxMaker 계열 리포지터리를 참고해 HWPX/HWTX 출력 확장을 진행 중이다.
+Kminer2053/public-doc-to-hwpx 계열 스킬의 입력 수집, 보고서 계획, 양식 매핑 흐름을 참고해 HWPX/HWTX 출력 품질을 고도화하고 있다.
 
 ## 13. 파일정리
 
@@ -276,7 +283,7 @@ HwpxMaker 계열 리포지터리를 참고해 HWPX/HWTX 출력 확장을 진행 
 | File Links | `GET/POST/DELETE /api/work-sessions/{session_id}/file-links` |
 | Files | `POST /api/files/search`, `POST /api/files/index/rebuild` |
 | Reference Set | `GET/POST /api/reference-sets` |
-| Knowledge | `GET/POST /api/knowledge/sources`, `POST /api/knowledge/sources/{source_id}/scan`, `GET /api/knowledge/source-files`, `GET /api/knowledge/backend-status`, `GET /api/knowledge/parser-status`, `POST /api/knowledge/ingest`, `POST /api/knowledge/reindex`, `GET /api/knowledge/chunks`, `GET /api/knowledge/documents`, `GET /api/knowledge/document-structure`, `GET /api/knowledge/tables`, `GET /api/knowledge/graph/query`, `POST /api/knowledge/retrieve`, `POST /api/knowledge/ask`, `POST /api/knowledge/parse-hwp`, `POST /api/knowledge/parse-hwpx` |
+| Knowledge | `GET/PUT /api/knowledge/work-profile`, `GET/POST /api/knowledge/sources`, `POST /api/knowledge/sources/{source_id}/scan`, `POST /api/knowledge/sources/{source_id}/analyze-work-context`, `GET /api/knowledge/sources/{source_id}/analysis`, `POST /api/knowledge/sources/{source_id}/analysis/confirm`, `GET /api/knowledge/source-files`, `GET /api/knowledge/backend-status`, `GET /api/knowledge/parser-status`, `POST /api/knowledge/ingest`, `POST /api/knowledge/reindex`, `GET /api/knowledge/chunks`, `GET /api/knowledge/documents`, `GET /api/knowledge/document-structure`, `GET /api/knowledge/tables`, `GET /api/knowledge/graph/query`, `POST /api/knowledge/retrieve`, `POST /api/knowledge/ask`, `POST /api/knowledge/parse-hwp`, `POST /api/knowledge/parse-hwpx` |
 | Personalization | `POST /api/personalization/work-sessions/{session_id}/analyze`, `GET /api/personalization/candidates`, `POST /api/personalization/candidates/{candidate_id}/decide` |
 | Documents | `POST /api/documents/content-bases`, `GET/POST /api/documents/templates/custom`, `POST /api/documents/finalize`, `POST /api/documents/finalize/{ticket_id}/apply` |
 | Anything | `POST /api/integrations/anything/launch`, `GET /api/integrations/anything/launches`, `POST /api/integrations/anything/launch/{ticket_id}/apply`, `POST /api/integrations/anything/launch/{ticket_id}/reference-set` |
@@ -310,4 +317,4 @@ node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri
 - 파일찾기는 자체 파일명 검색 중심이며, Everything 수준의 USN Journal 기반 즉시 색인은 후속 과제다.
 - 문서작성의 HWPX/HWTX 최종 렌더링 품질 검증이 필요하다.
 - 파일정리는 절차 안전성 중심 구현이며, 실제 이동 정책과 충돌 처리 UX는 고도화 대상이다.
-- 설치 패키지에서 sidecar 자동 시작/재시작은 계속 중요한 릴리스 검증 항목이다.
+- 설치 패키지에서 업무엔진 자동 시작/재시작은 계속 중요한 릴리스 검증 항목이다.

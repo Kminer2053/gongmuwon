@@ -446,11 +446,11 @@
           "`release:offline`은 이제 sidecar bundle freshness가 stale이면 최신 NSIS exe를 복사하지 않고 실패한다.",
           "2026-06-16 현재 HEAD에서 `desktop:bundle`, `desktop:smoke:nsis`, `release:offline`, AI 풀팩 생성기를 재실행했다.",
           "NSIS smoke는 설치, bundled 업무엔진 `/health`, uninstall cleanup `remaining_install_files: []`를 통과했다.",
-          "AI 풀팩 `Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260616-1213.zip`은 Python 3.11.9 설치파일, OllamaSetup.exe, `gemma4:e2b` 모델 캐시, 초보자용 `START_INSTALL.bat`, 설치 후 `VALIDATE_INSTALL.bat`, 증거 수집용 `COLLECT_EVIDENCE.bat`, 원클릭 검증용 `RUN_FULL_VALIDATION.bat`를 포함한다.",
+          "AI 풀팩 `Gongmu_AI_Ollama_Gemma4_E2B_IT_Multimodal_20260701-1814.zip`은 Python 3.11.9 설치파일, OllamaSetup.exe, `gemma4:e2b` 모델 캐시, 안내형 설치 모니터 `START_INSTALL_GUI.bat`/`install-gongmu-ai-gui.ps1`, 콘솔 fallback `START_INSTALL.bat`, 설치 후 `VALIDATE_INSTALL.bat`, 증거 수집용 `COLLECT_EVIDENCE.bat`, 원클릭 검증용 `RUN_FULL_VALIDATION.bat`를 포함한다.",
           "AI 풀팩 manifest는 `model.embedded=true`, `model.multimodal=true`, `python.installerIncluded=true`, `ollama.installerIncluded=true`를 기록한다.",
           "최종 릴리스 후보 기준 clean-account/VM GUI click-through 증거는 아직 별도 운영 증거로 남아 있다.",
-          "2026-06-16 AI pack artifact validation은 zip SHA256, 필수 파일, 모델 저장소, START/VALIDATE/COLLECT/RUN_FULL_VALIDATION 배치 dry-run, PowerShell 문법 검증을 모두 통과했다.",
-          "클린계정/폐쇄망 PC에서는 docs/operations/2026-06-16-clean-account-ai-pack-validation-runbook.md 절차에 따라 `RUN_FULL_VALIDATION.bat`을 1순위로 실행해 설치, 검증, 증거 수집 로그와 evidence ready=true를 확보해야 G11을 완전히 닫을 수 있다.",
+          "2026-07-01 AI pack artifact validation은 zip SHA256, 필수 파일, 모델 저장소, START_INSTALL_GUI/START/VALIDATE/COLLECT/RUN_FULL_VALIDATION 배치 dry-run, PowerShell 문법 검증을 모두 통과했다.",
+          "클린계정/폐쇄망 PC에서는 docs/operations/2026-06-16-clean-account-ai-pack-validation-runbook.md 절차에 따라 일반 사용자는 `START_INSTALL_GUI.bat`으로 안내형 설치를 확인하고, 검증자는 `RUN_FULL_VALIDATION.bat`으로 설치, 검증, 증거 수집 로그와 evidence ready=true를 확보해야 G11을 완전히 닫을 수 있다.",
           "대상 PC에서 단계별 확인이 필요하면 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`를 순서대로 실행하는 fallback 경로를 사용한다.",
           "대상 PC에서 생성된 `evidence` 폴더는 개발 저장소의 `release/clean-account-evidence-inbox`로 반입한다.",
           "대상 PC에 넘기는 evidence request 폴더는 `npm.cmd run release:ai-pack:evidence:request:validate`로 최신 AI pack zip, SHA256, 크기, multimodal/embedded 모델 조건과 일치하는지 먼저 검증한다.",
@@ -460,6 +460,7 @@
       },
       "blockingFollowUp": [
         "가능하면 별도 계정 또는 VM install/run/uninstall 증거를 갱신한다.",
+        "clean-account 또는 VM에서 `START_INSTALL_GUI.bat`를 실제 실행해 안내형 설치 모니터가 현재 단계와 사용자 조치를 정상 안내하는지 확인한다.",
         "clean-account 또는 VM에서 `RUN_FULL_VALIDATION.bat`를 실제 실행해 Python/Ollama/Gemma/Gongmu 설정 검증 로그와 `evidence/ai-pack-clean-account-evidence.json` ready=true를 확보한다.",
         "원클릭 실행이 막히면 `START_INSTALL.bat`, `VALIDATE_INSTALL.bat`, `COLLECT_EVIDENCE.bat`를 순서대로 실행해 같은 evidence JSON을 확보한다.",
         "대상 PC의 `evidence` 폴더를 `release/clean-account-evidence-inbox`에 넣고 `npm.cmd run release:ai-pack:evidence:finalize`를 실행한다."

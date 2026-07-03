@@ -77,10 +77,11 @@ ${request.artifact.zipSha256}
 \`\`\`
 
 3. zip을 로컬 폴더에 압축 해제합니다.
-4. 권장 경로: 압축 해제 폴더에서 \`RUN_FULL_VALIDATION.bat\`을 실행합니다.
-5. 이 런처가 설치, 검증, 증거 수집을 순서대로 실행합니다.
-6. 단계별 확인이 필요하면 \`START_INSTALL.bat\`, \`VALIDATE_INSTALL.bat\`, \`COLLECT_EVIDENCE.bat\`을 순서대로 실행합니다.
-7. Gongmu 앱을 실행해 업무엔진 상태를 확인한 뒤 \`COLLECT_RUNTIME_EVIDENCE.bat\`을 실행합니다.
+4. 일반 사용자 권장 경로: 압축 해제 폴더에서 \`START_INSTALL_GUI.bat\`을 실행합니다.
+5. 설치 모니터가 현재 단계, 사용자가 닫아야 하는 설치창/앱창, 로그 위치를 안내합니다.
+6. 클린계정 증거까지 한 번에 남겨야 하는 검증자는 \`RUN_FULL_VALIDATION.bat\`을 실행합니다.
+7. GUI 모니터가 열리지 않거나 단계별 확인이 필요하면 \`START_INSTALL.bat\`, \`VALIDATE_INSTALL.bat\`, \`COLLECT_EVIDENCE.bat\`을 순서대로 실행합니다.
+8. Gongmu 앱을 실행해 업무엔진 상태를 확인한 뒤 \`COLLECT_RUNTIME_EVIDENCE.bat\`을 실행합니다.
    - 앱 실행/복구/장기작업 응답성을 직접 확인했다면 예: \`COLLECT_RUNTIME_EVIDENCE.bat -AppLaunched -RecoveryObserved -LongJobResponsive\`
    - 이 런처는 \`runtime-clean-account-evidence.template.json\`과 같은 구조의 \`evidence\\runtime-clean-account-evidence.json\`을 생성합니다.
 8. 생성된 \`evidence\` 폴더를 개발 저장소의 반입 경로로 복사합니다.
@@ -103,6 +104,7 @@ ${request.copyBack.validationCommand}
 ## 반드시 같이 보관할 파일
 
 - \`install-gongmu-ai.log\`
+- \`install-gongmu-ai-gui.log\`
 - \`validate-gongmu-ai.log\`
 - \`evidence\\collect-clean-account-evidence.log\`
 - \`evidence\\ai-pack-clean-account-evidence.json\`
@@ -325,6 +327,7 @@ export async function prepareCleanAccountEvidenceRequest(options = {}) {
       "copy AI Pack zip",
       "verify SHA256",
       "extract zip",
+      "run START_INSTALL_GUI.bat for guided setup",
       "run RUN_FULL_VALIDATION.bat",
       "or run START_INSTALL.bat, VALIDATE_INSTALL.bat, COLLECT_EVIDENCE.bat step by step",
       "run COLLECT_RUNTIME_EVIDENCE.bat after launching Gongmu",
