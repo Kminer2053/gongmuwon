@@ -1555,7 +1555,11 @@ async function writeShaSums(packageDir) {
 
 async function compressPackage(packageDir, zipPath) {
   if (await pathExists(zipPath)) await rm(zipPath, { force: true });
-  const tarResult = spawnSync("tar.exe", ["-a", "-cf", zipPath, "-C", packageDir, "."], {
+  // Windows System32 tar.exe is bsdtar (libarchive): it handles drive-letter
+  // paths and zip64 (>4GB). A bare "tar.exe" can resolve to MSYS/GNU tar, which
+  // treats "C:\..." as a remote host and fails ("Cannot connect to C:").
+  const bsdtar = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe");
+  const tarResult = spawnSync(bsdtar, ["-a", "-cf", zipPath, "-C", packageDir, "."], {
     encoding: "utf8",
   });
   if (tarResult.status === 0) return;
