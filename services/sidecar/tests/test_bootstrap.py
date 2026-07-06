@@ -32,7 +32,6 @@ def test_settings_endpoint_exposes_runtime_contract(tmp_path: Path) -> None:
     assert payload["defaults"]["llm_model"] == "qwen3.6:27b"
     assert payload["defaults"]["llm_site_url"] is None
     assert payload["defaults"]["llm_application_name"] is None
-    assert payload["defaults"]["anything_launch_mode"] == "external_app_preferred"
     assert payload["defaults"]["default_template_key"] == "report"
     assert payload["defaults"]["internal_api_base_url"] is None
     assert payload["paths"]["workspace_root"] == str(tmp_path)

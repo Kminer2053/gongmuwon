@@ -1,0 +1,1029 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>로컬 AI에이전트 워크플레이스 : 공무원 — UI 개선 Before/After 시안 (2026-05-26)</title>
+<style>
+  :root{
+    --ink:#111214; --sub:#5a5e66; --line:rgba(17,18,20,.10); --line2:rgba(17,18,20,.18);
+    --bg:#f4f5f7; --panel:#ffffff; --accent:#1f6b55; --accent-strong:#16493b;
+    --warn-info:#f5e7c5; --warn-info-ink:#7a5b16;
+    --ok:#e6f4ec; --ok-ink:#1f6b55;
+    --bad:#fde6e6; --bad-ink:#a4222b;
+    --bubble-user:#111214; --bubble-user-ink:#ffffff;
+    --shadow:0 8px 24px rgba(17,18,20,.06), 0 1px 0 rgba(17,18,20,.04);
+    --r-sm:8px; --r-md:12px; --r-lg:20px; --r-full:999px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);font-family:"Segoe UI Variable","Malgun Gothic","Apple SD Gothic Neo",-apple-system,sans-serif;color:var(--ink);font-size:14px;line-height:1.5}
+  .wrap{max-width:1480px;margin:0 auto;padding:32px 28px 80px}
+  h1{font-size:28px;margin:0 0 4px;letter-spacing:-0.02em}
+  h2{font-size:20px;margin:48px 0 4px;letter-spacing:-0.01em}
+  h2 .num{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;background:var(--ink);color:#fff;margin-right:10px;font-size:14px;vertical-align:middle}
+  h3{font-size:15px;margin:0 0 8px}
+  .lede{color:var(--sub);max-width:980px;margin:8px 0 28px}
+  .meta-row{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 28px}
+  .meta-chip{padding:4px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12px;color:var(--sub)}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:16px 0 8px}
+  .pair > .col{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow)}
+  .col h3{display:flex;align-items:center;gap:8px;margin:0 0 12px}
+  .tag{font-size:11px;padding:3px 8px;border-radius:999px;letter-spacing:.04em;text-transform:uppercase;font-weight:700}
+  .tag.before{background:var(--bad);color:var(--bad-ink)}
+  .tag.after{background:var(--ok);color:var(--ok-ink)}
+
+  /* mockup canvas — emulates a 1300x720 region of the desktop app */
+  .canvas{position:relative;width:100%;aspect-ratio:1300/720;border-radius:10px;background:linear-gradient(180deg,#f7f7f8,#eff0f2);border:1px solid var(--line);overflow:hidden}
+  .canvas .grid{position:absolute;inset:0;display:grid;gap:10px;padding:10px}
+  /* shell layouts */
+  .shell-before{grid-template-columns:230px 1fr 280px;grid-template-rows:96px 1fr}
+  .shell-after{grid-template-columns:64px 1fr 280px;grid-template-rows:54px 1fr}
+  .area{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px;overflow:hidden}
+  .top{grid-column:1/-1}
+  .left{grid-column:1}
+  .main{grid-column:2}
+  .right{grid-column:3}
+
+  /* TOPBAR — before */
+  .topbar-before{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
+  .brand .eyebrow{font-size:9px;color:var(--sub);letter-spacing:.18em;text-transform:uppercase;margin-bottom:2px}
+  .brand h1{font-size:18px;letter-spacing:-0.04em;margin:0}
+  .brand p{margin:2px 0 0;color:var(--sub);font-size:11px}
+  .page-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line);border-radius:14px;background:rgba(17,18,20,.04)}
+  .page-chip .ico{width:28px;height:28px;border-radius:9px;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:14px}
+  .page-chip strong{font-size:12px}
+  .page-chip span{font-size:10px;color:var(--sub)}
+  .toolbar{display:flex;gap:6px;align-items:center}
+  .icon-btn{width:30px;height:30px;border-radius:999px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;font-size:12px;color:var(--ink)}
+  .zoom-pill{padding:4px 10px;border-radius:999px;background:var(--warn-info);color:var(--warn-info-ink);font-size:11px;font-weight:700}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--ink)}
+
+  /* TOPBAR — after */
+  .topbar-after{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center}
+  .topbar-after .brand h1{font-size:14px}
+  .topbar-after .brand .eyebrow{display:none}
+  .topbar-after .brand p{display:none}
+  .crumb{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--sub)}
+  .crumb b{color:var(--ink)}
+  .crumb .arrow{opacity:.4}
+  .engine-pill{display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--ok);color:var(--ok-ink);font-size:11px;font-weight:600}
+  .engine-pill .d{width:6px;height:6px;border-radius:50%;background:var(--ok-ink)}
+
+  /* LEFT NAV — before (3x3 grid + session list) */
+  .nav-before{display:grid;grid-template-rows:auto 1fr;gap:8px;height:100%}
+  .nav-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .nav-tile{display:grid;justify-items:center;gap:4px;padding:8px 4px;border-radius:12px;background:rgba(17,18,20,.04);font-size:9px;text-align:center;line-height:1.1}
+  .nav-tile .ic{width:18px;height:18px;border-radius:6px;background:var(--ink);color:#fff;display:grid;place-items:center;font-size:10px}
+  .nav-tile.active{background:var(--ink);color:#fff}
+  .nav-tile.active .ic{background:#fff;color:var(--ink)}
+  .session-rail{border:1px solid var(--line);border-radius:12px;padding:10px;background:#fff;display:grid;gap:8px;overflow:hidden}
+  .session-rail .head{display:flex;justify-content:space-between;align-items:center}
+  .session-rail .head strong{font-size:12px}
+  .session-rail .head .badge{background:var(--warn-info);color:var(--warn-info-ink);padding:2px 8px;border-radius:999px;font-size:9px}
+  .session-rail p{margin:0;font-size:10px;color:var(--sub)}
+  .session-rail .item{padding:6px 8px;border-radius:8px;background:rgba(17,18,20,.04);font-size:10px}
+  .session-rail .item.sel{background:rgba(31,107,85,.10);border:1px solid rgba(31,107,85,.24)}
+
+  /* LEFT NAV — after (slim icon rail) */
+  .nav-after{display:grid;grid-template-rows:repeat(8,auto);gap:4px;padding:6px 0;justify-items:center;height:100%}
+  .nav-after .slim{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;color:var(--ink);font-size:18px;position:relative}
+  .nav-after .slim.active{background:var(--ink);color:#fff}
+  .nav-after .slim .lbl{position:absolute;bottom:-2px;font-size:8px;line-height:1}
+  .nav-after .sep{width:24px;height:1px;background:var(--line);margin:4px 0}
+
+  /* RIGHT pane shared */
+  .right-pane{display:grid;gap:8px;overflow:hidden}
+  .ctx-tabs{display:flex;gap:4px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .ctx-tabs .t{width:28px;height:28px;border-radius:8px;background:rgba(17,18,20,.06);display:grid;place-items:center;font-size:11px;color:var(--sub)}
+  .ctx-tabs .t.active{background:var(--ink);color:#fff}
+  .ctx-tabs.with-labels{flex-wrap:wrap}
+  .ctx-tabs.with-labels .t{width:auto;padding:0 10px;font-size:11px;color:var(--ink);background:rgba(17,18,20,.06)}
+  .ctx-tabs.with-labels .t.active{background:var(--ink);color:#fff}
+  .ctx-card{border:1px solid var(--line);border-radius:12px;padding:10px}
+  .ctx-card h4{margin:0 0 6px;font-size:12px}
+  .ctx-card .kv{font-size:11px;color:var(--sub);display:grid;gap:2px}
+  .ctx-card .kv b{color:var(--ink);font-weight:600}
+  .ctx-card.muted{background:rgba(17,18,20,.03)}
+
+  /* CHAT — center */
+  .chat-before, .chat-after{display:grid;grid-template-rows:auto 1fr auto;gap:8px;height:100%}
+  .session-head{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+  .session-head h4{margin:0;font-size:14px}
+  .conn-bar{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:rgba(17,18,20,.03);font-size:10px}
+  .conn-bar .btn,.conn-bar select,.conn-bar .pill{padding:4px 8px;border-radius:8px;background:#fff;border:1px solid var(--line)}
+  .conn-bar .btn.primary{background:var(--ink);color:#fff;border:0}
+  .conn-bar .pill.warn{background:var(--warn-info);color:var(--warn-info-ink);border:0}
+  .conn-bar-after{display:flex;gap:8px;align-items:center;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:11px}
+  .conn-bar-after .summary{color:var(--sub)}
+  .conn-bar-after .summary b{color:var(--ink)}
+  .conn-bar-after .right-acts{margin-left:auto;display:flex;gap:6px}
+  .conn-bar-after button{font-size:11px;padding:4px 10px;border-radius:8px;background:#fff;border:1px solid var(--line2);color:var(--ink)}
+  .conn-bar-after button.primary{background:var(--accent);color:#fff;border:0}
+
+  .msg-scroll{overflow:auto;padding:8px 4px;display:grid;gap:10px;align-content:start}
+  .msg{max-width:88%}
+  .msg.user{justify-self:end}
+  .bubble{padding:8px 12px;border-radius:14px;background:var(--bubble-user);color:var(--bubble-user-ink);font-size:11px}
+  .bubble.user-after{background:rgba(31,107,85,.12);color:var(--ink);border:1px solid rgba(31,107,85,.24);border-radius:14px 14px 4px 14px}
+  .asst-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;font-size:11px;display:grid;gap:6px}
+  .asst-card .eyebrow{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--sub);display:flex;justify-content:space-between}
+  .asst-card .eyebrow .time{background:var(--warn-info);color:var(--warn-info-ink);padding:2px 6px;border-radius:999px;font-size:9px}
+  .asst-card .meta-line{color:var(--sub);font-size:10px}
+  .asst-card .body{font-size:11px}
+  .asst-card .body h5{margin:6px 0 2px;font-size:11px}
+  .asst-card .body ul{margin:0;padding-left:14px;font-size:10px}
+  .evidence-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding-top:6px;border-top:1px solid var(--line)}
+  .evidence-cell{padding:6px;border-radius:8px;background:rgba(31,107,85,.06)}
+  .evidence-cell .lbl{font-size:9px;color:var(--sub);letter-spacing:.04em;text-transform:uppercase}
+  .evidence-cell .val{font-size:12px;font-weight:600;color:var(--accent-strong)}
+  .evidence-cell .cap{font-size:9px;color:var(--sub)}
+  .evidence-cell.warn{background:var(--warn-info)}
+  .evidence-cell.warn .val{color:var(--warn-info-ink)}
+  .composer{border:1px solid var(--line);border-radius:14px;background:#fff;padding:8px 10px;display:grid;grid-template-rows:auto auto;gap:6px}
+  .composer .ta{height:34px;background:rgba(17,18,20,.03);border-radius:8px;display:flex;align-items:center;color:var(--sub);padding:0 8px;font-size:11px}
+  .composer .row{display:flex;justify-content:space-between;align-items:center}
+  .composer .row .ctrls{display:flex;gap:6px}
+  .composer .row .ctrls .b{padding:4px 8px;border:1px solid var(--line);border-radius:8px;font-size:10px;background:#fff}
+  .composer .row .send{padding:6px 14px;border-radius:8px;background:var(--ink);color:#fff;font-size:11px;border:0;font-weight:600}
+  .composer.after .send{background:var(--accent)}
+  .composer.after .ta{height:58px;align-items:flex-start;padding-top:8px}
+
+  /* SCHEDULE */
+  .sched-canvas{display:grid;grid-template-rows:auto 1fr;gap:8px;height:100%}
+  .sched-top{display:flex;justify-content:space-between;align-items:center}
+  .sched-top h4{margin:0;font-size:14px}
+  .sched-top .controls{display:flex;gap:6px}
+  .sched-top .controls .b{padding:4px 10px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:11px}
+  .sched-top .controls .b.active{background:var(--ink);color:#fff;border:0}
+
+  .week-before{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .week-before .day{border:1px solid var(--line);border-radius:8px;padding:8px;font-size:10px;background:#fff;min-height:230px;display:grid;align-content:start;gap:4px}
+  .week-before .day h6{margin:0;font-size:11px;color:var(--sub)}
+  .week-before .day .date{font-weight:700}
+  .week-before .day.empty{color:var(--sub);font-size:9px}
+  .week-before .day .ev{background:rgba(17,18,20,.04);border-radius:6px;padding:4px 6px;font-size:9px}
+  .week-before .day.selected{border-color:var(--ink)}
+
+  /* week after — real time grid */
+  .week-after{display:grid;grid-template-columns:48px repeat(7,1fr);gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;height:280px}
+  .week-after .corner{border-bottom:1px solid var(--line);border-right:1px solid var(--line);font-size:9px;color:var(--sub);padding:6px;text-align:right}
+  .week-after .head-cell{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:6px;font-size:10px}
+  .week-after .head-cell:last-child{border-right:0}
+  .week-after .head-cell .d{font-size:9px;color:var(--sub)}
+  .week-after .head-cell .n{font-weight:700;font-size:14px}
+  .week-after .head-cell.today .n{color:var(--accent-strong)}
+  .week-after .time-col{border-right:1px solid var(--line);font-size:9px;color:var(--sub);padding:4px 4px 0;text-align:right;line-height:1}
+  .week-after .time-col .h{height:34px;display:flex;justify-content:flex-end;align-items:flex-start;border-top:1px solid var(--line)}
+  .week-after .time-col .h:first-child{border-top:0}
+  .week-after .day-col{border-right:1px solid var(--line);position:relative}
+  .week-after .day-col:last-child{border-right:0}
+  .week-after .day-col .hour{height:34px;border-top:1px solid var(--line)}
+  .week-after .day-col .hour:first-child{border-top:0}
+  .week-after .event{position:absolute;left:3px;right:3px;background:rgba(31,107,85,.16);border-left:3px solid var(--accent);border-radius:6px;padding:3px 5px;font-size:9px;color:var(--accent-strong);line-height:1.2;overflow:hidden}
+  .week-after .event b{font-weight:700}
+  .week-after .now-line{position:absolute;left:0;right:0;height:1px;background:var(--bad-ink);z-index:5}
+  .week-after .now-line::before{content:"";position:absolute;left:-3px;top:-3px;width:7px;height:7px;background:var(--bad-ink);border-radius:50%}
+
+  /* KNOWLEDGE */
+  .know-before, .know-after{display:grid;grid-template-rows:auto auto 1fr;gap:8px;height:100%}
+  .know-stats{display:flex;flex-wrap:wrap;gap:4px;font-size:9px}
+  .know-stats span{padding:2px 8px;border-radius:999px;background:var(--warn-info);color:var(--warn-info-ink)}
+  .know-stats.after span{background:rgba(31,107,85,.10);color:var(--accent-strong);font-weight:600}
+  .graph{border:1px solid var(--line);border-radius:10px;background:radial-gradient(circle at 70% 60%, rgba(31,107,85,.10), transparent 60%) #fff;min-height:140px;position:relative}
+  .graph .node{position:absolute;border-radius:50%;background:var(--accent);opacity:.5}
+  .graph .node.big{width:42px;height:42px;right:30%;top:38%;opacity:.85}
+  .graph .node.s1{width:10px;height:10px;left:20%;top:30%}
+  .graph .node.s2{width:14px;height:14px;left:30%;top:60%}
+  .graph .node.s3{width:8px;height:8px;left:55%;top:20%}
+  .graph .node.s4{width:6px;height:6px;left:75%;top:75%}
+  .know-tabs{display:flex;gap:6px}
+  .know-tabs .tab{padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:11px;color:var(--ink)}
+  .know-tabs .tab.active{background:var(--ink);color:#fff;border:0}
+  .know-tabs.before .tab{padding:12px 14px;min-width:140px}
+  .know-tabs.before{flex-wrap:nowrap;overflow:auto}
+
+  /* DOCUMENTS */
+  .doc-before, .doc-after{display:grid;grid-template-rows:auto auto 1fr;gap:8px;height:100%}
+  .doc-before .radios, .doc-before .form, .doc-before .notice{padding:8px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:11px}
+  .doc-before .radios{display:grid;gap:6px}
+  .doc-before .radios .row{display:flex;justify-content:space-between;align-items:center}
+  .doc-before .radios .row .dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--line2);background:#fff}
+  .doc-before .radios .row.sel .dot{background:var(--ink);border-color:var(--ink)}
+  .doc-before .notice{background:var(--warn-info);color:var(--warn-info-ink)}
+  .doc-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .doc-cards .c{border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;font-size:10px}
+  .doc-cards .c .head{display:flex;justify-content:space-between;font-size:9px;color:var(--sub)}
+  .doc-cards .c h6{margin:4px 0 2px;font-size:11px}
+  .doc-cards.before{overflow-x:auto}
+  .doc-before .cards-overflow{position:relative}
+  .doc-before .cards-overflow::after{content:"가로 스크롤바";position:absolute;left:0;right:0;bottom:-12px;height:4px;background:rgba(17,18,20,.2);border-radius:2px}
+
+  .doc-after .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:11px}
+  .doc-after .seg .opt{flex:1;padding:10px;text-align:center;background:#fff;cursor:pointer}
+  .doc-after .seg .opt.sel{background:var(--ink);color:#fff}
+  .doc-after .form{padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:11px}
+  .doc-after .form .field{display:grid;gap:4px}
+  .doc-after .form label{font-size:10px;color:var(--sub)}
+  .doc-after .form .input{padding:6px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:11px;color:var(--sub)}
+  .doc-after .form .field.col-span{grid-column:1/-1}
+  .doc-after .output-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .doc-after .output-card{border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;display:grid;gap:4px;font-size:11px}
+  .doc-after .output-card.sel{border-color:var(--accent);background:rgba(31,107,85,.06)}
+  .doc-after .output-card .badge{font-size:9px;color:var(--sub)}
+  .doc-after .output-card h6{margin:0;font-size:12px}
+  .doc-after .output-card p{margin:0;font-size:10px;color:var(--sub)}
+
+  /* EXECUTION LOG */
+  .log-before .item{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;margin-bottom:8px;font-size:11px;display:grid;grid-template-columns:1fr auto;gap:6px}
+  .log-before .item h6{margin:0;font-size:12px}
+  .log-before .item p{margin:4px 0 0;color:var(--sub);font-size:10px}
+  .log-before .item .ts{color:var(--sub);font-size:10px;margin-top:6px}
+  .log-before .item .ok{background:var(--ok);color:var(--ok-ink);padding:2px 8px;border-radius:999px;font-size:9px;justify-self:end;align-self:start}
+  .log-before .item button{margin-top:6px;padding:4px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:10px;color:var(--ink);align-self:end;justify-self:start;grid-column:1/-1}
+
+  .log-after .filter{display:flex;gap:6px;margin-bottom:8px;font-size:10px}
+  .log-after .filter .chip{padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--sub)}
+  .log-after .filter .chip.active{background:var(--ink);color:#fff;border:0}
+  .log-after .row{display:grid;grid-template-columns:80px 1fr auto auto;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#fff;margin-bottom:4px;font-size:11px;cursor:pointer}
+  .log-after .row:hover{background:rgba(17,18,20,.03)}
+  .log-after .row .ts{color:var(--sub);font-size:10px}
+  .log-after .row .ts b{display:block;color:var(--ink)}
+  .log-after .row .what{font-weight:600}
+  .log-after .row .what em{font-style:normal;color:var(--sub);font-weight:400;font-size:10px;margin-left:6px}
+  .log-after .row .ok{background:var(--ok);color:var(--ok-ink);padding:1px 7px;border-radius:999px;font-size:9px}
+  .log-after .row .chev{color:var(--sub);font-size:14px}
+
+  /* TOKENS */
+  .token-row{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .token-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+  .token-card h4{margin:0 0 8px;font-size:13px}
+  .swatch{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:11px}
+  .swatch .s{width:28px;height:28px;border-radius:8px;border:1px solid var(--line)}
+  .rads{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .rads .r{width:48px;height:48px;background:rgba(17,18,20,.06);display:grid;place-items:center;font-size:10px;color:var(--ink)}
+
+  .note{font-size:11px;color:var(--sub);margin:6px 0 0}
+  .legend{display:flex;gap:8px;margin:0 0 16px}
+  .legend .l{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub)}
+  .legend .l .d{width:10px;height:10px;border-radius:50%}
+  .legend .before .d{background:var(--bad-ink)}
+  .legend .after .d{background:var(--ok-ink)}
+
+  /* annotations */
+  .annot{font-size:11px;color:var(--sub);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .annot b{color:var(--ink)}
+  .annot ul{margin:6px 0 0;padding-left:18px}
+  .annot li{margin-bottom:3px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>로컬 AI에이전트 워크플레이스 : 공무원 — UI 개선 Before/After 시안</h1>
+  <p class="lede">2026-05-26 라이브 dev 환경(http://127.0.0.1:5173 + sidecar 8765)을 기준으로 검토한 6개 화면 + 글로벌 셸 + 디자인 토큰의 Before/After 비교 시안. 실제 코드는 변경하지 않았으며, 채택 여부 결정용으로 작성됨. 자세한 진단은 <a href="2026-05-26-ui-improvement-plan.md">개선 계획서</a> 참조.</p>
+  <div class="legend">
+    <div class="l before"><span class="d"></span>왼쪽 = 현재 화면 (Before)</div>
+    <div class="l after"><span class="d"></span>오른쪽 = 개선 시안 (After)</div>
+  </div>
+  <div class="meta-row">
+    <span class="meta-chip">대상: Tauri + React 19 데스크톱 앱</span>
+    <span class="meta-chip">기준 해상도: 1440 × 900</span>
+    <span class="meta-chip">시안 방식: 정적 HTML/CSS mockup (실제 컴포넌트 미수정)</span>
+    <span class="meta-chip">우선순위: P0(글로벌 셸 · 업무대화 · 일정) → P1(컨텍스트 패널 · 지식폴더 · 문서작성) → P2(실행기록 · 파일찾기 · 토큰)</span>
+  </div>
+
+  <!-- =========================================================
+       1. GLOBAL SHELL
+       ========================================================= -->
+  <h2><span class="num">1</span>글로벌 셸 — 상단 / 좌측 nav / 우측 컨텍스트</h2>
+  <p class="lede">상단 브랜드 카드가 모든 화면에서 110px을 차지하고, 좌측 3x3 메뉴 + 대화세션 리스트는 화면이 바뀌어도 유지된다. 본문 영역이 좁고, "지금 무슨 화면인지"가 빠르게 안 잡힌다.</p>
+
+  <div class="pair">
+    <div class="col">
+      <h3><span class="tag before">Before</span> 현재</h3>
+      <div class="canvas">
+        <div class="grid shell-before">
+          <div class="area top">
+            <div class="topbar-before">
+              <div class="brand">
+                <div class="eyebrow">공공분야 사무업무자를 위한 보안 걱정 없는 로컬 우선 업무공간</div>
+                <h1>로컬 AI에이전트 워크플레이스 : 공무원</h1>
+                <p>대화에서 시작해 일정·검색·지식·문서작성·실행기록까지 한 워크플로로 묶습니다.</p>
+              </div>
+              <div class="page-chip">
+                <div class="ico">💬</div>
+                <div><strong>업무대화</strong><br><span>업무 요청 라우터</span></div>
+              </div>
+              <div class="toolbar">
+                <div class="icon-btn">−</div>
+                <div class="zoom-pill">100%</div>
+                <div class="icon-btn">+</div>
+                <div class="icon-btn">⟳</div>
+                <div class="icon-btn">▣</div>
+                <div class="dot"></div>
+              </div>
+            </div>
+          </div>
+          <div class="area left">
+            <div class="nav-before">
+              <div class="nav-grid">
+                <div class="nav-tile active"><div class="ic">💬</div>업무대화</div>
+                <div class="nav-tile"><div class="ic">📅</div>일정</div>
+                <div class="nav-tile"><div class="ic">🔎</div>파일찾기</div>
+                <div class="nav-tile"><div class="ic">📝</div>문서작성</div>
+                <div class="nav-tile"><div class="ic">🗂</div>내 지식폴더</div>
+                <div class="nav-tile"><div class="ic">🧹</div>파일정리</div>
+                <div class="nav-tile"><div class="ic">🔧</div>도구</div>
+                <div class="nav-tile"><div class="ic">📜</div>실행기록</div>
+                <div class="nav-tile"><div class="ic">⚙</div>기타<br>환경설정</div>
+              </div>
+              <div class="session-rail">
+                <div class="head"><strong>대화 세션</strong><div class="badge">63/63개 세션</div></div>
+                <p>왼쪽은 세션을 고르는 곳입니다…</p>
+                <div class="item sel"><b>lightweight routing evidence utf8</b><br><span style="color:var(--sub)">독립 업무 세션 · 12개 메시지</span></div>
+                <div class="item">routing-debug</div>
+                <div class="item">목표 검증 세션</div>
+              </div>
+            </div>
+          </div>
+          <div class="area main" style="display:flex;align-items:center;justify-content:center;color:var(--sub)">
+            <span>본문 — 이 영역은 1440px 화면에서 가용 너비의 53%만 차지</span>
+          </div>
+          <div class="area right">
+            <div class="right-pane">
+              <div class="ctx-tabs">
+                <div class="t active">📄</div><div class="t">✅</div><div class="t">📜</div>
+                <div class="t">🗓</div><div class="t">👁</div><div class="t">📑</div>
+              </div>
+              <div class="ctx-card">
+                <h4>선택 상태</h4>
+                <div class="kv">
+                  <div>선택 일정: <b>test</b></div>
+                  <div>선택 세션: <b>lightweight routing evidence utf8</b></div>
+                  <div>선택 ReferenceSet: <b>files</b></div>
+                </div>
+              </div>
+              <div class="ctx-card muted">
+                <h4>승인 요청</h4>
+                <div class="kv">대기 중인 승인이 없습니다.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot">
+        <b>관찰</b>
+        <ul>
+          <li>상단 6단계 위계(eyebrow · 제목 · tagline · 페이지 칩 · 줌 컨트롤 · 신호등) → 본문이 받는 vertical 공간이 줄어듬</li>
+          <li>좌측 9개 nav 타일이 동일 무게로 표시 — 자주 안 쓰는 도구/파일정리/기타환경설정이 자주 쓰는 업무대화와 동급</li>
+          <li>대화세션 리스트는 업무대화 외 화면에서도 좌측 절반을 점유 (현재 화면이 일정이어도 동일)</li>
+          <li>우측 6개 탭 아이콘에 라벨 없음 → 호버 안 하면 의미 모름 (WCAG 2.4.6 미달)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <h3><span class="tag after">After</span> 개선 시안</h3>
+      <div class="canvas">
+        <div class="grid shell-after">
+          <div class="area top" style="padding:0 12px;display:flex;align-items:center">
+            <div class="topbar-after" style="flex:1">
+              <div class="brand"><h1>공무원 워크플레이스</h1></div>
+              <div class="crumb"><b>업무대화</b><span class="arrow">›</span>lightweight routing evidence utf8</div>
+              <div style="display:flex;gap:6px;align-items:center">
+                <div class="engine-pill"><span class="d"></span>업무엔진 정상</div>
+                <div class="icon-btn">⟳</div>
+                <div class="icon-btn">100%</div>
+                <div class="icon-btn">▣</div>
+              </div>
+            </div>
+          </div>
+          <div class="area left" style="padding:0">
+            <div class="nav-after">
+              <div class="slim active">💬</div>
+              <div class="slim">📅</div>
+              <div class="slim">🔎</div>
+              <div class="slim">📝</div>
+              <div class="slim">🗂</div>
+              <div class="sep"></div>
+              <div class="slim">📜</div>
+              <div class="slim">⚙</div>
+            </div>
+          </div>
+          <div class="area main" style="display:flex;align-items:center;justify-content:center;color:var(--sub)">
+            <span style="text-align:center">본문이 가용 너비 65% 사용<br><small>좌측 64px + 우측 280px + 본문</small></span>
+          </div>
+          <div class="area right">
+            <div class="right-pane">
+              <div class="ctx-tabs with-labels">
+                <div class="t active">컨텍스트</div>
+                <div class="t">근거 (3)</div>
+                <div class="t">승인</div>
+                <div class="t">작업</div>
+              </div>
+              <div class="ctx-card">
+                <h4>이 세션이 쓸 자원</h4>
+                <div class="kv">
+                  <div>지식폴더: <b>4개 / 본문 21건</b></div>
+                  <div>연결 파일: <b>0개</b></div>
+                  <div>연결 일정: <b>test (4/22 09:00)</b></div>
+                  <div>ReferenceSet: <b>files</b></div>
+                </div>
+              </div>
+              <div class="ctx-card muted">
+                <h4>다음 액션</h4>
+                <div class="kv">대기 중 승인 없음 · 최근 작업 0건</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot">
+        <b>개선점</b>
+        <ul>
+          <li>상단을 54px로 슬림화 — 브랜드/브레드크럼/엔진 상태만 한 줄로 (~56px 절약)</li>
+          <li>좌측을 64px 슬림 nav로 축소. 자주 안 쓰는 메뉴(도구/파일정리/환경설정)는 구분선 아래로 그룹핑</li>
+          <li>대화세션 리스트는 <b>업무대화 화면 안의 좌측 컬럼으로 이동</b> (다른 화면에서는 보이지 않음)</li>
+          <li>우측 컨텍스트 패널 탭에 라벨 표시. 카드 내용을 "이 세션이 쓸 자원"으로 의미화 → 사용자가 "내가 지금 모델에게 뭘 주고 있는지" 즉시 파악</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       2. CHAT
+       ========================================================= -->
+  <h2><span class="num">2</span>업무대화 — 응답 evidence + 컴포저</h2>
+  <p class="lede">현재 답변에는 "응답 11.6초"와 "gongmu-skill / intent.plan, schedule.create, knowledge.search" 메타가 따로 떨어져 있고, 첨부/검색 사용 여부가 한 눈에 안 들어온다. 연결 컨트롤이 메시지와 입력 사이에 끼어 흐름을 끊는다.</p>
+
+  <div class="pair">
+    <div class="col">
+      <h3><span class="tag before">Before</span> 현재</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:36px 1fr">
+          <div class="area top" style="padding:6px 10px;display:flex;align-items:center">
+            <h4 style="margin:0;font-size:13px">lightweight routing evidence utf8</h4>
+          </div>
+          <div class="area main" style="overflow:hidden">
+            <div class="chat-before">
+              <div class="msg-scroll" style="max-height:280px">
+                <div class="msg user">
+                  <div class="bubble">내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘</div>
+                </div>
+                <div style="font-size:9px;color:var(--sub);letter-spacing:.18em;text-transform:uppercase;display:flex;justify-content:space-between">
+                  <span>Assistant</span>
+                  <span class="zoom-pill" style="font-size:9px">응답 3.3초</span>
+                </div>
+                <div style="font-size:10px;color:var(--sub);margin-top:-6px">gongmu-skill / intent.plan, schedule.create, knowledge.search</div>
+                <div style="font-size:11px">요청을 여러 작업으로 나누어 순서대로 처리했습니다.</div>
+                <h5 style="margin:6px 0 2px;font-size:11px">일정 등록</h5>
+                <ul style="margin:0;padding-left:14px;font-size:10px"><li>제목: 회의</li><li>시간: 2026-05-26T14:00 ~ 15:00</li></ul>
+                <h5 style="margin:6px 0 2px;font-size:11px">지식폴더 검색</h5>
+                <div style="font-size:10px">GraphRAG 검색 결과입니다.</div>
+              </div>
+              <div class="conn-bar">
+                <span style="color:var(--sub)">연결 일정</span>
+                <select><option>test</option></select>
+                <span class="btn primary">선택 일정과 연결</span>
+                <span class="btn">파일 연결</span>
+                <span class="btn">문서작성으로 이어가기</span>
+                <span class="pill warn">연결 파일 0개</span>
+                <span class="btn">이 세션 지식 반영</span>
+              </div>
+              <div class="composer">
+                <div class="ta">코덱스처럼 자유롭게 업무 메모, 지시, 다음 액션을 적어보세요.</div>
+                <div class="row">
+                  <div class="ctrls"><span class="b">+</span><span class="b">⋯ 세부 설정</span></div>
+                  <button class="send" style="background:rgba(17,18,20,.45)">보내기</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>관찰</b>
+        <ul>
+          <li>응답 메타가 3곳에 분산: eyebrow(`ASSISTANT`) · provider(skill 콤마 라인) · 응답시간 알약</li>
+          <li>"근거 GraphRAG 사용" 같은 흔적은 본문 글머리에 묻혀 있음 — 답변 카드 외곽에 표시되어야 신뢰감 ↑</li>
+          <li>연결 컨트롤 6개가 메시지/입력 사이에 — 매 턴마다 시야를 가로지름</li>
+          <li>"보내기" 버튼이 입력 비어있을 때 회색이라 secondary처럼 보임</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <h3><span class="tag after">After</span> 개선 시안</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:46px 1fr">
+          <div class="area top" style="padding:6px 10px">
+            <div class="conn-bar-after">
+              <div class="summary"><b>lightweight routing evidence utf8</b> · 일정 <b>test</b> · 파일 <b>0</b> · 지식 <b>21건</b></div>
+              <div class="right-acts">
+                <button>파일 추가</button>
+                <button>문서작성으로 →</button>
+              </div>
+            </div>
+          </div>
+          <div class="area main" style="overflow:hidden">
+            <div class="chat-after">
+              <div class="msg-scroll" style="max-height:330px">
+                <div class="msg user">
+                  <div class="bubble user-after">내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘</div>
+                </div>
+                <div class="asst-card">
+                  <div class="eyebrow"><span>응답 · featherless / gemma-4-E2B</span><span class="time">3.3초</span></div>
+                  <div class="body">
+                    <div>요청을 일정 등록과 지식 검색 두 작업으로 나누어 처리했습니다.</div>
+                    <h5>일정 등록</h5>
+                    <ul><li>제목: 회의 / 시간: 5/27 (수) 14:00–15:00</li></ul>
+                    <h5>지식폴더 검색</h5>
+                    <ul><li>2건 발견 — Prompt Engineering Beginner, claude-master-guide</li></ul>
+                  </div>
+                  <div class="evidence-strip">
+                    <div class="evidence-cell"><div class="lbl">스킬</div><div class="val">3</div><div class="cap">plan · schedule · search</div></div>
+                    <div class="evidence-cell"><div class="lbl">근거</div><div class="val">2</div><div class="cap">GraphRAG 출처</div></div>
+                    <div class="evidence-cell"><div class="lbl">연결파일</div><div class="val">0</div><div class="cap">첨부 없음</div></div>
+                    <div class="evidence-cell warn"><div class="lbl">승인</div><div class="val">1</div><div class="cap">일정 등록 확인 필요</div></div>
+                  </div>
+                </div>
+              </div>
+              <div class="composer after">
+                <div class="ta">메시지를 입력하세요. ⌘+Enter 로 전송</div>
+                <div class="row">
+                  <div class="ctrls"><span class="b">📎</span><span class="b">🖼</span><span class="b">⋯ 모델</span></div>
+                  <button class="send">보내기</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>개선점</b>
+        <ul>
+          <li><b>세션 메타바</b>를 상단으로 이동 — 한 줄에 "세션 · 일정 · 파일 · 지식" 요약 + 2개 핵심 액션만 노출</li>
+          <li>어시스턴트 응답을 <b>evidence 카드</b>로: 모델/응답시간을 한 줄에, 본문 아래 4-cell evidence-strip(스킬·근거·연결파일·승인)로 정량 표시</li>
+          <li>사용자 버블을 <b>brand 색 라이트 톤</b>으로 변경 — 검정 단색 대비 시각적 무게 ↓</li>
+          <li>컴포저 영역을 2배로 키워 멀티라인 입력을 시각적으로 유도. 보내기 = brand 그린 (accent 통일)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       3. SCHEDULE
+       ========================================================= -->
+  <h2><span class="num">3</span>일정 — 주간 보기에 시간축 도입</h2>
+  <p class="lede">현재 주간 보기에는 시간축이 없고, 각 요일이 "이벤트 텍스트 리스트"로 표현된다. 캘린더가 아니라 day-wise 리스트가 되어버려, 같은 시간대 이벤트나 길이를 직관적으로 볼 수 없다.</p>
+
+  <div class="pair">
+    <div class="col">
+      <h3><span class="tag before">Before</span> 현재</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:42px 1fr">
+          <div class="area top">
+            <div class="sched-top">
+              <h4>업무일정 캘린더 <small style="color:var(--sub)">· 현재 보기 주 · 4/19–4/25</small></h4>
+              <div class="controls">
+                <span class="b">월</span><span class="b active">주</span><span class="b">일</span>
+                <span class="b">‹ 이전</span><span class="b">오늘</span><span class="b">다음 ›</span>
+              </div>
+            </div>
+          </div>
+          <div class="area main" style="overflow:hidden">
+            <div class="week-before">
+              <div class="day"><h6>일</h6><div class="date">4/19</div><div class="empty">등록 일정 없음</div></div>
+              <div class="day"><h6>월</h6><div class="date">4/20</div><div class="empty">등록 일정 없음</div></div>
+              <div class="day"><h6>화</h6><div class="date">4/21</div><div class="empty">등록 일정 없음</div></div>
+              <div class="day selected"><h6>수</h6><div class="date">4/22</div>
+                <div class="ev">4월 22일 오전 0…</div>
+                <div class="ev">test</div>
+                <div class="ev">test 작업</div>
+                <div class="ev">세션 연결 / 클릭해 일정 편집</div>
+              </div>
+              <div class="day"><h6>목</h6><div class="date">4/23</div>
+                <div class="ev">4월 23일 오전 0…</div>
+                <div class="ev">qhrhdd</div>
+                <div class="ev" style="background:rgba(17,18,20,.10)">독립 일정</div>
+              </div>
+              <div class="day"><h6>금</h6><div class="date">4/24</div><div class="empty">등록 일정 없음</div></div>
+              <div class="day"><h6>토</h6><div class="date">4/25</div><div class="empty">등록 일정 없음</div></div>
+            </div>
+            <div style="margin-top:10px;font-size:10px;color:var(--sub);font-style:italic">↑ 시간축 없음 · 이벤트 길이/겹침 표현 불가</div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>관찰</b>
+        <ul>
+          <li>주간 보기인데 시간축이 없음 → 09:00 회의와 17:00 미팅의 시각적 차이 없음</li>
+          <li>이벤트가 텍스트로만 표시되어 길이(예: 1시간 vs 종일)를 못 알아봄</li>
+          <li>요일 라벨이 두 줄(일/월/화… + 4/19/…) 중복</li>
+          <li>화면 하단에 같은 보기 토글이 "보기" 셀렉트로 또 있음 (중복)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <h3><span class="tag after">After</span> 개선 시안</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:42px 1fr">
+          <div class="area top">
+            <div class="sched-top">
+              <h4>업무일정 — 주간 · <b>5/24–5/30</b></h4>
+              <div class="controls">
+                <span class="b">월</span><span class="b active">주</span><span class="b">일</span>
+                <span class="b">‹</span><span class="b">오늘</span><span class="b">›</span>
+                <span class="b" style="background:var(--accent);color:#fff;border:0">+ 일정</span>
+              </div>
+            </div>
+          </div>
+          <div class="area main" style="overflow:hidden">
+            <div class="week-after">
+              <div class="corner">시간</div>
+              <div class="head-cell"><div class="d">일</div><div class="n">24</div></div>
+              <div class="head-cell"><div class="d">월</div><div class="n">25</div></div>
+              <div class="head-cell today"><div class="d">화 · 오늘</div><div class="n">26</div></div>
+              <div class="head-cell"><div class="d">수</div><div class="n">27</div></div>
+              <div class="head-cell"><div class="d">목</div><div class="n">28</div></div>
+              <div class="head-cell"><div class="d">금</div><div class="n">29</div></div>
+              <div class="head-cell"><div class="d">토</div><div class="n">30</div></div>
+
+              <div class="time-col">
+                <div class="h">09</div>
+                <div class="h">10</div>
+                <div class="h">11</div>
+                <div class="h">12</div>
+                <div class="h">13</div>
+                <div class="h">14</div>
+                <div class="h">15</div>
+              </div>
+              <div class="day-col"><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div></div>
+              <div class="day-col"><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div>
+                <div class="event" style="top:0;height:46px"><b>09:00</b> 팀 스탠드업</div>
+              </div>
+              <div class="day-col">
+                <div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div>
+                <div class="now-line" style="top:74px"></div>
+                <div class="event" style="top:34px;height:30px;background:rgba(31,107,85,.22)"><b>10:00</b> 자료 검토</div>
+                <div class="event" style="top:170px;height:34px"><b>14:00</b> 회의 (세션 연결)</div>
+              </div>
+              <div class="day-col">
+                <div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div>
+                <div class="event" style="top:0;height:240px;background:rgba(161,89,33,.16);border-left-color:#a15921;color:#7a4717"><b>전일</b><br>워크숍 출장</div>
+              </div>
+              <div class="day-col"><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div></div>
+              <div class="day-col"><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div>
+                <div class="event" style="top:170px;height:60px"><b>14:00–15:30</b> 부서장 보고</div>
+              </div>
+              <div class="day-col"><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div><div class="hour"></div></div>
+            </div>
+            <div style="margin-top:8px;font-size:10px;color:var(--sub)">↑ 시간축 + 이벤트 블록 길이 = 한눈에 일정 강도 파악 / 빨간 점선 = 지금 시각</div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>개선점</b>
+        <ul>
+          <li>시간축(09–18)을 좌측 열에 두고 이벤트를 <b>높이=길이, top=시작시간</b>으로 표시</li>
+          <li>전일 일정은 다른 색 + 위에서부터 종일 블록으로 표시</li>
+          <li>"지금 시각"을 빨간 가로선으로 시각화 (Google Calendar 메타포)</li>
+          <li>중복되던 "보기" 셀렉트 제거, 상단에 "+ 일정" primary action 통합</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       4. KNOWLEDGE FOLDER
+       ========================================================= -->
+  <h2><span class="num">4</span>내 지식폴더 — 탭 위치 + 외계어 정리</h2>
+  <p class="lede">현재 화면은 큰 그래프 카드가 위에, 탭은 아래에 있어 사용자가 "탭을 누른 후 위로 스크롤해서 그래프를 본다". 또한 상태 칩이 코드 식별자(<code>sqlite_graph_mirror 비활성</code>)로 노출된다.</p>
+
+  <div class="pair">
+    <div class="col">
+      <h3><span class="tag before">Before</span> 현재</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:1fr">
+          <div class="area main" style="overflow:hidden">
+            <div class="know-before">
+              <div class="know-stats">
+                <span>sqlite_graph_mirror 비활성</span>
+                <span>Vector 준비: 활성화 가능</span>
+                <span>Graph 준비: 활성화 가능</span>
+                <span>KORdoc: 준비됨</span>
+                <span>폴더 4</span><span>문서 23</span><span>본문 21</span>
+              </div>
+              <div class="graph">
+                <div class="node big"></div>
+                <div class="node s1"></div><div class="node s2"></div><div class="node s3"></div><div class="node s4"></div>
+              </div>
+              <div class="know-tabs before">
+                <div class="tab active"><b>설정/상태</b><br><small>폴더 등록, 스캔 상태, 원천 데이터 확인</small></div>
+                <div class="tab"><b>색인 처리</b><br><small>GraphRAG 인덱싱 진행률과 진단 로그</small></div>
+                <div class="tab"><b>GraphRAG 검색</b><br><small>생성된 근거와 관계 기반 검색</small></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>관찰</b>
+        <ul>
+          <li>탭이 그래프 아래에 위치 → "탭을 골랐는데 콘텐츠는 위로 스크롤해야 보임" — 정보 흐름 역전</li>
+          <li><code>sqlite_graph_mirror 비활성</code> 등 코드 식별자가 사용자 화면에 노출 — 폐쇄망 일반 사용자에게는 외계어</li>
+          <li>통계 칩 + 상태 칩이 같은 줄에 섞여있음 — 의미가 다른 정보(준비 상태 vs 카운트)가 같은 색</li>
+          <li>탭 카드가 가로 폭에 따라 잘림 (3번째 "GraphRAG 검색"이 잘리는 사례)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <h3><span class="tag after">After</span> 개선 시안</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:1fr">
+          <div class="area main" style="overflow:hidden">
+            <div class="know-after">
+              <div class="know-tabs" style="border-bottom:1px solid var(--line);padding-bottom:6px">
+                <div class="tab active">대시보드</div>
+                <div class="tab">색인/진단</div>
+                <div class="tab">검색/검증</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div>
+                  <div class="know-stats after">
+                    <span>폴더 4</span><span>문서 23</span><span>본문 21</span>
+                  </div>
+                  <div style="margin-top:8px;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:11px;background:#fff">
+                    <h6 style="margin:0 0 6px;font-size:12px">검색 준비 상태</h6>
+                    <div style="display:flex;gap:6px;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:50%;background:var(--ok-ink);display:inline-block;margin-top:4px"></span><div><b>한국어 문서 파서</b><br><span style="color:var(--sub);font-size:10px">준비됨 (PDF·HWPX·DOCX·XLSX)</span></div></div>
+                    <div style="display:flex;gap:6px;margin-bottom:4px"><span style="width:10px;height:10px;border-radius:50%;background:var(--warn-info-ink);display:inline-block;margin-top:4px"></span><div><b>의미 검색 (Vector)</b><br><span style="color:var(--sub);font-size:10px">활성화 가능 — 색인/진단 탭에서 시작</span></div></div>
+                    <div style="display:flex;gap:6px"><span style="width:10px;height:10px;border-radius:50%;background:var(--warn-info-ink);display:inline-block;margin-top:4px"></span><div><b>관계 검색 (Graph)</b><br><span style="color:var(--sub);font-size:10px">활성화 가능</span></div></div>
+                  </div>
+                </div>
+                <div class="graph">
+                  <div class="node big"></div>
+                  <div class="node s1"></div><div class="node s2"></div><div class="node s3"></div><div class="node s4"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>개선점</b>
+        <ul>
+          <li>탭을 <b>최상단</b>으로: 탭 → 콘텐츠라는 일반 패턴 회복</li>
+          <li>탭 라벨을 액션 중심으로: <b>대시보드 · 색인/진단 · 검색/검증</b> (이전: 설정/상태 · 색인 처리 · GraphRAG 검색 — 명사+동명사+영어 혼재)</li>
+          <li>상태 칩의 코드 식별자를 사용자 언어로 번역: "<code>sqlite_graph_mirror</code>" → "관계 검색 (Graph)", "Vector 준비" → "의미 검색"</li>
+          <li>상태와 통계 분리 — 좌측 카드에 신호등 형식 상태, 통계는 그래프 위 칩 한 줄</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       5. DOCUMENTS
+       ========================================================= -->
+  <h2><span class="num">5</span>문서작성 — 내부 코드명 제거 + 카드 그리드 반응형</h2>
+  <p class="lede">현재 화면에는 <code>PUBLIC-DOC-TO-HWPX 작성 원칙</code>이라는 내부 스킬 코드명이 사용자에게 그대로 노출되고, 4종 출력 카드가 가로 폭 부족으로 스크롤바를 만든다.</p>
+
+  <div class="pair">
+    <div class="col">
+      <h3><span class="tag before">Before</span> 현재</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:1fr">
+          <div class="area main" style="overflow:hidden">
+            <div class="doc-before">
+              <div class="radios">
+                <div class="row"><b>대화세션에서 작성</b><div class="dot"></div></div>
+                <div class="row sel"><b>바로 작성</b><div class="dot"></div></div>
+              </div>
+              <div class="notice">⚠ 세션 없이 바로 작성 · 작성 개요와 관련 파일 경로를 Content Base에 직접 남깁니다.</div>
+              <div class="notice" style="background:#fff5d6">PUBLIC-DOC-TO-HWPX 작성 원칙: 두괄식·개조식·한 문장 한 줄·적/의/것/들 정리</div>
+              <div class="cards-overflow">
+                <div class="doc-cards before">
+                  <div class="c"><div class="head"><span>HWPX</span><span>승인</span></div><h6>시행문</h6><span>수신·발신·관련·붙임이 필요한 공식 공문 흐름</span></div>
+                  <div class="c"><div class="head"><span>HWPX</span><span>승인</span></div><h6>1페이지 보고서</h6><span>의사결정자가 30초 안에 핵심을 읽도록 요약·쟁점·조치안을 압축</span></div>
+                  <div class="c"><div class="head"><span>HWPX</span><span>승인</span></div><h6>풀버전 보고서</h6><span>표·추진경과·결론까지 모두 담는 풀버전</span></div>
+                  <div class="c"><div class="head"><span>본문/HWPX</span><span>승인</span></div><h6>이메일</h6><span>외부에 회신할 수 있는 메일 본문</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>관찰</b>
+        <ul>
+          <li>"PUBLIC-DOC-TO-HWPX 작성 원칙"이라는 코드명이 노출 (사용자 화면 ≠ 내부 스킬 ID)</li>
+          <li>라디오 버튼이 라벨 행 오른쪽 끝에 떨어져 있어 시각 결합 약함</li>
+          <li>4종 카드가 1440px에서 잘림 → 가로 스크롤 발생</li>
+          <li>같은 노란 톤이 안내·정책·승인 칩에 동시에 쓰여 의미 구분이 약함</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <h3><span class="tag after">After</span> 개선 시안</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:1fr">
+          <div class="area main" style="overflow:hidden">
+            <div class="doc-after">
+              <div class="seg">
+                <div class="opt sel">대화세션에서 작성</div>
+                <div class="opt">바로 작성</div>
+              </div>
+              <div class="form">
+                <div class="field col-span"><label>문서 제목</label><div class="input">예: 2026 하반기 추진계획 보고</div></div>
+                <div class="field"><label>참조 자료</label><div class="input">files (3개)</div></div>
+                <div class="field"><label>보고 대상</label><div class="input">부서장</div></div>
+                <div class="field col-span"><label>핵심 메시지</label><div class="input" style="height:40px">목요일까지 결재 필요 — 예산 1.2억 / 시행 6월 / 위험요인 2건…</div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+                  <h6 style="margin:0;font-size:12px">출력 유형 선택</h6>
+                  <span style="font-size:10px;color:var(--sub)">공공기관 표준 양식 적용 · HWPX 자동 변환</span>
+                </div>
+                <div class="output-row">
+                  <div class="output-card sel">
+                    <div class="badge">HWPX · 추천</div>
+                    <h6>1페이지 보고서</h6>
+                    <p>의사결정자 30초 읽기 · 요약 + 쟁점 + 조치</p>
+                  </div>
+                  <div class="output-card">
+                    <div class="badge">HWPX</div>
+                    <h6>시행문</h6>
+                    <p>수신·발신·관련·붙임 공식 공문 흐름</p>
+                  </div>
+                  <div class="output-card">
+                    <div class="badge">HWPX</div>
+                    <h6>풀버전 보고서</h6>
+                    <p>표·추진경과·결론 풀버전</p>
+                  </div>
+                  <div class="output-card">
+                    <div class="badge">메일 본문</div>
+                    <h6>이메일</h6>
+                    <p>외부 회신용 본문 (HWPX 없음)</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>개선점</b>
+        <ul>
+          <li>내부 코드명 <code>PUBLIC-DOC-TO-HWPX</code> 카드 제거 — "공공기관 표준 양식 적용"이라는 사용자 언어로 1줄</li>
+          <li>라디오 → 세그먼티드 컨트롤로 변경 (선택 상태가 명확)</li>
+          <li>출력 유형 카드 = 1fr 4열 그리드 → 가로 스크롤 제거. 추천 1순위에 brand 강조</li>
+          <li>폼이 2-col 그리드로 정리, "핵심 메시지"가 풀폭으로 자연스럽게 길어짐</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       6. EXECUTION LOG
+       ========================================================= -->
+  <h2><span class="num">6</span>실행기록 — 카드 → 행 리스트 + 필터</h2>
+  <p class="lede">현재 한 행이 ~190px이고 모든 항목에 "...상세보기에서 확인할 수 있습니다" 보일러플레이트 + 큰 상세보기 버튼이 붙어 있어, 화면당 4–5건만 보인다.</p>
+
+  <div class="pair">
+    <div class="col">
+      <h3><span class="tag before">Before</span> 현재</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:1fr">
+          <div class="area main" style="overflow:auto">
+            <div class="log-before">
+              <div class="item">
+                <div><h6>일정 생성</h6><p>일정 생성 작업이 성공 상태로 기록되었습니다.<br>상세 입력과 출력은 상세보기에서 확인할 수 있습니다.</p><div class="ts">5월 26일 오전 10:34</div></div>
+                <span class="ok">성공</span>
+                <button>상세보기</button>
+              </div>
+              <div class="item">
+                <div><h6>일정 생성</h6><p>일정 생성 작업이 성공 상태로 기록되었습니다.<br>상세 입력과 출력은 상세보기에서 확인할 수 있습니다.</p><div class="ts">5월 25일 오전 04:57</div></div>
+                <span class="ok">성공</span>
+                <button>상세보기</button>
+              </div>
+              <div class="item">
+                <div><h6>업무 세션 생성</h6><p>업무 세션 생성 작업이 성공 상태로 기록되었습니다.<br>상세 입력과 출력은 상세보기에서 확인할 수 있습니다.</p><div class="ts">5월 25일 오전 04:57</div></div>
+                <span class="ok">성공</span>
+                <button>상세보기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>관찰</b>
+        <ul>
+          <li>각 행 ~190px → 1440x900 화면당 ~4건</li>
+          <li>같은 보일러플레이트 두 줄이 모든 행에 반복</li>
+          <li>필터/검색 없음 → 누적될수록 무용</li>
+          <li>모든 행에 같은 "상세보기" 버튼 → 스크린리더가 동일 텍스트 N회</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <h3><span class="tag after">After</span> 개선 시안</h3>
+      <div class="canvas">
+        <div class="grid" style="grid-template-columns:1fr;grid-template-rows:1fr">
+          <div class="area main" style="overflow:auto">
+            <div class="log-after">
+              <div class="filter">
+                <span class="chip active">전체 (24)</span>
+                <span class="chip">일정 (8)</span>
+                <span class="chip">업무대화 (10)</span>
+                <span class="chip">지식폴더 (4)</span>
+                <span class="chip">실패 (2)</span>
+                <span style="margin-left:auto;color:var(--sub)">최근 7일 ▾</span>
+              </div>
+              <div class="row">
+                <div class="ts"><b>10:34</b>오늘</div>
+                <div class="what">일정 생성 <em>· "회의" (5/27 14:00)</em></div>
+                <span class="ok">성공</span><span class="chev">›</span>
+              </div>
+              <div class="row">
+                <div class="ts"><b>10:21</b>오늘</div>
+                <div class="what">업무대화 응답 <em>· lightweight routing evidence utf8 · 3.3초</em></div>
+                <span class="ok">성공</span><span class="chev">›</span>
+              </div>
+              <div class="row" style="background:var(--bad);border-color:rgba(164,34,43,.3)">
+                <div class="ts"><b>09:58</b>오늘</div>
+                <div class="what">GraphRAG 인덱싱 <em>· 1개 문서 본문 비어있음</em></div>
+                <span class="ok" style="background:var(--bad);color:var(--bad-ink)">경고</span><span class="chev">›</span>
+              </div>
+              <div class="row">
+                <div class="ts"><b>04:57</b>어제</div>
+                <div class="what">업무 세션 생성 <em>· 목표 검증 세션</em></div>
+                <span class="ok">성공</span><span class="chev">›</span>
+              </div>
+              <div class="row">
+                <div class="ts"><b>04:57</b>어제</div>
+                <div class="what">환경설정 저장 <em>· LLM 프로필 featherless</em></div>
+                <span class="ok">성공</span><span class="chev">›</span>
+              </div>
+              <div class="row">
+                <div class="ts"><b>22:11</b>5/24</div>
+                <div class="what">파일정리 적용 <em>· 12개 파일 이동</em></div>
+                <span class="ok">성공</span><span class="chev">›</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="annot"><b>개선점</b>
+        <ul>
+          <li>1행 = 44px (시간 · 무엇을·왜 · 상태 · 펼침) → 한 화면 12–15건 표시</li>
+          <li>상단에 카테고리 필터 칩 + 기간 셀렉터 추가</li>
+          <li>실패/경고 행은 행 자체에 색을 입혀 즉시 식별</li>
+          <li>"상세보기" 버튼 제거 → 행 전체가 클릭 가능 (` ›` 표시). 스크린리더에는 행 텍스트 전체가 명명되어 들림</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       7. TOKENS
+       ========================================================= -->
+  <h2><span class="num">7</span>디자인 시스템 토큰 — radius 6단계 → 3단계, 신호색 분리</h2>
+  <p class="lede">현재 CSS는 24/22/18/16/14/999 등 6단계 radius와 단일 노란색이 여러 의미로 쓰여 일관성이 떨어진다.</p>
+
+  <div class="token-row">
+    <div class="token-card">
+      <h4><span class="tag before" style="vertical-align:middle">Before</span> 현재</h4>
+      <div class="swatch"><div class="s" style="background:#7b8089"></div><b>--warning</b> #7b8089 — 안내·라벨·승인·시간 칩 등에 공통 사용</div>
+      <div class="swatch"><div class="s" style="background:#f5e7c5"></div>같은 노란 톤이 안내 / 카운트 / 응답시간 / 가까운 일정 카드까지 4종 의미로 혼용</div>
+      <div class="swatch"><div class="s" style="background:rgba(31,107,85,.92)"></div>brand green — 좌측 메뉴 active 상태에만 등장</div>
+      <div class="rads">
+        <div class="r" style="border-radius:24px">24</div>
+        <div class="r" style="border-radius:22px">22</div>
+        <div class="r" style="border-radius:18px">18</div>
+        <div class="r" style="border-radius:16px">16</div>
+        <div class="r" style="border-radius:14px">14</div>
+        <div class="r" style="border-radius:999px">∞</div>
+      </div>
+      <p class="note">6단계의 radius가 카드/풍선/탭/버튼/칩에 무작위 배치 → 같은 위계의 요소가 다른 모서리를 가짐</p>
+    </div>
+    <div class="token-card">
+      <h4><span class="tag after" style="vertical-align:middle">After</span> 개선 시안</h4>
+      <div class="swatch"><div class="s" style="background:var(--accent)"></div><b>--accent</b> #1f6b55 — primary action, selected, brand 강조 (좌측·송신·새 일정 등)</div>
+      <div class="swatch"><div class="s" style="background:var(--warn-info)"></div><b>--info</b> #f5e7c5 — 정보/안내 한 가지 의미</div>
+      <div class="swatch"><div class="s" style="background:var(--bad)"></div><b>--bad</b> #fde6e6 — 실패/경고만 사용</div>
+      <div class="swatch"><div class="s" style="background:var(--ok)"></div><b>--ok</b> #e6f4ec — 성공 칩만 사용</div>
+      <div class="rads">
+        <div class="r" style="border-radius:8px">8</div>
+        <div class="r" style="border-radius:12px">12</div>
+        <div class="r" style="border-radius:20px">20</div>
+        <div class="r" style="border-radius:999px">∞</div>
+      </div>
+      <p class="note">radius를 4단계로 축소 (소: 8 칩/인풋 / 중: 12 카드 / 대: 20 패널 / 무한: 알약). focus-visible outline 도입(2px solid var(--accent)) 권장</p>
+    </div>
+  </div>
+
+  <div style="margin-top:36px;padding:18px;background:#fff;border:1px solid var(--line);border-radius:12px">
+    <h2 style="margin:0 0 8px"><span class="num">8</span>다음 단계 제안</h2>
+    <ol style="margin:0 0 0 18px">
+      <li>본 시안 7개 항목 중 채택할 항목 선택 (P0 단독 / P0+P1 / 전체)</li>
+      <li>채택 항목에 대해 <code>EnterPlanMode</code>로 코드 변경 plan을 작성 — <code>apps/desktop/src/app.tsx</code> (8,534줄)는 화면별 모듈로 분리하는 작업을 같이 묶으면 효율적</li>
+      <li>구현 후 <code>npm run desktop:test</code> + 라이브 브라우저 회귀 확인</li>
+      <li>본 mockup HTML은 향후 디자인 의사결정 트레일로 <code>docs/design/</code>에 유지</li>
+    </ol>
+  </div>
+</div>
+</body>
+</html>

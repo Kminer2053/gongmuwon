@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ApprovalTicketItem,
   ExecutionLogItem,
-  ReferenceSetItem,
   ScheduleItem,
   WorkSessionItem,
 } from "./api";
@@ -93,16 +92,6 @@ function installFetchStub() {
       status: "open",
       created_at: "2026-04-20T08:30:00+09:00",
       messages: [],
-    },
-  ];
-
-  const referenceSets: ReferenceSetItem[] = [
-    {
-      id: "ref-1",
-      title: "회의 참고자료",
-      session_id: "session-1",
-      created_at: "2026-04-20T00:00:00+09:00",
-      items: [{ id: "ref-item-1", kind: "file", label: "draft.md", value: "/tmp/draft.md" }],
     },
   ];
 
@@ -195,6 +184,10 @@ function installFetchStub() {
         });
       }
 
+      if (url.endsWith("/api/schedules/reminders/due")) {
+        return jsonResponse({ items: [], now: "2026-04-20T08:00:00+09:00" });
+      }
+
       if (url.endsWith("/api/schedules")) {
         if (method === "POST") {
           const created: ScheduleItem = {
@@ -257,10 +250,6 @@ function installFetchStub() {
         return jsonResponse(next);
       }
 
-      if (url.endsWith("/api/reference-sets")) {
-        return jsonResponse({ items: referenceSets });
-      }
-
       if (url.endsWith("/api/templates")) {
         return jsonResponse({
           items: [
@@ -275,8 +264,6 @@ function installFetchStub() {
         "/api/knowledge/candidates": { items: [] },
         "/api/knowledge/pages": { items: [] },
         "/api/approval-tickets": { items: approvalTickets },
-        "/api/integrations/anything/launches": { items: [] },
-        "/api/file-organizer/proposals": { items: [] },
         "/api/execution-logs": { items: logs },
         "/api/tools": { items: [] },
       };
@@ -316,6 +303,38 @@ beforeEach(() => {
 });
 
 describe("App shell", () => {
+  it("starts on the home briefing screen without adding home to the navigation (D-06)", async () => {
+    render(<App />);
+
+    // 초기 이중 로드(셸 → 전체 새로고침) 사이에 메인 패널이 잠시 재마운트될 수
+    // 있으므로, 스냅샷이 안정된 뒤의 상태를 재조회로 확인한다.
+    await waitFor(() => {
+      expect(screen.getByTestId("home-screen")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "오늘의 브리핑" })).toBeInTheDocument();
+      expect(screen.getByTestId("shell-topbar-current")).toHaveTextContent("홈");
+    });
+
+    const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
+    expect(within(navigation).getAllByRole("button")).toHaveLength(6);
+    expect(within(navigation).queryByRole("button", { name: "홈" })).not.toBeInTheDocument();
+  });
+
+  it("returns to home when the topbar brand title is clicked (D-06)", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: "일정" }));
+    expect(screen.queryByTestId("home-screen")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "홈으로" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("home-screen")).toBeInTheDocument();
+      expect(screen.getByTestId("shell-topbar-current")).toHaveTextContent("오늘의 브리핑");
+    });
+  });
+
   it("keeps the session rail visible when moving to another feature", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -378,18 +397,36 @@ describe("App shell", () => {
     expect(screen.getByText("100%")).toBeInTheDocument();
   });
 
-  it("simplifies the left rail labels and removes low-value session filters", async () => {
+  it("keeps the six-menu navigation without removed features (D-05)", async () => {
     render(<App />);
 
     const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
 
-    expect(within(navigation).getByRole("button", { name: "파일찾기" })).toBeInTheDocument();
-    expect(within(navigation).queryByRole("button", { name: "로컬파일/정보검색" })).not.toBeInTheDocument();
-    expect(within(navigation).getByText("기타")).toBeInTheDocument();
+    expect(within(navigation).getAllByRole("button")).toHaveLength(6);
+    expect(within(navigation).getByRole("button", { name: "업무대화" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("button", { name: "일정" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("button", { name: "문서작성" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("button", { name: "내 지식폴더" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("button", { name: "실행기록" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("button", { name: "환경설정" })).toBeInTheDocument();
+    expect(within(navigation).queryByRole("button", { name: "도구" })).not.toBeInTheDocument();
+    expect(within(navigation).queryByRole("button", { name: "파일찾기" })).not.toBeInTheDocument();
+    expect(within(navigation).queryByRole("button", { name: "파일정리" })).not.toBeInTheDocument();
     expect(within(navigation).getByText("환경설정")).toBeInTheDocument();
     expect(screen.queryByTestId("session-rail-filter-all")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-rail-filter-linked")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-rail-filter-independent")).not.toBeInTheDocument();
+  });
+
+  it("describes the knowledge menu with the LLM wiki subtitle", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: "내 지식폴더" }));
+
+    expect(screen.getByTestId("shell-topbar-current")).toHaveTextContent("LLM 위키로 지식관리");
+    expect(screen.queryByText("그래프RAG로 지식관리")).not.toBeInTheDocument();
   });
 
   it("uses compact icon tabs in the right pane and removes the task detail panel", async () => {
@@ -402,7 +439,7 @@ describe("App shell", () => {
     expect(screen.getByLabelText("승인 요청")).toHaveClass("is-active");
     expect(screen.getByLabelText("최근 실행")).toHaveClass("is-active");
     expect(screen.getByLabelText("가까운 일정")).toBeDisabled();
-    expect(screen.getByLabelText("미리보기")).toBeDisabled();
+    expect(screen.queryByLabelText("미리보기")).not.toBeInTheDocument();
   });
 
   it("renames the schedule calendar and moves summary details out of the main calendar", async () => {
@@ -418,19 +455,36 @@ describe("App shell", () => {
     expect(screen.getByLabelText("가까운 일정")).not.toBeDisabled();
   });
 
-  it("keeps schedule cells compact and exposes full details as hover text", async () => {
+  it("shows week schedules as compact time-positioned blocks with a single day header", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
     await user.click(within(navigation).getByRole("button", { name: /^일정/ }));
 
-    const occupiedSlot = await screen.findByTestId("schedule-slot-1");
-    const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
+    const eventBlock = await screen.findByTestId("timegrid-event-schedule-1");
+    const start = new Date("2026-04-20T09:00:00+09:00");
+    const clock = `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
 
-    expect(occupiedSlot).toHaveAttribute("title", expect.stringContaining("주간 보고 준비"));
-    expect(existingTitle).toHaveClass("schedule-slot__line");
-    expect(existingTitle).toHaveAttribute("title", "주간 보고 준비");
+    // 이벤트 블록은 "HH:MM 제목"만 노출하고 상세는 hover title로 보완
+    expect(eventBlock).toHaveAttribute("aria-label", `${clock} 주간 보고 준비`);
+    expect(eventBlock).toHaveTextContent(`${clock} 주간 보고 준비`);
+    expect(eventBlock).toHaveAttribute("title", expect.stringContaining("주간 보고 준비"));
+
+    // 반복 안내문·"1" 배지 제거
+    expect(screen.queryByText("클릭해 일정 편집")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("schedule-slot-existing-count-1")).not.toBeInTheDocument();
+
+    // 요일 헤더는 시간축 그리드 상단 한 곳("일 M/D" 형식)
+    expect(document.querySelectorAll(".schedule-grid-headers")).toHaveLength(0);
+    const headerDay = new Date(start);
+    headerDay.setDate(headerDay.getDate() - headerDay.getDay() + 1);
+    expect(screen.getByTestId("timegrid-day-header-1")).toHaveTextContent(
+      `월 ${headerDay.getMonth() + 1}/${headerDay.getDate()}`,
+    );
+
+    // 하단 폼의 "보기" 셀렉트 제거 — 상단 토글로 단일화
+    expect(screen.queryByLabelText("보기")).not.toBeInTheDocument();
   });
 
   it("clears previous schedule data when moving from existing edit to a new empty slot", async () => {
@@ -440,20 +494,27 @@ describe("App shell", () => {
     const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
     await user.click(within(navigation).getByRole("button", { name: /^일정/ }));
 
-    const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
-    await user.click(existingTitle.closest("button") as HTMLButtonElement);
+    const eventBlock = await screen.findByTestId("timegrid-event-schedule-1");
+    await user.click(eventBlock);
 
     await waitFor(() => {
       expect(screen.getByLabelText("일정 제목")).toHaveValue("주간 보고 준비");
       expect(screen.getByRole("button", { name: "연결 세션 열기" })).toBeInTheDocument();
     });
 
-    await user.click(screen.getByTestId("schedule-slot-0"));
+    await user.click(screen.getByTestId("timegrid-cell-0-9"));
 
     await waitFor(() => {
       expect(screen.getByLabelText("일정 제목")).toHaveValue("");
       expect(screen.queryByRole("button", { name: "연결 세션 열기" })).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "일정 등록" })).toBeInTheDocument();
     });
+
+    const sunday = new Date("2026-04-20T09:00:00+09:00");
+    sunday.setDate(sunday.getDate() - sunday.getDay());
+    const pad = (value: number) => String(value).padStart(2, "0");
+    expect(screen.getByLabelText("시작")).toHaveValue(
+      `${sunday.getFullYear()}-${pad(sunday.getMonth() + 1)}-${pad(sunday.getDate())}T09:00`,
+    );
   });
 });

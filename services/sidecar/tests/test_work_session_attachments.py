@@ -10,10 +10,11 @@ def _client(tmp_path: Path):
 
 
 def test_work_session_attachment_upload_and_turn_context(tmp_path: Path, monkeypatch) -> None:
-    captured_messages: list[dict[str, str]] = []
+    # 첫 호출 = 턴 프롬프트, 이후 호출 = T-02 롤링 요약 갱신
+    captured_calls: list[list[dict[str, str]]] = []
 
     def fake_generate_reply(settings, messages, **kwargs):
-        captured_messages[:] = messages
+        captured_calls.append(list(messages))
         return LLMGenerationResult(
             text="I reviewed the attached file.",
             provider="openai_compatible",
@@ -49,8 +50,18 @@ def test_work_session_attachment_upload_and_turn_context(tmp_path: Path, monkeyp
     assert payload["user_message"]["attachments"][0]["file_name"] == "notes.txt"
     assert payload["assistant_message"]["text"] == "I reviewed the attached file."
 
-    assert any(message["role"] == "user" and "[Attached files]" in message["text"] for message in captured_messages)
-    assert any("notes.txt" in message["text"] for message in captured_messages if message["role"] == "user")
+    # T-02: 첨부 발췌는 가드레일/지식 블록 다음의 독립 system 블록으로 주입되고,
+    # "[첨부 발췌: 전체 N자 중 M자]" 표기로 반영 범위를 드러낸다.
+    turn_messages = captured_calls[0]
+    attachment_block = next(
+        message for message in turn_messages if "[Attached files]" in message["text"]
+    )
+    assert attachment_block["role"] == "system"
+    assert "notes.txt" in attachment_block["text"]
+    assert "[첨부 발췌: 전체" in attachment_block["text"]
+    assert "alpha" in attachment_block["text"]
+    assert turn_messages[-1]["role"] == "user"
+    assert turn_messages[-1]["text"] == "Please review this file"
 
     messages = client.get(f"/api/work-sessions/{session_id}/messages")
     items = messages.json()["items"]

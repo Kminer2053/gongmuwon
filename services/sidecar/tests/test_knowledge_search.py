@@ -9,27 +9,29 @@ def _client(tmp_path: Path):
 
 
 def test_knowledge_search_and_graph_summary_are_exposed(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "budget.md").write_text("# 예산편성 정리\n\n예산편성 일정과 쟁점을 정리한다.", encoding="utf-8")
     client = _client(tmp_path)
+    created = client.post("/api/knowledge/sources", json={"label": "업무자료", "root_path": str(source)})
+    source_id = created.json()["id"]
+    assert client.post(f"/api/knowledge/sources/{source_id}/scan").status_code == 200
+    assert client.post("/api/knowledge/ingest", json={"source_id": source_id, "run_now": True}).status_code == 201
 
-    candidate = client.post(
-        "/api/knowledge/candidates/from-note",
-        json={"title": "예산편성", "body": "예산편성 일정과 쟁점을 정리한다.", "candidate_type": "topic"},
-    )
-    candidate_id = candidate.json()["id"]
-    client.post(f"/api/knowledge/candidates/{candidate_id}/approve", json={"page_type": "topic"})
-
-    search = client.get("/api/knowledge/search", params={"query": "예산"})
+    search = client.get("/api/knowledge/search", params={"query": "예산편성"})
     assert search.status_code == 200
-    assert search.json()["vector_hits"]
+    payload = search.json()
+    assert payload["items"]
+    assert payload["items"][0]["title"] == "예산편성 정리"
+    assert payload["items"][0]["source_path"].endswith("budget.md")
 
     graph = client.get("/api/knowledge/graph")
     assert graph.status_code == 200
-    payload = graph.json()
-    assert payload["node_count"] >= 1
-    assert payload["edge_count"] >= 1
-    assert payload["artifacts"]["graph_json_path"].endswith("graph.json")
-    assert payload["artifacts"]["graph_html_path"].endswith("graph.html")
-    assert payload["artifacts"]["graph_report_path"].endswith("GRAPH_REPORT.md")
+    graph_payload = graph.json()
+    assert graph_payload["engine"] == "wiki"
+    assert graph_payload["node_count"] >= 2
+    assert graph_payload["edge_count"] >= 1
+    assert graph_payload["artifacts"]["graph_json_path"].endswith("graph.json")
 
 
 def test_duplicate_knowledge_titles_get_distinct_canonical_paths(tmp_path: Path) -> None:

@@ -156,8 +156,8 @@ describe("Workflow IA", () => {
     const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
 
     await user.click(within(navigation).getByRole("button", { name: "일정" }));
-    const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
-    await user.click(existingTitle.closest("button") as HTMLButtonElement);
+    const eventBlock = await screen.findByTestId("timegrid-event-schedule-1");
+    await user.click(eventBlock);
     await user.click(screen.getByRole("button", { name: "연결 세션 열기" }));
 
     expect(await screen.findByRole("heading", { name: "주간 보고 준비" })).toBeInTheDocument();
@@ -170,8 +170,8 @@ describe("Workflow IA", () => {
     const navigation = screen.getByRole("navigation", { name: "주요 작업 메뉴" });
 
     await user.click(within(navigation).getByRole("button", { name: "일정" }));
-    const targetTitle = await screen.findByTestId("schedule-slot-existing-title-2");
-    await user.click(targetTitle.closest("button") as HTMLButtonElement);
+    const eventBlock = await screen.findByTestId("timegrid-event-schedule-2");
+    await user.click(eventBlock);
     await user.click(screen.getByRole("button", { name: "연결 세션 만들기" }));
 
     expect(await screen.findByRole("heading", { name: "예산 검토 작업" })).toBeInTheDocument();

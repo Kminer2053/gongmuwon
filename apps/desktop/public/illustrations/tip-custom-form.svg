@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="임의형식 양식 자동 채움">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .accent{fill:#3d7a4f;}
+      .accentline{stroke:#3d7a4f;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+      .cell{fill:#ffffff;stroke:#b7c0b6;stroke-width:1.5;}
+      .filled{font-family:'Malgun Gothic',sans-serif;font-size:10px;fill:#3d7a4f;}
+      .label{font-family:'Malgun Gothic',sans-serif;font-size:10px;fill:#8a948a;}
+    </style>
+  </defs>
+  <rect class="panel" x="20" y="24" width="130" height="90" rx="12"/>
+  <text class="txt" x="34" y="44">내 양식.hwpx</text>
+  <rect class="cell" x="34" y="52" width="44" height="18"/>
+  <text class="label" x="38" y="65">수신자</text>
+  <rect class="cell" x="78" y="52" width="58" height="18"/>
+  <rect class="cell" x="34" y="70" width="44" height="18"/>
+  <text class="label" x="38" y="83">기관명</text>
+  <rect class="cell" x="78" y="70" width="58" height="18"/>
+  <rect class="cell" x="34" y="88" width="44" height="18"/>
+  <text class="label" x="38" y="101">시행일</text>
+  <rect class="cell" x="78" y="88" width="58" height="18"/>
+  <path class="accentline" d="M156 69 h26 M172 61 l10 8 -10 8"/>
+  <rect class="panel" x="188" y="24" width="116" height="90" rx="12"/>
+  <text class="txt" x="200" y="44">빈칸만 채움</text>
+  <rect class="cell" x="200" y="52" width="40" height="18"/>
+  <text class="label" x="204" y="65">수신자</text>
+  <rect class="cell" x="240" y="52" width="54" height="18"/>
+  <text class="filled" x="244" y="65">AI혁신처장</text>
+  <rect class="cell" x="200" y="70" width="40" height="18"/>
+  <text class="label" x="204" y="83">기관명</text>
+  <rect class="cell" x="240" y="70" width="54" height="18"/>
+  <text class="filled" x="244" y="83">AI혁신처</text>
+  <rect class="cell" x="200" y="88" width="40" height="18"/>
+  <text class="label" x="204" y="101">시행일</text>
+  <rect class="cell" x="240" y="88" width="54" height="18"/>
+  <text class="filled" x="244" y="101">2026-07-05</text>
+  <text class="txt" x="16" y="146">기존 양식은 그대로, 빈칸만 채웁니다.</text>
+  <text class="txtsub" x="16" y="164">문서작성 → [임의형식]에 HWPX 양식을 올려보세요. 표·서식은 보존됩니다.</text>
+</svg>

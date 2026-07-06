@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="업무대화에서 일정 등록">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .soft{stroke:#b7c0b6;stroke-width:2;fill:none;stroke-linecap:round;}
+      .accent{fill:#3d7a4f;}
+      .accentline{stroke:#3d7a4f;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+    </style>
+  </defs>
+  <rect class="panel" x="16" y="24" width="180" height="64" rx="14"/>
+  <text class="txt" x="30" y="50">"이 내용 다음주 화요일</text>
+  <text class="txt" x="30" y="66">일정으로 등록해줘"</text>
+  <path class="soft" d="M52 88 l-8 14 14 -8"/>
+  <path class="accentline" d="M196 56 h44" marker-end="none"/>
+  <path class="accentline" d="M232 48 l10 8 -10 8"/>
+  <rect class="panel" x="248" y="30" width="56" height="52" rx="10"/>
+  <path class="ink" d="M256 44 h40"/>
+  <rect class="accent" x="256" y="52" width="10" height="10" rx="2"/>
+  <rect class="accent" x="270" y="52" width="10" height="10" rx="2" opacity="0.45"/>
+  <rect class="accent" x="284" y="52" width="10" height="10" rx="2" opacity="0.2"/>
+  <rect class="accent" x="256" y="66" width="10" height="10" rx="2" opacity="0.2"/>
+  <rect class="accent" x="270" y="66" width="10" height="10" rx="2" opacity="0.7"/>
+  <circle class="accentline" cx="289" cy="71" r="7" fill="#ffffff"/>
+  <path class="accentline" d="M285.5 71 l2.5 2.5 5 -5"/>
+  <text class="txt" x="16" y="140">대화 문장 그대로 일정이 됩니다.</text>
+  <text class="txtsub" x="16" y="158">등록된 일정은 알림·연결 세션과 자동으로 이어집니다.</text>
+</svg>

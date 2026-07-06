@@ -52,24 +52,33 @@ def test_schedule_session_reference_flow(tmp_path: Path) -> None:
     assert session.status_code == 201
     session_id = session.json()["id"]
 
-    reference_set = client.post(
-        "/api/reference-sets",
+    linked = client.post(
+        f"/api/work-sessions/{session_id}/file-links",
         json={
-            "title": "보고 참고자료",
-            "session_id": session_id,
             "items": [
                 {
-                    "kind": "file",
+                    "file_path": str(tmp_path / "memo.md"),
                     "label": "예산메모",
-                    "value": str(tmp_path / "memo.md")
+                    "source": "manual",
                 }
-            ],
+            ]
         },
     )
-    assert reference_set.status_code == 201
-    body = reference_set.json()
-    assert body["session_id"] == session_id
-    assert body["items"][0]["kind"] == "file"
+    assert linked.status_code == 201
+
+    links = client.get(f"/api/work-sessions/{session_id}/file-links")
+    assert links.status_code == 200
+    assert links.json()["items"][0]["label"] == "예산메모"
+
+
+def test_reference_set_endpoints_are_removed(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    assert client.get("/api/reference-sets").status_code == 404
+    assert (
+        client.post("/api/reference-sets", json={"title": "제거된 기능", "items": []}).status_code
+        == 404
+    )
 
 
 def test_work_session_can_be_linked_to_schedule_later(tmp_path: Path) -> None:
@@ -289,25 +298,11 @@ def test_knowledge_candidate_cannot_be_approved_twice(tmp_path: Path) -> None:
 def test_content_base_generation_persists_markdown_artifact(tmp_path: Path) -> None:
     client = _client(tmp_path)
 
-    ref_set = client.post(
-        "/api/reference-sets",
-        json={
-            "title": "회의 참고자료",
-            "items": [
-                {"kind": "note", "label": "핵심 쟁점", "value": "예산 조정과 일정 확정"},
-                {"kind": "note", "label": "후속 조치", "value": "부서 협의 및 보고서 초안"}
-            ],
-        },
-    )
-    assert ref_set.status_code == 201
-    reference_set_id = ref_set.json()["id"]
-
     response = client.post(
         "/api/documents/content-bases",
         json={
             "title": "주간 보고 초안",
             "purpose": "보고서형",
-            "reference_set_id": reference_set_id,
             "template_key": "report"
         },
     )
@@ -324,18 +319,11 @@ def test_content_base_generation_persists_markdown_artifact(tmp_path: Path) -> N
 def test_document_finalize_requires_approval_and_creates_output(tmp_path: Path) -> None:
     client = _client(tmp_path)
 
-    ref_set = client.post(
-        "/api/reference-sets",
-        json={"title": "문서 참고", "items": [{"kind": "note", "label": "쟁점", "value": "예산 조정"}]},
-    )
-    reference_set_id = ref_set.json()["id"]
-
     content_base = client.post(
         "/api/documents/content-bases",
         json={
             "title": "주간 보고 초안",
             "purpose": "보고서형",
-            "reference_set_id": reference_set_id,
             "template_key": "report",
         },
     )
@@ -382,18 +370,11 @@ def test_document_finalize_requires_approval_and_creates_output(tmp_path: Path) 
 def test_document_finalize_sanitizes_windows_invalid_output_name(tmp_path: Path) -> None:
     client = _client(tmp_path)
 
-    ref_set = client.post(
-        "/api/reference-sets",
-        json={"title": "문서 참고", "items": [{"kind": "note", "label": "쟁점", "value": "예산 조정"}]},
-    )
-    reference_set_id = ref_set.json()["id"]
-
     content_base = client.post(
         "/api/documents/content-bases",
         json={
             "title": "주간 보고 초안",
             "purpose": "보고서형",
-            "reference_set_id": reference_set_id,
             "template_key": "report",
         },
     )
@@ -487,188 +468,3 @@ def test_document_finalize_versions_duplicate_output_names(tmp_path: Path) -> No
     assert second_path.suffix == ".hwpx"
     assert first_review_path.read_text(encoding="utf-8") != second_review_path.read_text(encoding="utf-8")
 
-
-def test_anything_launch_requires_approval_and_persists_launch_record(tmp_path: Path) -> None:
-    client = _client(tmp_path)
-    releases_url = "https://github.com/chrisryugj/Docufinder/releases"
-
-    response = client.post(
-        "/api/integrations/anything/launch",
-        json={"query": "예산 검토"},
-    )
-    assert response.status_code == 202
-    payload = response.json()
-    ticket_id = payload["approval_ticket"]["id"]
-    launch_request = payload["launch_request"]
-    assert launch_request["status"] == "pending"
-    assert launch_request["launch_target"] == releases_url
-
-    tickets = client.get("/api/approval-tickets")
-    assert tickets.status_code == 200
-    items = tickets.json()["items"]
-    assert any(item["id"] == ticket_id and item["status"] == "pending" for item in items)
-
-    approve = client.post(
-        f"/api/approval-tickets/{ticket_id}/decision",
-        json={"status": "approved", "decision_note": "사용자 승인"},
-    )
-    assert approve.status_code == 200
-    assert approve.json()["status"] == "approved"
-
-    apply = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
-    assert apply.status_code == 201
-    applied = apply.json()["launch_request"]
-    assert applied["status"] == "applied"
-    assert applied["applied_at"] is not None
-
-    launches = client.get("/api/integrations/anything/launches")
-    assert launches.status_code == 200
-    assert any(
-        item["approval_ticket_id"] == ticket_id and item["status"] == "applied"
-        for item in launches.json()["items"]
-    )
-
-    logs = client.get("/api/execution-logs")
-    actions = [entry["action"] for entry in logs.json()["items"]]
-    assert "anything.launch.requested" in actions
-    assert "anything.launch.applied" in actions
-    assert "approval_ticket.decided" in actions
-
-
-def test_anything_launch_imports_paths_into_reference_set(tmp_path: Path) -> None:
-    client = _client(tmp_path)
-
-    session = client.post(
-        "/api/work-sessions",
-        json={"title": "anything import session"},
-    )
-    assert session.status_code == 201
-    session_id = session.json()["id"]
-
-    requested = client.post(
-        "/api/integrations/anything/launch",
-        json={"query": "budget"},
-    )
-    assert requested.status_code == 202
-    ticket_id = requested.json()["approval_ticket"]["id"]
-
-    approved = client.post(
-        f"/api/approval-tickets/{ticket_id}/decision",
-        json={"status": "approved", "decision_note": "approved"},
-    )
-    assert approved.status_code == 200
-
-    applied = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
-    assert applied.status_code == 201
-
-    imported = client.post(
-        f"/api/integrations/anything/launch/{ticket_id}/reference-set",
-        json={
-            "title": "budget import",
-            "session_id": session_id,
-            "paths": [
-                str(tmp_path / "incoming" / "budget.xlsx"),
-                str(tmp_path / "incoming" / "meeting-notes.md"),
-            ],
-        },
-    )
-    assert imported.status_code == 201
-    payload = imported.json()
-    assert payload["reference_set"]["title"] == "budget import"
-    assert payload["reference_set"]["session_id"] == session_id
-    assert len(payload["reference_set"]["items"]) == 2
-    assert payload["reference_set"]["items"][0]["kind"] == "file"
-
-    logs = client.get("/api/execution-logs")
-    actions = [entry["action"] for entry in logs.json()["items"]]
-    assert "anything.launch.imported" in actions
-
-
-def test_decided_and_applied_ticket_cannot_be_redecided(tmp_path: Path) -> None:
-    client = _client(tmp_path)
-
-    response = client.post(
-        "/api/integrations/anything/launch",
-        json={"query": "budget"},
-    )
-    ticket_id = response.json()["approval_ticket"]["id"]
-
-    approved = client.post(
-        f"/api/approval-tickets/{ticket_id}/decision",
-        json={"status": "approved", "decision_note": "approved"},
-    )
-    assert approved.status_code == 200
-
-    applied = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
-    assert applied.status_code == 201
-
-    replay = client.post(
-        f"/api/approval-tickets/{ticket_id}/decision",
-        json={"status": "rejected", "decision_note": "too late"},
-    )
-    assert replay.status_code == 409
-    assert replay.json()["detail"] == "approval ticket already decided"
-
-
-def test_rejected_anything_launch_cannot_be_applied(tmp_path: Path) -> None:
-    client = _client(tmp_path)
-
-    response = client.post(
-        "/api/integrations/anything/launch",
-        json={"query": "budget"},
-    )
-    ticket_id = response.json()["approval_ticket"]["id"]
-
-    rejected = client.post(
-        f"/api/approval-tickets/{ticket_id}/decision",
-        json={"status": "rejected", "decision_note": "blocked"},
-    )
-    assert rejected.status_code == 200
-
-    apply = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
-    assert apply.status_code == 409
-    assert apply.json()["detail"] == "approval ticket must be approved"
-
-
-def test_anything_launch_apply_rejects_replay_after_apply(tmp_path: Path) -> None:
-    client = _client(tmp_path)
-
-    response = client.post(
-        "/api/integrations/anything/launch",
-        json={"query": "budget"},
-    )
-    ticket_id = response.json()["approval_ticket"]["id"]
-
-    approved = client.post(
-        f"/api/approval-tickets/{ticket_id}/decision",
-        json={"status": "approved", "decision_note": "approved"},
-    )
-    assert approved.status_code == 200
-
-    first_apply = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
-    assert first_apply.status_code == 201
-
-    second_apply = client.post(f"/api/integrations/anything/launch/{ticket_id}/apply")
-    assert second_apply.status_code == 409
-    assert second_apply.json()["detail"] == "anything launch already applied"
-
-
-def test_file_organization_proposals_are_persisted(tmp_path: Path) -> None:
-    client = _client(tmp_path)
-    target = tmp_path / "incoming"
-    target.mkdir()
-    (target / "회의메모.md").write_text("# 회의메모", encoding="utf-8")
-    (target / "budget.xlsx").write_text("mock", encoding="utf-8")
-
-    response = client.post(
-        "/api/file-organizer/proposals",
-        json={"target_path": str(target)},
-    )
-    assert response.status_code == 200
-    payload = response.json()["items"]
-    assert len(payload) == 2
-    assert any(item["proposal_type"] == "knowledge_candidate" for item in payload)
-
-    listed = client.get("/api/file-organizer/proposals")
-    assert listed.status_code == 200
-    assert len(listed.json()["items"]) == 2

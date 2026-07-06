@@ -300,19 +300,11 @@ label {
   overflow: visible;
 }
 
-.topbar-icon-button {
-  min-width: 42px;
-  min-height: 42px;
-  padding: 0.65rem;
-  border-radius: 999px;
-}
-
 .topbar-zoom-button {
+  width: 34px;
+  height: 34px;
   min-width: 34px;
   min-height: 34px;
-  padding: 0;
-  font-size: 1.1rem;
-  font-weight: 900;
 }
 
 .topbar-zoom-pill {
@@ -346,6 +338,52 @@ label {
   grid-area: main;
   grid-template-rows: minmax(0, 1fr);
   align-content: stretch;
+}
+
+/* J-11: 엔진 미연결 배너가 있으면 배너 행 + 본문 행으로 나눈다. */
+.main-pane:has(> .engine-banner) {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.engine-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(168, 50, 50, 0.35);
+  background: var(--danger-soft, rgba(168, 50, 50, 0.08));
+  color: #7d2323;
+}
+
+.engine-banner__message {
+  margin: 0;
+  font-weight: 700;
+}
+
+.engine-banner__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* J-02: LLM 미설정 안내 */
+.llm-setup-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(31, 107, 85, 0.35);
+  background: var(--accent-green-soft, rgba(31, 107, 85, 0.12));
+}
+
+.llm-setup-notice p {
+  margin: 0;
 }
 
 .context-pane {
@@ -1250,23 +1288,6 @@ label {
   flex-wrap: wrap;
 }
 
-.chat-composer__plus-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  border: 1px solid rgba(15, 16, 18, 0.1);
-  background: rgba(255, 255, 255, 0.92);
-  color: #111214;
-  cursor: pointer;
-}
-
-.chat-composer__plus-button:hover {
-  background: rgba(15, 16, 18, 0.04);
-}
-
 .chat-composer__detail-toggle,
 .chat-composer__right-actions > button {
   min-height: 44px;
@@ -1319,57 +1340,6 @@ label {
 .chat-session-toolbar__schedule select,
 .chat-session-toolbar > button {
   min-height: 44px;
-}
-
-.chat-file-count-button {
-  font-variant-numeric: tabular-nums;
-}
-
-.chat-file-popover {
-  position: absolute;
-  left: 1rem;
-  right: 1rem;
-  bottom: min(170px, 31%);
-  z-index: 4;
-  display: grid;
-  gap: 0.55rem;
-  max-height: 220px;
-  overflow-y: auto;
-  padding: 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow);
-}
-
-.chat-file-popover__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-}
-
-.chat-file-popover__close {
-  min-height: 32px;
-  min-width: 32px;
-  padding: 0;
-}
-
-.chat-file-popover__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--line-soft);
-  border-radius: 14px;
-  background: rgba(246, 248, 245, 0.82);
-}
-
-.chat-file-popover__item p {
-  margin: 0.15rem 0 0;
-  color: var(--text-subtle);
-  overflow-wrap: anywhere;
 }
 
 .chat-image-dialog-backdrop {
@@ -2199,273 +2169,16 @@ label {
   font-weight: 700;
 }
 
-.knowledge-graph-overview .panel-card__body {
-  min-height: 360px;
-}
-
-.knowledge-overview-grid {
-  display: grid;
-  grid-template-columns: minmax(220px, 0.42fr) minmax(360px, 1fr);
-  gap: 1rem;
-  align-items: stretch;
-}
-
-.knowledge-overview-copy {
-  display: grid;
-  align-content: center;
-  gap: 0.8rem;
-  padding: 1rem;
-  border-radius: 20px;
-  background: rgba(246, 248, 245, 0.82);
-}
-
-.knowledge-overview-copy p {
-  margin: 0;
-  color: var(--text-subtle);
-}
-
-.knowledge-overview-copy__kicker {
-  color: var(--ink) !important;
-  font-size: 0.76rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .knowledge-overview-stats {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
 }
 
-.knowledge-graph-map {
-  position: relative;
-  min-height: 320px;
-  max-height: min(58vh, 560px);
-  border: 1px solid var(--line-soft);
-  border-radius: 24px;
-  background:
-    radial-gradient(circle at 18% 18%, rgba(31, 107, 85, 0.13), transparent 22%),
-    radial-gradient(circle at 74% 28%, rgba(16, 35, 31, 0.08), transparent 26%),
-    linear-gradient(135deg, #ffffff, #f6f6f1);
-  overflow: auto;
-  overscroll-behavior: contain;
-  resize: vertical;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-
-.knowledge-graph-map.is-dragging {
-  cursor: grabbing;
-}
-
-.knowledge-graph-map svg {
-  display: block;
-  min-width: 820px;
-}
-
-.knowledge-graph-map__toolbar {
-  position: sticky;
-  top: 0.75rem;
-  left: 0.85rem;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  width: calc(100% - 1.7rem);
-  max-width: calc(100% - 1.7rem);
-  pointer-events: none;
-}
-
-.knowledge-graph-map__hint {
-  width: fit-content;
-  padding: 0.34rem 0.6rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.86);
-  color: var(--text-subtle);
-  font-size: 0.78rem;
-  font-weight: 800;
-  box-shadow: 0 8px 22px rgba(21, 23, 28, 0.06);
-}
-
-.knowledge-graph-map__zoom {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.24rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 8px 22px rgba(21, 23, 28, 0.08);
-  pointer-events: auto;
-}
-
-.knowledge-graph-map__zoom button {
-  min-width: 2rem;
-  padding: 0.28rem 0.55rem;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(16, 35, 31, 0.08);
-  color: var(--ink);
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.knowledge-graph-map__zoom span {
-  min-width: 3rem;
-  color: var(--text-subtle);
-  font-size: 0.78rem;
-  font-weight: 900;
-  text-align: center;
-}
-
-.knowledge-graph-map__orbit {
-  fill: none;
-  stroke: rgba(16, 35, 31, 0.08);
-  stroke-dasharray: 7 9;
-  transform-origin: center;
-  animation: knowledge-orbit-spin 32s linear infinite;
-}
-
-.knowledge-graph-map__orbit--middle {
-  animation-duration: 42s;
-}
-
-.knowledge-graph-map__orbit--outer {
-  animation-duration: 58s;
-}
-
-.knowledge-graph-map__particle {
-  fill: rgba(178, 139, 61, 0.72);
-  animation: knowledge-pulse 3.8s ease-in-out infinite alternate;
-}
-
-.knowledge-graph-map__edge {
-  stroke: rgba(16, 35, 31, 0.28);
-  stroke-width: 2.5;
-  stroke-linecap: round;
-}
-
-.knowledge-graph-map__edge.is-dimmed {
-  opacity: 0.14;
-}
-
-.knowledge-graph-map marker path {
-  fill: rgba(16, 35, 31, 0.42);
-}
-
-.knowledge-graph-map__node {
-  cursor: pointer;
-  outline: none;
-  transition: opacity 0.16s ease, filter 0.16s ease, transform 0.16s ease;
-}
-
-.knowledge-graph-map__node:hover,
-.knowledge-graph-map__node:focus-visible {
-  filter: drop-shadow(0 10px 18px rgba(16, 35, 31, 0.22));
-}
-
-.knowledge-graph-map__node:hover .knowledge-graph-map__core,
-.knowledge-graph-map__node:focus-visible .knowledge-graph-map__core {
-  stroke: var(--ink);
-  stroke-width: 2.25;
-}
-
-.knowledge-graph-map__node.is-dimmed {
-  opacity: 0.24;
-  filter: grayscale(0.8);
-}
-
-.knowledge-graph-map__halo {
-  fill: url("#knowledge-node-glow");
-  stroke: rgba(16, 35, 31, 0.12);
-  stroke-width: 1.5;
-}
-
-.knowledge-graph-map__core {
-  fill: #f8f8ef;
-  stroke: rgba(16, 35, 31, 0.2);
-  stroke-width: 1.4;
-}
-
-.knowledge-graph-map__node--source_folder .knowledge-graph-map__core {
-  fill: #d6a756;
-}
-
-.knowledge-graph-map__node--source_file .knowledge-graph-map__core {
-  fill: #dce7ed;
-}
-
-.knowledge-graph-map__node--keyword .knowledge-graph-map__core {
-  fill: #8ba878;
-}
-
-.knowledge-graph-map__role {
-  fill: var(--text-subtle);
-  font-size: 10px;
-  font-weight: 800;
-  text-anchor: middle;
-}
-
-.knowledge-graph-map__label {
-  fill: var(--ink);
-  font-size: 13px;
-  font-weight: 800;
-  text-anchor: middle;
-}
-
-.knowledge-graph-map__legend {
-  position: sticky;
-  left: 1rem;
-  bottom: 1rem;
-  z-index: 3;
-  display: flex;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-  width: fit-content;
-  margin: -3.2rem 0 1rem 1rem;
-}
-
-.knowledge-graph-map__legend button {
-  padding: 0.3rem 0.55rem;
-  border: 1px solid rgba(16, 35, 31, 0.08);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
-  color: var(--text-subtle);
-  font-size: 0.78rem;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.knowledge-graph-map__legend button.is-active {
-  background: var(--ink);
-  color: var(--surface);
-}
-
-@keyframes knowledge-orbit-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes knowledge-pulse {
-  from {
-    opacity: 0.35;
-    transform: scale(0.88);
-  }
-  to {
-    opacity: 0.9;
-    transform: scale(1.1);
-  }
-}
 
 .knowledge-workspace-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 0.75rem;
 }
 
@@ -2532,36 +2245,6 @@ label {
 
 .knowledge-index-status-button {
   border-radius: 999px;
-  font-weight: 900;
-}
-
-.knowledge-pipeline {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(110px, 1fr));
-  gap: 0.55rem;
-  overflow-x: auto;
-  padding: 0.2rem 0 0.35rem;
-}
-
-.knowledge-pipeline__step {
-  display: grid;
-  gap: 0.45rem;
-  min-width: 112px;
-  padding: 0.85rem;
-  border: 1px solid var(--line-soft);
-  border-radius: 18px;
-  background: rgba(248, 246, 239, 0.9);
-}
-
-.knowledge-pipeline__step span {
-  width: 28px;
-  height: 28px;
-  display: inline-grid;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--ink);
-  color: var(--surface);
-  font-size: 0.78rem;
   font-weight: 900;
 }
 
@@ -2847,51 +2530,6 @@ label {
 
 .knowledge-detail-section[open] summary {
   margin-bottom: 0.75rem;
-}
-
-.knowledge-graph-preview {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.knowledge-graph-preview__canvas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  padding: 0.85rem;
-  border: 1px solid var(--line-soft);
-  border-radius: 18px;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(23, 23, 23, 0.08), transparent 24%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(246, 246, 242, 0.88));
-}
-
-.knowledge-graph-node {
-  display: inline-flex;
-  align-items: center;
-  max-width: 220px;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  overflow: hidden;
-  color: var(--ink);
-  background: var(--surface);
-  font-size: 0.82rem;
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.knowledge-graph-node--source_folder {
-  background: #f4efe4;
-}
-
-.knowledge-graph-node--source_file {
-  background: #eef2f6;
-}
-
-.knowledge-graph-node--keyword {
-  background: #f7f7f2;
 }
 
 .settings-profile-list {
@@ -3198,4 +2836,657 @@ label {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+/* ============================================================
+   Pictogram icon-button system (2026-07-03)
+   Topbar buttons migrated to .icon-button (G-06, 2026-07-04).
+   Icons live in /icons/action/<name>.svg (+ <name>-inverse.svg
+   for dark/primary/accent fills). See
+   docs/design/2026-07-03-pictogram-button-guide.md
+   ============================================================ */
+
+:root {
+  --accent-green: #1f6b55;
+  --accent-green-strong: #17553f;
+  --accent-green-soft: rgba(31, 107, 85, 0.12);
+  --accent-green-outline: rgba(31, 107, 85, 0.55);
+  --danger-soft: rgba(168, 50, 50, 0.08);
+  --danger-soft-strong: rgba(168, 50, 50, 0.16);
+}
+
+/* --- base ------------------------------------------------- */
+
+.icon-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(17, 18, 20, 0.05);
+  color: #111214;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.icon-button:hover {
+  transform: translateY(-1px);
+  background: rgba(17, 18, 20, 0.09);
+  box-shadow: none;
+}
+
+.icon-button:active {
+  transform: translateY(0);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid var(--accent-green-outline);
+  outline-offset: 2px;
+}
+
+.icon-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: none;
+  background: rgba(17, 18, 20, 0.05);
+}
+
+.icon-button .asset-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.icon-button.is-active {
+  background: rgba(17, 18, 20, 0.14);
+}
+
+/* --- sizes ------------------------------------------------- */
+
+.icon-button--sm {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 10px;
+}
+
+.icon-button--sm .asset-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-button--lg {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  min-height: 46px;
+  border-radius: 14px;
+}
+
+.icon-button--lg .asset-icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* --- fills (use -inverse.svg icons on primary/accent) ------- */
+
+.icon-button--primary {
+  background: #111214;
+  color: #ffffff;
+}
+
+.icon-button--primary:hover {
+  background: #000000;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+}
+
+.icon-button--primary:disabled {
+  background: #111214;
+}
+
+.icon-button--accent {
+  background: var(--accent-green);
+  color: #ffffff;
+}
+
+.icon-button--accent:hover {
+  background: var(--accent-green-strong);
+  box-shadow: 0 10px 24px rgba(31, 107, 85, 0.24);
+}
+
+.icon-button--accent:disabled {
+  background: var(--accent-green);
+}
+
+.icon-button--danger {
+  background: var(--danger-soft);
+  color: #7b2020;
+}
+
+.icon-button--danger:hover {
+  background: var(--danger-soft-strong);
+  box-shadow: none;
+}
+
+/* --- labeled chip (icon over label, feature-rail look) ------ */
+
+.icon-button--labeled {
+  display: grid;
+  gap: 0.3rem;
+  justify-items: center;
+  align-content: center;
+  width: auto;
+  height: auto;
+  min-width: 64px;
+  min-height: 60px;
+  padding: 0.6rem 0.55rem 0.5rem;
+  border-radius: 14px;
+  background: rgba(17, 18, 20, 0.04);
+}
+
+.icon-button--labeled .asset-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.icon-button--labeled .icon-button__label {
+  font-size: 10.5px;
+  line-height: 1.25;
+  text-align: center;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.icon-button--labeled.is-active {
+  background: #111214;
+  color: #ffffff;
+}
+
+/* --- count badge (e.g. 연결 파일 2) -------------------------- */
+
+.icon-button__badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent-green);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* --- text button with leading icon (primary CTAs) ----------- */
+
+.button-with-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.button-with-icon .asset-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================================
+   Authoring workspace (문서작성 split layout, 2026-07-03)
+   ============================================================ */
+
+.authoring-workspace {
+  display: grid;
+  grid-template-columns: minmax(320px, 34%) minmax(0, 1fr);
+  gap: 1.1rem;
+  align-items: start;
+}
+
+.authoring-side {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.authoring-side__block {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border-radius: 16px;
+  background: rgba(17, 18, 20, 0.03);
+}
+
+.authoring-format-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+  gap: 0.5rem;
+}
+
+.authoring-side__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.authoring-main {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.authoring-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.authoring-tab {
+  padding: 0.45rem 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(17, 18, 20, 0.05);
+  color: #111214;
+  cursor: pointer;
+  font-size: 0.86rem;
+}
+
+.authoring-tab:hover {
+  background: rgba(17, 18, 20, 0.09);
+}
+
+.authoring-tab.is-active {
+  background: #111214;
+  color: #ffffff;
+}
+
+.authoring-tab:focus-visible {
+  outline: 2px solid var(--accent-green-outline);
+  outline-offset: 2px;
+}
+
+.authoring-node__head {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.authoring-node__head > label {
+  flex: 1;
+  min-width: 0;
+}
+
+.authoring-node__controls {
+  flex: none;
+  padding-bottom: 0.2rem;
+}
+
+.authoring-subnode {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.4rem 0;
+  padding: 0.6rem;
+  border-radius: 12px;
+  background: rgba(17, 18, 20, 0.035);
+}
+
+.authoring-preview-pre {
+  margin: 0;
+  padding: 1rem;
+  border-radius: 14px;
+  background: rgba(17, 18, 20, 0.045);
+  font-family: "Consolas", "Malgun Gothic", monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.authoring-reference-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.86rem;
+}
+
+.authoring-stage-line {
+  margin: 0.15rem 0;
+}
+
+@media (max-width: 1080px) {
+  .authoring-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   Knowledge dashboard status cards (지식폴더 2.0)
+   ============================================================ */
+
+.knowledge-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.knowledge-status-card {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  background: rgba(17, 18, 20, 0.035);
+}
+
+.knowledge-status-card strong {
+  font-size: 0.95rem;
+}
+
+.knowledge-status-card p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: rgba(17, 18, 20, 0.62);
+}
+
+.knowledge-status-card.is-warning {
+  background: rgba(168, 122, 50, 0.08);
+}
+
+/* ============================================================
+   Phase-2 pictogram sweep helpers (2026-07-03)
+   ============================================================ */
+
+.chat-session-toolbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.chat-composer__attachment-remove .asset-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* --- 세그먼트 컨트롤 (라디오 그룹 대체) ------------------------------- */
+
+.seg-control {
+  display: flex;
+  padding: 0.25rem;
+  gap: 0.25rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(17, 18, 20, 0.04);
+}
+
+.seg-control__option {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-subtle);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.seg-control__option:hover {
+  background: rgba(17, 18, 20, 0.07);
+  color: #111214;
+}
+
+.seg-control__option.is-active {
+  background: #111214;
+  color: #ffffff;
+}
+
+.seg-control__option:focus-visible {
+  outline: 2px solid var(--accent-green-outline);
+  outline-offset: 2px;
+}
+
+/* --- 폼 레이아웃 보조 ------------------------------------------------- */
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.field-row > label {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* --- 지식 위키 브라우저 ------------------------------------------------ */
+
+.wiki-browser {
+  display: grid;
+  grid-template-columns: minmax(230px, 320px) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .wiki-browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.wiki-tree {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 18px;
+  background: rgba(246, 248, 245, 0.82);
+  max-height: min(64vh, 640px);
+  overflow-y: auto;
+}
+
+.wiki-tree__group summary,
+.wiki-tree__subgroup summary {
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 900;
+  padding: 0.2rem 0.1rem;
+}
+
+.wiki-tree__subgroup {
+  margin: 0.25rem 0 0.25rem 0.4rem;
+}
+
+.wiki-tree__subgroup summary {
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.wiki-tree__list {
+  margin: 0.25rem 0 0.4rem;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.wiki-tree__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.42rem 0.6rem;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wiki-tree__item:hover {
+  background: rgba(17, 18, 20, 0.06);
+}
+
+.wiki-tree__item:focus-visible {
+  outline: 2px solid var(--accent-green-outline);
+  outline-offset: 2px;
+}
+
+.wiki-tree__item > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-tree__count {
+  flex: none;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(17, 18, 20, 0.08);
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.wiki-tree__meta {
+  flex: none;
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+}
+
+/* W7 §5.6: 트리 문서 항목의 "사본 N개" 접힘 배지 */
+.wiki-tree__badge {
+  flex: none;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(17, 18, 20, 0.08);
+  color: var(--text-subtle);
+  font-size: 0.74rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* W7 §5.5: 원본이 삭제/이동된(soft delete) 카드 — 연한 톤 + "원본 삭제됨" 배지 */
+.wiki-tree__badge--missing {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.wiki-tree__group--missing summary {
+  color: var(--text-subtle);
+}
+
+.wiki-tree__item--missing {
+  opacity: 0.62;
+}
+
+.wiki-tree__item--missing:hover,
+.wiki-tree__item--missing:focus-visible {
+  opacity: 1;
+}
+
+.wiki-page-pane {
+  min-width: 0;
+  padding: 0.35rem 0.15rem;
+}
+
+/* Wave-1: 실패 턴 표기, 출처 칩, 첨부 드롭 영역 */
+.pill--danger {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.chat-message__failed {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(185, 28, 28, 0.24);
+  border-radius: 14px;
+  background: rgba(254, 242, 242, 0.6);
+}
+
+.chat-message__failed > p {
+  margin: 0;
+  font-weight: 600;
+  color: #7f1d1d;
+}
+
+.chat-message__error-details summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+}
+
+.chat-message__error-details pre {
+  margin: 0.45rem 0 0;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(17, 18, 20, 0.05);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.chat-citations {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.chat-citations__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-subtle);
+}
+
+.chat-citation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.3rem 0.2rem 0.6rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  font-size: 0.82rem;
+}
+
+.chat-citation-chip__title {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
 }

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="파일 연결로 근거 있는 대화">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .accentline{stroke:#3d7a4f;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+      .chip{fill:#eef3ec;stroke:#3d7a4f;stroke-width:1.5;}
+      .chiptxt{font-family:'Malgun Gothic',sans-serif;font-size:9px;fill:#3d7a4f;}
+    </style>
+  </defs>
+  <rect x="24" y="34" width="54" height="68" rx="8" fill="#ffffff" stroke="#2b2f2a" stroke-width="2"/>
+  <path class="ink" d="M34 50 h34 M34 62 h34 M34 74 h22"/>
+  <rect x="44" y="52" width="54" height="68" rx="8" fill="#ffffff" stroke="#b7c0b6" stroke-width="2"/>
+  <path d="M54 68 h34 M54 80 h34 M54 92 h22" stroke="#b7c0b6" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <path class="accentline" d="M116 76 c14 -14 30 2 18 14 l-8 8 M126 96 c-14 14 -30 -2 -18 -14 l8 -8"/>
+  <rect class="panel" x="168" y="34" width="136" height="86" rx="14"/>
+  <text class="txt" x="182" y="58">"연결한 지침 기준으로</text>
+  <text class="txt" x="182" y="74">검토해줘"</text>
+  <rect class="chip" x="182" y="86" width="76" height="18" rx="9"/>
+  <text class="chiptxt" x="190" y="98">안전관리 지침.hwp</text>
+  <rect class="chip" x="262" y="86" width="30" height="18" rx="9"/>
+  <text class="chiptxt" x="270" y="98">+2</text>
+  <text class="txt" x="16" y="146">파일을 연결하면 대화가 그 문서를 근거로 답합니다.</text>
+  <text class="txtsub" x="16" y="164">툴바의 파일 연결 버튼 하나로 검색·연결·해제를 한 번에.</text>
+</svg>

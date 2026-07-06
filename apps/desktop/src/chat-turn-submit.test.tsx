@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkSessionItem } from "./api";
@@ -40,6 +40,12 @@ const jsonResponse = (payload: unknown, status = 200) =>
       headers: { "Content-Type": "application/json" },
     }),
   );
+
+// D-06: 앱 시작 화면이 홈(오늘의 브리핑)으로 바뀌어, 채팅 검증은 먼저 업무대화 메뉴로 이동한다.
+async function openChatFromHome() {
+  const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+  fireEvent.click(within(navigation).getByRole("button", { name: "업무대화" }));
+}
 
 describe("Chat turn submit", () => {
   beforeEach(() => {
@@ -236,7 +242,6 @@ describe("Chat turn submit", () => {
 
         const collectionMap: Record<string, unknown> = {
           "/api/schedules": { items: [] },
-          "/api/reference-sets": { items: [] },
           "/api/templates": { items: [] },
           "/api/knowledge/candidates": { items: [] },
           "/api/knowledge/pages": { items: [] },
@@ -260,6 +265,7 @@ describe("Chat turn submit", () => {
   it("submits a chat turn and renders the assistant reply in the session thread", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await openChatFromHome();
 
     const composer = await screen.findByTestId("chat-composer-input");
     await user.type(composer, "Please outline the weekly report");
@@ -270,13 +276,14 @@ describe("Chat turn submit", () => {
       expect(within(chatThread).getByText("I will start by outlining the weekly report draft.")).toBeInTheDocument();
     });
     expect(within(chatThread).getByText("응답 840ms")).toBeInTheDocument();
-    expect(screen.getByTestId("chat-context-evidence")).toHaveTextContent("GraphRAG 근거 3개");
+    expect(screen.getByTestId("chat-context-evidence")).toHaveTextContent("지식위키 근거 3개");
     expect(screen.getByTestId("chat-context-evidence")).toHaveTextContent("연결 파일 2개");
   });
 
   it("submits the chat turn when Enter is pressed without Shift", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await openChatFromHome();
 
     const composer = await screen.findByTestId("chat-composer-input");
     await user.type(composer, "Please outline the weekly report{enter}");

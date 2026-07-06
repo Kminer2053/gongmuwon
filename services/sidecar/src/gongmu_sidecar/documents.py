@@ -49,7 +49,6 @@ class DocumentManager:
         title: str,
         purpose: str,
         template_key: str,
-        reference_set_id: str | None,
         source_session_id: str | None = None,
         outline: str = "",
         document_format: str = "auto",
@@ -65,9 +64,9 @@ class DocumentManager:
         user_template_path: str | None = None,
     ) -> dict[str, Any]:
         template = TEMPLATES.get(template_key, TEMPLATES["report"])
-        references = self._reference_lines(reference_set_id)
         session_context = self._session_context(source_session_id)
         direct_paths = [path.strip() for path in direct_file_paths or [] if path.strip()]
+        references = self._reference_lines(session_context, direct_paths)
         selected_template_path = self._normalize_user_template_path(user_template_path)
         content_base_id = str(uuid4())
         base_path = self.paths.content_bases / f"{content_base_id}.md"
@@ -102,7 +101,6 @@ class DocumentManager:
             "title": title,
             "purpose": purpose,
             "template_key": template_key,
-            "reference_set_id": reference_set_id,
             "source_session_id": source_session_id,
             "outline": outline,
             "document_format": document_format,
@@ -128,7 +126,6 @@ class DocumentManager:
             inputs={
                 "title": title,
                 "template_key": template_key,
-                "reference_set_id": reference_set_id,
                 "source_session_id": source_session_id,
                 "document_format": document_format,
             },
@@ -139,7 +136,6 @@ class DocumentManager:
             "title": title,
             "purpose": purpose,
             "template_key": template_key,
-            "reference_set_id": reference_set_id,
             "source_session_id": source_session_id,
             "outline": outline,
             "document_format": document_format,
@@ -200,10 +196,12 @@ class DocumentManager:
         if content_base is None:
             raise KeyError(content_base_id)
 
+        target_label = (content_base.get("title") or "").strip() or output_name
         ticket = self.db.create_approval_ticket(
             target_type="document_output",
             target_id=content_base_id,
             action="documents.finalize",
+            target_label=target_label,
         )
         request = {
             "id": str(uuid4()),
@@ -343,18 +341,20 @@ class DocumentManager:
             "file_links": file_links,
         }
 
-    def _reference_lines(self, reference_set_id: str | None) -> list[str]:
-        if not reference_set_id:
-            return ["- 참고자료가 아직 연결되지 않았습니다."]
-
-        items = self.db.fetch_all(
-            "SELECT kind, label, value FROM reference_items WHERE reference_set_id = ? ORDER BY created_at ASC",
-            (reference_set_id,),
-        )
-        if not items:
-            return ["- 참고자료가 아직 연결되지 않았습니다."]
-
-        return [f"- {item['label']} ({item['kind']}): {item['value']}" for item in items]
+    def _reference_lines(
+        self,
+        session_context: dict[str, Any] | None,
+        direct_paths: list[str],
+    ) -> list[str]:
+        """참고자료는 세션 연결 파일과 직접 연결 파일에서만 구성한다 (Reference Set 제거)."""
+        lines: list[str] = []
+        for link in (session_context or {}).get("file_links") or []:
+            label = str(link.get("label") or "").strip() or Path(str(link["file_path"])).name
+            lines.append(f"- {label} (세션 연결): {link['file_path']}")
+        for path in direct_paths:
+            label = Path(path).name or path
+            lines.append(f"- {label} (직접 연결): {path}")
+        return lines or ["- 참고자료가 아직 연결되지 않았습니다."]
 
     def _render_markdown(
         self,
@@ -506,7 +506,7 @@ class DocumentManager:
                 paragraphs.append(f"<p>{escaped}</p>")
 
         return (
-            "<!doctype html><html><head><meta charset='utf-8'><title>Content Base Preview</title>"
+            "<!doctype html><html><head><meta charset='utf-8'><title>문서 미리보기</title>"
             "<style>body{font-family:system-ui;padding:32px;max-width:900px;margin:0 auto;}li{margin-bottom:8px;}</style>"
             f"</head><body>{''.join(paragraphs)}</body></html>"
         )

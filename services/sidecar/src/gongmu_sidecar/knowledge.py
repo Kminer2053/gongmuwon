@@ -3,20 +3,19 @@ from __future__ import annotations
 import hashlib
 import json
 import mimetypes
+import os
 import re
+import time
 import xml.etree.ElementTree as ET
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 from zipfile import BadZipFile, ZipFile
 
-import lancedb
-import networkx as nx
-from networkx.readwrite import json_graph
-
 from .db import Database, now_iso
-from .embeddings import hash_embed, tokenize
+from .embeddings import tokenize
 from .workspace import WorkspacePaths
 
 
@@ -41,30 +40,32 @@ class KnowledgeManager:
         "build",
         "target",
     }
+    # Windows 스캔 위생(설계서 §7-1): 오피스 소유자 파일(~$), LibreOffice 잠금(.~lock),
+    # 다운로드·저장 중간 산출물은 파일명 단위로 제외한다.
+    TEMP_FILE_NAME_PREFIXES = ("~$", ".~lock")
+    TEMP_FILE_NAME_SUFFIXES = (".tmp", ".temp", ".crdownload", ".partial")
+    # 설계서 §4.2: mtime이 이 창(초) 이내면 아직 쓰기 중일 수 있으므로 UNSTABLE로 보류한다.
+    UNSTABLE_MTIME_WINDOW_SECONDS: float = 10.0
+    # 설계서 §4.2 견적 게이트: 재해시 대상이 이 임계를 넘으면 응답에 exceeds_gate로 표시만
+    # 한다(자동 차단 아님 — 진행 판단은 UI 몫).
+    DIFF_REHASH_GATE_FILES: int = 100
+    DIFF_REHASH_GATE_BYTES: int = 500 * 1024 * 1024
 
     def __init__(self, paths: WorkspacePaths, db: Database) -> None:
         self.paths = paths
         self.db = db
-        self.lancedb = lancedb.connect(str(self.paths.cache / "lancedb"))
         self.graph_path = self.paths.knowledge_graph / "graph.json"
         self.graph_html_path = self.paths.knowledge_graph / "graph.html"
         self.graph_report_path = self.paths.knowledge_graph / "GRAPH_REPORT.md"
-
-    def _table(self):
-        table_listing = self.lancedb.list_tables()
-        table_names = list(getattr(table_listing, "tables", table_listing))
-        if "knowledge_chunks" in table_names:
-            return self.lancedb.open_table("knowledge_chunks")
-
-        bootstrap = [{"id": "bootstrap", "text": "", "vector": hash_embed(""), "page_id": ""}]
-        table = self.lancedb.create_table("knowledge_chunks", data=bootstrap)
-        table.delete("id = 'bootstrap'")
-        return table
-
-    def add_chunk(self, *, chunk_id: str, text: str, page_id: str) -> None:
-        self._table().add(
-            [{"id": chunk_id, "text": text, "vector": hash_embed(text), "page_id": page_id}]
-        )
+        # §4.3 MOVED rebind 훅: KnowledgeWikiManager.rebind_moved_source_file가 주입된다
+        # (app.Services에서 배선). 스캔이 위키 산출물(문서·카드·FTS)까지 단일 트랜잭션으로
+        # 전파할 수 있게 한다. 미주입 시 source_files 행 갱신만 수행한다.
+        self.wiki_rebinder: Callable[..., dict[str, Any]] | None = None
+        # 이동 반영 후 index.md 즉시 재생성용(주입식 — 미주입 시 다음 인제스트가 수복).
+        self.wiki_index_rebuilder: Callable[[], Any] | None = None
+        # P3 §5.9 드리프트 감지 훅: WorkTaxonomyManager.detect_drift가 주입된다
+        # (스캔 완료 시 확정 taxonomy.folders vs 현재 1단계 폴더 diff에 편승).
+        self.drift_detector: Callable[[str], Any] | None = None
 
     def register_source(self, *, label: str, root_path: str) -> dict[str, Any]:
         normalized_label = label.strip()
@@ -121,6 +122,12 @@ class KnowledgeManager:
         return self.db.fetch_all("SELECT * FROM knowledge_source_files ORDER BY updated_at DESC")
 
     def scan_source(self, source_id: str) -> dict[str, Any]:
+        """2-pass 스캔(설계서 §4.2): 판정 수집(메모리) → 일괄 반영.
+
+        워크 중 즉시 INSERT하던 현행을 개편해 ADDED/DELETED 후보를 전부 모은 뒤
+        이동 판정(§4.2 [4])을 수행한다. MOVED는 rebind(§4.3)로 처리해 kordoc
+        재파싱 없이 태그·요약·검토 이력을 승계한다.
+        """
         source = self.db.fetch_one("SELECT * FROM knowledge_sources WHERE id = ?", (source_id,))
         if source is None:
             raise KeyError(source_id)
@@ -133,44 +140,34 @@ class KnowledgeManager:
             )
             raise ValueError("knowledge source root_path is no longer available")
 
-        seen_paths: set[str] = set()
-        indexed_count = 0
-        metadata_count = 0
-        failed_count = 0
+        decisions = self._collect_scan_decisions(source_id, root)
         scanned_at = now_iso()
-
-        for file_path in sorted(root.rglob("*")):
-            if not file_path.is_file() or self._is_excluded(file_path):
-                continue
-            extension = file_path.suffix.lower()
-            if extension not in self.TEXT_EXTENSIONS and extension not in self.METADATA_EXTENSIONS:
-                continue
-
+        applied = self._apply_scan_decisions(
+            source_id=source_id, root=root, decisions=decisions, scanned_at=scanned_at
+        )
+        if applied.get("moved_count") and self.wiki_index_rebuilder is not None:
             try:
-                file_record = self._build_file_record(source_id=source_id, root=root, file_path=file_path)
-                seen_paths.add(file_record["file_path"])
-                self._upsert_source_file(file_record)
-                if file_record["status"] == "indexed":
-                    indexed_count += 1
-                else:
-                    metadata_count += 1
+                self.wiki_index_rebuilder()
             except OSError:
-                failed_count += 1
-
-        deleted_count = self._mark_deleted_source_files(source_id, seen_paths, scanned_at)
+                pass
         self.db.execute(
             "UPDATE knowledge_sources SET status = ?, last_scanned_at = ?, updated_at = ? WHERE id = ?",
             ("active", scanned_at, scanned_at, source_id),
         )
+        # P3 §5.9: 스캔 완료 시 분류체계 드리프트 감지에 편승(실패해도 스캔은 성공).
+        if self.drift_detector is not None:
+            try:
+                self.drift_detector(source_id)
+            except Exception:  # noqa: BLE001 - 드리프트 감지 실패가 스캔을 막으면 안 된다
+                pass
         result = {
             "source_id": source_id,
             "status": "completed",
-            "indexed_count": indexed_count,
-            "metadata_count": metadata_count,
-            "deleted_count": deleted_count,
-            "failed_count": failed_count,
+            "failed_count": 0,
             "scanned_at": scanned_at,
+            **applied,
         }
+        # §4.3-⑦: 실행기록 페이로드에 moved 목록 포함 (스캔 요약 1건 + 이동별 1줄은 _apply_move)
         self.db.log(
             feature="knowledge",
             action="knowledge.source.scanned",
@@ -179,6 +176,407 @@ class KnowledgeManager:
             outputs=result,
         )
         return result
+
+    def diff_source(self, source_id: str) -> dict[str, Any]:
+        """변경 확인 견적(설계서 §9 P1) — **읽기 전용**: 반영 없이 판정 수집만 재사용한다.
+
+        DB를 일절 갱신하지 않으므로(needs_rescan 마킹·mtime_ns 백필·실행기록 포함 전무)
+        연속 호출해도 결과가 동일해야 한다. 견적 게이트 초과는 exceeds_gate로 표시만
+        하고 진행 판단은 UI에 맡긴다.
+        """
+        source = self.db.fetch_one("SELECT * FROM knowledge_sources WHERE id = ?", (source_id,))
+        if source is None:
+            raise KeyError(source_id)
+        root = Path(source["root_path"]).expanduser().resolve()
+        if not root.exists() or not root.is_dir():
+            raise ValueError("knowledge source root_path is no longer available")
+
+        decisions = self._collect_scan_decisions(source_id, root)
+        estimate = decisions["rehash_estimate"]
+        return {
+            "source_id": source_id,
+            "added": len(decisions["added"]),
+            "modified": len(decisions["modified"]),
+            "moved": len(decisions["moved"]),
+            "deleted": len(decisions["deleted_rows"]),
+            # TOUCHED(해시 동일·메타만 변경)는 사용자 관점 '변경없음'으로 집계한다.
+            "unchanged": len(decisions["unchanged"]) + len(decisions["touched"]),
+            "unstable": decisions["unstable_count"],
+            "moved_items": [
+                {"from": str(entry["row"]["file_path"]), "to": str(entry["path"])}
+                for entry in decisions["moved"]
+            ][:200],
+            "rehash_estimate": estimate,
+            "exceeds_gate": (
+                estimate["files"] > self.DIFF_REHASH_GATE_FILES
+                or estimate["bytes"] > self.DIFF_REHASH_GATE_BYTES
+            ),
+        }
+
+    def _collect_scan_decisions(self, source_id: str, root: Path) -> dict[str, Any]:
+        """2-pass의 1단계(§4.2 [0]~[4]): 판정만 수집한다 — **DB 무변경**.
+
+        스캔과 diff 견적이 이 로직을 공유한다. 경로 매칭은 casefold 키(§7-6)로,
+        대소문자만 다른 rename이 행 2개를 만들지 않고 같은 행으로 수렴하게 한다
+        (DB 저장은 원문 유지 — 반영 단계에서 새 표기로 갱신).
+        """
+        scan_epoch = time.time()
+        rows = self.db.fetch_all(
+            "SELECT * FROM knowledge_source_files WHERE source_id = ? AND status != ?",
+            (source_id, "deleted"),
+        )
+        rows_by_exact: dict[str, dict[str, Any]] = {str(row["file_path"]): row for row in rows}
+        rows_by_casefold: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            rows_by_casefold.setdefault(str(row["file_path"]).casefold(), []).append(row)
+
+        claimed_row_ids: set[str] = set()
+        unchanged: list[dict[str, Any]] = []
+        touched: list[dict[str, Any]] = []
+        modified: list[dict[str, Any]] = []
+        added: list[dict[str, Any]] = []
+        moved: list[dict[str, Any]] = []
+        rescan_rows: list[dict[str, Any]] = []
+        unstable_count = 0
+        rehash_files = 0
+        rehash_bytes = 0
+
+        for file_path in sorted(root.rglob("*")):
+            # [0] 제외 필터 선적용 (P0 §7-1)
+            if self._is_excluded(file_path, root):
+                continue
+            extension = file_path.suffix.lower()
+            if extension not in self.TEXT_EXTENSIONS and extension not in self.METADATA_EXTENSIONS:
+                continue
+
+            path_text = str(file_path)
+            row = rows_by_exact.get(path_text)
+            if row is not None and row["id"] in claimed_row_ids:
+                row = None
+            if row is None:
+                # §7-6 casefold 수렴: 대소문자(표기)만 다른 기존 행이 정확히 1개면 그 행으로.
+                candidates = [
+                    candidate
+                    for candidate in rows_by_casefold.get(path_text.casefold(), [])
+                    if candidate["id"] not in claimed_row_ids
+                ]
+                if len(candidates) == 1:
+                    row = candidates[0]
+
+            try:
+                if not file_path.is_file():
+                    continue
+                stat_result = file_path.stat()
+            except OSError:
+                # §7-2: 잠금·권한 오류 = UNSTABLE. 행이 있으면 claim해 삭제 오판을 막고
+                # 이번 회차 처리만 보류한다.
+                if row is not None:
+                    claimed_row_ids.add(row["id"])
+                unstable_count += 1
+                continue
+
+            if abs(scan_epoch - stat_result.st_mtime) < self.UNSTABLE_MTIME_WINDOW_SECONDS:
+                # 방금 수정된(쓰기 진행 중일 수 있는) 파일 — 다음 스캔으로 보류.
+                if row is not None:
+                    claimed_row_ids.add(row["id"])
+                unstable_count += 1
+                continue
+
+            if row is not None:
+                claimed_row_ids.add(row["id"])
+                modified_iso = datetime.fromtimestamp(stat_result.st_mtime, timezone.utc).isoformat()
+                metadata_unchanged = (
+                    not row.get("needs_rescan")
+                    and row["size_bytes"] == stat_result.st_size
+                    and row["modified_at"] == modified_iso
+                )
+                if metadata_unchanged:
+                    if str(row["file_path"]) != path_text:
+                        # 대소문자만 바뀐 rename — size+mtime 보존으로 내용 동일이 보장되므로
+                        # 재해시 없이 MOVED(rebind) 판정한다.
+                        moved.append(
+                            {"row": row, "path": file_path, "stat": stat_result, "case_only": True}
+                        )
+                    else:
+                        unchanged.append(
+                            {
+                                "row": row,
+                                "backfill_mtime_ns": row.get("mtime_ns") != stat_result.st_mtime_ns,
+                                "mtime_ns": stat_result.st_mtime_ns,
+                            }
+                        )
+                    continue
+                rehash_files += 1
+                rehash_bytes += stat_result.st_size
+                file_hash = self._hash_with_sandwich(file_path, stat_result)
+                if file_hash is None:
+                    # §7-4 샌드위치 불일치 — 반영 단계에서 needs_rescan=1 마킹.
+                    rescan_rows.append(row)
+                    unstable_count += 1
+                    continue
+                if str(row.get("file_hash") or "") == str(file_hash):
+                    # §4.2 TOUCHED: 해시 동일(내용 불변) — 메타만 갱신, 재추출·재색인 없음.
+                    # USB 폴더 교체(전 파일 mtime 변동)가 전량 '수정'으로 과대 표기되지 않게 한다.
+                    touched.append({"row": row, "stat": stat_result})
+                    continue
+                modified.append(
+                    {"row": row, "path": file_path, "stat": stat_result, "file_hash": file_hash}
+                )
+                continue
+
+            # 행 없음 → ADDED 후보. 이동 판정용 해시는 어차피 신규에 필수(추가 I/O 0 — §4.2 [4]).
+            rehash_files += 1
+            rehash_bytes += stat_result.st_size
+            file_hash = self._hash_with_sandwich(file_path, stat_result)
+            if file_hash is None:
+                unstable_count += 1
+                continue
+            added.append({"path": file_path, "stat": stat_result, "file_hash": file_hash})
+
+        # [3] DB에 있는데 디스크에서 못 본 행 = DELETED 후보
+        deleted_rows = [row for row in rows if row["id"] not in claimed_row_ids]
+
+        # [4] 이동 판정: (size, file_hash) 정확 1:1만 MOVED, 그 외(0개·사본 다수)는
+        # ADDED+DELETED 폴백 — 오매칭보다 재파싱이 싸다(§3-5).
+        added_by_key: dict[tuple[int, str], list[dict[str, Any]]] = {}
+        for candidate in added:
+            key = (candidate["stat"].st_size, str(candidate["file_hash"]))
+            added_by_key.setdefault(key, []).append(candidate)
+        deleted_by_key: dict[tuple[int, str], list[dict[str, Any]]] = {}
+        for row in deleted_rows:
+            key = (int(row["size_bytes"] or 0), str(row["file_hash"] or ""))
+            deleted_by_key.setdefault(key, []).append(row)
+        moved_row_ids: set[str] = set()
+        moved_added_ids: set[int] = set()
+        for key, add_candidates in added_by_key.items():
+            if not key[1]:
+                continue  # 해시 없는 행은 매칭 불가
+            delete_candidates = deleted_by_key.get(key, [])
+            if len(add_candidates) != 1 or len(delete_candidates) != 1:
+                continue
+            candidate = add_candidates[0]
+            moved.append(
+                {
+                    "row": delete_candidates[0],
+                    "path": candidate["path"],
+                    "stat": candidate["stat"],
+                    "case_only": False,
+                }
+            )
+            moved_row_ids.add(delete_candidates[0]["id"])
+            moved_added_ids.add(id(candidate))
+        added = [candidate for candidate in added if id(candidate) not in moved_added_ids]
+        deleted_rows = [row for row in deleted_rows if row["id"] not in moved_row_ids]
+
+        return {
+            "unchanged": unchanged,
+            "touched": touched,
+            "modified": modified,
+            "added": added,
+            "moved": moved,
+            "deleted_rows": deleted_rows,
+            "rescan_rows": rescan_rows,
+            "unstable_count": unstable_count,
+            "rehash_estimate": {"files": rehash_files, "bytes": rehash_bytes},
+        }
+
+    def _hash_with_sandwich(self, file_path: Path, stat_before: os.stat_result) -> str | None:
+        """stat-해시-stat 샌드위치(§7-4): 해시 도중 파일이 바뀌면 None."""
+        try:
+            file_hash = self._sha256(file_path)
+            stat_after = file_path.stat()
+        except OSError:
+            return None
+        if (
+            stat_before.st_size != stat_after.st_size
+            or stat_before.st_mtime_ns != stat_after.st_mtime_ns
+        ):
+            return None
+        return file_hash
+
+    def _apply_scan_decisions(
+        self,
+        *,
+        source_id: str,
+        root: Path,
+        decisions: dict[str, Any],
+        scanned_at: str,
+    ) -> dict[str, Any]:
+        """2-pass의 2단계(§4.2 [5]): 수집된 판정을 일괄 반영한다."""
+        indexed_count = 0
+        metadata_count = 0
+        unstable_count = int(decisions["unstable_count"])
+        added_count = 0
+        modified_count = 0
+        moved_entries: list[dict[str, str]] = []
+
+        def count_status(status: Any) -> None:
+            nonlocal indexed_count, metadata_count
+            if status == "indexed":
+                indexed_count += 1
+            else:
+                metadata_count += 1
+
+        for entry in decisions["unchanged"]:
+            row = entry["row"]
+            if entry["backfill_mtime_ns"]:
+                # 과도기 전략(§4.2): 비교는 ISO 문자열 유지, mtime_ns는 기록(백필)만 한다.
+                self.db.execute(
+                    "UPDATE knowledge_source_files SET mtime_ns = ? WHERE id = ?",
+                    (entry["mtime_ns"], row["id"]),
+                )
+            count_status(row["status"])
+
+        for row in decisions["rescan_rows"]:
+            # §7-4: 샌드위치 불일치 행은 다음 스캔 강제 재처리 대상으로 마킹한다.
+            self.db.execute(
+                "UPDATE knowledge_source_files SET needs_rescan = 1, updated_at = ? WHERE id = ?",
+                (scanned_at, row["id"]),
+            )
+
+        for entry in decisions["touched"]:
+            # §4.2 TOUCHED: 내용 불변(해시 동일) — 메타만 갱신하고 재추출은 생략한다.
+            row = entry["row"]
+            stat_result = entry["stat"]
+            self.db.execute(
+                "UPDATE knowledge_source_files "
+                "SET size_bytes = ?, modified_at = ?, mtime_ns = ?, needs_rescan = 0, updated_at = ? "
+                "WHERE id = ?",
+                (
+                    stat_result.st_size,
+                    datetime.fromtimestamp(stat_result.st_mtime, timezone.utc).isoformat(),
+                    stat_result.st_mtime_ns,
+                    scanned_at,
+                    row["id"],
+                ),
+            )
+            count_status(row["status"])
+
+        for candidate in decisions["modified"]:
+            try:
+                record = self._build_file_record(
+                    source_id=source_id, root=root, file_path=candidate["path"]
+                )
+            except OSError:
+                record = None
+            if record is None:
+                unstable_count += 1
+                self.db.execute(
+                    "UPDATE knowledge_source_files SET needs_rescan = 1, updated_at = ? WHERE id = ?",
+                    (scanned_at, candidate["row"]["id"]),
+                )
+                continue
+            # 대소문자 rename+내용 변경이 겹쳐도 행 id 기준 UPDATE라 행이 늘지 않는다(§7-6).
+            self._update_source_file_row(candidate["row"]["id"], record)
+            modified_count += 1
+            count_status(record["status"])
+
+        for candidate in decisions["added"]:
+            try:
+                record = self._build_file_record(
+                    source_id=source_id, root=root, file_path=candidate["path"]
+                )
+            except OSError:
+                record = None
+            if record is None:
+                unstable_count += 1
+                continue
+            self._upsert_source_file(record)
+            added_count += 1
+            count_status(record["status"])
+
+        for entry in decisions["moved"]:
+            moved_entries.append(
+                self._apply_move(source_id=source_id, root=root, entry=entry, scanned_at=scanned_at)
+            )
+            count_status(entry["row"]["status"])
+
+        deleted_count = 0
+        for row in decisions["deleted_rows"]:
+            self.db.execute(
+                "UPDATE knowledge_source_files SET status = ?, updated_at = ? WHERE id = ?",
+                ("deleted", scanned_at, row["id"]),
+            )
+            deleted_count += 1
+
+        return {
+            "indexed_count": indexed_count,
+            "metadata_count": metadata_count,
+            "deleted_count": deleted_count,
+            "unstable_count": unstable_count,
+            "added_count": added_count,
+            "modified_count": modified_count,
+            "moved_count": len(moved_entries),
+            "unchanged_count": len(decisions["unchanged"]) + len(decisions["touched"]),
+            "moved": moved_entries,
+        }
+
+    def _apply_move(
+        self, *, source_id: str, root: Path, entry: dict[str, Any], scanned_at: str
+    ) -> dict[str, str]:
+        """MOVED rebind(§4.3): 행 id 보존 + 경로 사본 전파를 파일당 단일 트랜잭션으로.
+
+        ① knowledge_source_files.file_path(+relative_path) 갱신은 여기서,
+        ②~⑥(documents·wiki_docs·카드 재투영·FTS·stem 유래 title)은 주입된
+        wiki_rebinder가 같은 트랜잭션 안에서 수행한다. 구 카드 unlink는 롤백
+        안전을 위해 커밋 후에 한다(P0 refcount 패턴 준수).
+        """
+        row = entry["row"]
+        new_path: Path = entry["path"]
+        stat_result: os.stat_result = entry["stat"]
+        old_path = str(row["file_path"])
+        new_path_text = str(new_path)
+        new_relative = new_path.relative_to(root).as_posix()
+        old_stem = Path(old_path).stem
+        title = str(row.get("title") or "")
+        if title == old_stem and new_path.stem != old_stem:
+            # stem 폴백 title(추출 실패 문서 등)은 새 파일명 stem으로 갱신한다(§4.3-⑥).
+            title = new_path.stem
+        modified_iso = datetime.fromtimestamp(stat_result.st_mtime, timezone.utc).isoformat()
+
+        stale_card_path: str | None = None
+        with self.db.transaction():
+            self.db.execute(
+                """
+                UPDATE knowledge_source_files
+                SET file_path = ?, relative_path = ?, modified_at = ?, mtime_ns = ?,
+                    needs_rescan = 0, title = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    new_path_text,
+                    new_relative,
+                    modified_iso,
+                    stat_result.st_mtime_ns,
+                    title,
+                    scanned_at,
+                    row["id"],
+                ),
+            )
+            if self.wiki_rebinder is not None:
+                rebind = self.wiki_rebinder(
+                    source_file_id=row["id"],
+                    old_path=old_path,
+                    new_path=new_path_text,
+                    new_relative=new_relative,
+                )
+                stale_card_path = rebind.get("stale_card_path")
+        if stale_card_path:
+            Path(stale_card_path).unlink(missing_ok=True)
+
+        # §4.3-⑦ 실행기록 1줄: 파일 이동 감지 (재파싱 생략)
+        self.db.log(
+            feature="knowledge",
+            action="knowledge.source.file_moved",
+            status="success",
+            inputs={"source_id": source_id, "from": old_path},
+            outputs={
+                "to": new_path_text,
+                "case_only": bool(entry.get("case_only")),
+                "message": f"파일 이동 감지: {old_path} → {new_path_text} (재파싱 생략)",
+            },
+        )
+        return {"from": old_path, "to": new_path_text}
 
     def create_candidate(self, *, title: str, body: str, candidate_type: str) -> dict[str, Any]:
         candidate_id = str(uuid4())
@@ -254,7 +652,6 @@ class KnowledgeManager:
             "UPDATE knowledge_candidates SET status = ?, approved_page_id = ?, approved_page_path = ?, approved_at = ? WHERE id = ?",
             ("approved", page_id, str(page_path), now_iso(), candidate_id),
         )
-        self.add_chunk(chunk_id=str(uuid4()), text=f"{title}\n{body}", page_id=page_id)
         graph = self._update_graph(page=page, body=body)
         self.db.log(
             feature="knowledge",
@@ -266,20 +663,19 @@ class KnowledgeManager:
         return {"page": page, "graph": graph}
 
     def search(self, query: str, limit: int = 5) -> dict[str, Any]:
-        vector_hits = self._table().search(hash_embed(query)).limit(limit).to_list()
+        """레거시 검색: 승인된 지식 페이지 + 스캔된 원본 파일 키워드 매칭."""
         keyword = set(tokenize(query))
-
         page_hits = []
-        for hit in vector_hits:
-            page = self.db.fetch_one("SELECT * FROM knowledge_pages WHERE id = ?", (hit["page_id"],))
-            if page:
-                page_hits.append(
-                    {
-                        "page": page,
-                        "score": float(hit.get("_distance", 0.0)),
-                        "keyword_overlap": len(keyword.intersection(tokenize(hit["text"]))),
-                    }
-                )
+        for page in self.db.fetch_all("SELECT * FROM knowledge_pages ORDER BY created_at DESC"):
+            try:
+                body = Path(page["path"]).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                body = str(page.get("title") or "")
+            overlap = len(keyword.intersection(tokenize(f"{page['title']}\n{body}")))
+            if overlap <= 0 and query.lower() not in body.lower():
+                continue
+            page_hits.append({"page": page, "score": float(overlap), "keyword_overlap": overlap})
+        page_hits.sort(key=lambda hit: hit["keyword_overlap"], reverse=True)
 
         graph_data = self._read_graph()
         neighbors: list[str] = []
@@ -290,7 +686,7 @@ class KnowledgeManager:
 
         return {
             "query": query,
-            "vector_hits": page_hits,
+            "page_hits": page_hits[:limit],
             "source_file_hits": self._search_source_files(query, limit=limit),
             "graph_neighbors": sorted(set(neighbors)),
         }
@@ -367,27 +763,44 @@ class KnowledgeManager:
         return json.loads(self.graph_path.read_text(encoding="utf-8"))
 
     def _update_graph(self, *, page: dict[str, Any], body: str) -> dict[str, Any]:
-        if self.graph_path.exists():
-            data = json.loads(self.graph_path.read_text(encoding="utf-8"))
-            graph = json_graph.node_link_graph(data)
-        else:
-            graph = nx.Graph()
+        """지식 페이지 승인 시 경량 JSON 그래프를 갱신한다 (networkx 미사용)."""
+        data = self._read_graph()
+        nodes: dict[str, dict[str, Any]] = {
+            str(node.get("id")): dict(node) for node in data.get("nodes", []) if node.get("id")
+        }
+        edges: list[dict[str, Any]] = [
+            dict(edge) for edge in (data.get("edges") or data.get("links") or [])
+        ]
+        edge_keys = {(str(edge.get("source")), str(edge.get("target"))) for edge in edges}
 
-        page_node = page["id"]
-        graph.add_node(page_node, label=page["title"], node_type=page["page_type"])
+        page_node = str(page["id"])
+        nodes[page_node] = {
+            "id": page_node,
+            "label": page["title"],
+            "node_type": page["page_type"],
+        }
         keywords = [token for token in tokenize(body) if len(token) >= 2][:6]
         for keyword in keywords:
             concept_id = f"concept:{keyword}"
-            graph.add_node(concept_id, label=keyword, node_type="concept")
-            graph.add_edge(page_node, concept_id, relation="mentions")
+            nodes.setdefault(concept_id, {"id": concept_id, "label": keyword, "node_type": "concept"})
+            if (page_node, concept_id) not in edge_keys:
+                edges.append({"source": page_node, "target": concept_id, "relation": "mentions"})
+                edge_keys.add((page_node, concept_id))
 
-        serializable = json_graph.node_link_data(graph)
-        neighbor_map = {
-            node: [graph.nodes[neighbor].get("label", neighbor) for neighbor in graph.neighbors(node)]
-            for node in graph.nodes
+        neighbor_map: dict[str, list[str]] = {node_id: [] for node_id in nodes}
+        for edge in edges:
+            source = str(edge.get("source") or "")
+            target = str(edge.get("target") or "")
+            if source in nodes and target in nodes:
+                neighbor_map[source].append(nodes[target].get("label", target))
+                neighbor_map[target].append(nodes[source].get("label", source))
+        serializable = {
+            "nodes": [
+                {**node, "neighbors": sorted(set(neighbor_map.get(node_id, []))) }
+                for node_id, node in nodes.items()
+            ],
+            "edges": edges,
         }
-        for node in serializable["nodes"]:
-            node["neighbors"] = neighbor_map.get(node["id"], [])
 
         self.graph_path.write_text(
             json.dumps(serializable, ensure_ascii=False, indent=2),
@@ -406,17 +819,17 @@ class KnowledgeManager:
         report = [
             "# GRAPH_REPORT",
             "",
-            f"- node_count: {graph.number_of_nodes()}",
-            f"- edge_count: {graph.number_of_edges()}",
+            f"- node_count: {len(serializable['nodes'])}",
+            f"- edge_count: {len(edges)}",
             "",
             "## 주요 노드",
         ]
-        for node_id, attrs in list(graph.nodes(data=True))[:10]:
-            report.append(f"- {attrs.get('label', node_id)} ({attrs.get('node_type', 'unknown')})")
+        for node in serializable["nodes"][:10]:
+            report.append(f"- {node.get('label', node['id'])} ({node.get('node_type', 'unknown')})")
         self.graph_report_path.write_text("\n".join(report), encoding="utf-8")
         return {
-            "node_count": graph.number_of_nodes(),
-            "edge_count": graph.number_of_edges(),
+            "node_count": len(serializable["nodes"]),
+            "edge_count": len(edges),
             "graph_json_path": str(self.graph_path),
             "graph_html_path": str(self.graph_html_path),
             "graph_report_path": str(self.graph_report_path),
@@ -432,38 +845,59 @@ class KnowledgeManager:
             candidate_slug = f"{slug}-{counter}"
             counter += 1
 
-    def _is_excluded(self, path: Path) -> bool:
-        return any(part in self.EXCLUDED_PATH_PARTS or part.startswith(".") for part in path.parts)
+    def _is_excluded(self, path: Path, root: Path | None = None) -> bool:
+        """루트 기준 상대 경로 조각만 검사한다.
 
-    def _build_file_record(self, *, source_id: str, root: Path, file_path: Path) -> dict[str, Any]:
+        절대 경로 전체를 검사하면 지식폴더가 점(.) 디렉터리(예: .claude 작업트리)
+        아래에 있을 때 루트의 조상 경로 때문에 모든 파일이 제외되는 버그가 생긴다.
+        """
+        parts = path.relative_to(root).parts if root is not None else path.parts
+        if any(part in self.EXCLUDED_PATH_PARTS or part.startswith(".") for part in parts):
+            return True
+        # 디렉터리 조각과 별개로 파일명 단위 임시·잠금 파일 패턴도 검사한다 (§7-1).
+        name = (parts[-1] if parts else path.name).lower()
+        if name.startswith(self.TEMP_FILE_NAME_PREFIXES):
+            return True
+        return name.endswith(self.TEMP_FILE_NAME_SUFFIXES)
+
+    def _build_file_record(self, *, source_id: str, root: Path, file_path: Path) -> dict[str, Any] | None:
+        """파일 레코드를 만든다. stat-해시-stat 샌드위치(설계서 §7-4) 불일치면 None.
+
+        해시·발췌 읽기 도중 파일이 바뀌면 'v2 내용이 v1 해시 이름으로 저장'되는
+        오염이 생기므로, 앞뒤 stat이 다르면 이번 레코드를 저장하지 않는다.
+        """
+        stat_before = file_path.stat()
         file_hash = self._sha256(file_path)
-        stat = file_path.stat()
-        modified_at = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
         extension = file_path.suffix.lower()
-        extracted_text_path: str | None = None
-        text_excerpt: str | None = None
-        title = file_path.stem
+        text: str | None = None
         status = "metadata_only"
 
         if extension in self.TEXT_EXTENSIONS:
             text = file_path.read_text(encoding="utf-8", errors="replace")
+            status = "indexed"
+        elif extension in self.METADATA_EXTENSIONS:
+            extracted = self._extract_document_text(file_path, extension)
+            if extracted.strip():
+                text = extracted
+                status = "indexed"
+
+        stat_after = file_path.stat()
+        if (
+            stat_before.st_size != stat_after.st_size
+            or stat_before.st_mtime_ns != stat_after.st_mtime_ns
+        ):
+            return None
+
+        title = file_path.stem
+        text_excerpt: str | None = None
+        extracted_text_path: str | None = None
+        if text is not None:
             title = self._title_from_text(text, fallback=file_path.stem)
             text_excerpt = self._excerpt(text)
             extracted_path = self.paths.knowledge_raw / "source-files" / source_id / f"{file_hash}.txt"
             extracted_path.parent.mkdir(parents=True, exist_ok=True)
             extracted_path.write_text(text, encoding="utf-8")
             extracted_text_path = str(extracted_path)
-            status = "indexed"
-        elif extension in self.METADATA_EXTENSIONS:
-            text = self._extract_document_text(file_path, extension)
-            if text.strip():
-                title = self._title_from_text(text, fallback=file_path.stem)
-                text_excerpt = self._excerpt(text)
-                extracted_path = self.paths.knowledge_raw / "source-files" / source_id / f"{file_hash}.txt"
-                extracted_path.parent.mkdir(parents=True, exist_ok=True)
-                extracted_path.write_text(text, encoding="utf-8")
-                extracted_text_path = str(extracted_path)
-                status = "indexed"
 
         timestamp = now_iso()
         return {
@@ -472,8 +906,10 @@ class KnowledgeManager:
             "file_path": str(file_path),
             "relative_path": file_path.relative_to(root).as_posix(),
             "file_hash": file_hash,
-            "size_bytes": stat.st_size,
-            "modified_at": modified_at,
+            "size_bytes": stat_after.st_size,
+            "modified_at": datetime.fromtimestamp(stat_after.st_mtime, timezone.utc).isoformat(),
+            "mtime_ns": stat_after.st_mtime_ns,
+            "needs_rescan": 0,
             "status": status,
             "title": title,
             "mime_type": mimetypes.guess_type(file_path.name)[0],
@@ -491,14 +927,19 @@ class KnowledgeManager:
         if existing is None:
             self.db.insert("knowledge_source_files", payload)
             return
+        self._update_source_file_row(existing["id"], payload)
 
+    def _update_source_file_row(self, row_id: str, payload: dict[str, Any]) -> None:
         self.db.execute(
             """
             UPDATE knowledge_source_files
-            SET relative_path = ?,
+            SET file_path = ?,
+                relative_path = ?,
                 file_hash = ?,
                 size_bytes = ?,
                 modified_at = ?,
+                mtime_ns = ?,
+                needs_rescan = 0,
                 status = ?,
                 title = ?,
                 mime_type = ?,
@@ -508,35 +949,21 @@ class KnowledgeManager:
             WHERE id = ?
             """,
             (
+                payload["file_path"],
                 payload["relative_path"],
                 payload["file_hash"],
                 payload["size_bytes"],
                 payload["modified_at"],
+                payload["mtime_ns"],
                 payload["status"],
                 payload["title"],
                 payload["mime_type"],
                 payload["text_excerpt"],
                 payload["extracted_text_path"],
                 payload["updated_at"],
-                existing["id"],
+                row_id,
             ),
         )
-
-    def _mark_deleted_source_files(self, source_id: str, seen_paths: set[str], timestamp: str) -> int:
-        existing_files = self.db.fetch_all(
-            "SELECT id, file_path FROM knowledge_source_files WHERE source_id = ? AND status != ?",
-            (source_id, "deleted"),
-        )
-        deleted_count = 0
-        for row in existing_files:
-            if row["file_path"] in seen_paths:
-                continue
-            self.db.execute(
-                "UPDATE knowledge_source_files SET status = ?, updated_at = ? WHERE id = ?",
-                ("deleted", timestamp, row["id"]),
-            )
-            deleted_count += 1
-        return deleted_count
 
     def _sha256(self, path: Path) -> str:
         digest = hashlib.sha256()

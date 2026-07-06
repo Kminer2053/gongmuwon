@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="지식폴더 지정 안내">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .accent{fill:#3d7a4f;}
+      .accentline{stroke:#3d7a4f;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .amberfill{fill:#f3d9a4;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+      .step{font-family:'Malgun Gothic',sans-serif;font-size:10px;fill:#3d7a4f;font-weight:bold;}
+    </style>
+  </defs>
+  <path d="M26 44 h30 l7 7 h44 v44 a7 7 0 0 1 -7 7 h-67 a7 7 0 0 1 -7 -7 v-44 a7 7 0 0 1 7 -7 z" class="amberfill" stroke="#d9a441" stroke-width="2"/>
+  <text class="txtsub" x="36" y="80">업무 문서함</text>
+  <path class="accentline" d="M118 74 h22 M132 66 l10 8 -10 8"/>
+  <rect class="panel" x="150" y="34" width="72" height="72" rx="12"/>
+  <circle cx="170" cy="56" r="9" fill="none" stroke="#3d7a4f" stroke-width="2"/>
+  <path class="accentline" d="M177 63 l6 6"/>
+  <path class="ink" d="M164 82 h44 M164 92 h30"/>
+  <text class="txtsub" x="158" y="126">색인·위키 자동</text>
+  <path class="accentline" d="M232 74 h22 M246 66 l10 8 -10 8"/>
+  <rect class="panel" x="262" y="40" width="44" height="60" rx="10"/>
+  <path class="ink" d="M272 56 h24 M272 66 h24 M272 76 h16"/>
+  <path class="accentline" d="M272 88 l4 4 8 -8"/>
+  <text class="txt" x="16" y="150">자주 쓰는 문서 폴더 하나만 지정하세요.</text>
+  <text class="txtsub" x="16" y="168">색인과 업무별 지식위키가 자동으로 만들어지고, 대화가 문서 근거를 갖게 됩니다.</text>
+</svg>

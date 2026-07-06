@@ -127,7 +127,7 @@ def test_document_listing_aggregates_without_join_explosion(tmp_path: Path) -> N
                 )
 
     started_at = time.perf_counter()
-    documents = client.app.state.services.graphrag.list_documents()
+    documents = client.app.state.services.wiki.list_documents()
     elapsed = time.perf_counter() - started_at
 
     assert len(documents) == 8

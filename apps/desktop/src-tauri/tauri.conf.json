@@ -30,6 +30,13 @@
         "type": "offlineInstaller",
         "silent": true
       },
+      "nsis": {
+        "installerHooks": "nsis/installer-hooks.nsh",
+        "headerImage": "nsis/header.bmp",
+        "sidebarImage": "nsis/sidebar.bmp",
+        "languages": ["Korean"],
+        "displayLanguageSelector": false
+      },
       "wix": {
         "template": "windows/main.wxs"
       }

@@ -31,6 +31,8 @@ export type ScheduleItem = {
   starts_at: string;
   ends_at: string;
   view: "month" | "week" | "day";
+  // 분 단위 사전 알림 (null = 알림 없음)
+  remind_before_minutes?: number | null;
   created_at: string;
 };
 
@@ -41,6 +43,18 @@ export type WorkSessionItem = {
   status: string;
   created_at: string;
   messages?: WorkSessionMessageItem[];
+};
+
+export type WorkSessionMessageCitation = {
+  title?: string | null;
+  file_path: string;
+  snippet?: string | null;
+  /**
+   * W7 §5.5/§5.6: 인용 시점의 문서 고유 식별자.
+   * 원본이 이동/삭제됐을 때 지식카드 폴백 조회(fetchKnowledgeCardByUid)에 쓴다.
+   * 구버전 인용(3필드)에는 없으며, 없으면 현행 동작(원본 바로 열기)을 유지한다.
+   */
+  doc_uid?: string | null;
 };
 
 export type WorkSessionMessageItem = {
@@ -54,6 +68,7 @@ export type WorkSessionMessageItem = {
   model?: string | null;
   latency_ms?: number | null;
   attachments?: WorkSessionAttachmentItem[];
+  citations?: WorkSessionMessageCitation[];
   created_at: string;
 };
 
@@ -115,21 +130,6 @@ export type WorkSessionTurnStreamHandlers = {
   onDelta?: (delta: WorkSessionTurnStreamDelta) => void;
   onDone?: (result: WorkSessionTurnResult) => void;
   onError?: (error: { message: string }) => void;
-};
-
-export type ReferenceItem = {
-  id?: string;
-  kind: string;
-  label: string;
-  value: string;
-};
-
-export type ReferenceSetItem = {
-  id: string;
-  title: string;
-  session_id?: string | null;
-  items: ReferenceItem[];
-  created_at: string;
 };
 
 export type TemplateItem = {
@@ -197,7 +197,27 @@ export type KnowledgeSourceScanResult = {
   metadata_count: number;
   deleted_count: number;
   failed_count: number;
+  /** 잠금·쓰기 중 등으로 이번 스캔에서 처리 보류(UNSTABLE)된 파일 수 — 다음 스캔에서 처리(구버전 서버는 미제공). */
+  unstable_count?: number;
   scanned_at: string;
+};
+
+/**
+ * 증분 색인 "변경 확인" diff 견적(설계서 §4.2·§4.4).
+ * 색인을 실행하지 않고 마지막 스캔 이후 변경 견적만 돌려준다.
+ */
+export type KnowledgeSourceDiffResult = {
+  added: number;
+  modified: number;
+  moved: number;
+  deleted: number;
+  unchanged: number;
+  /** 잠금·방금 수정 등으로 판정을 보류한 파일 수 — 다음 스캔에서 처리. */
+  unstable: number;
+  /** 해시 확인이 필요한 파일 견적(순차 읽기 비용 상한). */
+  rehash_estimate: { files: number; bytes: number };
+  /** 견적 게이트 초과 여부 — true면 자동 실행 대신 사용자 확인이 필요하다. */
+  exceeds_gate: boolean;
 };
 
 export type KnowledgeIngestionJobItem = {
@@ -213,6 +233,8 @@ export type KnowledgeIngestionJobItem = {
   failed_count: number;
   deleted_document_count?: number;
   skipped_count?: number;
+  /** 스캔 단계에서 보류(UNSTABLE)된 파일 수 — 다음 스캔에서 처리(구버전 서버는 미제공). */
+  unstable_count?: number;
   force_rebuild?: number;
   cancel_requested?: number;
   last_processed_path?: string | null;
@@ -327,11 +349,28 @@ export type PersonalizationDecisionResult = {
   } | null;
 };
 
+export type KnowledgeSearchItem = {
+  doc_id: string;
+  document_id?: string | null;
+  title: string;
+  source_path: string;
+  relative_path?: string | null;
+  snippet: string;
+  score?: number;
+  quality_score?: number | null;
+  warnings?: string[];
+  card_path?: string | null;
+  slug?: string | null;
+};
+
 export type KnowledgeSearchResult = {
   query: string;
-  vector_hits: Array<{ page: KnowledgePageItem; score: number; keyword_overlap: number }>;
+  mode?: "fts5" | "like" | "empty" | string;
+  items?: KnowledgeSearchItem[];
+  // 구 GraphRAG 응답 호환 필드 (백엔드 전환기 동안 유지)
+  vector_hits?: Array<{ page: KnowledgePageItem; score: number; keyword_overlap: number }>;
   source_file_hits?: Array<{ file: KnowledgeSourceFileItem; keyword_overlap: number }>;
-  graph_neighbors: string[];
+  graph_neighbors?: string[];
 };
 
 export type LocalFileSearchResult = {
@@ -451,8 +490,26 @@ export type KnowledgeDocumentItem = {
   updated_at: string;
 };
 
+export type KnowledgeBackendEntry = {
+  name: string;
+  role?: string;
+  available?: boolean;
+  tokenizer?: string;
+  storage_path?: string;
+  detail?: string | null;
+};
+
 export type KnowledgeBackendStatus = {
-  vector: {
+  engine?: string;
+  fts5?: { ok: boolean; tokenizer?: string };
+  kordoc?: { available: boolean };
+  llm_enrichment?: {
+    configured: boolean;
+    /** W7 P3 §5.4: 요약 보강 대기 문서 수(enrich remaining) — 구버전 서버 응답에는 없다. */
+    pending_count?: number;
+  };
+  backends?: KnowledgeBackendEntry[];
+  vector?: {
     contract_version?: string;
     role?: string;
     production_backend: string;
@@ -471,7 +528,7 @@ export type KnowledgeBackendStatus = {
     storage_path: string;
     detail?: string | null;
   };
-  graph: {
+  graph?: {
     contract_version?: string;
     role?: string;
     production_backend: string;
@@ -505,37 +562,47 @@ export type KnowledgeParserStatus = {
   };
 };
 
+export type KnowledgeAskCitation = {
+  doc_id?: string;
+  document_id?: string | null;
+  /** W7 §5.5/§5.6: 문서 고유 식별자 — 원본 부재 시 카드 폴백 조회용(구버전 응답에는 없음). */
+  doc_uid?: string | null;
+  title: string;
+  source_path?: string;
+  file_path: string;
+  snippet?: string;
+  chunk_id?: string;
+  parser_name?: string | null;
+  quality_score?: number | null;
+  partial?: boolean;
+  evidence_type?: "section" | "table" | "wiki" | string;
+  quality_warnings?: string[];
+  card_path?: string | null;
+  score_breakdown?: {
+    text_score?: number;
+    graph_score?: number;
+    vector_score?: number;
+    session_context_boost?: number;
+    table_evidence_boost?: number;
+  };
+  relations?: string[];
+};
+
 export type KnowledgeAskResult = {
   query: string;
   session_id?: string | null;
   answer: string;
-  citations: Array<{
-    document_id: string;
-    title: string;
-    file_path: string;
-    chunk_id: string;
-    parser_name?: string | null;
-    quality_score?: number | null;
-    partial?: boolean;
-    evidence_type?: "section" | "table" | string;
-    quality_warnings?: string[];
-    score_breakdown?: {
-      text_score?: number;
-      graph_score?: number;
-      vector_score?: number;
-      session_context_boost?: number;
-      table_evidence_boost?: number;
-    };
-    relations: string[];
-  }>;
+  answer_mode?: "llm" | "extractive" | string;
+  citations: KnowledgeAskCitation[];
   retrieval_summary?: {
     source_count: number;
-    table_evidence_count: number;
-    partial_count: number;
-    low_quality_count: number;
-    relation_count: number;
+    hit_count?: number;
+    low_quality_count?: number;
+    table_evidence_count?: number;
+    partial_count?: number;
+    relation_count?: number;
   };
-  items: unknown[];
+  items?: unknown[];
 };
 
 export type ToolManifestItem = {
@@ -551,54 +618,10 @@ export type ApprovalTicketItem = {
   status: "pending" | "approved" | "rejected";
   target_type: string;
   target_id?: string;
+  target_label?: string | null;
   requested_at: string;
   decided_at?: string | null;
   decision_note?: string | null;
-};
-
-export type AnythingLaunchItem = {
-  id: string;
-  approval_ticket_id: string;
-  query: string;
-  launch_target: string;
-  status: "pending" | "applied";
-  created_at: string;
-  applied_at?: string | null;
-};
-
-export type AnythingLaunchRequestResult = {
-  approval_ticket: ApprovalTicketItem;
-  launch_request: AnythingLaunchItem;
-};
-
-export type AnythingLaunchImportResult = {
-  launch_request: AnythingLaunchItem;
-  reference_set: ReferenceSetItem;
-};
-
-export type FileProposalItem = {
-  id: string;
-  target_path: string;
-  proposal_type: string;
-  proposed_destination: string;
-  reason: string;
-  status: string;
-  created_at: string;
-};
-
-export type FileOperationResult = {
-  operation?: {
-    id: string;
-    proposal_id: string;
-    source_path: string;
-    destination_path: string;
-    action: string;
-    approval_ticket_id: string;
-    created_at: string;
-    rolled_back_at?: string | null;
-  };
-  status?: string;
-  work_job?: WorkJobItem;
 };
 
 export type ExecutionLogItem = {
@@ -658,11 +681,6 @@ export type WorkspaceSettingsUpdatePayload = {
   internal_api_base_url?: string | null;
   personalization_apply_mode?: PersonalizationApplyMode;
   personalization_root?: string | null;
-  embedding_provider?: EmbeddingProvider;
-  embedding_model?: string;
-  embedding_base_url?: string | null;
-  embedding_fallback_enabled?: boolean;
-  graphrag_vector_backend?: GraphRAGVectorBackend;
 };
 
 export type WorkspaceLlmTestResult = {
@@ -790,7 +808,6 @@ export type ContentBaseResult = {
   title: string;
   purpose: string;
   template_key: string;
-  reference_set_id?: string | null;
   source_session_id?: string | null;
   outline?: string;
   document_format?: DocumentFormat;
@@ -829,7 +846,6 @@ export type WorkspaceSnapshot = {
   settings: WorkspaceSettings | null;
   schedules: ScheduleItem[];
   workSessions: WorkSessionItem[];
-  referenceSets: ReferenceSetItem[];
   templates: TemplateItem[];
   knowledgeCandidates: KnowledgeCandidateItem[];
   knowledgePages: KnowledgePageItem[];
@@ -840,12 +856,10 @@ export type WorkspaceSnapshot = {
   workJobs: WorkJobItem[];
   personalizationCandidates: PersonalizationCandidateItem[];
   approvalTickets: ApprovalTicketItem[];
-  anythingLaunches: AnythingLaunchItem[];
-  fileProposals: FileProposalItem[];
   logs: ExecutionLogItem[];
 };
 
-export type WorkspaceDeferredGroup = "knowledge" | "search" | "fileOrganizer" | "logs";
+export type WorkspaceDeferredGroup = "knowledge" | "logs";
 export type WorkspaceSnapshotPatch = Partial<WorkspaceSnapshot>;
 
 export function createEmptyWorkspaceSnapshot(): WorkspaceSnapshot {
@@ -856,7 +870,6 @@ export function createEmptyWorkspaceSnapshot(): WorkspaceSnapshot {
     settings: null,
     schedules: [],
     workSessions: [],
-    referenceSets: [],
     templates: [],
     knowledgeCandidates: [],
     knowledgePages: [],
@@ -867,8 +880,6 @@ export function createEmptyWorkspaceSnapshot(): WorkspaceSnapshot {
     workJobs: [],
     personalizationCandidates: [],
     approvalTickets: [],
-    anythingLaunches: [],
-    fileProposals: [],
     logs: [],
   };
 }
@@ -1338,49 +1349,73 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
 
 export async function loadWorkspaceSnapshot(): Promise<WorkspaceSnapshot> {
   let snapshot = await loadWorkspaceShellSnapshot();
-  for (const group of ["knowledge", "search", "fileOrganizer", "logs"] as const) {
+  for (const group of ["knowledge", "logs"] as const) {
     snapshot = mergeWorkspaceSnapshot(snapshot, await loadWorkspaceDeferredSnapshot(group));
   }
   return snapshot;
 }
 
-export async function loadWorkspaceShellSnapshot(): Promise<WorkspaceSnapshot> {
+export type WorkspaceShellSnapshotOptions = {
+  /**
+   * false면 설정/템플릿처럼 변경이 드문 데이터는 요청하지 않는다.
+   * (D-03: 30초 유휴 하트비트는 동적 데이터만 갱신)
+   */
+  includeConfig?: boolean;
+};
+
+export async function loadWorkspaceShellSnapshot(
+  options: WorkspaceShellSnapshotOptions = {},
+): Promise<WorkspaceSnapshot> {
+  const includeConfig = options.includeConfig ?? true;
   const [
     health,
     runtimeReady,
     runtimeMetrics,
-    settings,
     schedules,
     workSessions,
-    referenceSets,
-    templates,
     approvalTickets,
     workJobs,
   ] = await Promise.allSettled([
     requestJson<WorkspaceHealth>("/health"),
     requestJson<RuntimeReady>("/ready"),
     requestJson<RuntimeMetrics>("/api/runtime/metrics"),
-    requestJson<unknown>("/api/settings"),
     requestJson<{ items: ScheduleItem[] }>("/api/schedules"),
     requestJson<{ items: WorkSessionItem[] }>("/api/work-sessions"),
-    requestJson<{ items: ReferenceSetItem[] }>("/api/reference-sets"),
-    requestJson<{ items: TemplateItem[] }>("/api/templates"),
     requestJson<{ items: ApprovalTicketItem[] }>("/api/approval-tickets"),
     requestJson<{ items: WorkJobItem[] }>("/api/jobs?limit=20"),
   ]);
+
+  const [settings, templates] = includeConfig
+    ? await Promise.allSettled([
+        requestJson<unknown>("/api/settings"),
+        requestJson<{ items: TemplateItem[] }>("/api/templates"),
+      ])
+    : [null, null];
 
   return mergeWorkspaceSnapshot(createEmptyWorkspaceSnapshot(), {
     health: health.status === "fulfilled" ? health.value : null,
     runtimeReady: runtimeReady.status === "fulfilled" ? runtimeReady.value : null,
     runtimeMetrics: runtimeMetrics.status === "fulfilled" ? runtimeMetrics.value : null,
-    settings: settings.status === "fulfilled" ? parseWorkspaceSettings(settings.value) : null,
+    settings:
+      settings && settings.status === "fulfilled" ? parseWorkspaceSettings(settings.value) : null,
     schedules: schedules.status === "fulfilled" ? schedules.value.items : [],
     workSessions: workSessions.status === "fulfilled" ? workSessions.value.items : [],
-    referenceSets: referenceSets.status === "fulfilled" ? referenceSets.value.items : [],
-    templates: templates.status === "fulfilled" ? templates.value.items : [],
+    templates:
+      templates && templates.status === "fulfilled"
+        ? (templates.value as { items: TemplateItem[] }).items
+        : [],
     approvalTickets: approvalTickets.status === "fulfilled" ? approvalTickets.value.items : [],
     workJobs: workJobs.status === "fulfilled" ? workJobs.value.items : [],
   });
+}
+
+/**
+ * D-03: 활성 작업 폴링 전용 경량 요청.
+ * /api/jobs?limit=20 하나만 조회해 workJobs 패치만 돌려준다.
+ */
+export async function loadWorkJobsOnly(): Promise<WorkspaceSnapshotPatch> {
+  const response = await requestJson<{ items: WorkJobItem[] }>("/api/jobs?limit=20");
+  return { workJobs: response.items };
 }
 
 export async function loadWorkspaceDeferredSnapshot(
@@ -1420,25 +1455,6 @@ export async function loadWorkspaceDeferredSnapshot(
     };
   }
 
-  if (group === "search") {
-    const [anythingLaunches] = await Promise.allSettled([
-      requestJson<{ items: AnythingLaunchItem[] }>("/api/integrations/anything/launches"),
-    ]);
-    return {
-      anythingLaunches:
-        anythingLaunches.status === "fulfilled" ? anythingLaunches.value.items : [],
-    };
-  }
-
-  if (group === "fileOrganizer") {
-    const [fileProposals] = await Promise.allSettled([
-      requestJson<{ items: FileProposalItem[] }>("/api/file-organizer/proposals"),
-    ]);
-    return {
-      fileProposals: fileProposals.status === "fulfilled" ? fileProposals.value.items : [],
-    };
-  }
-
   const [logs] = await Promise.allSettled([
     requestJson<{ items: ExecutionLogItem[] }>("/api/execution-logs"),
   ]);
@@ -1452,6 +1468,7 @@ export async function createSchedule(payload: {
   starts_at: string;
   ends_at: string;
   view: "month" | "week" | "day";
+  remind_before_minutes?: number | null;
 }) {
   return requestJson<ScheduleItem>("/api/schedules", {
     method: "POST",
@@ -1466,6 +1483,7 @@ export async function updateSchedule(
     starts_at: string;
     ends_at: string;
     view: "month" | "week" | "day";
+    remind_before_minutes?: number | null;
   },
 ) {
   return requestJson<ScheduleItem>(`/api/schedules/${scheduleId}`, {
@@ -1477,6 +1495,18 @@ export async function updateSchedule(
 export async function deleteSchedule(scheduleId: string) {
   return requestJson<{ id: string; deleted: boolean; schedule: ScheduleItem }>(`/api/schedules/${scheduleId}`, {
     method: "DELETE",
+  });
+}
+
+// F-20: 사전 알림 창에 들어온 미확인 일정 목록 (30초 폴링용)
+export async function fetchDueScheduleReminders() {
+  return requestJson<{ items: ScheduleItem[]; now: string }>("/api/schedules/reminders/due");
+}
+
+// F-20: 알림 확인 처리 — 배너에서 목록 제거
+export async function ackScheduleReminder(scheduleId: string) {
+  return requestJson<ScheduleItem>(`/api/schedules/${scheduleId}/reminders/ack`, {
+    method: "POST",
   });
 }
 
@@ -1510,17 +1540,6 @@ export async function updateWorkSession(
   });
 }
 
-export async function createReferenceSet(payload: {
-  title: string;
-  session_id?: string | null;
-  items: ReferenceItem[];
-}) {
-  return requestJson<ReferenceSetItem>("/api/reference-sets", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
 export async function createKnowledgeCandidate(payload: {
   title: string;
   body: string;
@@ -1550,6 +1569,16 @@ export async function scanKnowledgeSource(sourceId: string) {
   return requestJson<KnowledgeSourceScanResult>(`/api/knowledge/sources/${sourceId}/scan`, {
     method: "POST",
   });
+}
+
+/** W7 P3 §9: 앱 시작 diff 전용 경량 소스 목록 조회(스냅샷 전체를 다시 받지 않는다). */
+export async function fetchKnowledgeSources() {
+  return requestJson<{ items: KnowledgeSourceItem[] }>("/api/knowledge/sources");
+}
+
+/** 증분 색인 "변경 확인" — 색인을 실행하지 않고 변경 견적(diff)만 조회한다. */
+export async function diffKnowledgeSource(sourceId: string) {
+  return requestJson<KnowledgeSourceDiffResult>(`/api/knowledge/sources/${sourceId}/diff`);
 }
 
 export async function ingestKnowledgeSource(sourceId: string, runNow = true, background = false) {
@@ -1699,7 +1728,6 @@ export async function loadTools() {
 export async function createContentBase(payload: {
   title: string;
   purpose: string;
-  reference_set_id?: string | null;
   template_key: "report" | "meeting" | "review";
   source_session_id?: string | null;
   outline?: string;
@@ -1724,7 +1752,6 @@ export async function createContentBase(payload: {
 export async function generateDocument(payload: {
   title: string;
   purpose: string;
-  reference_set_id?: string | null;
   template_key: "report" | "meeting" | "review";
   source_session_id?: string | null;
   outline?: string;
@@ -1792,65 +1819,735 @@ export async function applyDocumentFinalize(ticketId: string) {
   });
 }
 
-export async function requestAnythingLaunch(query: string) {
-  return requestJson<AnythingLaunchRequestResult>("/api/integrations/anything/launch", {
-    method: "POST",
-    body: JSON.stringify({ query }),
-  });
-}
+// ---------------------------------------------------------------------------
+// 문서작성(authoring) — 2단계(내용 정리 → 양식 맞춤) 구조 생성 API
+// ---------------------------------------------------------------------------
 
-export async function applyAnythingLaunch(ticketId: string) {
-  return requestJson<AnythingLaunchRequestResult>(
-    `/api/integrations/anything/launch/${ticketId}/apply`,
-    {
-      method: "POST",
-    },
-  );
-}
+export type AuthoringFormatItem = {
+  key: string;
+  aliases?: string[];
+  label: string;
+  description: string;
+  icon?: string;
+  schema_fields?: string[];
+};
 
-export async function importAnythingLaunchReferenceSet(
-  ticketId: string,
-  payload: {
+export type AuthoringStageEvent = {
+  stage: "organize" | "format" | string;
+  status: "start" | "done" | string;
+  elapsed_ms?: number;
+  attempts?: number;
+  repaired?: boolean;
+};
+
+export type AuthoringStructureMeta = {
+  attempts?: number;
+  repaired?: boolean;
+  hints?: string[];
+};
+
+export type AuthoringStructureResult = {
+  format: string;
+  structure: Record<string, unknown>;
+  preview: string;
+  organized_markdown?: string;
+  meta?: AuthoringStructureMeta;
+  stages?: AuthoringStageEvent[];
+};
+
+export type AuthoringStructurePayload = {
+  format: string;
+  instruction?: string;
+  session_id?: string | null;
+  reference_texts?: string[];
+  transcript?: Array<{ role: string; text: string }>;
+};
+
+export type AuthoringStreamHandlers = {
+  onStage?: (event: AuthoringStageEvent) => void;
+  onDone?: (result: AuthoringStructureResult) => void;
+  onError?: (error: { message: string }) => void;
+};
+
+export type AuthoringBuildResult = {
+  format: string;
+  content_base: {
+    id: string;
     title: string;
-    session_id?: string | null;
-    paths: string[];
-  },
+    document_format?: string;
+    artifact_path: string;
+    preview_path?: string;
+  };
+  content_markdown: string;
+  preview: string;
+  finalize: {
+    method: string;
+    endpoint: string;
+    body: { content_base_id: string; output_name: string };
+    note: string;
+  };
+};
+
+export class AuthoringBuildValidationError extends Error {
+  hints: string[];
+
+  constructor(message: string, hints: string[]) {
+    super(message);
+    this.name = "AuthoringBuildValidationError";
+    this.hints = hints;
+  }
+}
+
+export async function fetchAuthoringFormats() {
+  return requestJson<{ items: AuthoringFormatItem[] }>("/api/documents/authoring/formats");
+}
+
+export async function runAuthoringStructure(
+  payload: AuthoringStructurePayload,
+  handlers: AuthoringStreamHandlers = {},
+  signal?: AbortSignal,
+): Promise<AuthoringStructureResult> {
+  const response = await fetch(`${API_BASE_URL}/api/documents/authoring/structure`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, stream: true }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  if (!response.body) {
+    throw new Error("문서 구조 생성 스트리밍 응답 본문이 비어 있습니다.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let doneResult: AuthoringStructureResult | null = null;
+  let streamError: { message: string } | null = null;
+
+  const dispatchBlock = (block: string) => {
+    const parsed = parseSseBlock(block);
+    if (!parsed) {
+      return;
+    }
+    if (parsed.event === "stage" && isRecord(parsed.data)) {
+      handlers.onStage?.(parsed.data as AuthoringStageEvent);
+      return;
+    }
+    if (parsed.event === "error") {
+      streamError = {
+        message: isRecord(parsed.data) && typeof parsed.data.message === "string"
+          ? parsed.data.message
+          : "문서 구조 생성에 실패했습니다.",
+      };
+      handlers.onError?.(streamError);
+      return;
+    }
+    if (parsed.event === "done" && isRecord(parsed.data)) {
+      doneResult = parsed.data as AuthoringStructureResult;
+      handlers.onDone?.(doneResult);
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() ?? "";
+    blocks.forEach(dispatchBlock);
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    dispatchBlock(buffer);
+  }
+
+  const finalStreamError = streamError as { message: string } | null;
+  if (finalStreamError) {
+    throw new Error(finalStreamError.message);
+  }
+  if (!doneResult) {
+    throw new Error("문서 구조 생성 완료 이벤트를 받지 못했습니다.");
+  }
+  return doneResult;
+}
+
+export async function runAuthoringStructureSync(
+  payload: AuthoringStructurePayload,
+): Promise<AuthoringStructureResult> {
+  return requestJson<AuthoringStructureResult>("/api/documents/authoring/structure", {
+    method: "POST",
+    body: JSON.stringify({ ...payload, stream: false }),
+  });
+}
+
+export async function buildAuthoringDocument(payload: {
+  format: string;
+  structure: Record<string, unknown>;
+  title?: string;
+}): Promise<AuthoringBuildResult> {
+  const response = await fetch(`${API_BASE_URL}/api/documents/authoring/build`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (response.status === 400) {
+    let message = "구조 JSON이 양식 스키마에 맞지 않습니다.";
+    let hints: string[] = [];
+    try {
+      const body = (await response.json()) as { detail?: unknown };
+      if (isRecord(body.detail)) {
+        if (typeof body.detail.message === "string") {
+          message = body.detail.message;
+        }
+        if (Array.isArray(body.detail.hints)) {
+          hints = body.detail.hints.filter((hint): hint is string => typeof hint === "string");
+        }
+      } else if (typeof body.detail === "string") {
+        message = body.detail;
+      }
+    } catch {
+      // 본문 파싱 실패 시 기본 메시지 유지
+    }
+    throw new AuthoringBuildValidationError(message, hints);
+  }
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  return (await response.json()) as AuthoringBuildResult;
+}
+
+// ---------------------------------------------------------------------------
+// 임의형식(custom) — 사용자 HWPX/HWTX 양식 감지·값 제안·채우기·본문 반영
+// ---------------------------------------------------------------------------
+
+export type CustomTemplateDetectResult = {
+  mode: "form" | "document";
+  fields: Array<{ label: string; current: string }>;
+  confidence?: number;
+  total_fields?: number;
+};
+
+export type CustomFillSuggestResult = {
+  values: Record<string, string>;
+  matched_count: number;
+  total_fields: number;
+};
+
+export type CustomFillApplyResult = {
+  artifact: { path: string; format?: string };
+  filled_count: number;
+  requested_count?: number;
+  unmatched?: string[];
+  note?: string;
+};
+
+export type CustomPatchResult = {
+  artifact: { path: string; format?: string };
+  applied_changes: number;
+  replaced_blocks?: number;
+  organized_markdown?: string;
+  note?: string;
+};
+
+export async function uploadAuthoringCustomTemplate(file: File) {
+  const body = new FormData();
+  body.append("file", file);
+  return requestJson<{ item: CustomDocumentTemplateItem }>(
+    "/api/documents/authoring/custom-template",
+    { method: "POST", body },
+  );
+}
+
+export async function detectAuthoringCustomTemplate(payload: { template_path: string }) {
+  return requestJson<CustomTemplateDetectResult>("/api/documents/authoring/custom-detect", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function suggestAuthoringCustomFill(payload: {
+  template_path?: string;
+  fields: string[];
+  instruction?: string;
+  session_id?: string | null;
+  reference_texts?: string[];
+}) {
+  return requestJson<CustomFillSuggestResult>("/api/documents/authoring/custom-fill-suggest", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function applyAuthoringCustomFill(payload: {
+  template_path: string;
+  values: Record<string, string>;
+  output_name?: string;
+}) {
+  return requestJson<CustomFillApplyResult>("/api/documents/authoring/custom-fill-apply", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function patchAuthoringCustomTemplate(payload: {
+  template_path: string;
+  instruction?: string;
+  session_id?: string | null;
+  reference_texts?: string[];
+  output_name?: string;
+}) {
+  return requestJson<CustomPatchResult>("/api/documents/authoring/custom-patch", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export type AuthoringReviseResult = {
+  format: string;
+  structure: Record<string, unknown>;
+  preview: string;
+  meta?: { attempts?: number; repaired?: boolean; hints?: string[] };
+};
+
+// F-08: 현재 구조 + 자연어 수정 지시 → 스키마 검증된 새 구조
+export async function runAuthoringRevise(payload: {
+  format: string;
+  structure: Record<string, unknown>;
+  instruction: string;
+}): Promise<AuthoringReviseResult> {
+  return requestJson<AuthoringReviseResult>("/api/documents/authoring/revise", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 지식폴더 위키
+// ---------------------------------------------------------------------------
+
+export type WikiIndexResult = {
+  path: string;
+  content: string;
+};
+
+export type WikiPageResult = {
+  path: string;
+  relative_path: string;
+  content: string;
+};
+
+export type WikiTreeTopicItem = {
+  slug: string;
+  title: string;
+  doc_count: number;
+  path: string;
+};
+
+export type WikiTreeWorkItem = {
+  slug: string;
+  title: string;
+  session_id?: string | null;
+  updated_at?: string | null;
+  path: string;
+};
+
+export type WikiTreeSourceDocItem = {
+  slug: string;
+  title: string;
+  path: string;
+  quality_score?: number | null;
+  /**
+   * W7 §5.6: 동일 내용(file_hash) 사본 수 — 대표 1건만 트리에 노출되고
+   * 2 이상이면 "사본 N개" 배지로 접힘 표시한다(구버전 서버 응답에는 없음).
+   */
+  duplicate_count?: number;
+  /** W7 §5.5: 소프트 삭제 상태 — 'missing'이면 원본이 삭제/이동된 카드다(구버전 서버 응답에는 없음). */
+  status?: "active" | "missing" | string;
+};
+
+export type WikiTreeSourceItem = {
+  source_id: string;
+  label: string;
+  docs: WikiTreeSourceDocItem[];
+};
+
+/** T-01: 확정 분류체계 적용 후 생성되는 업무 허브(work-areas/<slug>.md) 항목 */
+export type WikiTreeWorkAreaItem = {
+  slug: string;
+  title: string;
+  doc_count: number;
+  path: string;
+};
+
+export type WikiTreeResult = {
+  topics: WikiTreeTopicItem[];
+  works: WikiTreeWorkItem[];
+  /** T-01: 업무 허브 목록 — 구버전 서버 응답에는 없을 수 있다. */
+  work_areas?: WikiTreeWorkAreaItem[];
+  sources: WikiTreeSourceItem[];
+  counts: {
+    docs: number;
+    topics: number;
+    works: number;
+    /** T-01: 업무 허브 수 — 구버전 서버 응답에는 없을 수 있다. */
+    work_areas?: number;
+  };
+};
+
+export async function fetchWikiTree() {
+  return requestJson<WikiTreeResult>("/api/knowledge/wiki/tree");
+}
+
+/**
+ * W7 §5.5/§5.6: doc_uid로 지식카드 상태를 조회한 결과.
+ * 인용 칩 [원본 열기]에서 원본이 사라졌을 때 카드 폴백 여부를 판단하는 데 쓴다.
+ */
+export type KnowledgeCardByUidResult = {
+  /** 지식카드 마크다운 파일의 절대 경로. */
+  card_path: string;
+  /** 카드 파일이 실제로 존재하는지 여부. */
+  exists: boolean;
+  /** 원본 문서 상태 — 'missing'이면 원본이 삭제/이동됨(소프트 삭제 보관 중). */
+  status: "active" | "missing" | string;
+  title: string;
+};
+
+/** W7 §5.5/§5.6: 인용의 doc_uid로 지식카드를 조회한다(원본 부재 시 폴백 경로). */
+export async function fetchKnowledgeCardByUid(docUid: string) {
+  return requestJson<KnowledgeCardByUidResult>(
+    `/api/knowledge/cards/by-uid/${encodeURIComponent(docUid)}`,
+  );
+}
+
+export async function fetchWikiIndex() {
+  return requestJson<WikiIndexResult>("/api/knowledge/wiki/index");
+}
+
+export async function fetchWikiPage(path: string) {
+  return requestJson<WikiPageResult>(
+    `/api/knowledge/wiki/page?path=${encodeURIComponent(path)}`,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// T-01: Work-Aware 지식 분류체계 (인터뷰 → 초안 → 확정 → 적용 → 큐/품질)
+// ---------------------------------------------------------------------------
+
+export type TaxonomyInterview = {
+  org_type: string;
+  department: string;
+  duty: string;
+  purpose: string;
+  updated_at?: string;
+};
+
+/** 초안(proposal)의 업무 후보 — Folder Recon + 어휘집 매칭 결과 */
+export type TaxonomyWorkAreaProposal = {
+  name: string;
+  slug: string;
+  folders: string[];
+  doc_count: number;
+  source: "folder" | "vocab" | string;
+  confidence: "high" | "medium" | "low" | string;
+};
+
+export type TaxonomyReferenceShelf = {
+  folder: string;
+  doc_count: number;
+};
+
+export type TaxonomyFamilyMember = {
+  slug?: string | null;
+  path?: string | null;
+  relative_path?: string | null;
+  mtime?: string | null;
+  version_signals?: Record<string, unknown>;
+};
+
+/** 문서 가족(같은 문서의 버전 묶음) 감지 결과 */
+export type TaxonomyFamily = {
+  family_id: string;
+  title: string;
+  folder?: string;
+  members: TaxonomyFamilyMember[];
+  latest_slug?: string | null;
+  latest_path?: string | null;
+  official_slug?: string | null;
+  unclear_latest: boolean;
+};
+
+export type TaxonomyGovernanceDoc = {
+  path?: string | null;
+  relative_path: string;
+  kind: string;
+};
+
+export type TaxonomyProposalResult = {
+  source_id: string;
+  source_label?: string | null;
+  generated_at?: string;
+  work_areas: TaxonomyWorkAreaProposal[];
+  reference_shelves: TaxonomyReferenceShelf[];
+  doc_role_stats: Record<string, number>;
+  families: TaxonomyFamily[];
+  governance_docs: TaxonomyGovernanceDoc[];
+  conventions?: Record<string, boolean>;
+  interview?: TaxonomyInterview | null;
+  hints: string[];
+  llm_suggestions?: Record<string, unknown> | null;
+  /** W7: 스캔된(비삭제) 파일 수 — 구버전 서버 응답에는 없을 수 있다. */
+  scanned_file_count?: number;
+  /** W7: 스캔된 파일이 0건이라 분석 결과가 비어 있으면 true — 마법사가 스캔을 자동 연쇄한다. */
+  needs_scan?: boolean;
+};
+
+/** 확정 요청의 업무 정의(이름+폴더 매핑+키워드) */
+export type TaxonomyWorkAreaInput = {
+  name: string;
+  folders: string[];
+  keywords: string[];
+};
+
+export type ConfirmedTaxonomyArea = {
+  name: string;
+  slug: string;
+  folders: string[];
+  keywords: string[];
+};
+
+export type ConfirmedTaxonomy = {
+  source_id: string;
+  work_areas: ConfirmedTaxonomyArea[];
+  doc_roles_enabled: string[];
+  family_policy: string;
+  confirmed_at: string;
+};
+
+export type TaxonomyConfirmResult = {
+  configured: boolean;
+  source_id: string;
+  taxonomy: ConfirmedTaxonomy;
+  schema_path: string;
+};
+
+/**
+ * W7 P3 §5.9: 분류체계 드리프트 감지 결과 — 자동 재구성은 하지 않고
+ * "분류체계 재정비 제안" 배지의 근거로만 쓴다(참고서고 폴더는 서버가 이미 제외).
+ */
+export type TaxonomyDriftInfo = {
+  /** 확정 체계에 없는 새 1단계 업무 폴더 후보 (서버 형태: {folder, file_count}). */
+  new_folders: Array<{ folder: string; file_count?: number }>;
+  /** 확정 체계에 있으나 파일이 0건이 된 폴더. */
+  vanished_folders: string[];
+  /** 최근 색인분 low 확신 유입률(0~1). */
+  low_ratio?: number;
+  detected_at?: string;
+};
+
+export type TaxonomyStatusResult = {
+  configured: boolean;
+  items: Array<{
+    source_id: string;
+    taxonomy: ConfirmedTaxonomy;
+    schema_path?: string | null;
+    confirmed_at?: string | null;
+    /** §5.9: 드리프트 감지 결과 — 서버는 소스별 items 항목에 싣는다(미감지/구버전엔 없음). */
+    drift?: TaxonomyDriftInfo | null;
+  }>;
+  interview?: TaxonomyInterview | null;
+};
+
+export type TaxonomyApplyResult = {
+  work_job: WorkJobItem;
+  /** background=false 동기 실행일 때만 채워진다. */
+  quality?: TaxonomyQualityItem | null;
+};
+
+export type TaxonomyQualityItem = {
+  source_id: string;
+  conflicts: number;
+  duplicates: number;
+  unclear_latest: number;
+  queue_count: number;
+  generated_at?: string | null;
+};
+
+export type TaxonomyQualityResult = {
+  configured: boolean;
+  items: TaxonomyQualityItem[];
+};
+
+export type TaxonomyQueueCandidates = {
+  work_areas?: Array<{ work_area_slug: string; name: string; signal?: string }>;
+  doc_roles?: string[];
+};
+
+export type TaxonomyQueueItem = {
+  id: string;
+  source_id: string;
+  wiki_doc_id?: string;
+  doc_slug?: string;
+  title: string;
+  source_path: string;
+  reason: "conflict" | "no_signal" | string;
+  status: "pending" | "resolved" | string;
+  candidates?: TaxonomyQueueCandidates;
+  resolved_work_area_slug?: string | null;
+  resolved_doc_role?: string | null;
+  created_at?: string;
+  resolved_at?: string | null;
+};
+
+export async function fetchTaxonomyInterview() {
+  return requestJson<{ interview: TaxonomyInterview | null }>("/api/knowledge/taxonomy/interview");
+}
+
+export async function saveTaxonomyInterview(payload: {
+  org_type: string;
+  department: string;
+  duty: string;
+  purpose: string;
+}) {
+  return requestJson<{ interview: TaxonomyInterview | null }>("/api/knowledge/taxonomy/interview", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchTaxonomyProposal(sourceId: string, options?: { llmRefine?: boolean }) {
+  const params = new URLSearchParams({
+    source_id: sourceId,
+    llm_refine: String(options?.llmRefine ?? false),
+  });
+  return requestJson<TaxonomyProposalResult>(`/api/knowledge/taxonomy/proposal?${params.toString()}`);
+}
+
+export async function confirmTaxonomy(payload: {
+  source_id: string;
+  work_areas: TaxonomyWorkAreaInput[];
+  doc_roles_enabled: string[];
+  family_policy?: string;
+}) {
+  return requestJson<TaxonomyConfirmResult>("/api/knowledge/taxonomy", {
+    method: "POST",
+    body: JSON.stringify({
+      source_id: payload.source_id,
+      work_areas: payload.work_areas,
+      doc_roles_enabled: payload.doc_roles_enabled,
+      family_policy: payload.family_policy ?? "latest_representative",
+    }),
+  });
+}
+
+export async function fetchTaxonomyStatus(sourceId?: string) {
+  const suffix = sourceId ? `?source_id=${encodeURIComponent(sourceId)}` : "";
+  return requestJson<TaxonomyStatusResult>(`/api/knowledge/taxonomy${suffix}`);
+}
+
+export async function applyTaxonomy(payload: { source_id: string; background?: boolean }) {
+  return requestJson<TaxonomyApplyResult>("/api/knowledge/taxonomy/apply", {
+    method: "POST",
+    body: JSON.stringify({
+      source_id: payload.source_id,
+      background: payload.background ?? true,
+    }),
+  });
+}
+
+export async function fetchTaxonomyQuality(sourceId?: string) {
+  const suffix = sourceId ? `?source_id=${encodeURIComponent(sourceId)}` : "";
+  return requestJson<TaxonomyQualityResult>(`/api/knowledge/taxonomy/quality${suffix}`);
+}
+
+export async function fetchTaxonomyQueue(options?: { sourceId?: string; status?: string }) {
+  const params = new URLSearchParams({ status: options?.status ?? "pending" });
+  if (options?.sourceId) {
+    params.set("source_id", options.sourceId);
+  }
+  return requestJson<{ items: TaxonomyQueueItem[] }>(`/api/knowledge/taxonomy/queue?${params.toString()}`);
+}
+
+export async function resolveTaxonomyQueueItem(
+  itemId: string,
+  payload: { work_area_slug?: string; doc_role?: string },
 ) {
-  return requestJson<AnythingLaunchImportResult>(
-    `/api/integrations/anything/launch/${ticketId}/reference-set`,
+  return requestJson<{ item: TaxonomyQueueItem }>(
+    `/api/knowledge/taxonomy/queue/${encodeURIComponent(itemId)}/resolve`,
     {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        work_area_slug: payload.work_area_slug ?? "",
+        doc_role: payload.doc_role ?? "",
+      }),
     },
   );
 }
 
-export async function createFileProposals(targetPath: string) {
-  return requestJson<{ items: FileProposalItem[] }>("/api/file-organizer/proposals", {
+// ---------------------------------------------------------------------------
+// W7 P3 §6: 무결성 점검(verify) 잡
+// ---------------------------------------------------------------------------
+
+/** verify 잡의 검사 항목별 결과 한 건(V1~V11 표의 한 줄). */
+export type KnowledgeVerifyCheckItem = {
+  /** 검사 코드(orphan / missing_card / fts_drift / untagged / silent_change 등). */
+  code: string;
+  /** 사용자 표기용 한국어 라벨 — 서버가 내려준 값을 그대로 표시한다. */
+  label_ko: string;
+  /** 발견 건수. */
+  count: number;
+  /** 자동 치유(파생물 재생성·고아 삭제)된 건수 — count보다 작으면 잔여분은 확인 필요. */
+  healed: number;
+  /** 확인 필요 항목의 원클릭 안내 문구(예: "색인 시작으로 반영") — 자동 치유 항목에는 없다. */
+  action_hint?: string | null;
+};
+
+export type KnowledgeVerifyLatestResult = {
+  ran_at: string;
+  /** quick: 재해시 없는 빠른 점검(기본) / deep: 전량 재해시 심층 점검. */
+  mode: "quick" | "deep" | string;
+  checks: KnowledgeVerifyCheckItem[];
+  /** 고아 파생물 정리로 회수한 디스크 용량. */
+  disk_reclaimed_bytes?: number;
+};
+
+/**
+ * 무결성 점검 잡 시작 — 색인과 동일 리소스 키로 상호 배제되는 work_job을 돌려준다.
+ * deep=true면 전량 재해시(심층) — size+mtime 보존 변경의 유일한 탈출구(§4.2).
+ */
+export async function startKnowledgeVerify(payload?: { deep?: boolean }) {
+  return requestJson<{ work_job: WorkJobItem }>("/api/knowledge/verify", {
     method: "POST",
-    body: JSON.stringify({ target_path: targetPath }),
+    body: JSON.stringify({ deep: payload?.deep ?? false }),
   });
 }
 
-export async function requestFileProposalApply(proposalId: string) {
-  return requestJson<{ approval_ticket: ApprovalTicketItem; proposal: FileProposalItem }>(
-    `/api/file-organizer/proposals/${proposalId}/apply`,
-    { method: "POST" },
+/** 가장 최근 무결성 점검 결과 — 서버는 항상 200 + {report: {...}|null}로 감싸 반환한다. */
+export async function fetchKnowledgeVerifyLatest(): Promise<KnowledgeVerifyLatestResult | null> {
+  const wrapped = await requestJson<{ report: KnowledgeVerifyLatestResult | null }>(
+    "/api/knowledge/verify/latest",
   );
+  return wrapped.report ?? null;
 }
 
-export async function commitFileProposalApply(proposalId: string) {
-  return requestJson<FileOperationResult>(
-    `/api/file-organizer/proposals/${proposalId}/apply/commit`,
-    { method: "POST" },
-  );
-}
-
-export async function rollbackFileOperation(operationId: string) {
-  return requestJson<{ restored_path?: string; operation_id?: string; status?: string; work_job?: WorkJobItem }>(
-    `/api/file-organizer/operations/${operationId}/rollback`,
-    { method: "POST" },
-  );
+export async function startKnowledgeEnrich(payload?: {
+  source_id?: string | null;
+  background?: boolean;
+}) {
+  return requestJson<{ work_job: WorkJobItem }>("/api/knowledge/enrich", {
+    method: "POST",
+    body: JSON.stringify({
+      source_id: payload?.source_id ?? null,
+      background: payload?.background ?? true,
+    }),
+  });
 }
 
 export async function decideApproval(

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="LLM 설정 안내">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .accent{fill:#3d7a4f;}
+      .accentline{stroke:#3d7a4f;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+      .opt{font-family:'Malgun Gothic',sans-serif;font-size:10px;fill:#2b2f2a;}
+    </style>
+  </defs>
+  <rect x="30" y="30" width="70" height="54" rx="10" fill="#ffffff" stroke="#2b2f2a" stroke-width="2"/>
+  <path class="ink" d="M45 84 v10 h40 v-10 M55 94 h20"/>
+  <circle cx="52" cy="52" r="4" class="accent"/>
+  <circle cx="65" cy="52" r="4" class="accent" opacity="0.6"/>
+  <circle cx="78" cy="52" r="4" class="accent" opacity="0.3"/>
+  <path class="accentline" d="M52 66 h26"/>
+  <text class="txtsub" x="34" y="120">내 PC에서 실행</text>
+  <rect class="panel" x="140" y="26" width="164" height="94" rx="14"/>
+  <text class="txt" x="154" y="46">모델 사용 방식 선택</text>
+  <rect x="154" y="54" width="136" height="24" rx="8" fill="#ffffff" stroke="#3d7a4f" stroke-width="1.5"/>
+  <circle cx="167" cy="66" r="5" fill="none" stroke="#3d7a4f" stroke-width="2"/>
+  <circle cx="167" cy="66" r="2.5" class="accent"/>
+  <text class="opt" x="178" y="70">로컬 모델 우선 (권장)</text>
+  <rect x="154" y="84" width="136" height="24" rx="8" fill="#ffffff" stroke="#e3e8e0" stroke-width="1.5"/>
+  <circle cx="167" cy="96" r="5" fill="none" stroke="#b7c0b6" stroke-width="2"/>
+  <text class="opt" x="178" y="100">외부 모델 (API 키 직접 입력)</text>
+  <text class="txt" x="16" y="150">AI 응답을 만들 모델을 먼저 연결합니다.</text>
+  <text class="txtsub" x="16" y="168">환경설정에서 연결 테스트까지 하면 준비 완료. API 키는 본인이 직접 입력합니다.</text>
+</svg>

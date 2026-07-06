@@ -21,6 +21,9 @@ CREATE TABLE IF NOT EXISTS schedules (
     starts_at TEXT NOT NULL,
     ends_at TEXT NOT NULL,
     view TEXT NOT NULL,
+    remind_before_minutes INTEGER,
+    reminder_acknowledged_at TEXT,
+    reminder_notified_at TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -29,6 +32,8 @@ CREATE TABLE IF NOT EXISTS work_sessions (
     title TEXT NOT NULL,
     schedule_id TEXT,
     status TEXT NOT NULL,
+    context_summary_text TEXT,
+    context_summary_upto TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -42,6 +47,7 @@ CREATE TABLE IF NOT EXISTS work_session_messages (
     provider TEXT,
     model TEXT,
     latency_ms INTEGER,
+    citations_json TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -54,6 +60,7 @@ CREATE TABLE IF NOT EXISTS work_session_attachments (
     stored_path TEXT NOT NULL,
     size_bytes INTEGER NOT NULL,
     text_excerpt TEXT,
+    text_char_count INTEGER,
     created_at TEXT NOT NULL
 );
 
@@ -67,6 +74,8 @@ CREATE TABLE IF NOT EXISTS work_session_file_links (
     FOREIGN KEY(session_id) REFERENCES work_sessions(id)
 );
 
+-- 레거시: Reference Set 기능은 제거되었다. 기존 사용자 데이터 보존을 위해
+-- reference_sets / reference_items 테이블 정의만 유지하며 새 코드는 사용하지 않는다.
 CREATE TABLE IF NOT EXISTS reference_sets (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -91,7 +100,8 @@ CREATE TABLE IF NOT EXISTS approval_tickets (
     status TEXT NOT NULL,
     requested_at TEXT NOT NULL,
     decided_at TEXT,
-    decision_note TEXT
+    decision_note TEXT,
+    target_label TEXT
 );
 
 CREATE TABLE IF NOT EXISTS execution_logs (
@@ -288,6 +298,90 @@ CREATE TABLE IF NOT EXISTS knowledge_graph_edges (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_wiki_docs (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    source_file_id TEXT NOT NULL UNIQUE,
+    document_id TEXT,
+    slug TEXT NOT NULL,
+    title TEXT NOT NULL,
+    source_path TEXT NOT NULL,
+    relative_path TEXT NOT NULL DEFAULT '',
+    file_hash TEXT NOT NULL DEFAULT '',
+    doc_type TEXT NOT NULL DEFAULT '',
+    parser_name TEXT NOT NULL DEFAULT '',
+    quality_score REAL NOT NULL DEFAULT 0,
+    warnings_json TEXT NOT NULL DEFAULT '[]',
+    card_path TEXT NOT NULL,
+    extracted_path TEXT NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    keywords_json TEXT NOT NULL DEFAULT '[]',
+    topics_json TEXT NOT NULL DEFAULT '[]',
+    enriched INTEGER NOT NULL DEFAULT 0,
+    norm_title TEXT NOT NULL DEFAULT '',
+    norm_body TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(source_id) REFERENCES knowledge_sources(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_wiki_docs_source
+ON knowledge_wiki_docs(source_id, updated_at DESC);
+
+-- T-01 Work-Aware 분류체계: 확정 체계(SCHEMA.md 원본 JSON) + 니즈 인터뷰 + 분류 대기 큐
+CREATE TABLE IF NOT EXISTS knowledge_taxonomy (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL UNIQUE,
+    taxonomy_json TEXT NOT NULL DEFAULT '{}',
+    quality_json TEXT NOT NULL DEFAULT '{}',
+    schema_path TEXT,
+    confirmed_at TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(source_id) REFERENCES knowledge_sources(id)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_taxonomy_interview (
+    id TEXT PRIMARY KEY,
+    org_type TEXT NOT NULL DEFAULT '',
+    department TEXT NOT NULL DEFAULT '',
+    duty TEXT NOT NULL DEFAULT '',
+    purpose TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_tag_queue (
+    id TEXT PRIMARY KEY,
+    source_id TEXT NOT NULL,
+    wiki_doc_id TEXT NOT NULL,
+    doc_slug TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    source_path TEXT NOT NULL DEFAULT '',
+    candidates_json TEXT NOT NULL DEFAULT '{}',
+    reason TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    resolved_work_area_slug TEXT,
+    resolved_doc_role TEXT,
+    created_at TEXT NOT NULL,
+    resolved_at TEXT,
+    FOREIGN KEY(source_id) REFERENCES knowledge_sources(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_tag_queue_source_status
+ON knowledge_tag_queue(source_id, status);
+
+-- W7 P3 §6: 무결성 점검(verify) 리포트 — 실행당 1행 (상세는 logs/knowledge-verify/*.jsonl)
+CREATE TABLE IF NOT EXISTS knowledge_verify_reports (
+    id TEXT PRIMARY KEY,
+    ran_at TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    checks_json TEXT NOT NULL DEFAULT '[]',
+    disk_reclaimed_bytes INTEGER NOT NULL DEFAULT 0,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    log_path TEXT
+);
+
 CREATE TABLE IF NOT EXISTS local_file_index (
     id TEXT PRIMARY KEY,
     file_path TEXT NOT NULL UNIQUE,
@@ -415,6 +509,10 @@ ON execution_logs(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_knowledge_documents_source_updated
 ON knowledge_documents(source_id, updated_at DESC, title ASC);
 
+-- W7 P1 §4.2: 이동 판정((size, file_hash) 대조)과 refcount 조회 가속
+CREATE INDEX IF NOT EXISTS idx_knowledge_source_files_source_hash
+ON knowledge_source_files(source_id, file_hash);
+
 CREATE INDEX IF NOT EXISTS idx_knowledge_document_sections_document
 ON knowledge_document_sections(document_id);
 
@@ -448,9 +546,23 @@ class Database:
         self._ensure_column("work_session_messages", "provider", "TEXT")
         self._ensure_column("work_session_messages", "model", "TEXT")
         self._ensure_column("work_session_messages", "latency_ms", "INTEGER")
+        self._ensure_column("work_session_messages", "citations_json", "TEXT")
+        # T-02 컨텍스트 예산: 세션 롤링 요약 (비파괴 마이그레이션)
+        self._ensure_column("work_sessions", "context_summary_text", "TEXT")
+        self._ensure_column("work_sessions", "context_summary_upto", "TEXT")
+        self._ensure_column("work_session_attachments", "text_char_count", "INTEGER")
+        # F-20 일정 알림 (비파괴 마이그레이션)
+        self._ensure_column("schedules", "remind_before_minutes", "INTEGER")
+        self._ensure_column("schedules", "reminder_acknowledged_at", "TEXT")
+        self._ensure_column("schedules", "reminder_notified_at", "TEXT")
+        self._ensure_column("approval_tickets", "target_label", "TEXT")
         self._ensure_column("knowledge_sources", "status", "TEXT NOT NULL DEFAULT 'active'")
         self._ensure_column("knowledge_sources", "last_scanned_at", "TEXT")
         self._ensure_column("knowledge_sources", "updated_at", "TEXT NOT NULL DEFAULT ''")
+        # W7 P0 스캔 위생 (비파괴 마이그레이션): mtime_ns는 기록만(비교는 과도기 동안
+        # ISO 문자열 유지), needs_rescan은 stat-해시-stat 샌드위치 불일치 시 재처리 플래그.
+        self._ensure_column("knowledge_source_files", "mtime_ns", "INTEGER")
+        self._ensure_column("knowledge_source_files", "needs_rescan", "INTEGER NOT NULL DEFAULT 0")
         self._ensure_column("knowledge_ingestion_jobs", "current_stage", "TEXT")
         self._ensure_column("knowledge_ingestion_jobs", "current_stage_index", "INTEGER NOT NULL DEFAULT 0")
         self._ensure_column("knowledge_ingestion_jobs", "stage_count", "INTEGER NOT NULL DEFAULT 6")
@@ -466,8 +578,33 @@ class Database:
         self._ensure_column("knowledge_ingestion_jobs", "log_dump_path", "TEXT")
         self._ensure_column("knowledge_ingestion_jobs", "diagnostic_event_count", "INTEGER NOT NULL DEFAULT 0")
         self._ensure_column("knowledge_ingestion_jobs", "last_diagnostic_message", "TEXT")
+        # W7 P1: 선행 스캔의 보류(UNSTABLE) 건수를 잡 카드 배지로 노출하기 위해 보존.
+        self._ensure_column("knowledge_ingestion_jobs", "unstable_count", "INTEGER NOT NULL DEFAULT 0")
         self._ensure_column("knowledge_documents", "file_hash", "TEXT")
         self._ensure_column("knowledge_documents", "ingestion_signature", "TEXT")
+        # T-01 Work-Aware 분류체계 태깅 컬럼 (비파괴 마이그레이션)
+        self._ensure_column("knowledge_wiki_docs", "work_area_slug", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("knowledge_wiki_docs", "doc_role", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("knowledge_wiki_docs", "tag_confidence", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("knowledge_wiki_docs", "family_id", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("knowledge_wiki_docs", "family_role", "TEXT NOT NULL DEFAULT ''")
+        # W7 P0 증분 정합: 재인제스트 시 요약 stale 표기 + enrich 실패 백오프 (비파괴 마이그레이션)
+        self._ensure_column("knowledge_wiki_docs", "summary_stale", "INTEGER NOT NULL DEFAULT 0")
+        self._ensure_column("knowledge_wiki_docs", "enrich_fail_count", "INTEGER NOT NULL DEFAULT 0")
+        self._ensure_column("knowledge_wiki_docs", "enrich_skip", "INTEGER NOT NULL DEFAULT 0")
+        # W7 P2a §5.2: 사용자 확정 태그 보존(tag_locked) + apply 취소 부분 상태 봉합(run_id)
+        self._ensure_column("knowledge_wiki_docs", "tag_locked", "INTEGER NOT NULL DEFAULT 0")
+        self._ensure_column("knowledge_tag_queue", "run_id", "TEXT NOT NULL DEFAULT ''")
+        # W7 P2b §5.5 소프트 삭제: 원본 소실 문서를 30일 유예 보관(missing)한다.
+        self._ensure_column("knowledge_wiki_docs", "status", "TEXT NOT NULL DEFAULT 'active'")
+        self._ensure_column("knowledge_wiki_docs", "missing_since", "TEXT")
+        # W7 P2b §5.6 카드 정체성: 불변 8자 doc_uid — 슬러그 안정화·인용 폴백 키.
+        self._ensure_column("knowledge_wiki_docs", "doc_uid", "TEXT NOT NULL DEFAULT ''")
+        # W7 P2b §5.7 사용자 메모 보존: 시스템 작성본 정규화 해시 + 카드 patch 실패 재시도 플래그.
+        self._ensure_column("knowledge_wiki_docs", "card_hash", "TEXT NOT NULL DEFAULT ''")
+        self._ensure_column("knowledge_wiki_docs", "card_dirty", "INTEGER NOT NULL DEFAULT 0")
+        # W7 P3 §5.9 분류체계 드리프트: 확정 폴더 vs 현재 1단계 폴더 diff 제안(자동 재구성 금지).
+        self._ensure_column("knowledge_taxonomy", "drift_json", "TEXT NOT NULL DEFAULT ''")
         self._ensure_column("knowledge_document_chunks", "embedding_model", "TEXT NOT NULL DEFAULT 'hash'")
         self._ensure_column("knowledge_document_chunks", "embedding_json", "TEXT NOT NULL DEFAULT '[]'")
         self._ensure_column("content_bases", "source_session_id", "TEXT")
@@ -483,7 +620,28 @@ class Database:
         self._ensure_column("content_bases", "security_level", "TEXT NOT NULL DEFAULT ''")
         self._ensure_column("content_bases", "direct_file_paths_json", "TEXT NOT NULL DEFAULT '[]'")
         self._ensure_column("content_bases", "user_template_path", "TEXT")
+        self.fts5_available = self._ensure_knowledge_fts()
         self.connection.commit()
+
+    def _ensure_knowledge_fts(self) -> bool:
+        """지식위키 전문 검색용 FTS5 가상 테이블을 준비한다.
+
+        contentless(content='')나 external-content 방식 대신 자체 저장(standalone)
+        FTS5 테이블을 사용한다. 이유:
+        1) snippet()/bm25()가 저장된 원문을 필요로 하므로 contentless는 발췌를 만들 수 없다.
+        2) external-content는 트리거 동기화가 필요해 마이그레이션·복구가 복잡해진다.
+        본문은 문서당 200KB로 캡핑해 저장 중복을 제한하고, 문서 갱신 시 delete+insert로
+        일관성을 유지한다. tokenize='trigram'은 한국어(3자 이상) 질의를 지원하며,
+        3자 미만 질의는 knowledge_wiki_docs.norm_* 컬럼 LIKE 폴백으로 처리한다.
+        """
+        try:
+            self.connection.execute(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts "
+                "USING fts5(doc_id UNINDEXED, title, body, card, tokenize='trigram')"
+            )
+            return True
+        except sqlite3.OperationalError:
+            return False
 
     @contextmanager
     def read_connection(self) -> Iterator[sqlite3.Connection]:
@@ -623,6 +781,7 @@ class Database:
         action: str,
         status: str = "pending",
         decision_note: str | None = None,
+        target_label: str | None = None,
     ) -> dict[str, Any]:
         payload = {
             "id": str(uuid4()),
@@ -633,6 +792,7 @@ class Database:
             "requested_at": now_iso(),
             "decided_at": now_iso() if status != "pending" else None,
             "decision_note": decision_note,
+            "target_label": target_label,
         }
         self.insert("approval_tickets", payload)
         return payload

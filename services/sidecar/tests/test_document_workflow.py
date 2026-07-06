@@ -76,24 +76,6 @@ def _seed_session_with_schedule_and_files(client, tmp_path: Path) -> dict[str, s
     )
     assert linked.status_code == 201
 
-    reference_file = tmp_path / "reference-summary.xlsx"
-    reference_file.write_text("분기별 민원 처리 추이", encoding="utf-8")
-    reference_set = client.post(
-        "/api/reference-sets",
-        json={
-            "title": "민원 처리 참고자료",
-            "session_id": session_id,
-            "items": [
-                {
-                    "kind": "file",
-                    "label": "처리 현황표",
-                    "value": str(reference_file),
-                }
-            ],
-        },
-    )
-    assert reference_set.status_code == 201
-
     direct_file = tmp_path / "direct-attachment.pdf"
     direct_file.write_text("직접 연결한 보충자료", encoding="utf-8")
 
@@ -101,13 +83,11 @@ def _seed_session_with_schedule_and_files(client, tmp_path: Path) -> dict[str, s
         "schedule_id": schedule_id,
         "session_id": session_id,
         "linked_file": str(linked_file),
-        "reference_set_id": reference_set.json()["id"],
-        "reference_file": str(reference_file),
         "direct_file": str(direct_file),
     }
 
 
-def test_content_base_uses_work_session_schedule_files_and_reference_set(tmp_path: Path) -> None:
+def test_content_base_uses_work_session_schedule_and_files(tmp_path: Path) -> None:
     client = _client(tmp_path)
     seeded = _seed_session_with_schedule_and_files(client, tmp_path)
 
@@ -116,7 +96,6 @@ def test_content_base_uses_work_session_schedule_files_and_reference_set(tmp_pat
         json={
             "title": "민원 처리 결과 보고",
             "purpose": "업무대화와 연결자료를 기반으로 보고서 작성",
-            "reference_set_id": seeded["reference_set_id"],
             "template_key": "report",
             "source_session_id": seeded["session_id"],
             "outline": "민원 처리 결과와 후속 조치를 보고서로 정리",
@@ -143,8 +122,6 @@ def test_content_base_uses_work_session_schedule_files_and_reference_set(tmp_pat
     assert "어시스턴트: 쟁점, 조치계획, 기한 중심으로 정리하겠습니다." in content
     assert "민원 처리 현황" in content
     assert seeded["linked_file"] in content
-    assert "처리 현황표" in content
-    assert seeded["reference_file"] in content
     assert seeded["direct_file"] in content
     assert "풀버전 보고서 (fullReport)" in content
     assert "수신/대상: 부서장" in content
@@ -160,7 +137,6 @@ def test_final_hwpx_contains_session_and_file_context(tmp_path: Path) -> None:
         json={
             "title": "민원 처리 결과 보고",
             "purpose": "업무대화와 연결자료를 기반으로 보고서 작성",
-            "reference_set_id": seeded["reference_set_id"],
             "template_key": "report",
             "source_session_id": seeded["session_id"],
             "outline": "민원 처리 결과와 후속 조치를 보고서로 정리",
@@ -208,7 +184,6 @@ def test_final_hwpx_contains_session_and_file_context(tmp_path: Path) -> None:
     assert "민원 처리 평가 회의" in review_markdown
     assert "민원 처리 결과를 부서장 보고용으로 정리해줘." in review_markdown
     assert "민원 처리 현황" in review_markdown
-    assert "처리 현황표" in review_markdown
     assert seeded["direct_file"] in review_markdown
     assert "후속 회의 일정 확정" in review_markdown
 
@@ -216,8 +191,48 @@ def test_final_hwpx_contains_session_and_file_context(tmp_path: Path) -> None:
     assert "민원 처리 결과 보고" in hwpx_text
     assert "민원 처리 평가 회의" in hwpx_text
     assert "민원 처리 현황" in hwpx_text
-    assert "처리 현황표" in hwpx_text
     assert "후속 회의 일정 확정" in hwpx_text
+
+
+def test_finalize_approval_ticket_carries_document_title_as_target_label(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    seeded = _seed_session_with_schedule_and_files(client, tmp_path)
+
+    content_base = client.post(
+        "/api/documents/content-bases",
+        json={
+            "title": "민원 처리 결과 보고",
+            "purpose": "업무대화와 연결자료를 기반으로 보고서 작성",
+            "template_key": "report",
+            "source_session_id": seeded["session_id"],
+            "outline": "민원 처리 결과와 후속 조치를 보고서로 정리",
+            "document_format": "fullReport",
+            "audience_type": "부서장",
+            "expected_length": "풀버전",
+            "urgency_level": "보통",
+            "needs_traceability": "필요",
+            "requires_official_form": "아니오",
+            "requested_action": "후속 회의 일정 확정",
+            "deadline": "2026-05-10",
+            "security_level": "내부",
+            "direct_file_paths": [seeded["direct_file"]],
+            "user_template_path": None,
+        },
+    )
+    assert content_base.status_code == 201
+
+    requested = client.post(
+        "/api/documents/finalize",
+        json={"content_base_id": content_base.json()["id"], "output_name": "complaint-report"},
+    )
+    assert requested.status_code == 202
+    ticket = requested.json()["approval_ticket"]
+    assert ticket["target_label"] == "민원 처리 결과 보고"
+
+    listed = client.get("/api/approval-tickets")
+    assert listed.status_code == 200
+    listed_ticket = next(item for item in listed.json()["items"] if item["id"] == ticket["id"])
+    assert listed_ticket["target_label"] == "민원 처리 결과 보고"
 
 
 def test_document_generate_endpoint_creates_hwpx_without_manual_approval(tmp_path: Path) -> None:
@@ -338,7 +353,6 @@ def test_public_document_writer_applies_public_document_style_rules(tmp_path: Pa
         json={
             "title": "AI 도입 방향 보고",
             "purpose": "의사결정자용 1페이지 보고",
-            "reference_set_id": None,
             "template_key": "report",
             "source_session_id": None,
             "outline": "AI 도입과 관련된 많은 사항들이 있을 것으로 보입니다. 빠른 판단이 필요한 것으로 판단됩니다.",
@@ -376,9 +390,14 @@ def test_public_document_writer_applies_public_document_style_rules(tmp_path: Pa
     assert "AI 도입 관련" in review_markdown
     assert "사항들이" not in review_markdown
     assert "것으로 보입니다" not in review_markdown
-    assert "작성 품질 점검" in review_markdown
-    assert "두괄식" in review_markdown
-    assert "적/의/것/들" in review_markdown
+    # 작성 가이드 문구는 내부 원칙일 뿐 — 생성 문서(및 검토 마크다운)에 인쇄되면 안 된다
+    assert "작성 품질 점검" not in review_markdown
+    assert "두괄식" not in review_markdown
+    assert "적/의/것/들" not in review_markdown
+    hwpx_text = _extract_hwpx_text(Path(artifact["path"]))
+    assert "두괄식" not in hwpx_text
+    assert "개조식" not in hwpx_text
+    assert "기한: 기한 미정" not in hwpx_text
 
 
 def test_custom_hwpx_template_is_preserved_and_appended(tmp_path: Path) -> None:
@@ -397,7 +416,6 @@ def test_custom_hwpx_template_is_preserved_and_appended(tmp_path: Path) -> None:
         json={
             "title": "후속 자료 제출 안내",
             "purpose": "이메일로 요청사항 전달",
-            "reference_set_id": None,
             "template_key": "report",
             "source_session_id": None,
             "outline": "자료 제출 기한과 제출 대상을 간단히 안내",
@@ -459,7 +477,6 @@ def test_all_public_document_formats_generate_readable_hwpx(
         json={
             "title": "문서 유형 테스트",
             "purpose": "출력 유형별 HWPX 산출 확인",
-            "reference_set_id": None,
             "template_key": "report",
             "source_session_id": None,
             "outline": "업무 내용을 공공문서 형식으로 정리",

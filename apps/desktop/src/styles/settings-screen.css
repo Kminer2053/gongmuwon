@@ -1,0 +1,77 @@
+/* 환경설정 화면 전용 스타일 (F-16, design §3.7, 2026-07-04)
+   Codex 톤 유지: 라이트 글래스, ink #111214, 그린 액센트, radius 12-24 */
+
+/* 프로필 카드 목록 헤더 — 제목 + [새 프로필] */
+.settings-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.settings-section-heading .detail-panel__title {
+  margin: 0;
+}
+
+/* 카드 하단 액션 행 — [이 프로필 사용] / [수정] */
+.settings-profile-card__actions {
+  margin-top: 0.35rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.settings-profile-card__actions .button-secondary {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+/* 카드에서 열리는 접힘 편집 폼 */
+.settings-edit-form {
+  margin-top: 0.85rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+/* 섹션 사이 구분선 (모델 연결 / 개인화 / 시스템 정보) */
+.settings-section-divider {
+  height: 1px;
+  margin: 1.1rem 0;
+  background: var(--line-soft);
+}
+
+.settings-personalization .detail-panel__title,
+.settings-system-info summary {
+  margin-bottom: 0.6rem;
+}
+
+/* 시스템 정보는 접힘(details) — knowledge-detail-section 클래스를 공유하되 여백만 보정 */
+.settings-system-info {
+  margin-top: 0.2rem;
+}
+
+.settings-system-info .settings-grid {
+  margin-top: 0.6rem;
+}
+
+/* W7 P3 §9: 시작 시 지식폴더 변경 감지 토글 (2026-07-06) */
+.settings-knowledge-startup {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.settings-toggle-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.settings-toggle-row input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}

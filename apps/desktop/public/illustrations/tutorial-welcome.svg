@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="환영 — 6개 메뉴 한눈에">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .accent{fill:#3d7a4f;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+      .menu{font-family:'Malgun Gothic',sans-serif;font-size:10px;fill:#2b2f2a;}
+    </style>
+  </defs>
+  <rect class="panel" x="24" y="22" width="272" height="100" rx="16"/>
+  <g>
+    <rect x="40" y="38" width="76" height="30" rx="8" fill="#ffffff" stroke="#3d7a4f" stroke-width="1.5"/>
+    <text class="menu" x="52" y="57">💬 업무대화</text>
+    <rect x="122" y="38" width="76" height="30" rx="8" fill="#ffffff" stroke="#e3e8e0" stroke-width="1.5"/>
+    <text class="menu" x="134" y="57">📅 일정</text>
+    <rect x="204" y="38" width="76" height="30" rx="8" fill="#ffffff" stroke="#e3e8e0" stroke-width="1.5"/>
+    <text class="menu" x="216" y="57">📝 문서작성</text>
+    <rect x="40" y="76" width="76" height="30" rx="8" fill="#ffffff" stroke="#e3e8e0" stroke-width="1.5"/>
+    <text class="menu" x="52" y="95">📚 지식폴더</text>
+    <rect x="122" y="76" width="76" height="30" rx="8" fill="#ffffff" stroke="#e3e8e0" stroke-width="1.5"/>
+    <text class="menu" x="134" y="95">🧾 실행기록</text>
+    <rect x="204" y="76" width="76" height="30" rx="8" fill="#ffffff" stroke="#e3e8e0" stroke-width="1.5"/>
+    <text class="menu" x="216" y="95">⚙️ 환경설정</text>
+  </g>
+  <text class="txt" x="24" y="150">대화에서 시작해 일정·문서·지식까지 한 흐름으로.</text>
+  <text class="txtsub" x="24" y="168">모든 데이터는 내 PC 안에만 저장됩니다 (폐쇄망 안심).</text>
+</svg>

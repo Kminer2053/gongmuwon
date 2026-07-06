@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="사용법">
+  <circle cx="12" cy="12" r="9" fill="none" stroke="#111214" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path fill="none" stroke="#111214" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.3 9.4a2.8 2.8 0 0 1 5.45.93c0 1.87-2.75 2.27-2.75 3.77"/>
+  <path fill="none" stroke="#111214" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 17.3h.01"/>
+</svg>

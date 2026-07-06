@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -9,6 +10,8 @@ from .db import Database, now_iso
 
 TERMINAL_STATUSES = {"succeeded", "partial", "failed", "canceled"}
 ACTIVE_STATUSES = {"queued", "blocked", "running", "waiting_approval", "cancel_requested"}
+STALE_QUEUED_TTL = timedelta(minutes=30)
+STALE_QUEUED_MESSAGE = "대기 시간 초과로 자동 취소되었습니다"
 
 
 class JobManager:
@@ -25,6 +28,7 @@ class JobManager:
         resource_policy: str = "none",
         priority: int = 50,
     ) -> dict[str, Any]:
+        self.cancel_stale_queued_jobs()
         timestamp = now_iso()
         payload = {
             "id": str(uuid4()),
@@ -202,6 +206,7 @@ class JobManager:
         return len(rows)
 
     def list_jobs(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        self.cancel_stale_queued_jobs()
         safe_limit = max(1, min(limit, 200))
         rows = self.db.fetch_all(
             """
@@ -213,6 +218,54 @@ class JobManager:
             (safe_limit,),
         )
         return [self._serialize_job(row) for row in rows]
+
+    def cancel_stale_queued_jobs(self) -> list[dict[str, Any]]:
+        """대기열(queued)에 30분 넘게 머문 작업을 자동 취소 처리한다 (D-03)."""
+        rows = self.db.fetch_all("SELECT * FROM work_jobs WHERE status = ?", ("queued",))
+        cutoff = datetime.now(timezone.utc) - STALE_QUEUED_TTL
+        canceled: list[dict[str, Any]] = []
+        for row in rows:
+            queued_at = self._parse_timestamp(row.get("queued_at"))
+            if queued_at is None or queued_at > cutoff:
+                continue
+            timestamp = now_iso()
+            self.db.execute(
+                """
+                UPDATE work_jobs
+                SET status = ?, error_message = ?, current_stage = ?, completed_at = ?
+                WHERE id = ?
+                """,
+                ("canceled", STALE_QUEUED_MESSAGE, "대기 시간 초과", timestamp, row["id"]),
+            )
+            self.release_lock(row["id"])
+            self.append_event(
+                row["id"],
+                level="warning",
+                event_type="job.canceled",
+                message=STALE_QUEUED_MESSAGE,
+                payload={"reason": "stale_queued_ttl"},
+            )
+            self.db.log(
+                feature="jobs",
+                action="job.stale_queued.canceled",
+                status="canceled",
+                inputs={"job_id": row["id"], "kind": row.get("kind"), "queued_at": row.get("queued_at")},
+                outputs={"error_message": STALE_QUEUED_MESSAGE},
+            )
+            canceled.append(self.require_job(row["id"]))
+        return canceled
+
+    @staticmethod
+    def _parse_timestamp(value: Any) -> datetime | None:
+        if not value or not isinstance(value, str):
+            return None
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed
 
     def status_counts(self) -> dict[str, int]:
         rows = self.db.fetch_all_readonly(

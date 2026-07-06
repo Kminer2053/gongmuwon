@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from gongmu_sidecar.app import create_app
 import gongmu_sidecar.graphrag_backends as graphrag_backends
 from gongmu_sidecar.graphrag_backends import build_backend_status
 
@@ -282,19 +281,3 @@ def test_optional_backend_status_activates_modules_only_when_explicitly_enabled(
     assert status["graph"]["mode"] == "local_sqlite"
     assert status["graph"]["activation_ready"] is True
     assert status["graph"]["activation_blockers"] == []
-
-
-def test_backend_status_endpoint_exposes_vector_and_graph_boundaries(tmp_path: Path) -> None:
-    app = create_app(tmp_path)
-    client = app.state.test_client_factory()
-
-    response = client.get("/api/knowledge/backend-status")
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["vector"]["production_backend"] == "chromadb"
-    assert payload["vector"]["production_enabled"] is True
-    assert payload["vector"]["active_backend"] == "chromadb"
-    assert payload["graph"]["production_backend"] == "sqlite_graph_mirror"
-    assert payload["graph"]["candidate_backend"] == "deferred_graph_database"
-    assert payload["graph"]["active_backend"]

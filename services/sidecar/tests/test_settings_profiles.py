@@ -20,7 +20,7 @@ def test_workspace_settings_include_personalization_defaults(tmp_path: Path) -> 
     assert (tmp_path / "personalization" / "session-summaries").exists()
     assert (tmp_path / "personalization" / "audit-log").exists()
     assert payload["defaults"]["graphrag_vector_backend"] == "chromadb"
-    assert client.app.state.services.graphrag.vector_backend.__class__.__name__ == "ChromaVectorBackend"
+    assert payload["defaults"]["knowledge_engine"] == "wiki"
 
 
 def test_workspace_settings_can_explicitly_select_sqlite_vector_fallback(tmp_path: Path) -> None:
@@ -34,7 +34,7 @@ def test_workspace_settings_can_explicitly_select_sqlite_vector_fallback(tmp_pat
 
     assert response.status_code == 200
     assert response.json()["defaults"]["graphrag_vector_backend"] == "sqlite"
-    assert client.app.state.services.graphrag.vector_backend is None
+    assert response.json()["defaults"]["knowledge_engine"] == "wiki"
 
 
 def test_workspace_settings_can_persist_personalization_options(tmp_path: Path) -> None:
@@ -88,7 +88,6 @@ def test_workspace_settings_can_persist_embedding_options(tmp_path: Path) -> Non
 
 def test_workspace_settings_can_persist_graphrag_vector_backend(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    assert client.app.state.services.graphrag.vector_backend.__class__.__name__ == "ChromaVectorBackend"
 
     update = client.put(
         "/api/settings",
@@ -100,13 +99,11 @@ def test_workspace_settings_can_persist_graphrag_vector_backend(tmp_path: Path) 
     assert update.status_code == 200
     payload = update.json()
     assert payload["defaults"]["graphrag_vector_backend"] == "sqlite"
-    assert client.app.state.services.graphrag.vector_backend is None
 
     reloaded_client = _client(tmp_path)
     response = reloaded_client.get("/api/settings")
     assert response.status_code == 200
     assert response.json()["defaults"]["graphrag_vector_backend"] == "sqlite"
-    assert reloaded_client.app.state.services.graphrag.vector_backend is None
 
 
 def test_workspace_settings_loads_windows_utf8_bom_file(tmp_path: Path) -> None:
@@ -119,7 +116,7 @@ def test_workspace_settings_loads_windows_utf8_bom_file(tmp_path: Path) -> None:
 
     assert response.status_code == 200
     assert response.json()["defaults"]["graphrag_vector_backend"] == "chromadb"
-    assert client.app.state.services.graphrag.vector_backend.__class__.__name__ == "ChromaVectorBackend"
+    assert response.json()["defaults"]["knowledge_engine"] == "wiki"
 
 
 def test_settings_persist_mode_specific_profiles(tmp_path: Path) -> None:

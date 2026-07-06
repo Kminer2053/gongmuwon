@@ -234,6 +234,12 @@ export async function main() {
   runCommand(uninstallExe, ["/S"], [0]);
   await waitForRemoval(paths.installDir);
 
+  // Tauri NSIS는 HKCU\Software\<ProductName>에 설치 경로를 남기는데 제거기가
+  // 이 키를 지우지 않는다. 남겨두면 다음 GUI 설치의 기본 경로가 스모크의
+  // 임시 폴더로 오염되므로 스모크가 직접 청소한다.
+  const productName = config.productName;
+  spawnSync("reg", ["delete", `HKCU\\Software\\${productName}`, "/f"], { stdio: "ignore" });
+
   const remainingFiles = listFiles(paths.installDir);
   const summary = {
     nsis_path: path.relative(repoRoot, nsisPath),

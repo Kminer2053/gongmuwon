@@ -1,0 +1,159 @@
+/* 실행기록 화면 전용 스타일 (F-17, design §3.6, 2026-07-04)
+   Codex 톤 유지: 라이트 글래스, ink #111214, 그린 액센트, radius 12-24 */
+
+/* 상단 카테고리 필터 칩 */
+.logs-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.9rem;
+}
+
+.logs-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.logs-filter-chip .asset-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.logs-filter-chip:hover {
+  background: var(--accent-green-soft, rgba(31, 107, 85, 0.12));
+}
+
+.logs-filter-chip:focus-visible {
+  outline: 2px solid var(--accent-green-outline, rgba(31, 107, 85, 0.55));
+  outline-offset: 2px;
+}
+
+.logs-filter-chip.is-active {
+  background: rgba(31, 107, 85, 0.14);
+  border-color: rgba(31, 107, 85, 0.4);
+  color: #17513f;
+}
+
+/* 오늘/어제/이전 그룹 */
+.logs-group-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.logs-group__heading {
+  margin: 0 0 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-subtle);
+  letter-spacing: 0.02em;
+}
+
+.logs-row-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+/* 1행 = 시간 · 한국어 요약 · 결과 배지 — 목표 행 높이 ~44px */
+.logs-row {
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.68);
+  overflow: hidden;
+}
+
+.logs-row--failed {
+  background: rgba(254, 242, 242, 0.85);
+  border-color: rgba(185, 60, 60, 0.28);
+}
+
+.logs-row__main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.5rem 0.85rem;
+  background: transparent;
+  border: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.logs-row__main:hover {
+  background: rgba(16, 35, 31, 0.04);
+}
+
+.logs-row.is-expanded .logs-row__main {
+  background: rgba(16, 35, 31, 0.05);
+}
+
+.logs-row__time {
+  flex: 0 0 auto;
+  min-width: 4.6rem;
+  font-size: 0.78rem;
+  color: var(--text-subtle);
+}
+
+.logs-row__summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.logs-row__title {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logs-row__subtitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-subtle);
+  font-size: 0.85rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logs-row__detail {
+  padding: 0 0.85rem 0.85rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.logs-row__dev-info summary {
+  cursor: pointer;
+  color: var(--text-subtle);
+  font-size: 0.82rem;
+}
+
+.logs-row__dev-info[open] summary {
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 720px) {
+  .logs-row__main {
+    flex-wrap: wrap;
+  }
+
+  .logs-row__summary {
+    flex-basis: 100%;
+    order: 3;
+  }
+}

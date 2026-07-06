@@ -196,8 +196,8 @@ describe("Schedule editor linked session", () => {
     const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
     await user.click(within(navigation).getByRole("button", { name: /^일정/ }));
 
-    const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
-    await user.click(existingTitle.closest("button") as HTMLButtonElement);
+    const eventBlock = await screen.findByTestId("timegrid-event-schedule-1");
+    await user.click(eventBlock);
     await user.click(screen.getByRole("button", { name: "연결 세션 열기" }));
 
     expect(await screen.findByRole("heading", { name: "주간 보고 세션" })).toBeInTheDocument();
@@ -211,8 +211,8 @@ describe("Schedule editor linked session", () => {
     const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
     await user.click(within(navigation).getByRole("button", { name: /^일정/ }));
 
-    const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
-    await user.click(existingTitle.closest("button") as HTMLButtonElement);
+    const eventBlock = await screen.findByTestId("timegrid-event-schedule-1");
+    await user.click(eventBlock);
     await user.click(screen.getByRole("button", { name: "연결 세션 만들기" }));
 
     expect(await screen.findByRole("heading", { name: "주간 보고 준비 작업" })).toBeInTheDocument();
@@ -228,16 +228,16 @@ describe("Schedule editor linked session", () => {
 
     expect(await screen.findByRole("heading", { name: "업무일정 캘린더" })).toBeInTheDocument();
     expect(screen.getByLabelText("가까운 일정")).not.toBeDisabled();
-    expect(screen.getAllByText("주간 보고 준비").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/주간 보고 준비/).length).toBeGreaterThan(0);
 
-    const existingTitle = await screen.findByTestId("schedule-slot-existing-title-1");
-    await user.click(existingTitle.closest("button") as HTMLButtonElement);
+    const eventBlock = await screen.findByTestId("timegrid-event-schedule-1");
+    await user.click(eventBlock);
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockClear();
     await user.click(screen.getByRole("button", { name: "일정 삭제" }));
 
     await waitFor(() => {
-      expect(screen.queryByText("주간 보고 준비")).not.toBeInTheDocument();
+      expect(screen.queryByText(/주간 보고 준비/)).not.toBeInTheDocument();
     });
     const requestPaths = fetchMock.mock.calls.map(([input]) => String(input));
     expect(requestPaths.some((path) => path.includes("/api/knowledge/documents"))).toBe(false);

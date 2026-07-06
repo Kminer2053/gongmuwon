@@ -12,29 +12,13 @@ WORK_ROOT = REPO_ROOT / "runtime-workspace" / "cache" / "pyinstaller"
 KORDOC_ROOT = REPO_ROOT / "services" / "sidecar" / "packaging" / "kordoc"
 
 
-def chromadb_module_filter(module_name):
-    return (
-        not module_name.startswith("chromadb.server")
-        and not module_name.startswith("chromadb.test")
-    )
+# M-07: GraphRAG 시대 벡터 백엔드(chromadb/lancedb/pyarrow)는 라이브 임포트 체인에서
+# 제거됨 — 강제 수집하지 않는다 (번들 비대 + numpy DLL 취약성의 원인이었음).
+hiddenimports = sorted(set(collect_submodules("uvicorn")))
 
-hiddenimports = sorted(
-    set(
-        collect_submodules("uvicorn")
-        + collect_submodules("chromadb", filter=chromadb_module_filter)
-        + collect_submodules("chromadb_rust_bindings")
-        + collect_submodules("lancedb")
-        + collect_submodules("pyarrow")
-    )
-)
+datas = []
 
-datas = (
-    collect_data_files("chromadb")
-    + collect_data_files("lancedb")
-    + collect_data_files("pyarrow")
-)
-
-binaries = collect_dynamic_libs("chromadb_rust_bindings")
+binaries = []
 if (KORDOC_ROOT / "kordoc_runner.js").exists():
     datas += [(str(KORDOC_ROOT), "packaging/kordoc")]
 if (SRC_ROOT / "gongmu_sidecar" / "public_doc_templates").exists():

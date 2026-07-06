@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createEmptyWorkspaceSnapshot,
+  loadWorkJobsOnly,
   loadWorkspaceShellSnapshot,
+  loadWorkspaceSnapshot,
   mergeWorkspaceSnapshot,
   parseWorkspaceSettings,
   runWorkSessionTurnStream,
@@ -36,7 +38,6 @@ describe("parseWorkspaceSettings", () => {
       if (
         url.endsWith("/api/schedules") ||
         url.endsWith("/api/work-sessions") ||
-        url.endsWith("/api/reference-sets") ||
         url.endsWith("/api/templates") ||
         url.endsWith("/api/approval-tickets")
       ) {
@@ -54,6 +55,96 @@ describe("parseWorkspaceSettings", () => {
       expect(snapshot.settings?.paths.workspace_root).toBe("/tmp/gongmu-workspace");
       expect(calls.some((url) => url.endsWith("/api/knowledge/documents"))).toBe(false);
       expect(calls.some((url) => url.endsWith("/api/execution-logs"))).toBe(false);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("skips settings/templates when includeConfig is false (D-03 idle heartbeat)", async () => {
+    const originalFetch = global.fetch;
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      return new Response(JSON.stringify({ items: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    try {
+      await loadWorkspaceShellSnapshot({ includeConfig: false });
+      expect(calls.some((url) => url.endsWith("/api/settings"))).toBe(false);
+      expect(calls.some((url) => url.endsWith("/api/templates"))).toBe(false);
+      expect(calls.some((url) => url.includes("/api/jobs?limit=20"))).toBe(true);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("loads only the jobs list with loadWorkJobsOnly (D-03 active-jobs poll)", async () => {
+    const originalFetch = global.fetch;
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      return new Response(
+        JSON.stringify({
+          items: [
+            {
+              id: "job-1",
+              kind: "knowledge.ingest",
+              title: "지식위키 색인",
+              status: "running",
+              priority: 50,
+              resource_policy: "exclusive",
+              progress_percent: 40,
+              cancel_requested: false,
+              created_at: "2026-07-04T00:00:00Z",
+              queued_at: "2026-07-04T00:00:00Z",
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+
+    try {
+      const patch = await loadWorkJobsOnly();
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toContain("/api/jobs?limit=20");
+      expect(patch.workJobs).toHaveLength(1);
+      expect(Object.keys(patch)).toEqual(["workJobs"]);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+
+  it("no longer requests anything/file-organizer endpoints in the full snapshot (D-04)", async () => {
+    const originalFetch = global.fetch;
+    const calls: string[] = [];
+    global.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.endsWith("/api/settings")) {
+        return new Response(
+          JSON.stringify({ defaults: {}, paths: { workspace_root: "/tmp/gongmu-workspace" } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      return new Response(JSON.stringify({ items: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    try {
+      const snapshot = await loadWorkspaceSnapshot();
+      expect(calls.some((url) => url.includes("/api/integrations/anything"))).toBe(false);
+      expect(calls.some((url) => url.includes("/api/file-organizer"))).toBe(false);
+      expect(calls.some((url) => url.endsWith("/api/execution-logs"))).toBe(true);
+      expect("anythingLaunches" in snapshot).toBe(false);
+      expect("fileProposals" in snapshot).toBe(false);
     } finally {
       global.fetch = originalFetch;
     }

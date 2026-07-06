@@ -134,26 +134,12 @@ def test_work_session_turn_runs_multiple_clear_tool_intents_in_order(tmp_path: P
     monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
 
     client = _client(tmp_path)
-    services = client.app.state.services
-    source_file = tmp_path / "prompt-guide.md"
-    source_file.write_text("# prompt guide", encoding="utf-8")
-    services.graphrag.ask = lambda **kwargs: {
-        "answer": "프롬프트 작성 원칙 문서를 찾았습니다.",
-        "citations": [
-            {
-                "title": "프롬프트 작성 원칙",
-                "file_path": str(source_file),
-                "relations": [],
-            }
-        ],
-        "retrieval_summary": {"source": "test"},
-    }
     session = client.post("/api/work-sessions", json={"title": "다중도구 테스트"})
     session_id = session.json()["id"]
 
     response = client.post(
         f"/api/work-sessions/{session_id}/turn",
-        json={"text": "내일 오후 2시 회의 일정 등록하고 지식폴더에서 프롬프트 관련 자료 찾아줘"},
+        json={"text": "내일 오후 2시 회의 일정 등록하고 이 내용으로 1페이지 보고서 hwpx 문서작성 해줘"},
     )
 
     assert response.status_code == 201
@@ -161,13 +147,13 @@ def test_work_session_turn_runs_multiple_clear_tool_intents_in_order(tmp_path: P
     text = payload["assistant_message"]["text"]
     assert "## 일정 등록" in text
     assert "일정을 등록했습니다." in text
-    assert "## 지식폴더 검색" in text
-    assert "프롬프트 작성 원칙" in text
-    assert payload["context_summary"]["skill_actions"][:3] == [
+    assert "## 문서작성" in text
+    assert "HWPX 문서를 생성했습니다" in text
+    assert payload["context_summary"]["skill_actions"][:2] == [
         "intent.plan",
         "schedule.create",
-        "knowledge.search",
     ]
+    assert "document.create" in payload["context_summary"]["skill_actions"]
     assert payload["work_job"]["status"] == "succeeded"
 
 
@@ -214,7 +200,7 @@ def test_work_session_turn_routes_feature_usage_questions_to_local_guide(tmp_pat
 
     response = client.post(
         f"/api/work-sessions/{session_id}/turn",
-        json={"text": "업무대화랑 파일찾기 사용법 안내해줄래?"},
+        json={"text": "업무대화랑 문서작성 사용법 안내해줄래?"},
     )
 
     assert response.status_code == 201
@@ -222,8 +208,13 @@ def test_work_session_turn_routes_feature_usage_questions_to_local_guide(tmp_pat
     assert payload["assistant_message"]["provider"] == "gongmu-skill"
     assert payload["context_summary"]["skill_actions"] == ["help.guide"]
     assert "업무대화" in payload["assistant_message"]["text"]
-    assert "파일찾기" in payload["assistant_message"]["text"]
+    assert "일정" in payload["assistant_message"]["text"]
     assert "문서작성" in payload["assistant_message"]["text"]
+    assert "내 지식폴더" in payload["assistant_message"]["text"]
+    assert "실행기록" in payload["assistant_message"]["text"]
+    assert "환경설정" in payload["assistant_message"]["text"]
+    assert "파일찾기" not in payload["assistant_message"]["text"]
+    assert "파일 연결" in payload["assistant_message"]["text"]
 
 
 def test_work_session_turn_records_failed_assistant_message(tmp_path: Path, monkeypatch) -> None:
@@ -262,7 +253,7 @@ def test_work_session_turn_injects_graphrag_context_by_default(tmp_path: Path, m
     def fake_generate_reply(settings, messages, **kwargs):
         captured_messages.extend(messages)
         return LLMGenerationResult(
-            text="GraphRAG 근거를 반영한 답변입니다.",
+            text="지식폴더 근거를 반영한 답변입니다.",
             provider="ollama",
             model="gemma4:e2b",
         )
@@ -289,7 +280,7 @@ def test_work_session_turn_injects_graphrag_context_by_default(tmp_path: Path, m
             ]
         }
 
-    monkeypatch.setattr(client.app.state.services.graphrag, "retrieve", fake_retrieve)
+    monkeypatch.setattr(client.app.state.services.wiki, "retrieve", fake_retrieve)
     session = client.post("/api/work-sessions", json={"title": "GraphRAG 테스트"})
     assert session.status_code == 201
     session_id = session.json()["id"]
@@ -303,9 +294,8 @@ def test_work_session_turn_injects_graphrag_context_by_default(tmp_path: Path, m
     guardrail_context = captured_messages[0]
     assert guardrail_context["role"] == "system"
     assert "민감정보" in guardrail_context["text"]
-    system_context = next(message for message in captured_messages if "GraphRAG context" in message["text"])
+    system_context = next(message for message in captured_messages if "[지식폴더 근거]" in message["text"])
     assert system_context["role"] == "system"
-    assert "GraphRAG" in system_context["text"]
     assert "AI 전략 보고서" in system_context["text"]
     assert "D:/docs/ai-strategy.pdf" in system_context["text"]
     assert "AI 전략은 업무대화와 지식폴더 근거" in system_context["text"]
@@ -344,7 +334,7 @@ def test_work_session_turn_uses_nested_retrieval_chunk_text(tmp_path: Path, monk
             ]
         }
 
-    monkeypatch.setattr(client.app.state.services.graphrag, "retrieve", fake_retrieve)
+    monkeypatch.setattr(client.app.state.services.wiki, "retrieve", fake_retrieve)
     session = client.post("/api/work-sessions", json={"title": "Nested GraphRAG test"})
     assert session.status_code == 201
     session_id = session.json()["id"]
@@ -355,7 +345,7 @@ def test_work_session_turn_uses_nested_retrieval_chunk_text(tmp_path: Path, monk
     )
 
     assert response.status_code == 201
-    system_context = next(message for message in captured_messages if "GraphRAG context" in message["text"])
+    system_context = next(message for message in captured_messages if "[지식폴더 근거]" in message["text"])
     assert system_context["role"] == "system"
     assert "Prompt guide" in system_context["text"]
     assert "Prompt work should include purpose, constraints, and output format." in system_context["text"]
@@ -387,7 +377,7 @@ def test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply(tmp_
             ]
         }
 
-    monkeypatch.setattr(client.app.state.services.graphrag, "retrieve", fake_retrieve)
+    monkeypatch.setattr(client.app.state.services.wiki, "retrieve", fake_retrieve)
     session = client.post("/api/work-sessions", json={"title": "보안 가드레일 테스트"})
     session_id = session.json()["id"]
 
@@ -397,7 +387,7 @@ def test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply(tmp_
     )
 
     assert response.status_code == 201
-    graph_context = next(message for message in captured_messages if "GraphRAG context" in message["text"])
+    graph_context = next(message for message in captured_messages if "[지식폴더 근거]" in message["text"])
     assert "very-secret-password" not in graph_context["text"]
     assert "sk-test-secret" not in graph_context["text"]
     assert "[보호됨]" in graph_context["text"]
@@ -405,38 +395,37 @@ def test_work_session_turn_redacts_sensitive_rag_values_in_prompt_and_reply(tmp_
     assert "password: [보호됨]" in response.json()["assistant_message"]["text"]
 
 
-def test_work_session_turn_executes_knowledge_skill_with_sources_and_file_links(
+def test_work_session_turn_sends_knowledge_queries_to_llm_with_evidence_block(
     tmp_path: Path, monkeypatch
 ) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("knowledge skill should answer from GraphRAG without generic LLM fallback")
+    captured_messages = []
 
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    def fake_generate_reply(settings, messages, **kwargs):
+        captured_messages.extend(messages)
+        return LLMGenerationResult(
+            text="AI 전략은 내부 지식과 실행 근거를 함께 사용하는 방향입니다.",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
 
     client = _client(tmp_path)
 
-    def fake_ask(**kwargs):
+    def fake_retrieve(**kwargs):
         assert kwargs["session_id"]
-        assert kwargs["query"] == "지식폴더에서 AI 전략 방향성 찾아봐"
         return {
-            "answer": "AI 전략은 내부 지식과 실행 근거를 함께 사용하는 방향입니다.",
-            "citations": [
+            "items": [
                 {
-                    "document_id": "doc-1",
-                    "chunk_id": "chunk-1",
-                    "title": "AI 전략 보고서",
-                    "file_path": str(tmp_path / "AI전략보고서.pdf"),
-                    "evidence_type": "section",
-                    "quality_score": 0.91,
-                    "warnings": [],
-                    "relations": [{"relation": "REFERENCES", "target_label": "AI 기본계획"}],
+                    "document": {"title": "AI 전략 보고서", "file_path": str(tmp_path / "AI전략보고서.pdf")},
+                    "text": "AI 전략은 내부 지식과 실행 근거를 함께 사용한다.",
+                    "evidence_type": "wiki",
+                    "relations": [],
                 }
-            ],
-            "retrieval_summary": {"source_count": 1, "table_evidence_count": 0, "relation_count": 1},
-            "items": [],
+            ]
         }
 
-    monkeypatch.setattr(client.app.state.services.graphrag, "ask", fake_ask)
+    monkeypatch.setattr(client.app.state.services.wiki, "retrieve", fake_retrieve)
     session = client.post("/api/work-sessions", json={"title": "지식 검색 테스트"})
     session_id = session.json()["id"]
 
@@ -448,12 +437,74 @@ def test_work_session_turn_executes_knowledge_skill_with_sources_and_file_links(
     assert response.status_code == 201
     assistant_message = response.json()["assistant_message"]
     assert assistant_message["status"] == "completed"
-    assert "GraphRAG 검색 결과" in assistant_message["text"]
+    assert assistant_message["provider"] == "ollama"
     assert "AI 전략은 내부 지식과 실행 근거" in assistant_message["text"]
-    assert "AI 전략 보고서" in assistant_message["text"]
-    assert "파일 열기:" in assistant_message["text"]
-    assert "폴더 열기:" in assistant_message["text"]
-    assert response.json()["context_summary"]["skill_actions"] == ["knowledge.search"]
+    evidence = next(message for message in captured_messages if "[지식폴더 근거]" in message["text"])
+    assert "AI 전략 보고서" in evidence["text"]
+    assert "각 내용 뒤에 (출처: 문서 제목) 형식으로 인용하세요" in evidence["text"]
+    assert "파일 경로는 답변에 쓰지 마세요" in evidence["text"]
+    assert response.json()["context_summary"]["graphrag_used"] is True
+
+
+def test_work_session_turn_persists_and_returns_citations_from_knowledge_evidence(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fake_generate_reply(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text="AI 전략은 내부 지식과 실행 근거를 함께 사용하는 방향입니다. (출처: AI 전략 보고서)",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+
+    client = _client(tmp_path)
+    file_path = str(tmp_path / "AI전략보고서.pdf")
+
+    def fake_retrieve(**kwargs):
+        return {
+            "items": [
+                {
+                    "document": {"title": "AI 전략 보고서", "file_path": file_path},
+                    "text": "AI 전략은 내부 지식과 실행 근거를 함께 사용한다.",
+                    "evidence_type": "wiki",
+                    "relations": [],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(client.app.state.services.wiki, "retrieve", fake_retrieve)
+    session = client.post("/api/work-sessions", json={"title": "인용 저장 테스트"})
+    session_id = session.json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "지식폴더에서 AI 전략 방향성 찾아봐"},
+    )
+
+    assert response.status_code == 201
+    assistant_message = response.json()["assistant_message"]
+    assert assistant_message["citations"] == [
+        {
+            "title": "AI 전략 보고서",
+            "file_path": file_path,
+            "snippet": "AI 전략은 내부 지식과 실행 근거를 함께 사용한다.",
+            "doc_uid": "",
+        }
+    ]
+
+    # Round-trip through the messages listing endpoint (fresh serialization pass).
+    messages = client.get(f"/api/work-sessions/{session_id}/messages").json()["items"]
+    assistant_row = next(item for item in messages if item["role"] == "assistant")
+    assert assistant_row["citations"] == [
+        {
+            "title": "AI 전략 보고서",
+            "file_path": file_path,
+            "snippet": "AI 전략은 내부 지식과 실행 근거를 함께 사용한다.",
+            "doc_uid": "",
+        }
+    ]
+    assert "citations_json" not in assistant_row
 
 
 def test_work_session_turn_creates_schedule_from_chat_instruction(tmp_path: Path, monkeypatch) -> None:
@@ -621,8 +672,9 @@ def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path:
     assert "AI 추진 배경과 향후 조치사항" in review_markdown
     assert "보안형 로컬 자동화 중심" in review_markdown
     assert "이 세션 내용으로 1페이지 보고서 HWPX 문서작성 해줘" not in review_markdown
-    assert "두괄식" in review_markdown
-    assert "개조식" in review_markdown
+    # 작성 가이드 문구는 내부 원칙일 뿐 — 생성 문서(검토 마크다운 포함)에 인쇄되지 않는다
+    assert "두괄식" not in review_markdown
+    assert "개조식" not in review_markdown
     hwpx_text = _extract_hwpx_text(output_path)
     assert "문서작성 테스트 문서" in hwpx_text
     assert "AI 추진 배경과 향후 조치사항" in hwpx_text
@@ -762,6 +814,11 @@ def test_work_session_turn_stream_sends_delta_events_before_done(tmp_path: Path,
         return LLMGenerationResult(text="첫 응답", provider="ollama", model="qwen-test")
 
     monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply_streaming", fake_stream_reply)
+    # T-02 롤링 요약 갱신(비스트림 호출)이 실제 LLM에 닿지 않도록 차단 → 결정론 다이제스트 사용
+    monkeypatch.setattr(
+        "gongmu_sidecar.app.generate_session_reply",
+        lambda settings, messages, **kwargs: (_ for _ in ()).throw(LLMGenerationError("stub")),
+    )
 
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "스트림 테스트"})
@@ -786,6 +843,62 @@ def test_work_session_turn_stream_sends_delta_events_before_done(tmp_path: Path,
     assistant = [message for message in messages if message["role"] == "assistant"][-1]
     assert assistant["status"] == "completed"
     assert assistant["text"] == "첫 응답"
+
+
+def test_work_session_turn_stream_persists_citations_from_knowledge_evidence(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def fake_stream_reply(settings, messages, *, on_delta, **kwargs):
+        on_delta("지식폴더 근거를 반영한 답변입니다.")
+        return LLMGenerationResult(
+            text="지식폴더 근거를 반영한 답변입니다.", provider="ollama", model="gemma4:e2b"
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply_streaming", fake_stream_reply)
+    # T-02 롤링 요약 갱신(비스트림 호출)이 실제 LLM에 닿지 않도록 차단 → 결정론 다이제스트 사용
+    monkeypatch.setattr(
+        "gongmu_sidecar.app.generate_session_reply",
+        lambda settings, messages, **kwargs: (_ for _ in ()).throw(LLMGenerationError("stub")),
+    )
+
+    client = _client(tmp_path)
+    file_path = str(tmp_path / "AI전략보고서.pdf")
+
+    def fake_retrieve(**kwargs):
+        return {
+            "items": [
+                {
+                    "document": {"title": "AI 전략 보고서", "file_path": file_path},
+                    "text": "AI 전략은 내부 지식과 실행 근거를 함께 사용한다.",
+                    "evidence_type": "wiki",
+                    "relations": [],
+                }
+            ]
+        }
+
+    monkeypatch.setattr(client.app.state.services.wiki, "retrieve", fake_retrieve)
+    session = client.post("/api/work-sessions", json={"title": "스트림 인용 테스트"})
+    session_id = session.json()["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/work-sessions/{session_id}/turn/stream",
+        json={"text": "지식폴더에서 AI 전략 방향성 찾아봐"},
+    ) as response:
+        assert response.status_code == 200
+        list(response.iter_text())
+
+    messages = client.get(f"/api/work-sessions/{session_id}/messages").json()["items"]
+    assistant = [message for message in messages if message["role"] == "assistant"][-1]
+    assert assistant["status"] == "completed"
+    assert assistant["citations"] == [
+        {
+            "title": "AI 전략 보고서",
+            "file_path": file_path,
+            "snippet": "AI 전략은 내부 지식과 실행 근거를 함께 사용한다.",
+            "doc_uid": "",
+        }
+    ]
 
 
 def test_llm_connection_test_returns_success_result(tmp_path: Path, monkeypatch) -> None:

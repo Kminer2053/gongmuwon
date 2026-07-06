@@ -1,4 +1,4 @@
-﻿import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -36,11 +36,37 @@ const jsonResponse = (payload: unknown, status = 200) =>
     }),
   );
 
+async function openSettingsTab(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+  await user.click(screen.getByRole("tab", { name: "설정" }));
+}
+
+async function registerSource(user: ReturnType<typeof userEvent.setup>, label: string) {
+  await openSettingsTab(user);
+  await user.click(screen.getByText("지식 소스 등록 설정"));
+  await user.type(screen.getByLabelText("소스 이름"), label);
+  await user.click(screen.getByRole("button", { name: "폴더 선택" }));
+  await user.click(screen.getByRole("button", { name: "지식 소스 등록" }));
+  await screen.findAllByText(label);
+}
+
 describe("knowledge source folders", () => {
   let lastKnowledgeIngestBody: Record<string, unknown> | undefined;
   let lastKnowledgeReindexBody: Record<string, unknown> | undefined;
+  let lastKnowledgeEnrichBody: Record<string, unknown> | undefined;
   let lastCanceledIngestionJobId: string | undefined;
+  let lastFileLinkBody: Record<string, unknown> | undefined;
   let nextKnowledgeIngestionStatus: string | undefined;
+  let llmEnrichmentConfigured: boolean;
+  let wikiTreeAvailable: boolean;
+  let wikiIndexAvailable: boolean;
+  let searchResultsAvailable: boolean;
+  // P1 변경 확인(diff) 응답 — 테스트별로 변경 0/변경 있음/게이트 초과를 구성한다.
+  let knowledgeDiffPayload: Record<string, unknown>;
+  // P0 후속: 스캔 응답의 보류(unstable) 파일 수.
+  let scanUnstableCount: number;
+  // W7 §5.5/§5.6: 위키 트리 응답 — 사본 배지·원본 없는 카드 그룹 테스트에서 재구성한다.
+  let wikiTreePayload: Record<string, unknown>;
 
   beforeEach(() => {
     let knowledgeSources: Array<Record<string, unknown>> = [];
@@ -49,8 +75,48 @@ describe("knowledge source folders", () => {
     let knowledgeDocuments: Array<Record<string, unknown>> = [];
     lastKnowledgeIngestBody = undefined;
     lastKnowledgeReindexBody = undefined;
+    lastKnowledgeEnrichBody = undefined;
     lastCanceledIngestionJobId = undefined;
+    lastFileLinkBody = undefined;
     nextKnowledgeIngestionStatus = undefined;
+    llmEnrichmentConfigured = true;
+    wikiTreeAvailable = true;
+    wikiIndexAvailable = true;
+    searchResultsAvailable = true;
+    knowledgeDiffPayload = {
+      added: 0,
+      modified: 0,
+      moved: 0,
+      deleted: 0,
+      unchanged: 12,
+      unstable: 0,
+      rehash_estimate: { files: 0, bytes: 0 },
+      exceeds_gate: false,
+    };
+    scanUnstableCount = 0;
+    wikiTreePayload = {
+      topics: [{ slug: "budget-topic", title: "예산", doc_count: 2, path: "topics/budget-topic.md" }],
+      works: [
+        {
+          slug: "work-minwon",
+          title: "민원 개선 작업 기록",
+          session_id: "session-1",
+          updated_at: "2026-05-06T00:00:00+09:00",
+          path: "works/work-minwon.md",
+        },
+      ],
+      sources: [
+        {
+          source_id: "source-1",
+          label: "기획팀 업무자료",
+          docs: [
+            { slug: "service", title: "공공서비스 개선계획", path: "docs/service.md", quality_score: 0.85 },
+            { slug: "budget", title: "예산 검토", path: "docs/budget.md", quality_score: 0.9 },
+          ],
+        },
+      ],
+      counts: { docs: 2, topics: 1, works: 1 },
+    };
 
     vi.stubGlobal(
       "fetch",
@@ -142,8 +208,13 @@ describe("knowledge source folders", () => {
             metadata_count: 0,
             deleted_count: 0,
             failed_count: 0,
+            unstable_count: scanUnstableCount,
             scanned_at: "2026-04-28T00:10:00+09:00",
           });
+        }
+
+        if (url.endsWith("/api/knowledge/sources/source-1/diff") && method === "GET") {
+          return jsonResponse(knowledgeDiffPayload);
         }
 
         if (url.endsWith("/api/knowledge/ingest") && method === "POST") {
@@ -155,9 +226,9 @@ describe("knowledge source folders", () => {
             id: "job-1",
             source_id: body.source_id,
             status,
-            current_stage: isCompleted ? "검색 준비" : isRunning ? "임베딩/Chroma" : "폴더 스캔",
-            current_stage_index: isCompleted ? 5 : isRunning ? 3 : 0,
-            stage_count: 6,
+            current_stage: isCompleted ? "위키 갱신" : isRunning ? "FTS 색인" : "폴더 스캔",
+            current_stage_index: isCompleted ? 3 : isRunning ? 2 : 0,
+            stage_count: 4,
             progress_percent: isCompleted ? 100 : isRunning ? 45 : 0,
             queued_count: 1,
             processed_count: isCompleted ? 1 : 0,
@@ -174,10 +245,10 @@ describe("knowledge source folders", () => {
             log_dump_path: "/tmp/gongmu-workspace/logs/knowledge-ingestion/job-1.jsonl",
             diagnostic_event_count: isCompleted ? 12 : isRunning ? 6 : 1,
             last_diagnostic_message: isCompleted
-              ? "GraphRAG 검색 준비 완료"
+              ? "지식 위키 갱신 완료"
               : isRunning
-                ? "임베딩/Chroma 단계 처리 중"
-                : "GraphRAG ingestion 작업 생성",
+                ? "FTS 색인 단계 처리 중"
+                : "색인 작업 생성",
             started_at: isCompleted || isRunning ? "2026-05-06T00:12:00+09:00" : null,
             completed_at: isCompleted ? "2026-05-06T00:13:00+09:00" : null,
             created_at: "2026-05-06T00:12:00+09:00",
@@ -272,7 +343,7 @@ describe("knowledge source folders", () => {
             status: "queued",
             current_stage: "폴더 스캔",
             current_stage_index: 0,
-            stage_count: 6,
+            stage_count: 4,
             progress_percent: 0,
             queued_count: 1,
             processed_count: 0,
@@ -285,13 +356,36 @@ describe("knowledge source folders", () => {
             error_message: null,
             log_dump_path: "/tmp/gongmu-workspace/logs/knowledge-ingestion/job-force.jsonl",
             diagnostic_event_count: 1,
-            last_diagnostic_message: "GraphRAG ingestion 작업 생성",
+            last_diagnostic_message: "색인 작업 생성",
             started_at: null,
             completed_at: null,
             created_at: "2026-05-06T00:14:00+09:00",
           };
           knowledgeIngestionJobs = [created];
           return jsonResponse({ job: created }, 201);
+        }
+
+        if (url.endsWith("/api/knowledge/enrich") && method === "POST") {
+          lastKnowledgeEnrichBody = body;
+          return jsonResponse(
+            {
+              work_job: {
+                id: "job-enrich",
+                kind: "knowledge.enrich",
+                title: "지식위키 LLM 보강",
+                status: "running",
+                priority: 5,
+                resource_key: "knowledge_wiki:enrich",
+                resource_policy: "exclusive",
+                progress_percent: 0,
+                current_stage: "enrich",
+                cancel_requested: false,
+                created_at: "2026-05-06T00:15:00+09:00",
+                queued_at: "2026-05-06T00:15:00+09:00",
+              },
+            },
+            201,
+          );
         }
 
         if (url.endsWith("/api/knowledge/ingestion-jobs") && method === "GET") {
@@ -304,9 +398,9 @@ describe("knowledge source folders", () => {
             log_dump_path: "/tmp/gongmu-workspace/logs/knowledge-ingestion/job-1.jsonl",
             limit: 120,
             items: [
-              { event: "job.started", stage: "scan", message: "GraphRAG ingestion 시작" },
-              { event: "file.parsed", stage: "parse", title: "예산 검토", quality_score: 0.85 },
-              { event: "job.completed", stage: "ready", status: "completed" },
+              { event: "job.started", stage: "scan", message: "지식폴더 색인 시작" },
+              { event: "file.parsed", stage: "extract", title: "예산 검토", quality_score: 0.85 },
+              { event: "job.completed", stage: "wiki", status: "completed" },
             ],
           });
         }
@@ -329,48 +423,29 @@ describe("knowledge source folders", () => {
         }
 
         if (url.includes("/api/knowledge/search?")) {
+          if (!searchResultsAvailable) {
+            return jsonResponse({
+              query: new URL(url, "http://localhost").searchParams.get("query") ?? "",
+              mode: "fts5",
+              items: [],
+            });
+          }
           return jsonResponse({
             query: new URL(url, "http://localhost").searchParams.get("query") ?? "",
-            vector_hits: [],
-            source_file_hits: [],
-            graph_neighbors: ["공공서비스 개선계획"],
-          });
-        }
-
-        if (url.includes("/api/knowledge/graph/query")) {
-          return jsonResponse({
-            query: new URL(url, "http://localhost").searchParams.get("query") ?? "",
-            nodes: [
+            mode: "fts5",
+            items: [
               {
-                id: "ontology:Policy:privacy",
-                label: "개인정보보호법",
-                node_type: "Policy",
-                metadata: { source: "document" },
-              },
-            ],
-            edges: [
-              {
-                id: "edge-1",
-                source_node_id: "document:doc-1",
-                target_node_id: "ontology:Policy:privacy",
-                relation: "REFERENCES",
-                confidence: 0.9,
-              },
-            ],
-            neighbor_nodes: [
-              {
-                id: "document:doc-1",
-                label: "공공서비스 개선계획",
-                node_type: "Document",
-                metadata: {},
-              },
-            ],
-            related_documents: [
-              {
-                id: "doc-1",
+                doc_id: "wiki-1",
+                document_id: "doc-1",
                 title: "공공서비스 개선계획",
-                file_path: "C:/Docs/업무자료/service.md",
-                document_type: "md",
+                source_path: "C:/Docs/업무자료/service.md",
+                relative_path: "service.md",
+                snippet: "개인정보 처리 기준을 점검한다",
+                score: 1.42,
+                quality_score: 0.85,
+                warnings: ["low_text"],
+                card_path: "/tmp/gongmu-workspace/knowledge/wiki/docs/service.md",
+                slug: "service",
               },
             ],
           });
@@ -380,33 +455,28 @@ describe("knowledge source folders", () => {
           return jsonResponse({
             query: body.query,
             session_id: body.session_id,
-            answer: "'개인정보보호법'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 공공서비스 개선계획: 개인정보 처리 기준을 점검합니다.",
+            answer:
+              "'개인정보보호법'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 공공서비스 개선계획: 개인정보 처리 기준을 점검합니다.",
+            answer_mode: "llm",
             citations: [
               {
+                doc_id: "wiki-1",
                 document_id: "doc-1",
                 title: "공공서비스 개선계획",
+                source_path: "C:/Docs/업무자료/service.md",
                 file_path: "C:/Docs/업무자료/service.md",
-                chunk_id: "chunk-1",
-                parser_name: "gongmu-markdown",
+                snippet: "개인정보 처리 기준을 점검합니다.",
                 quality_score: 0.85,
-                partial: false,
-                evidence_type: "table",
-                quality_warnings: ["no_structured_tables"],
-                score_breakdown: {
-                  text_score: 50,
-                  graph_score: 12,
-                  vector_score: 0,
-                  session_context_boost: 0,
-                },
-                relations: ["REFERENCES"],
+                quality_warnings: ["partial_extraction"],
+                card_path: "/tmp/gongmu-workspace/knowledge/wiki/docs/service.md",
+                evidence_type: "wiki",
+                relations: [],
               },
             ],
             retrieval_summary: {
               source_count: 1,
-              table_evidence_count: 1,
-              partial_count: 0,
+              hit_count: 1,
               low_quality_count: 0,
-              relation_count: 1,
             },
             items: [],
           });
@@ -493,31 +563,46 @@ describe("knowledge source folders", () => {
 
         if (url.endsWith("/api/knowledge/backend-status")) {
           return jsonResponse({
+            engine: "wiki",
+            fts5: { ok: true, tokenizer: "trigram" },
+            kordoc: { available: true },
+            llm_enrichment: { configured: llmEnrichmentConfigured },
+            backends: [
+              {
+                name: "wiki_markdown",
+                role: "knowledge_store",
+                available: true,
+                storage_path: "/tmp/gongmu-workspace/knowledge/wiki",
+                detail: "Obsidian 호환 Markdown 위키",
+              },
+              {
+                name: "sqlite_fts5",
+                role: "search",
+                available: true,
+                tokenizer: "trigram",
+                storage_path: "/tmp/gongmu-workspace/db/gongmu.db",
+                detail: "3자 이상 trigram BM25, 미만은 LIKE 폴백",
+              },
+            ],
             vector: {
-              production_backend: "chromadb",
+              production_backend: "sqlite_fts5",
               production_available: true,
-              production_enabled: false,
-              active_backend: "sqlite_fallback",
-              activation_ready: true,
-              activation_blockers: [],
-              activation_notes: ["chromadb is installed but not enabled; SQLite fallback remains active"],
-              single_writer_required: true,
+              production_enabled: true,
+              active_backend: "sqlite_fts5",
               available: true,
+              mode: "wiki",
               storage_path: "/tmp/gongmu-workspace/db/gongmu.db",
-              detail: "ChromaDB PersistentClient can be enabled",
+              detail: "trigram BM25",
             },
             graph: {
-              production_backend: "kuzudb",
+              production_backend: "wiki_markdown",
               production_available: true,
-              production_enabled: false,
-              active_backend: "sqlite_graph_mirror",
-              activation_ready: true,
-              activation_blockers: [],
-              activation_notes: ["kuzudb is installed but not enabled; SQLite fallback remains active"],
-              single_writer_required: true,
+              production_enabled: true,
+              active_backend: "wiki_markdown",
               available: true,
-              storage_path: "/tmp/gongmu-workspace/db/gongmu.db",
-              detail: "KuzuDB embedded graph store can be enabled",
+              mode: "wiki",
+              storage_path: "/tmp/gongmu-workspace/knowledge/wiki",
+              detail: "Markdown 위키",
             },
           });
         }
@@ -537,46 +622,111 @@ describe("knowledge source folders", () => {
           });
         }
 
-        if (url.endsWith("/api/knowledge/graph")) {
-          const nodes = knowledgeSourceFiles.length
-            ? [
-                { id: "source_folder:source-1", label: "기획팀 업무자료", node_type: "source_folder" },
-                ...Array.from({ length: 5 }, (_, index) => ({
-                  id: `source_file:file-${index + 1}`,
-                  label: `예산 검토 ${index + 1}`,
-                  node_type: "source_file",
-                })),
-                ...Array.from({ length: 5 }, (_, index) => ({
-                  id: `keyword:budget-${index + 1}`,
-                  label: `키워드 ${index + 1}`,
-                  node_type: "keyword",
-                })),
-              ]
-            : [];
-          const edges = knowledgeSourceFiles.length
-            ? [
-                ...Array.from({ length: 5 }, (_, index) => ({
-                  source: "source_folder:source-1",
-                  target: `source_file:file-${index + 1}`,
-                  relation: "contains",
-                })),
-                ...Array.from({ length: 5 }, (_, index) => ({
-                  source: `source_file:file-${index + 1}`,
-                  target: `keyword:budget-${index + 1}`,
-                  relation: "mentions",
-                })),
-              ]
-            : [];
+        if (url.endsWith("/api/knowledge/wiki/tree")) {
+          if (!wikiTreeAvailable) {
+            return jsonResponse({ detail: "not found" }, 404);
+          }
+          return jsonResponse(wikiTreePayload);
+        }
+
+        if (url.includes("/api/work-sessions/") && url.endsWith("/file-links")) {
+          if (method === "POST") {
+            lastFileLinkBody = body;
+            return jsonResponse(
+              {
+                items: [
+                  {
+                    id: "link-1",
+                    session_id: "session-1",
+                    file_path: (body?.items as Array<Record<string, unknown>>)[0]?.file_path,
+                    label: (body?.items as Array<Record<string, unknown>>)[0]?.label,
+                    source: "knowledge",
+                    created_at: "2026-07-04T00:00:00+09:00",
+                  },
+                ],
+              },
+              201,
+            );
+          }
+          return jsonResponse({ items: [] });
+        }
+
+        if (url.endsWith("/api/knowledge/wiki/index")) {
+          if (!wikiIndexAvailable) {
+            return jsonResponse({ detail: "not found" }, 404);
+          }
           return jsonResponse({
-            node_count: nodes.length,
-            edge_count: edges.length,
-            artifacts: {
-              graph_json_path: "/tmp/gongmu-workspace/knowledge/graph/graph.json",
-              graph_html_path: "/tmp/gongmu-workspace/knowledge/graph/graph.html",
-              graph_report_path: "/tmp/gongmu-workspace/knowledge/graph/GRAPH_REPORT.md",
-            },
-            nodes,
-            edges,
+            path: "/tmp/gongmu-workspace/knowledge/wiki/index.md",
+            content:
+              "# 지식폴더 위키\n\n## 문서\n\n- [공공서비스 개선계획](docs/service.md)\n- [예산 검토](docs/budget.md)\n",
+          });
+        }
+
+        if (url.includes("/api/knowledge/wiki/page")) {
+          const requestedPath = new URL(url).searchParams.get("path") ?? "";
+          if (requestedPath === "docs/budget.md") {
+            return jsonResponse({
+              path: "/tmp/gongmu-workspace/knowledge/wiki/docs/budget.md",
+              relative_path: "docs/budget.md",
+              content: [
+                "---",
+                "slug: budget",
+                'title: 예산 검토',
+                "source_path: C:/Docs/업무자료/budget.hwpx",
+                "doc_type: 보고서",
+                "mtime: 2026-06-01T00:00:00+09:00",
+                "parser: kordoc",
+                "quality_score: 0.9",
+                'warnings: []',
+                "hash: abc123",
+                'topics: ["예산"]',
+                "enriched: false",
+                "---",
+                "",
+                "# 예산 검토",
+                "",
+                "## 개요",
+                "다음 분기 예산 편성안을 검토하고 주요 변경점을 정리한다.",
+                "",
+                "## 섹션 아웃라인",
+                "- 편성 배경",
+                "- 세부 항목",
+                "",
+                "## 키워드",
+                "예산, 편성, 검토",
+                "",
+                "## 주제",
+                "- [[예산]](../topics/budget-topic.md)",
+                "",
+                "## 원본",
+                "- 원본 경로: C:/Docs/업무자료/budget.hwpx",
+              ].join("\n"),
+            });
+          }
+          if (requestedPath === "topics/budget-topic.md") {
+            return jsonResponse({
+              path: "/tmp/gongmu-workspace/knowledge/wiki/topics/budget-topic.md",
+              relative_path: "topics/budget-topic.md",
+              content: [
+                "---",
+                "topic: 예산",
+                "slug: budget-topic",
+                "doc_count: 1",
+                "work_count: 0",
+                "updated_at: 2026-06-01T00:00:00+09:00",
+                "---",
+                "",
+                "# 예산",
+                "",
+                "## 관련 문서",
+                "- [예산 검토](../docs/budget.md) · 원본: C:/Docs/업무자료/budget.hwpx",
+              ].join("\n"),
+            });
+          }
+          return jsonResponse({
+            path: "/tmp/gongmu-workspace/knowledge/wiki/docs/service.md",
+            relative_path: "docs/service.md",
+            content: "# 공공서비스 개선계획\n\n민원 처리 시간을 줄이기 위한 개선 과제를 정리한다.\n",
           });
         }
 
@@ -594,7 +744,6 @@ describe("knowledge source folders", () => {
               },
             ],
           },
-          "/api/reference-sets": { items: [] },
           "/api/templates": { items: [] },
           "/api/knowledge/candidates": { items: [] },
           "/api/knowledge/pages": { items: [] },
@@ -603,7 +752,6 @@ describe("knowledge source folders", () => {
           "/api/integrations/anything/launches": { items: [] },
           "/api/file-organizer/proposals": { items: [] },
           "/api/execution-logs": { items: [] },
-          "/api/tools": { items: [] },
         };
 
         const matched = Object.entries(collectionMap).find(([path]) => url.endsWith(path));
@@ -616,60 +764,46 @@ describe("knowledge source folders", () => {
     );
   });
 
-  it("registers and scans a local source folder from the knowledge screen", async () => {
+  it("registers and scans a local source folder from the settings tab", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-
+    await openSettingsTab(user);
     await user.click(screen.getByText("지식 소스 등록 설정"));
     await user.type(screen.getByLabelText("소스 이름"), "기획팀 업무자료");
     await user.click(screen.getByRole("button", { name: "폴더 선택" }));
     await waitFor(() => expect(screen.getByLabelText("폴더 경로")).toHaveValue("C:/Docs/업무자료"));
 
     await user.click(screen.getByRole("button", { name: "지식 소스 등록" }));
-    const sourceCard = await screen.findByText("기획팀 업무자료");
-    expect(sourceCard).toBeInTheDocument();
+    const sourceCards = await screen.findAllByText("기획팀 업무자료");
+    expect(sourceCards.length).toBeGreaterThan(0);
 
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
-    const indexingSourceCard = await screen.findByText("기획팀 업무자료");
-    await user.click(
-      within(indexingSourceCard.closest("article") as HTMLElement).getByRole("button", { name: "스캔 시작" }),
-    );
+    // 스캔은 설정 ① 지식폴더 지정 그룹의 폴더 카드에서 실행한다.
+    await user.click(screen.getByRole("button", { name: "스캔 시작" }));
 
-    await user.click(screen.getByRole("tab", { name: "설정/상태" }));
-    await user.click(screen.getByText("등록된 문서 메타데이터"));
-    expect(await screen.findByText("예산 검토")).toBeInTheDocument();
-    expect(screen.getByText("예산 편성 회의자료를 정리한다.")).toBeInTheDocument();
-    expect(screen.getByText("본문 추출됨")).toBeInTheDocument();
-    expect(screen.getByText(/추출물:/)).toBeInTheDocument();
+    // 스캔 결과는 폴더 카드의 파일 수·최근 스캔 갱신으로 확인한다.
+    await waitFor(() => expect(screen.getByText(/1개 파일/)).toBeInTheDocument());
+
+    // 사용자 피드백: "진단·상세 데이터" 그룹(색인 흐름 안내/문서 메타데이터/업무대화 반영 기록)은 제거됐다.
+    expect(screen.queryByText("진단·상세 데이터")).not.toBeInTheDocument();
+    expect(screen.queryByText("등록된 문서 메타데이터")).not.toBeInTheDocument();
+    expect(screen.queryByText("업무대화 반영 기록")).not.toBeInTheDocument();
+    expect(screen.queryByText("색인 처리 흐름 안내")).not.toBeInTheDocument();
   });
 
-  it("starts GraphRAG ingestion from a registered knowledge source", async () => {
+  it("starts indexing from a registered knowledge source", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /\uB0B4 \uC9C0\uC2DD\uD3F4\uB354/ }));
-    await user.click(screen.getByText("지식 소스 등록 설정"));
-    await user.type(screen.getByLabelText("\uC18C\uC2A4 \uC774\uB984"), "Planning docs");
-    await user.click(screen.getByRole("button", { name: "\uD3F4\uB354 \uC120\uD0DD" }));
-    await user.click(screen.getByRole("button", { name: "\uC9C0\uC2DD \uC18C\uC2A4 \uB4F1\uB85D" }));
-    await screen.findByText("Planning docs");
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
-    const sourceCards = await screen.findAllByText("Planning docs");
-    const sourceCard = sourceCards[sourceCards.length - 1]!;
+    await registerSource(user, "Planning docs");
 
-    await user.click(
-      within(sourceCard.closest("article") as HTMLElement).getByRole("button", {
-        name: "GraphRAG \uC778\uB371\uC2F1",
-      }),
-    );
+    // 색인 실행은 설정 ③ 색인 설정·실행 그룹에서 시작한다.
+    await user.click(screen.getByRole("button", { name: "색인 시작" }));
 
-    await user.click(screen.getByText("GraphRAG ingestion \uC791\uC5C5"));
-    expect(await screen.findByText("GraphRAG 작업 #job1")).toBeInTheDocument();
-    expect(screen.getByText("1/1 \uCC98\uB9AC \u00B7 \uC2E4\uD328 0")).toBeInTheDocument();
-    expect(screen.getByText("\uC0AD\uC81C\uB3D9\uAE30\uD654 1")).toBeInTheDocument();
-    expect(screen.getByText("\uBCC0\uACBD\uC5C6\uC74C 2")).toBeInTheDocument();
+    expect(await screen.findByText("색인 작업 #job1")).toBeInTheDocument();
+    expect(screen.getByText("1/1 처리 · 실패 0")).toBeInTheDocument();
+    expect(screen.getByText("삭제동기화 1")).toBeInTheDocument();
+    expect(screen.getByText("변경없음 2")).toBeInTheDocument();
     expect(screen.getByText("마지막 처리: budget.md")).toBeInTheDocument();
     expect(screen.getByText("소요 120ms · 파일당 120ms")).toBeInTheDocument();
     expect(lastKnowledgeIngestBody).toEqual({
@@ -678,11 +812,15 @@ describe("knowledge source folders", () => {
       background: true,
     });
 
-    await user.click(screen.getByRole("button", { name: "색인완료 파일 2개" }));
-    expect(await screen.findByText("\uC608\uC0B0 \uAC80\uD1A0")).toBeInTheDocument();
-    expect(screen.getByText("parser gongmu-markdown")).toBeInTheDocument();
-    expect(screen.getByText("\uD488\uC9C8 85%")).toBeInTheDocument();
-    expect(screen.getByText("\uC139\uC158 2 · \uD45C 1")).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "색인완료 파일 2개" }));
+    expect(await screen.findByText("예산 검토")).toBeInTheDocument();
+    expect(screen.getByText("파서 gongmu-markdown")).toBeInTheDocument();
+    // 내부 상태값(partial/structured) 원문 노출 금지 — 한국어 라벨로 표시
+    expect(screen.queryByText("structured")).not.toBeInTheDocument();
+    expect(screen.queryByText("partial")).not.toBeInTheDocument();
+    expect(screen.getAllByText("전체 추출").length).toBeGreaterThan(0);
+    expect(screen.getByText("품질 85%")).toBeInTheDocument();
+    expect(screen.getByText("섹션 2 · 표 1")).toBeInTheDocument();
     expect(screen.getByText("chunk 3 · 표 chunk 1")).toBeInTheDocument();
     expect(screen.getByText("문단 1 · 글자 42")).toBeInTheDocument();
     expect(screen.getByText("경고 없음")).toBeInTheDocument();
@@ -694,22 +832,10 @@ describe("knowledge source folders", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-    await user.click(screen.getByText("지식 소스 등록 설정"));
-    await user.type(screen.getByLabelText("소스 이름"), "기획팀 업무자료");
-    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
-    await user.click(screen.getByRole("button", { name: "지식 소스 등록" }));
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
+    await registerSource(user, "기획팀 업무자료");
+    await user.click(screen.getByRole("button", { name: "색인 시작" }));
 
-    const sourceCards = await screen.findAllByText("기획팀 업무자료");
-    const sourceCard = sourceCards[sourceCards.length - 1]!;
-    await user.click(
-      within(sourceCard.closest("article") as HTMLElement).getByRole("button", {
-        name: "GraphRAG 인덱싱",
-      }),
-    );
-
-    await screen.findByText("GraphRAG 작업 #job1");
+    await screen.findByText("색인 작업 #job1");
     await user.click(await screen.findByRole("button", { name: "색인완료 파일 2개" }));
     const documentCard = (await screen.findByText("예산 검토")).closest("article") as HTMLElement;
     await user.click(within(documentCard).getByRole("button", { name: "구조 보기" }));
@@ -723,56 +849,152 @@ describe("knowledge source folders", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-    await user.click(screen.getByText("지식 소스 등록 설정"));
-    await user.type(screen.getByLabelText("소스 이름"), "기획팀 업무자료");
-    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
-    await user.click(screen.getByRole("button", { name: "지식 소스 등록" }));
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
+    await registerSource(user, "기획팀 업무자료");
 
     nextKnowledgeIngestionStatus = "running";
-    const sourceCards = await screen.findAllByText("기획팀 업무자료");
-    const sourceCard = sourceCards[sourceCards.length - 1]!;
-    await user.click(
-      within(sourceCard.closest("article") as HTMLElement).getByRole("button", {
-        name: "GraphRAG 인덱싱",
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "색인 시작" }));
 
-    expect(await screen.findByText(/GraphRAG 인덱싱 작업 #job1이 진행 중입니다/)).toBeInTheDocument();
+    expect((await screen.findAllByText(/색인 작업 #job1이 진행 중입니다/)).length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "스캔 시작" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "GraphRAG 인덱싱" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "색인 시작" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "강제 재색인" })).toBeDisabled();
 
-    await user.click(screen.getByRole("tab", { name: "설정/상태" }));
     expect(screen.getByLabelText("소스 이름")).toBeDisabled();
     expect(screen.getByLabelText("폴더 경로")).toBeDisabled();
     expect(screen.getByRole("button", { name: "폴더 선택" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "지식 소스 등록" })).toBeDisabled();
   });
 
-  it("starts forced GraphRAG reindex from a registered knowledge source", async () => {
+  it("shows the diff estimate card and runs incremental indexing from it (P1 변경 확인)", async () => {
+    knowledgeDiffPayload = {
+      added: 2,
+      modified: 1,
+      moved: 1,
+      deleted: 1,
+      unchanged: 10,
+      unstable: 1,
+      rehash_estimate: { files: 4, bytes: 2 * 1024 * 1024 },
+      exceeds_gate: false,
+    };
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /\uB0B4 \uC9C0\uC2DD\uD3F4\uB354/ }));
-    await user.click(screen.getByText("지식 소스 등록 설정"));
-    await user.type(screen.getByLabelText("\uC18C\uC2A4 \uC774\uB984"), "Planning docs");
-    await user.click(screen.getByRole("button", { name: "\uD3F4\uB354 \uC120\uD0DD" }));
-    await user.click(screen.getByRole("button", { name: "\uC9C0\uC2DD \uC18C\uC2A4 \uB4F1\uB85D" }));
-    await screen.findByText("Planning docs");
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
-    const sourceCards = await screen.findAllByText("Planning docs");
-    const sourceCard = sourceCards[sourceCards.length - 1]!;
+    await registerSource(user, "기획팀 업무자료");
 
-    await user.click(
-      within(sourceCard.closest("article") as HTMLElement).getByRole("button", {
-        name: "\uAC15\uC81C \uC7AC\uC0C9\uC778",
-      }),
+    // [변경 확인]은 색인을 실행하지 않고 견적 카드만 띄운다.
+    await user.click(screen.getByRole("button", { name: "변경 확인" }));
+
+    const estimate = await screen.findByTestId("knowledge-diff-estimate");
+    expect(estimate).toHaveTextContent("추가 2 · 수정 1 · 이동 1 · 삭제 1 · 변경없음 10 (보류 1)");
+    expect(estimate).toHaveTextContent("확인 필요 4개 파일 · 2MB");
+    expect(lastKnowledgeIngestBody).toBeUndefined();
+    // 게이트 미초과 — 경고 없이 [증분 색인 실행]이 견적 카드 안에 보인다.
+    expect(screen.queryByTestId("knowledge-diff-gate")).not.toBeInTheDocument();
+    expect(within(estimate).queryByRole("button", { name: "그래도 실행" })).not.toBeInTheDocument();
+
+    // 대시보드 색인 상태 카드에 "미반영 변경 N건" 한 줄이 뜬다(store 공용 diff 상태 재사용 — P3 §4.4).
+    await user.click(screen.getByRole("tab", { name: "대시보드" }));
+    const dashboardDiffLine = await screen.findByTestId("knowledge-status-indexing-diff");
+    expect(dashboardDiffLine).toHaveTextContent("미반영 변경 5건");
+    expect(dashboardDiffLine).toHaveTextContent("추가 2 · 수정 1 · 이동 1 · 삭제 1");
+
+    // 설정 탭으로 돌아와 견적 카드의 [증분 색인 실행] — 기존 색인 시작 흐름을 재사용한다.
+    await user.click(screen.getByRole("tab", { name: "설정" }));
+    const estimateAgain = await screen.findByTestId("knowledge-diff-estimate");
+    await user.click(within(estimateAgain).getByRole("button", { name: "증분 색인 실행" }));
+
+    expect(await screen.findByText("색인 작업 #job1")).toBeInTheDocument();
+    expect(lastKnowledgeIngestBody).toEqual({
+      source_id: "source-1",
+      run_now: true,
+      background: true,
+    });
+  }, 10000);
+
+  it("reports an up-to-date index when the diff finds no changes (변경 0)", async () => {
+    knowledgeDiffPayload = {
+      added: 0,
+      modified: 0,
+      moved: 0,
+      deleted: 0,
+      unchanged: 42,
+      unstable: 0,
+      rehash_estimate: { files: 0, bytes: 0 },
+      exceeds_gate: false,
+    };
+    const user = userEvent.setup();
+    render(<App />);
+
+    await registerSource(user, "기획팀 업무자료");
+    await user.click(screen.getByRole("button", { name: "변경 확인" }));
+
+    const estimate = await screen.findByTestId("knowledge-diff-estimate");
+    expect(within(estimate).getByTestId("knowledge-diff-empty")).toHaveTextContent(
+      "변경된 파일이 없습니다 — 색인이 최신입니다.",
     );
+    // 변경 0 — 실행 버튼을 견적 카드에 노출하지 않는다.
+    expect(within(estimate).queryByRole("button", { name: "증분 색인 실행" })).not.toBeInTheDocument();
+    expect(within(estimate).queryByRole("button", { name: "그래도 실행" })).not.toBeInTheDocument();
+    expect(lastKnowledgeIngestBody).toBeUndefined();
+  });
 
-    await user.click(screen.getByText("GraphRAG ingestion \uC791\uC5C5"));
-    expect(await screen.findByText("GraphRAG 작업 #jobforce")).toBeInTheDocument();
+  it("gates incremental indexing behind an explicit confirmation when the estimate exceeds the gate", async () => {
+    knowledgeDiffPayload = {
+      added: 80,
+      modified: 40,
+      moved: 0,
+      deleted: 3,
+      unchanged: 5,
+      unstable: 0,
+      rehash_estimate: { files: 120, bytes: 600 * 1024 * 1024 },
+      exceeds_gate: true,
+    };
+    const user = userEvent.setup();
+    render(<App />);
+
+    await registerSource(user, "기획팀 업무자료");
+    await user.click(screen.getByRole("button", { name: "변경 확인" }));
+
+    const estimate = await screen.findByTestId("knowledge-diff-estimate");
+    expect(within(estimate).getByTestId("knowledge-diff-gate")).toHaveTextContent(
+      "전체 파일의 상당수가 변경되어 확인에 수 분이 걸릴 수 있습니다.",
+    );
+    expect(estimate).toHaveTextContent("확인 필요 120개 파일 · 600MB");
+    // 게이트 초과 — 기본 실행 버튼 대신 [그래도 실행]만 노출한다.
+    expect(within(estimate).queryByRole("button", { name: "증분 색인 실행" })).not.toBeInTheDocument();
+    await user.click(within(estimate).getByRole("button", { name: "그래도 실행" }));
+
+    expect(await screen.findByText("색인 작업 #job1")).toBeInTheDocument();
+    expect(lastKnowledgeIngestBody).toEqual({
+      source_id: "source-1",
+      run_now: true,
+      background: true,
+    });
+  });
+
+  it("surfaces the scan unstable hold badge only when files were deferred (P0 followup)", async () => {
+    scanUnstableCount = 2;
+    const user = userEvent.setup();
+    render(<App />);
+
+    await registerSource(user, "기획팀 업무자료");
+    expect(screen.queryByTestId("knowledge-scan-unstable")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "스캔 시작" }));
+
+    const badge = await screen.findByTestId("knowledge-scan-unstable");
+    expect(badge).toHaveTextContent("보류 2건 — 다음 스캔에서 처리");
+  });
+
+  it("starts forced reindex from a registered knowledge source", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await registerSource(user, "Planning docs");
+
+    await user.click(screen.getByRole("button", { name: "강제 재색인" }));
+
+    expect(await screen.findByText("색인 작업 #jobforce")).toBeInTheDocument();
     expect(lastKnowledgeReindexBody).toEqual({
       source_id: "source-1",
       run_now: true,
@@ -780,235 +1002,569 @@ describe("knowledge source folders", () => {
     });
   });
 
-  it("cancels a queued GraphRAG ingestion job from the job card", async () => {
+  it("cancels a queued ingestion job from the job card", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /\uB0B4 \uC9C0\uC2DD\uD3F4\uB354/ }));
-    await user.click(screen.getByText("지식 소스 등록 설정"));
-    await user.type(screen.getByLabelText("\uC18C\uC2A4 \uC774\uB984"), "Planning docs");
-    await user.click(screen.getByRole("button", { name: "\uD3F4\uB354 \uC120\uD0DD" }));
-    await user.click(screen.getByRole("button", { name: "\uC9C0\uC2DD \uC18C\uC2A4 \uB4F1\uB85D" }));
-    await screen.findByText("Planning docs");
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
-    const sourceCards = await screen.findAllByText("Planning docs");
-    const sourceCard = sourceCards[sourceCards.length - 1]!;
+    await registerSource(user, "Planning docs");
 
-    await user.click(
-      within(sourceCard.closest("article") as HTMLElement).getByRole("button", {
-        name: "\uAC15\uC81C \uC7AC\uC0C9\uC778",
-      }),
-    );
-    await user.click(screen.getByText("GraphRAG ingestion \uC791\uC5C5"));
-    await user.click(await screen.findByRole("button", { name: "\uCDE8\uC18C" }));
+    await user.click(screen.getByRole("button", { name: "강제 재색인" }));
+    await screen.findByText("색인 작업 #jobforce");
+    await user.click(await screen.findByRole("button", { name: "취소" }));
 
     expect(lastCanceledIngestionJobId).toBe("job-force");
-    expect(await screen.findByText("\uCDE8\uC18C\uB428")).toBeInTheDocument();
+    expect(await screen.findByText("취소됨")).toBeInTheDocument();
   }, 10000);
 
-  it("shows a scrollable knowledge graph and interactive legend before detailed data", async () => {
+  it("shows type-grouped status cards on the dashboard and delegates actions to settings", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
 
-    expect(screen.queryByText("수동 메모를 지식 후보로 올리기")).not.toBeInTheDocument();
-    expect(screen.queryByText("반영 후보")).not.toBeInTheDocument();
-    expect(screen.getByTestId("knowledge-graph-overview")).toHaveTextContent("지식 그래프");
-    expect(screen.getByTestId("knowledge-graph-overview")).toHaveTextContent("인터랙티브 업무지식 지도");
-    expect(screen.getByTestId("knowledge-graph-map")).toHaveTextContent("상하좌우로 스크롤");
-    expect(screen.getByTestId("knowledge-graph-svg")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "지식 그래프 확대" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "지식 그래프 축소" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "지식 그래프 맞춤" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "폴더" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("tab", { name: "대시보드" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByTestId("knowledge-dashboard")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "지식 그래프 확대" }));
-    expect(screen.getByTestId("knowledge-graph-svg")).toHaveAttribute("data-zoom", "1.1");
+    const counts = screen.getByTestId("knowledge-wiki-counts");
+    await waitFor(() => expect(counts).toHaveTextContent("문서 2"));
+    expect(counts).toHaveTextContent("주제 1");
+    expect(counts).toHaveTextContent("업무 기록 1");
 
-    await user.click(screen.getByRole("button", { name: "문서" }));
-    expect(screen.getByRole("button", { name: "문서" })).toHaveAttribute("aria-pressed", "true");
+    // 상태 카드 4종: 지식폴더 / 위키 구성 / 색인 / LLM 보강
+    const sourcesCard = screen.getByTestId("knowledge-status-sources");
+    expect(sourcesCard).toHaveTextContent("미등록");
+    const taxonomyCard = screen.getByTestId("knowledge-status-taxonomy");
+    await waitFor(() => expect(taxonomyCard).toHaveTextContent("미구성"));
+    const indexingCard = screen.getByTestId("knowledge-status-indexing");
+    expect(indexingCard).toHaveTextContent("아직 색인 작업이 없습니다.");
+    expect(screen.getByTestId("knowledge-status-enrich")).toBeInTheDocument();
+
+    // 실행 버튼(다시 색인·보강 시작)은 대시보드에서 제거 — 설정 탭으로 위임
+    expect(screen.queryByRole("button", { name: "다시 색인" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "보강 시작" })).not.toBeInTheDocument();
+
+    // [설정으로] → 설정 탭 이동
+    await user.click(within(sourcesCard).getByRole("button", { name: "설정으로" }));
+    expect(screen.getByRole("tab", { name: "설정" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("지식 소스 등록 설정")).toBeInTheDocument();
-    expect(screen.getByText("등록된 문서 메타데이터")).toBeInTheDocument();
-    expect(screen.getByText("업무대화 반영 기록")).toBeInTheDocument();
+
+    // 설정 탭에는 [← 대시보드로] 복귀 버튼
+    await user.click(screen.getByRole("button", { name: "← 대시보드로" }));
+    expect(screen.getByRole("tab", { name: "대시보드" })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("separates knowledge setup, indexing diagnostics, and GraphRAG search into clear workspaces", async () => {
+  it("guides LLM setup from the dashboard enrichment card when unconfigured", async () => {
+    llmEnrichmentConfigured = false;
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
 
-    expect(screen.getByRole("tab", { name: "설정/상태" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("지식 소스 등록 설정")).toBeInTheDocument();
+    const enrichCard = await screen.findByTestId("knowledge-status-enrich");
+    await waitFor(() => expect(enrichCard).toHaveTextContent("미설정"));
+    expect(within(enrichCard).queryByRole("button", { name: "보강 시작" })).not.toBeInTheDocument();
+    expect(within(enrichCard).getByTestId("llm-setup-notice")).toBeInTheDocument();
+
+    // 설정 탭의 실행 버튼은 disabled + 사유 title (G-07)
+    await user.click(within(enrichCard).getByRole("button", { name: "설정으로" }));
+    const enrichButton = await screen.findByRole("button", { name: "LLM 요약 보강 시작" });
+    expect(enrichButton).toBeDisabled();
+    expect(enrichButton).toHaveAttribute("title", "환경설정에서 LLM 연결을 구성하면 사용할 수 있습니다.");
+  });
+
+  it("shows plain-language engine status cards on the dashboard", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+
+    expect(await screen.findByText("키워드 검색(FTS5) 정상 · 트라이그램")).toBeInTheDocument();
+    const indexingCard = screen.getByTestId("knowledge-status-indexing");
+    await waitFor(() => expect(indexingCard).toHaveTextContent("한국어 문서 파서 사용 가능"));
+    expect(screen.getByTestId("knowledge-status-enrich")).toHaveTextContent("설정됨");
+    expect(screen.queryByText(/sqlite_graph_mirror/)).not.toBeInTheDocument();
+    expect(screen.getByText(/등록 폴더 0/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("knowledge-wiki-counts")).toHaveTextContent("주제 1"));
+  });
+
+  it("uses the three-tab layout: dashboard, wiki with search, and grouped settings", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+
+    // 최종 탭 구성: [대시보드] [위키] [설정] 3개
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(screen.getByRole("tab", { name: "대시보드" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "위키" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "설정" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "검색" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "색인 처리" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("지식 검색")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
-    expect(screen.getByText("GraphRAG 처리 흐름")).toBeInTheDocument();
-    expect(screen.getByText("폴더 스캔")).toBeInTheDocument();
-    expect(screen.getByText("파싱")).toBeInTheDocument();
-    expect(screen.getByText("청킹")).toBeInTheDocument();
-    expect(screen.getByText("임베딩/Chroma")).toBeInTheDocument();
-    expect(screen.getByText("그래프 연결")).toBeInTheDocument();
-    expect(screen.getByText("검색 준비")).toBeInTheDocument();
+    // 설정 탭: ①지식폴더 지정 ②위키 구성 설정 ③색인 설정·실행 (진단·상세 데이터 그룹은 제거)
+    await user.click(screen.getByRole("tab", { name: "설정" }));
+    expect(screen.getByText("지식폴더 지정")).toBeInTheDocument();
+    expect(screen.getByText("지식 소스 등록 설정")).toBeInTheDocument();
+    expect(screen.getByText("위키 구성 설정")).toBeInTheDocument();
+    expect(screen.getByText("색인 설정·실행")).toBeInTheDocument();
+    expect(screen.queryByText("진단·상세 데이터")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("tab", { name: "GraphRAG 검색" }));
+    // 위키 탭: 상단 검색 바 + 2컬럼 브라우저
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+    expect(screen.getByTestId("knowledge-wiki-search")).toBeInTheDocument();
     expect(screen.getByLabelText("지식 검색")).toBeInTheDocument();
+    expect(await screen.findByTestId("knowledge-wiki-browser")).toBeInTheDocument();
     expect(screen.queryByText("지식 소스 등록 설정")).not.toBeInTheDocument();
   });
 
-  it("shows GraphRAG full log dump and visual ingestion progress status", async () => {
+  it("shows full log dump and visual ingestion progress status", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-    await user.click(screen.getByText("지식 소스 등록 설정"));
-    await user.type(screen.getByLabelText("소스 이름"), "Planning docs");
-    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
-    await user.click(screen.getByRole("button", { name: "지식 소스 등록" }));
-    await screen.findByText("Planning docs");
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
-    const sourceCards = await screen.findAllByText("Planning docs");
-    const sourceCard = sourceCards[sourceCards.length - 1]!;
+    await registerSource(user, "Planning docs");
 
-    await user.click(
-      within(sourceCard.closest("article") as HTMLElement).getByRole("button", {
-        name: "GraphRAG 인덱싱",
-      }),
-    );
+    await user.click(screen.getByRole("button", { name: "색인 시작" }));
 
-    expect(await screen.findByText("풀로그 덤프")).toBeInTheDocument();
+    expect((await screen.findAllByText("색인 상세 로그")).length).toBeGreaterThan(0);
     expect(screen.getByText("/tmp/gongmu-workspace/logs/knowledge-ingestion/job-1.jsonl")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "경로 복사" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "폴더 열기" })).toBeInTheDocument();
-    const dumpViewerButton = screen.getByRole("button", { name: "덤프 뷰어 열기" });
+    const dumpViewerButton = screen.getByRole("button", { name: "색인 상세 로그 열기" });
     expect(dumpViewerButton).toBeInTheDocument();
     await user.click(dumpViewerButton);
     expect(await screen.findByText("job.started")).toBeInTheDocument();
-    expect(screen.getByText("GraphRAG ingestion 시작")).toBeInTheDocument();
+    expect(screen.getByText("지식폴더 색인 시작")).toBeInTheDocument();
     expect(screen.getByText("진단 이벤트 12개")).toBeInTheDocument();
-    expect(screen.getByText("GraphRAG 검색 준비 완료")).toBeInTheDocument();
-    expect(screen.getByTestId("knowledge-ingestion-stage-rail")).toHaveTextContent("검색 준비");
+    expect(screen.getByText("지식 위키 갱신 완료")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-ingestion-stage-rail")).toHaveTextContent("위키");
   });
 
-  it("shows the active GraphRAG vector and graph backends", async () => {
+  it("starts an LLM enrichment job from the settings tab", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await openSettingsTab(user);
+    const enrichButton = await screen.findByRole("button", { name: "LLM 요약 보강 시작" });
+    await waitFor(() => expect(enrichButton).toBeEnabled());
+    await user.click(enrichButton);
+
+    await waitFor(() =>
+      expect(lastKnowledgeEnrichBody).toEqual({
+        source_id: null,
+        background: true,
+      }),
+    );
+    expect(
+      await screen.findByText(/LLM 요약 보강 작업을 시작했습니다/),
+    ).toBeInTheDocument();
+  });
+
+  it("renders keyword search results in the wiki viewer with mode badge and card actions", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
 
-    expect(await screen.findByText("Vector: sqlite_fallback")).toBeInTheDocument();
-    expect(screen.getByText("Graph: sqlite_graph_mirror")).toBeInTheDocument();
-    expect(screen.getByText("Vector 후보: chromadb 비활성")).toBeInTheDocument();
-    expect(screen.getByText("Graph 후보: kuzudb 비활성")).toBeInTheDocument();
-    expect(screen.getByText("Vector 준비: 활성화 가능")).toBeInTheDocument();
-    expect(screen.getByText("Graph 준비: 활성화 가능")).toBeInTheDocument();
-    expect(screen.getByText("KORdoc: 준비됨")).toBeInTheDocument();
-  });
+    // F-14: 검색 방법 세그먼트 (기본값 키워드 검색) — 위키 탭 상단 검색 바
+    const searchBar = screen.getByTestId("knowledge-wiki-search");
+    const methodGroup = within(searchBar).getByTestId("knowledge-search-method");
+    expect(within(methodGroup).getByRole("button", { name: "키워드 검색" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(methodGroup).getByRole("button", { name: "근거 답변" })).toHaveAttribute("aria-pressed", "false");
 
-  it("expands the graph canvas height when there are many nodes", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-    await user.click(screen.getByText("지식 소스 등록 설정"));
-    await user.type(screen.getByLabelText("소스 이름"), "기획팀 업무자료");
-    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
-    await user.click(screen.getByRole("button", { name: "지식 소스 등록" }));
-    await screen.findByText("기획팀 업무자료");
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
-    const sourceCard = await screen.findByText("기획팀 업무자료");
-    await user.click(within(sourceCard.closest("article") as HTMLElement).getByRole("button", { name: "스캔 시작" }));
-
-    await waitFor(() => {
-      const viewBox = screen.getByTestId("knowledge-graph-svg").getAttribute("viewBox") ?? "";
-      const [, , , height] = viewBox.split(" ").map(Number);
-      expect(height).toBeGreaterThan(360);
-    });
-  });
-
-  it("shows GraphRAG relationship drill-down from a knowledge query", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-    await user.click(screen.getByRole("tab", { name: "GraphRAG 검색" }));
     await user.type(screen.getByLabelText("지식 검색"), "개인정보보호법");
-    await user.click(screen.getByRole("button", { name: "검색 실행" }));
+    await user.click(screen.getByRole("button", { name: "키워드 검색 실행" }));
 
-    expect(await screen.findByText("관계 보기")).toBeInTheDocument();
-    expect(screen.getByText("개인정보보호법")).toBeInTheDocument();
-    expect(screen.getByText("REFERENCES")).toBeInTheDocument();
-    expect(screen.getAllByText("공공서비스 개선계획").length).toBeGreaterThan(0);
-    expect(screen.getByText(/service\.md/)).toBeInTheDocument();
+    // 검색 실행 시 우측 뷰어가 검색 결과 뷰로 전환된다.
+    const searchView = await screen.findByTestId("knowledge-search-view");
+    const results = await screen.findByTestId("knowledge-search-results");
+    expect(screen.getByTestId("knowledge-search-mode")).toHaveTextContent("정확 일치(트라이그램)");
+    expect(within(results).getByText("공공서비스 개선계획")).toBeInTheDocument();
+    expect(within(results).getByText(/service\.md/)).toBeInTheDocument();
+    expect(within(results).getByText("개인정보 처리 기준을 점검한다")).toBeInTheDocument();
+    expect(within(results).getByText("경고: 본문 부족")).toBeInTheDocument();
+    expect(within(results).getByRole("button", { name: "공공서비스 개선계획 원본 열기" })).toBeInTheDocument();
+    expect(within(results).getByRole("button", { name: "공공서비스 개선계획 경로 복사" })).toBeInTheDocument();
+
+    // 검색 결과 뷰에서 [← 위키로]로 복귀할 수 있다.
+    expect(within(searchView).getByRole("button", { name: "← 위키로" })).toBeInTheDocument();
+
+    // J-08: 위키 카드 보기 / 세션에 연결
+    expect(within(results).getByRole("button", { name: "위키 카드 보기" })).toBeEnabled();
+    const connectButton = within(results).getByRole("button", { name: "세션에 연결" });
+    expect(connectButton).toBeEnabled();
+    await user.click(connectButton);
+    await waitFor(() =>
+      expect(lastFileLinkBody).toEqual({
+        items: [
+          {
+            file_path: "C:/Docs/업무자료/service.md",
+            label: "공공서비스 개선계획",
+            source: "knowledge",
+          },
+        ],
+      }),
+    );
   });
 
-  it("opens relationship drill-down when a graph node is clicked", async () => {
+  it("opens the wiki card for a search result and returns the viewer to wiki mode", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-    await user.click(screen.getByText("지식 소스 등록 설정"));
-    await user.type(screen.getByLabelText("소스 이름"), "기획팀 업무자료");
-    await user.click(screen.getByRole("button", { name: "폴더 선택" }));
-    await user.click(screen.getByRole("button", { name: "지식 소스 등록" }));
-    await screen.findByText("기획팀 업무자료");
-    await user.click(screen.getByRole("tab", { name: "색인 처리" }));
-    const sourceCard = await screen.findByText("기획팀 업무자료");
-    await user.click(within(sourceCard.closest("article") as HTMLElement).getByRole("button", { name: "스캔 시작" }));
-
-    await user.click(await screen.findByRole("button", { name: /관계 보기 예산 검토 1/ }));
-
-    expect(await screen.findByTestId("knowledge-graph-query-result")).toHaveTextContent("REFERENCES");
-    expect(screen.getByText(/service\.md/)).toBeInTheDocument();
-  });
-
-  it("shows section and table drill-down for a related GraphRAG document", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-    await user.click(screen.getByRole("tab", { name: "GraphRAG 검색" }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
     await user.type(screen.getByLabelText("지식 검색"), "개인정보보호법");
-    await user.click(screen.getByRole("button", { name: "검색 실행" }));
-    const relationshipPanel = await screen.findByTestId("knowledge-graph-query-result");
+    await user.click(screen.getByRole("button", { name: "키워드 검색 실행" }));
 
-    await user.click(within(relationshipPanel).getByRole("button", { name: "구조 보기" }));
+    await screen.findByTestId("knowledge-search-results");
+    await user.click(screen.getByRole("button", { name: "위키 카드 보기" }));
 
-    expect(await screen.findByText("문서 구조")).toBeInTheDocument();
-    expect(screen.getByText("parser gongmu-markdown")).toBeInTheDocument();
-    expect(screen.getByText("품질 85%")).toBeInTheDocument();
-    expect(screen.getByText("chunk 3 · 표 chunk 1")).toBeInTheDocument();
-    expect(screen.getByText("문단 2 · 글자 54")).toBeInTheDocument();
-    expect(screen.getByText("경고 없음")).toBeInTheDocument();
-    expect(screen.getByText("structured")).toBeInTheDocument();
-    expect(screen.getByText("추진배경")).toBeInTheDocument();
-    expect(screen.getByText("세부추진계획")).toBeInTheDocument();
-    expect(screen.getByText("사업별 예산")).toBeInTheDocument();
-    expect(screen.getByText("항목")).toBeInTheDocument();
-    expect(screen.getByText("공공서비스 포털")).toBeInTheDocument();
+    // 같은 위키 탭 안에서 우측 뷰어가 위키 카드로 복귀한다.
+    expect(screen.getByRole("tab", { name: "위키" })).toHaveAttribute("aria-selected", "true");
+    const wikiPage = await screen.findByTestId("knowledge-wiki-page");
+    expect(wikiPage).toHaveTextContent("민원 처리 시간을 줄이기 위한 개선 과제를 정리한다.");
+    expect(screen.queryByTestId("knowledge-search-results")).not.toBeInTheDocument();
   });
 
-  it("generates a grounded GraphRAG answer with citations from the knowledge query", async () => {
+  it("generates a grounded answer with citations and follow-up actions", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
-    await user.click(screen.getByRole("tab", { name: "GraphRAG 검색" }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const methodGroup = screen.getByTestId("knowledge-search-method");
+    await user.click(within(methodGroup).getByRole("button", { name: "근거 답변" }));
+    expect(within(methodGroup).getByRole("button", { name: "근거 답변" })).toHaveAttribute("aria-pressed", "true");
+
     await user.type(screen.getByLabelText("지식 검색"), "개인정보보호법");
     await user.click(screen.getByRole("button", { name: "근거 답변 생성" }));
 
-    expect(await screen.findByText("근거 답변")).toBeInTheDocument();
-    expect(screen.getByText(/개인정보 처리 기준을 점검합니다/)).toBeInTheDocument();
-    expect(screen.getByText("세션 맥락: 민원 개선 작업")).toBeInTheDocument();
-    expect(screen.getByText("출처 문서")).toBeInTheDocument();
-    expect(screen.getByText("공공서비스 개선계획")).toBeInTheDocument();
-    expect(screen.getByText("parser gongmu-markdown")).toBeInTheDocument();
-    expect(screen.getByText("품질 85%")).toBeInTheDocument();
-    expect(screen.getByText("structured")).toBeInTheDocument();
-    expect(screen.getByText("표 근거")).toBeInTheDocument();
-    expect(screen.getByText("경고: 표 구조 없음")).toBeInTheDocument();
-    expect(screen.getByText("검색근거 1개 · 표근거 1개 · 관계 1개")).toBeInTheDocument();
-    expect(screen.getByText("REFERENCES")).toBeInTheDocument();
+    const askResult = await screen.findByTestId("knowledge-ask-result");
+    expect(screen.getByTestId("knowledge-answer-mode")).toHaveTextContent("LLM 합성");
+    expect(within(askResult).getAllByText(/개인정보 처리 기준을 점검합니다/).length).toBeGreaterThan(0);
+    expect(within(askResult).getByText("세션 맥락: 민원 개선 작업")).toBeInTheDocument();
+    expect(within(askResult).getByText("출처 문서")).toBeInTheDocument();
+    expect(within(askResult).getByText("공공서비스 개선계획")).toBeInTheDocument();
+    expect(within(askResult).getByText(/원본:.*service\.md/)).toBeInTheDocument();
+    expect(within(askResult).getByText(/발췌: 개인정보 처리 기준을 점검합니다\./)).toBeInTheDocument();
+    expect(within(askResult).getByText("검색근거 1개")).toBeInTheDocument();
+    expect(within(askResult).getByText("경고: 부분 추출")).toBeInTheDocument();
+
+    // J-08: 답변 복사
+    const { copyTextToClipboard } = await import("./runtime");
+    await user.click(screen.getByRole("button", { name: "답변 복사" }));
+    await waitFor(() =>
+      expect(vi.mocked(copyTextToClipboard)).toHaveBeenCalledWith(
+        expect.stringContaining("'개인정보보호법'에 대해 로컬 지식폴더에서 확인한 근거입니다."),
+      ),
+    );
+
+    // J-08: 업무대화로 이어가기 — 컴포저 프리필 + 화면 전환
+    await user.click(screen.getByRole("button", { name: "업무대화로 이어가기" }));
+    const composer = await screen.findByTestId("chat-composer-input");
+    expect((composer as HTMLTextAreaElement).value).toContain("질문: 개인정보보호법");
+    expect((composer as HTMLTextAreaElement).value).toContain("지식폴더 근거 답변");
+  });
+
+  it("runs the selected method with Enter, resets the other result, and keeps query history", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    // Enter 실행 (키워드 검색)
+    await user.type(screen.getByLabelText("지식 검색"), "개인정보보호법{enter}");
+    expect(await screen.findByTestId("knowledge-search-results")).toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-ask-result")).not.toBeInTheDocument();
+
+    // 근거 답변 모드로 전환 후 Enter → 이전 키워드 결과 리셋
+    const methodGroup = screen.getByTestId("knowledge-search-method");
+    await user.click(within(methodGroup).getByRole("button", { name: "근거 답변" }));
+    await user.type(screen.getByLabelText("지식 검색"), "{enter}");
+    expect(await screen.findByTestId("knowledge-ask-result")).toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-search-results")).not.toBeInTheDocument();
+
+    // 질의 히스토리 칩 — 클릭 시 재실행 (키워드 모드로 되돌린 뒤)
+    const history = screen.getByTestId("knowledge-query-history");
+    expect(within(history).getByRole("button", { name: "개인정보보호법" })).toBeInTheDocument();
+    await user.click(within(methodGroup).getByRole("button", { name: "키워드 검색" }));
+    await user.click(within(history).getByRole("button", { name: "개인정보보호법" }));
+    expect(await screen.findByTestId("knowledge-search-results")).toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-ask-result")).not.toBeInTheDocument();
+  });
+
+  it("shows the empty-index guidance in the wiki tree and search view (J-07)", async () => {
+    wikiTreeAvailable = false;
+    wikiIndexAvailable = false;
+    searchResultsAvailable = false;
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    // 위키 트리 빈 상태 → 설정으로 이동
+    const wikiEmpty = await screen.findByTestId("knowledge-wiki-empty");
+    expect(wikiEmpty).toHaveTextContent("색인된 문서가 없습니다.");
+    await user.click(within(wikiEmpty).getByRole("button", { name: "설정으로 이동" }));
+    expect(screen.getByRole("tab", { name: "설정" })).toHaveAttribute("aria-selected", "true");
+
+    // 색인 0건 상태에서 검색 실행 → 결과 대신 설정 안내
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+    await user.type(screen.getByLabelText("지식 검색"), "예산{enter}");
+    const emptyIndex = await screen.findByTestId("knowledge-search-empty-index");
+    expect(emptyIndex).toHaveTextContent("색인된 문서가 없습니다.");
+    await user.click(within(emptyIndex).getByRole("button", { name: "설정으로 이동" }));
+    expect(screen.getByRole("tab", { name: "설정" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("offers a retry reindex action on failed ingestion jobs (J-10)", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await registerSource(user, "Planning docs");
+
+    nextKnowledgeIngestionStatus = "failed";
+    await user.click(screen.getByRole("button", { name: "색인 시작" }));
+
+    expect(await screen.findByText("실패")).toBeInTheDocument();
+    const retryButton = await screen.findByRole("button", { name: "다시 색인" });
+    expect(retryButton).toBeEnabled();
+    await user.click(retryButton);
+
+    expect(await screen.findByText("색인 작업 #jobforce")).toBeInTheDocument();
+    expect(lastKnowledgeReindexBody).toEqual({
+      source_id: "source-1",
+      run_now: true,
+      background: true,
+    });
+  });
+
+  it("shows the taxonomy entry card and requires a registered source to open the wizard", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await openSettingsTab(user);
+
+    const entry = await screen.findByTestId("knowledge-taxonomy-entry");
+    expect(entry).toHaveTextContent("위키 구성 설정");
+    const wizardButton = within(entry).getByRole("button", { name: "분류체계 설정" });
+    // 등록된 지식폴더가 없으면 마법사 진입이 막힌다.
+    expect(wizardButton).toBeDisabled();
+    expect(wizardButton).toHaveAttribute("title", "지식폴더를 먼저 등록하면 분류체계를 설정할 수 있습니다.");
+    expect(within(entry).getByRole("button", { name: "분류 기준 보기" })).toBeInTheDocument();
+  });
+
+  it("renders the wiki tree browser and opens a page from the tree", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const browser = await screen.findByTestId("knowledge-wiki-browser");
+    await waitFor(() => expect(browser).toHaveTextContent("주제 (1)"));
+    expect(browser).toHaveTextContent("업무 기록 (1)");
+    expect(browser).toHaveTextContent("폴더별 문서 (2)");
+    expect(browser).toHaveTextContent("기획팀 업무자료 (2)");
+    expect(within(browser).getByRole("button", { name: /민원 개선 작업 기록/ })).toBeInTheDocument();
+    expect(browser).toHaveTextContent("왼쪽 목차에서 문서를 선택하세요.");
+
+    await user.click(within(browser).getByRole("button", { name: /공공서비스 개선계획/ }));
+
+    const wikiPage = await screen.findByTestId("knowledge-wiki-page");
+    expect(wikiPage).toHaveTextContent("민원 처리 시간을 줄이기 위한 개선 과제를 정리한다.");
+    expect(screen.getByTestId("knowledge-wiki-breadcrumb")).toHaveTextContent("목차 / docs/service.md");
+
+    await user.click(screen.getByRole("button", { name: /목차/ }));
+    expect(screen.queryByTestId("knowledge-wiki-page")).not.toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-wiki-browser")).toBeInTheDocument();
+  });
+
+  it("shows a duplicate-copy badge and separates missing-original cards in the tree (W7 §5.5/§5.6)", async () => {
+    wikiTreePayload = {
+      topics: [],
+      works: [],
+      sources: [
+        {
+          source_id: "source-1",
+          label: "기획팀 업무자료",
+          docs: [
+            // §5.6: 동일 해시 사본 그룹의 대표 1건 — duplicate_count로 사본 수를 알린다.
+            {
+              slug: "service",
+              title: "공공서비스 개선계획",
+              path: "docs/service.md",
+              quality_score: 0.85,
+              duplicate_count: 3,
+              status: "active",
+            },
+            { slug: "budget", title: "예산 검토", path: "docs/budget.md", quality_score: 0.9, status: "active" },
+            // §5.5: 원본이 삭제된 소프트 삭제 카드 — 폴더 목록이 아닌 하단 그룹으로 분리된다.
+            {
+              slug: "old-guideline",
+              title: "구 지침",
+              path: "docs/old-guideline.md",
+              status: "missing",
+            },
+          ],
+        },
+      ],
+      counts: { docs: 3, topics: 0, works: 0 },
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const browser = await screen.findByTestId("knowledge-wiki-browser");
+    // 폴더 목록에는 missing을 제외한 활성 문서만 계산된다.
+    await waitFor(() => expect(browser).toHaveTextContent("폴더별 문서 (2)"));
+    expect(browser).toHaveTextContent("기획팀 업무자료 (2)");
+
+    // 사본 배지: duplicate_count > 1 인 대표 문서에만 붙는다.
+    const duplicateBadges = within(browser).getAllByTestId("wiki-tree-duplicate-badge");
+    expect(duplicateBadges).toHaveLength(1);
+    expect(duplicateBadges[0]).toHaveTextContent("사본 3개");
+    expect(duplicateBadges[0]).toHaveAttribute("title");
+
+    // 원본 없는 카드 그룹: 트리 하단에 분리 + "원본 삭제됨" 배지.
+    const missingGroup = within(browser).getByTestId("wiki-tree-missing-docs");
+    expect(missingGroup).toHaveTextContent("원본 없는 카드 (1)");
+    expect(missingGroup).toHaveTextContent("구 지침");
+    expect(missingGroup).toHaveTextContent("원본 삭제됨");
+    // 활성 문서 목록에는 missing 문서가 보이지 않는다.
+    const folderGroup = within(browser).getByText("기획팀 업무자료 (2)").closest("details");
+    expect(folderGroup).not.toHaveTextContent("구 지침");
+
+    // missing 카드도 클릭하면 카드 본문은 계속 열어볼 수 있다(보관 기간 내 열람 보장).
+    await user.click(within(missingGroup).getByRole("button", { name: /구 지침/ }));
+    expect(await screen.findByTestId("knowledge-wiki-page")).toBeInTheDocument();
+  });
+
+  it("renders the F-18 docs page template with meta header, overview box, and J-09 actions", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const browser = await screen.findByTestId("knowledge-wiki-browser");
+    await waitFor(() => expect(browser).toHaveTextContent("기획팀 업무자료 (2)"));
+    await user.click(within(browser).getByRole("button", { name: /예산 검토/ }));
+
+    const docsTemplate = await screen.findByTestId("wiki-template-docs");
+    expect(within(docsTemplate).getByRole("heading", { name: "예산 검토" })).toBeInTheDocument();
+    expect(within(docsTemplate).getByText("보고서")).toBeInTheDocument();
+    expect(within(docsTemplate).getByText("일자 2026-06-01")).toBeInTheDocument();
+    expect(within(docsTemplate).getByText("품질 90%")).toBeInTheDocument();
+
+    const overview = screen.getByTestId("wiki-template-overview");
+    expect(overview).toHaveTextContent("다음 분기 예산 편성안을 검토하고 주요 변경점을 정리한다.");
+
+    // 섹션 아웃라인은 접이식(details)
+    const outlineToggle = within(docsTemplate).getByText("섹션 아웃라인 2개");
+    expect(outlineToggle.closest("details")).not.toHaveAttribute("open");
+    await user.click(outlineToggle);
+    expect(within(docsTemplate).getByText("편성 배경")).toBeInTheDocument();
+
+    // 키워드 칩
+    expect(within(docsTemplate).getByText("예산")).toBeInTheDocument();
+    expect(within(docsTemplate).getByText("검토")).toBeInTheDocument();
+
+    // 원본 열기 / 경로 복사 아이콘 버튼 (front matter source_path 사용)
+    const { openExternalTarget, copyTextToClipboard } = await import("./runtime");
+    await user.click(within(docsTemplate).getByRole("button", { name: "예산 검토 원본 열기" }));
+    expect(vi.mocked(openExternalTarget)).toHaveBeenCalledWith("C:/Docs/업무자료/budget.hwpx");
+    await user.click(within(docsTemplate).getByRole("button", { name: "예산 검토 경로 복사" }));
+    expect(vi.mocked(copyTextToClipboard)).toHaveBeenCalledWith("C:/Docs/업무자료/budget.hwpx");
+
+    // J-09: 이 문서로 질문하기 — 업무대화 컴포저 프리필 + 화면 전환
+    await user.click(within(docsTemplate).getByRole("button", { name: "이 문서로 질문하기" }));
+    const composer = await screen.findByTestId("chat-composer-input");
+    expect((composer as HTMLTextAreaElement).value).toBe("『예산 검토』 문서에서 ");
+  });
+
+  it("runs a related search from the J-09 header action on the docs template", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const browser = await screen.findByTestId("knowledge-wiki-browser");
+    await waitFor(() => expect(browser).toHaveTextContent("기획팀 업무자료 (2)"));
+    await user.click(within(browser).getByRole("button", { name: /예산 검토/ }));
+
+    const docsTemplate = await screen.findByTestId("wiki-template-docs");
+    await user.click(within(docsTemplate).getByRole("button", { name: "관련 검색" }));
+
+    // 위키 탭에 머문 채 우측 뷰어가 검색 결과로 전환된다.
+    expect(screen.getByRole("tab", { name: "위키" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByTestId("knowledge-search-results")).toBeInTheDocument();
+    expect(screen.getByLabelText("지식 검색")).toHaveValue("예산 검토");
+
+    // [← 위키로]로 보던 문서로 복귀
+    await user.click(screen.getByRole("button", { name: "← 위키로" }));
+    expect(screen.getByTestId("knowledge-wiki-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-search-results")).not.toBeInTheDocument();
+  });
+
+  it("renders the F-18 topics page template with a doc-count badge and related card grid", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const browser = await screen.findByTestId("knowledge-wiki-browser");
+    await waitFor(() => expect(browser).toHaveTextContent("주제 (1)"));
+    const topicsGroup = within(browser).getByText("주제 (1)").closest("details") as HTMLElement;
+    await user.click(within(topicsGroup).getByRole("button", { name: /^예산/ }));
+
+    const topicsTemplate = await screen.findByTestId("wiki-template-topics");
+    expect(within(topicsTemplate).getByRole("heading", { name: "예산" })).toBeInTheDocument();
+    expect(within(topicsTemplate).getByText("문서 1건")).toBeInTheDocument();
+    expect(within(topicsTemplate).getByRole("button", { name: /예산 검토/ })).toBeInTheDocument();
+  });
+
+  it("falls back to plain markdown rendering for a docs page missing front matter/overview (irregular page)", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const browser = await screen.findByTestId("knowledge-wiki-browser");
+    await waitFor(() => expect(browser).toHaveTextContent("기획팀 업무자료 (2)"));
+    await user.click(within(browser).getByRole("button", { name: /공공서비스 개선계획/ }));
+
+    // 비정형 페이지(front matter/개요 없음) — 템플릿 대신 기존 마크다운 폴백, 오류 미노출
+    expect(screen.queryByTestId("wiki-template-docs")).not.toBeInTheDocument();
+    const wikiPage = await screen.findByTestId("knowledge-wiki-page");
+    expect(wikiPage).toHaveTextContent("민원 처리 시간을 줄이기 위한 개선 과제를 정리한다.");
+    expect(screen.queryByText(/실패했습니다|오류/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to index.md rendering when the wiki tree endpoint is unavailable", async () => {
+    wikiTreeAvailable = false;
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const wikiIndex = await screen.findByTestId("knowledge-wiki-index");
+    expect(wikiIndex).toHaveTextContent("지식폴더 위키");
+
+    await user.click(within(wikiIndex).getByRole("button", { name: "공공서비스 개선계획" }));
+
+    const wikiPage = await screen.findByTestId("knowledge-wiki-page");
+    expect(wikiPage).toHaveTextContent("민원 처리 시간을 줄이기 위한 개선 과제를 정리한다.");
   });
 });

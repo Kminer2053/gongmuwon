@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runtimeState = {
@@ -38,6 +38,12 @@ const jsonResponse = (payload: unknown, status = 200) =>
       headers: { "Content-Type": "application/json" },
     }),
   );
+
+// D-06: 앱 시작 화면이 홈(오늘의 브리핑)으로 바뀌어, 채팅 검증은 먼저 업무대화 메뉴로 이동한다.
+async function openChatFromHome() {
+  const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+  fireEvent.click(within(navigation).getByRole("button", { name: "업무대화" }));
+}
 
 describe("Chat turn contract", () => {
   beforeEach(() => {
@@ -102,7 +108,6 @@ describe("Chat turn contract", () => {
 
         const collectionMap: Record<string, unknown> = {
           "/api/schedules": { items: [] },
-          "/api/reference-sets": { items: [] },
           "/api/templates": { items: [] },
           "/api/knowledge/candidates": { items: [] },
           "/api/knowledge/pages": { items: [] },
@@ -125,6 +130,7 @@ describe("Chat turn contract", () => {
 
   it("shows a pending assistant state inside the selected session thread", async () => {
     render(<App />);
+    await openChatFromHome();
 
     const chatThread = await screen.findByTestId("chat-thread-shell");
     expect(await within(chatThread).findByText("응답 대기")).toBeInTheDocument();

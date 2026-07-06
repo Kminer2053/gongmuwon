@@ -73,7 +73,7 @@ def test_rescan_marks_removed_knowledge_source_files_deleted(tmp_path: Path) -> 
     assert files.json()["items"][0]["status"] == "deleted"
 
 
-def test_knowledge_search_returns_hits_from_scanned_source_files(tmp_path: Path) -> None:
+def test_knowledge_search_returns_hits_from_ingested_source_files(tmp_path: Path) -> None:
     source = tmp_path / "source-documents"
     source.mkdir()
     (source / "budget.md").write_text("# 예산 검토\n\n예산편성 회의자료를 정리한다.", encoding="utf-8")
@@ -85,12 +85,14 @@ def test_knowledge_search_returns_hits_from_scanned_source_files(tmp_path: Path)
     )
     source_id = created.json()["id"]
     assert client.post(f"/api/knowledge/sources/{source_id}/scan").status_code == 200
+    assert client.post("/api/knowledge/ingest", json={"source_id": source_id, "run_now": True}).status_code == 201
 
     search = client.get("/api/knowledge/search?query=예산편성")
     assert search.status_code == 200
     payload = search.json()
-    assert payload["source_file_hits"][0]["file"]["relative_path"] == "budget.md"
-    assert payload["source_file_hits"][0]["keyword_overlap"] >= 1
+    assert payload["items"]
+    assert payload["items"][0]["title"] == "예산 검토"
+    assert payload["items"][0]["source_path"].endswith("budget.md")
 
 
 def test_local_file_search_finds_files_by_name_and_extracted_content(tmp_path: Path) -> None:
@@ -155,7 +157,7 @@ def test_scan_extracts_docx_text_into_source_file_index(tmp_path: Path) -> None:
     assert "Budget extraction" in file_record["text_excerpt"]
 
 
-def test_knowledge_graph_includes_source_files_and_keywords(tmp_path: Path) -> None:
+def test_knowledge_graph_includes_sources_and_documents(tmp_path: Path) -> None:
     source = tmp_path / "source-documents"
     source.mkdir()
     (source / "budget.md").write_text("# Budget Review\n\nbudget planning meeting note", encoding="utf-8")
@@ -167,8 +169,11 @@ def test_knowledge_graph_includes_source_files_and_keywords(tmp_path: Path) -> N
     )
     source_id = created.json()["id"]
     assert client.post(f"/api/knowledge/sources/{source_id}/scan").status_code == 200
+    assert client.post("/api/knowledge/ingest", json={"source_id": source_id, "run_now": True}).status_code == 201
 
     graph = client.get("/api/knowledge/graph")
     assert graph.status_code == 200
     node_types = {node["node_type"] for node in graph.json()["nodes"]}
-    assert {"source_folder", "source_file", "keyword"}.issubset(node_types)
+    assert {"source_folder", "document"}.issubset(node_types)
+    edges = graph.json()["edges"]
+    assert any(edge["relation"] == "contains" for edge in edges)

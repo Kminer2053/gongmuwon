@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from gongmu_sidecar.app import create_app
@@ -55,3 +56,38 @@ def test_work_jobs_recover_interrupted_running_jobs(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["status"] == "failed"
     assert "업무엔진이 재시작" in payload["error_message"]
+
+
+def test_stale_queued_job_is_auto_canceled_on_list(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    jobs = client.app.state.services.jobs
+    job = jobs.create_job(kind="test.stale_queue", title="대기열 테스트")
+
+    stale_queued_at = (datetime.now(timezone.utc) - timedelta(minutes=31)).isoformat()
+    jobs.db.execute(
+        "UPDATE work_jobs SET queued_at = ? WHERE id = ?",
+        (stale_queued_at, job["id"]),
+    )
+
+    response = client.get("/api/jobs")
+    assert response.status_code == 200
+    listed = next(item for item in response.json()["items"] if item["id"] == job["id"])
+    assert listed["status"] == "canceled"
+    assert listed["error_message"] == "대기 시간 초과로 자동 취소되었습니다"
+
+    events = client.get(f"/api/jobs/{job['id']}/events").json()["items"]
+    assert any(event["event_type"] == "job.canceled" for event in events)
+
+    logs = client.get("/api/execution-logs").json()["items"]
+    assert any(entry["action"] == "job.stale_queued.canceled" for entry in logs)
+
+
+def test_freshly_queued_job_is_not_auto_canceled(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    jobs = client.app.state.services.jobs
+    job = jobs.create_job(kind="test.fresh_queue", title="신규 대기열 테스트")
+
+    response = client.get("/api/jobs")
+    assert response.status_code == 200
+    listed = next(item for item in response.json()["items"] if item["id"] == job["id"])
+    assert listed["status"] == "queued"

@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,7 +32,6 @@ vi.mock("./runtime", () => ({
 }));
 
 import { App } from "./app";
-import { openExternalTarget } from "./runtime";
 
 const jsonResponse = (payload: unknown, status = 200) =>
   Promise.resolve(
@@ -47,49 +46,15 @@ const KOREAN = {
   collapseContextPane: "오른쪽 정보 패널 닫기",
   navigation: "주요 작업 메뉴",
   scheduleMenu: /^일정/,
-  searchMenu: /^파일찾기/,
-  fileOrgMenu: /^파일정리/,
-  selectedReferenceSet: "선택 ReferenceSet",
   scheduleTitle: "일정 제목",
   scheduleCreate: "일정 등록",
-  referenceSetSummary: "반복 사용할 자료 묶음 만들기",
-  referenceSetTitle: "작업자료 묶음 제목",
-  referenceSetType: "유형",
-  referenceSetLabel: "라벨",
-  referenceSetValue: "값",
-  referenceSetCreate: "작업자료 묶음 등록",
-  createdReferenceSetTitle: "예산 검토 묶음",
-  fileApplyCommit: "승인 후 적용",
-  logsTitle: "작업 이력 요약",
-  jobsTitle: "작업 진행",
 };
 
-describe("Context pane auto open", () => {
+describe("Context pane auto open policy (C-09)", () => {
   beforeEach(() => {
-    let approvalTickets = [
-      {
-        id: "ticket-1",
-        action: "file_org.apply",
-        target_type: "proposal",
-        target_id: "proposal-1",
-        status: "approved",
-        requested_at: "2026-04-20T00:00:00+09:00",
-      },
-    ];
+    let workSessions: Array<Record<string, unknown>> = [];
 
-    let proposals = [
-      {
-        id: "proposal-1",
-        target_path: "C:/docs/source.md",
-        proposal_type: "knowledge_candidate",
-        proposed_destination: "C:/docs/archive/source.md",
-        reason: "move into archive",
-        status: "pending_approval",
-        created_at: "2026-04-20T00:00:00+09:00",
-      },
-    ];
-
-    let schedules = [
+    const schedules = [
       {
         id: "schedule-1",
         title: "기존 일정",
@@ -99,38 +64,6 @@ describe("Context pane auto open", () => {
         created_at: "2026-04-20T00:00:00+09:00",
       },
     ];
-
-    let referenceSets: Array<{
-      id: string;
-      title: string;
-      session_id: string | null;
-      created_at: string;
-      items: Array<{ id: string; kind: string; label: string; value: string }>;
-    }> = [];
-
-    const logs: Array<{
-      id: string;
-      feature: string;
-      action: string;
-      status: string;
-      created_at: string;
-      inputs: Record<string, unknown>;
-      outputs: Record<string, unknown>;
-      approval_ticket_id: string | null;
-    }> = [
-      {
-        id: "log-1",
-        feature: "schedule",
-        action: "schedule.created",
-        status: "success",
-        created_at: "2026-04-20T00:00:00+09:00",
-        inputs: {},
-        outputs: {},
-        approval_ticket_id: null,
-      },
-    ];
-
-    const workJobs: Array<Record<string, unknown>> = [];
 
     vi.stubGlobal(
       "fetch",
@@ -154,7 +87,6 @@ describe("Context pane auto open", () => {
               llm_provider: "openai_compatible",
               llm_model: "gpt-4.1-mini",
               llm_api_key: null,
-              anything_launch_mode: "external_app_preferred",
               default_template_key: "report",
               internal_api_base_url: null,
             },
@@ -171,121 +103,42 @@ describe("Context pane auto open", () => {
           return jsonResponse({ items: schedules });
         }
 
-        if (url.endsWith("/api/reference-sets") && method === "POST") {
+        if (url.endsWith("/api/work-sessions") && method === "POST") {
           const created = {
-            id: `reference-${referenceSets.length + 1}`,
-            title: body.title,
-            session_id: body.session_id ?? null,
-            created_at: "2026-04-25T09:05:00+09:00",
-            items: [
-              {
-                id: "reference-item-1",
-                kind: body.items?.[0]?.kind ?? "file",
-                label: body.items?.[0]?.label ?? "budget",
-                value: body.items?.[0]?.value ?? "C:/docs/budget.xlsx",
-              },
-            ],
+            id: `session-${workSessions.length + 1}`,
+            title: body?.title ?? "새 업무 세션",
+            schedule_id: body?.schedule_id ?? null,
+            status: "open",
+            created_at: "2026-04-20T09:00:00+09:00",
+            messages: [],
           };
-          referenceSets = [...referenceSets, created];
+          workSessions = [created, ...workSessions];
           return jsonResponse(created, 201);
         }
 
-        if (url.endsWith("/api/file-organizer/proposals/proposal-1/apply/commit") && method === "POST") {
-          const workJob = {
-            id: "job-fileorg-apply",
-            kind: "fileorg.apply",
-            title: "source.md 파일정리 적용",
-            status: "succeeded",
-            priority: 50,
-            resource_key: "file_path:C:/docs/source.md",
-            resource_policy: "exclusive",
-            progress_percent: 100,
-            current_stage: "파일정리 적용 완료",
-            cancel_requested: false,
-            input: { proposal_id: "proposal-1" },
-            result: { destination_path: "C:/docs/archive/source.md" },
-            error_message: null,
-            created_at: "2026-04-25T09:00:00+09:00",
-            queued_at: "2026-04-25T09:00:00+09:00",
-            started_at: "2026-04-25T09:00:00+09:00",
-            completed_at: "2026-04-25T09:00:01+09:00",
-          };
-          workJobs.unshift(workJob);
-          logs.unshift({
-            id: `log-${logs.length + 1}`,
-            feature: "file_org",
-            action: "file_org.apply.committed",
-            status: "success",
-            created_at: "2026-04-25T09:00:00+09:00",
-            inputs: { proposal_id: "proposal-1" },
-            outputs: { destination_path: "C:/docs/archive/source.md" },
-            approval_ticket_id: "ticket-1",
-          });
-          proposals = proposals.map((proposal) =>
-            proposal.id === "proposal-1" ? { ...proposal, status: "applied" } : proposal,
-          );
-          return jsonResponse({
-            operation: {
-              id: "operation-1",
-              proposal_id: "proposal-1",
-              source_path: "C:/docs/source.md",
-              destination_path: "C:/docs/archive/source.md",
-              action: "copy",
-              approval_ticket_id: "ticket-1",
-              created_at: "2026-04-25T09:00:00+09:00",
-            },
-            work_job: workJob,
-          });
+        if (url.endsWith("/api/work-sessions")) {
+          return jsonResponse({ items: workSessions });
         }
 
-        if (url.includes("/api/jobs/job-fileorg-apply/events")) {
-          return jsonResponse({
-            items: [
-              {
-                id: "event-1",
-                job_id: "job-fileorg-apply",
-                seq: 1,
-                level: "info",
-                event_type: "job.created",
-                message: "작업이 대기열에 등록되었습니다.",
-                payload: {},
-                created_at: "2026-04-25T09:00:00+09:00",
-              },
-              {
-                id: "event-2",
-                job_id: "job-fileorg-apply",
-                seq: 2,
-                level: "info",
-                event_type: "job.succeeded",
-                message: "파일정리 적용 완료",
-                payload: {},
-                created_at: "2026-04-25T09:00:01+09:00",
-              },
-            ],
-          });
-        }
-
-        if (url.includes("/api/jobs?")) {
-          return jsonResponse({ items: workJobs });
+        if (url.match(/\/api\/work-sessions\/[^/]+\/file-links$/)) {
+          return jsonResponse({ items: [] });
         }
 
         const collectionMap: Record<string, unknown> = {
-          "/api/work-sessions": { items: [] },
-          "/api/reference-sets": { items: referenceSets },
           "/api/templates": { items: [] },
           "/api/knowledge/candidates": { items: [] },
           "/api/knowledge/pages": { items: [] },
-          "/api/approval-tickets": { items: approvalTickets },
-          "/api/integrations/anything/launches": { items: [] },
-          "/api/file-organizer/proposals": { items: proposals },
-          "/api/execution-logs": { items: logs },
-          "/api/jobs": { items: workJobs },
-          "/api/tools": { items: [] },
+          "/api/approval-tickets": { items: [] },
+          "/api/execution-logs": { items: [] },
         };
 
         const matched = Object.entries(collectionMap).find(([path]) => url.endsWith(path));
         if (matched) {
           return jsonResponse(matched[1]);
+        }
+
+        if (url.includes("/api/jobs")) {
+          return jsonResponse({ items: [] });
         }
 
         return jsonResponse({ detail: `Unhandled request: ${method} ${url}` }, 404);
@@ -308,55 +161,26 @@ describe("Context pane auto open", () => {
     expect(screen.getByRole("button", { name: KOREAN.scheduleCreate })).toBeInTheDocument();
   });
 
-  it("reopens the right pane and exposes context after creating a reference set", async () => {
+  it("does not force-open the collapsed pane for non-approval reveals (C-09)", async () => {
     const user = userEvent.setup();
     render(<App />);
+
+    // D-06: 시작 화면이 홈이므로 업무대화로 이동한 뒤 세션 생성 흐름을 검증한다.
+    const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+    await user.click(within(navigation).getByRole("button", { name: "업무대화" }));
 
     await screen.findByRole("button", { name: KOREAN.collapseContextPane });
     await user.click(screen.getByRole("button", { name: KOREAN.collapseContextPane }));
     expect(await screen.findByRole("button", { name: KOREAN.openContextPane })).toBeInTheDocument();
 
-    const navigation = screen.getByRole("navigation", { name: KOREAN.navigation });
-    await user.click(within(navigation).getByRole("button", { name: KOREAN.searchMenu }));
+    // 새 세션 생성은 revealContextSection("context")를 호출하지만,
+    // C-09 정책상 승인/실패 흐름이 아니므로 패널을 강제로 열지 않는다.
+    await user.click(screen.getByRole("button", { name: "새 세션" }));
+    await user.type(screen.getByLabelText("새 세션 제목"), "주간 보고 준비");
+    await user.click(screen.getByRole("button", { name: "세션 만들기" }));
 
-    await user.click(screen.getByText(KOREAN.referenceSetSummary));
-    await user.type(screen.getByLabelText(KOREAN.referenceSetTitle), KOREAN.createdReferenceSetTitle);
-    await user.clear(screen.getByLabelText(KOREAN.referenceSetType));
-    await user.type(screen.getByLabelText(KOREAN.referenceSetType), "file");
-    await user.type(screen.getByLabelText(KOREAN.referenceSetLabel), "예산메모");
-    await user.type(screen.getByLabelText(KOREAN.referenceSetValue), "C:/docs/budget.xlsx");
-    await user.click(screen.getByRole("button", { name: KOREAN.referenceSetCreate }));
-
-    await waitFor(
-      () => {
-        expect(screen.getByRole("button", { name: KOREAN.collapseContextPane })).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: KOREAN.openContextPane })).not.toBeInTheDocument();
-        expect(screen.getByText(KOREAN.selectedReferenceSet)).toBeInTheDocument();
-        expect(screen.getByText(KOREAN.createdReferenceSetTitle)).toBeInTheDocument();
-      },
-      { timeout: 10000 },
-    );
-  }, 15000);
-
-  it("reopens the work jobs section after a file organizer apply commit", async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await screen.findByText(KOREAN.jobsTitle);
-    await user.click(screen.getByRole("button", { name: KOREAN.jobsTitle }));
-    expect(screen.queryByText(KOREAN.jobsTitle)).not.toBeInTheDocument();
-
-    const navigation = screen.getByRole("navigation", { name: KOREAN.navigation });
-    await user.click(within(navigation).getByRole("button", { name: KOREAN.fileOrgMenu }));
-    await user.click(screen.getByRole("button", { name: KOREAN.fileApplyCommit }));
-
-    expect(await screen.findByText(KOREAN.jobsTitle)).toBeInTheDocument();
-    expect(await screen.findByText("source.md 파일정리 적용")).toBeInTheDocument();
-    expect(screen.getByText("파일정리 적용 완료")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "대상 열기" }));
-    expect(vi.mocked(openExternalTarget)).toHaveBeenCalledWith("C:/docs/archive/source.md");
-    await user.click(screen.getByRole("button", { name: "작업 로그 보기" }));
-    expect(await screen.findByLabelText("source.md 파일정리 적용 작업 로그")).toBeInTheDocument();
-    expect(screen.queryByText(/쨌/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "주간 보고 준비" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: KOREAN.openContextPane })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: KOREAN.collapseContextPane })).not.toBeInTheDocument();
   });
 });

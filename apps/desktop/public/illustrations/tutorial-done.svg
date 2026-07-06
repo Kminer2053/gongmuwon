@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="준비 완료">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .accent{fill:#3d7a4f;}
+      .accentline{stroke:#3d7a4f;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+      .chip{fill:#eef3ec;stroke:#3d7a4f;stroke-width:1.5;}
+      .chiptxt{font-family:'Malgun Gothic',sans-serif;font-size:9.5px;fill:#3d7a4f;}
+    </style>
+  </defs>
+  <circle cx="160" cy="62" r="30" fill="#eef3ec" stroke="#3d7a4f" stroke-width="2.5"/>
+  <path class="accentline" d="M146 62 l9 9 19 -19"/>
+  <rect class="chip" x="42" y="106" width="112" height="20" rx="10"/>
+  <text class="chiptxt" x="52" y="120">홈의 '앱 이용팁' 카드</text>
+  <rect class="chip" x="162" y="106" width="118" height="20" rx="10"/>
+  <text class="chiptxt" x="172" y="120">입력창의 명령어 예시</text>
+  <text class="txt" x="16" y="152">준비 끝! 첫 대화를 시작해 보세요.</text>
+  <text class="txtsub" x="16" y="170">막히면 홈 이용팁 카드와 입력창 예시가 다음 한 수를 알려줍니다.</text>
+</svg>

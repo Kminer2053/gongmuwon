@@ -12,6 +12,7 @@ ModeKey = Literal["local_first", "internal_server", "external_model"]
 PersonalizationApplyMode = Literal["approval_required", "auto_apply"]
 EmbeddingProviderKey = Literal["deterministic", "ollama"]
 GraphRAGVectorBackendKey = Literal["sqlite", "chromadb"]
+KnowledgeEngineKey = Literal["wiki"]
 
 
 class LlmConnectionProfile(BaseModel):
@@ -155,7 +156,6 @@ class WorkspaceSettingsDefaults(BaseModel):
     llm_api_key: str | None
     llm_site_url: str | None
     llm_application_name: str | None
-    anything_launch_mode: Literal["external_app_preferred"]
     default_template_key: Literal["report", "meeting", "review"]
     internal_api_base_url: str | None
     personalization_apply_mode: PersonalizationApplyMode
@@ -164,6 +164,7 @@ class WorkspaceSettingsDefaults(BaseModel):
     embedding_base_url: str | None
     embedding_fallback_enabled: bool
     graphrag_vector_backend: GraphRAGVectorBackendKey
+    knowledge_engine: KnowledgeEngineKey = "wiki"
     profiles: WorkspaceLlmProfiles
 
 
@@ -197,6 +198,7 @@ class WorkspaceSettingsUpdate(BaseModel):
     embedding_base_url: str | None = None
     embedding_fallback_enabled: bool | None = None
     graphrag_vector_backend: GraphRAGVectorBackendKey | None = None
+    knowledge_engine: KnowledgeEngineKey | None = None
 
 
 class SidecarSettings(BaseSettings):
@@ -207,7 +209,6 @@ class SidecarSettings(BaseSettings):
     llm_site_url: str | None = None
     llm_application_name: str | None = None
     llm_profiles: WorkspaceLlmProfiles = Field(default_factory=WorkspaceLlmProfiles)
-    anything_launch_mode: Literal["external_app_preferred"] = "external_app_preferred"
     default_template_key: Literal["report", "meeting", "review"] = "report"
     internal_api_base_url: str | None = None
     personalization_apply_mode: PersonalizationApplyMode = "approval_required"
@@ -216,7 +217,12 @@ class SidecarSettings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_base_url: str | None = "http://127.0.0.1:11434"
     embedding_fallback_enabled: bool = True
+    # 레거시 벡터/임베딩 설정은 파싱 호환을 위해 유지하지만 wiki 엔진에서는 사용하지 않는다.
     graphrag_vector_backend: GraphRAGVectorBackendKey = "chromadb"
+    knowledge_engine: KnowledgeEngineKey = "wiki"
+    # T-02: 업무대화 턴/문서작성 transcript 조립에 쓰는 입력 토큰 예산.
+    # 4k 컨텍스트 경량 모델 기준 출력 여유분을 남기는 보수적 기본값.
+    context_budget_tokens: int = Field(default=6000, ge=500)
 
     model_config = SettingsConfigDict(env_prefix="GONGMU_", extra="ignore")
 
@@ -282,7 +288,6 @@ class SidecarSettings(BaseSettings):
         )
         return synced.model_copy(
             update={
-                "anything_launch_mode": payload.get("anything_launch_mode", base.anything_launch_mode),
                 "personalization_apply_mode": payload.get(
                     "personalization_apply_mode",
                     base.personalization_apply_mode,
@@ -299,6 +304,11 @@ class SidecarSettings(BaseSettings):
                     "graphrag_vector_backend",
                     base.graphrag_vector_backend,
                 ),
+                "knowledge_engine": payload.get("knowledge_engine", base.knowledge_engine),
+                "context_budget_tokens": payload.get(
+                    "context_budget_tokens",
+                    base.context_budget_tokens,
+                ),
             }
         )
 
@@ -313,7 +323,6 @@ class SidecarSettings(BaseSettings):
                     "llm_site_url": self.llm_site_url,
                     "llm_application_name": self.llm_application_name,
                     "llm_profiles": self.llm_profiles.model_dump(),
-                    "anything_launch_mode": self.anything_launch_mode,
                     "default_template_key": self.default_template_key,
                     "internal_api_base_url": self.internal_api_base_url,
                     "personalization_apply_mode": self.personalization_apply_mode,
@@ -323,6 +332,8 @@ class SidecarSettings(BaseSettings):
                     "embedding_base_url": self.embedding_base_url,
                     "embedding_fallback_enabled": self.embedding_fallback_enabled,
                     "graphrag_vector_backend": self.graphrag_vector_backend,
+                    "knowledge_engine": self.knowledge_engine,
+                    "context_budget_tokens": self.context_budget_tokens,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -370,5 +381,6 @@ class SidecarSettings(BaseSettings):
                 if payload.embedding_fallback_enabled is not None
                 else self.embedding_fallback_enabled,
                 "graphrag_vector_backend": payload.graphrag_vector_backend or self.graphrag_vector_backend,
+                "knowledge_engine": payload.knowledge_engine or self.knowledge_engine,
             }
         )

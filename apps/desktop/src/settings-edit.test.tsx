@@ -175,7 +175,6 @@ describe("환경설정 편집", () => {
         const collectionMap: Record<string, unknown> = {
           "/api/schedules": { items: [] },
           "/api/work-sessions": { items: [] },
-          "/api/reference-sets": { items: [] },
           "/api/templates": { items: [] },
           "/api/approval-tickets": { items: [] },
           "/api/jobs?limit=20": { items: [] },
@@ -205,11 +204,17 @@ describe("환경설정 편집", () => {
   async function openSettings() {
     render(<App />);
     const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
-    await userEvent.click(within(navigation).getByRole("button", { name: "기타 환경설정" }));
+    await userEvent.click(within(navigation).getByRole("button", { name: "환경설정" }));
+  }
+
+  async function openNewProfileEditor() {
+    await userEvent.click(await screen.findByRole("button", { name: "새 프로필" }));
+    return screen.findByLabelText("LLM 정책").then((select) => select.closest("form")!);
   }
 
   it("Featherless preset shows official OpenAI-compatible values", async () => {
     await openSettings();
+    await openNewProfileEditor();
 
     await userEvent.selectOptions(await screen.findByLabelText("LLM 정책"), "external_model");
     await userEvent.selectOptions(screen.getByLabelText("외부 모델 공급자"), "featherless");
@@ -227,13 +232,14 @@ describe("환경설정 편집", () => {
 
   it("saves provider values and can run the connection test", async () => {
     await openSettings();
+    const form = await openNewProfileEditor();
 
     await userEvent.selectOptions(await screen.findByLabelText("LLM 정책"), "external_model");
     await userEvent.selectOptions(screen.getByLabelText("외부 모델 공급자"), "anthropic");
     await userEvent.clear(screen.getByLabelText("LLM Model"));
     await userEvent.type(screen.getByLabelText("LLM Model"), "claude-sonnet-4-20250514");
     await userEvent.type(screen.getByLabelText("Anthropic API Key"), "sk-ant-test");
-    await userEvent.click(screen.getByRole("button", { name: "설정 저장" }));
+    await userEvent.click(within(form).getByRole("button", { name: "설정 저장" }));
 
     await waitFor(() => {
       expect(screen.getByLabelText("외부 모델 공급자")).toHaveValue("anthropic");
@@ -242,17 +248,18 @@ describe("환경설정 편집", () => {
       expect(screen.getByDisplayValue("https://api.anthropic.com/v1")).toBeInTheDocument();
     });
 
-    await userEvent.click(screen.getByRole("button", { name: "LLM 연결 테스트" }));
+    await userEvent.click(within(form).getByRole("button", { name: "저장 후 연결 테스트" }));
     await waitFor(() => {
       expect(screen.getByText("LLM 연결 테스트가 완료되었습니다.")).toBeInTheDocument();
     });
   }, 15000);
 
-  it("does not wait for full GraphRAG document listing after settings save", async () => {
+  it("does not wait for full knowledge document listing after settings save", async () => {
     await openSettings();
+    const form = await openNewProfileEditor();
     requestPaths = [];
 
-    await userEvent.click(screen.getByRole("button", { name: "설정 저장" }));
+    await userEvent.click(within(form).getByRole("button", { name: "설정 저장" }));
 
     await waitFor(() => {
       expect(latestSettingsPayload).toBeDefined();
@@ -260,15 +267,25 @@ describe("환경설정 편집", () => {
     expect(requestPaths.some((path) => path.includes("/api/knowledge/documents"))).toBe(false);
   });
 
-  it("can switch GraphRAG vector store to SQLite fallback", async () => {
+  it("no longer exposes GraphRAG embedding controls and does not send embedding fields", async () => {
     await openSettings();
+    const form = await openNewProfileEditor();
 
-    await userEvent.selectOptions(await screen.findByLabelText("Vector Store"), "sqlite");
-    await userEvent.click(screen.getByRole("button", { name: "설정 저장" }));
+    await screen.findByLabelText("LLM 정책");
+    expect(screen.queryByText("GraphRAG 임베딩")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Embedding Provider")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Vector Store")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Embedding Model")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Embedding Base URL")).not.toBeInTheDocument();
+    expect(screen.queryByText("GraphRAG Vector Store")).not.toBeInTheDocument();
+
+    await userEvent.click(within(form).getByRole("button", { name: "설정 저장" }));
 
     await waitFor(() => {
-      expect(latestSettingsPayload?.graphrag_vector_backend).toBe("sqlite");
+      expect(latestSettingsPayload).toBeDefined();
     });
-    expect(screen.getAllByText("SQLite fallback").length).toBeGreaterThan(0);
+    expect(latestSettingsPayload).not.toHaveProperty("embedding_provider");
+    expect(latestSettingsPayload).not.toHaveProperty("embedding_model");
+    expect(latestSettingsPayload).not.toHaveProperty("graphrag_vector_backend");
   });
 });

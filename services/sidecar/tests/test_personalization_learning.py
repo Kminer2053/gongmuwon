@@ -32,6 +32,14 @@ def test_session_analysis_applies_personalization_without_approval(tmp_path: Pat
     assert Path(payload["application"]["summary_path"]).exists()
     assert Path(payload["application"]["audit_path"]).exists()
 
+    work_page = payload["wiki_work_page"]
+    assert work_page is not None
+    assert work_page["session_id"] == session_id
+    assert Path(work_page["path"]).exists()
+    index_text = (tmp_path / "knowledge-wiki" / "index.md").read_text(encoding="utf-8")
+    assert "## 업무 기록" in index_text
+    assert "[Budget Review Session](work/" in index_text
+
     listed = client.get("/api/personalization/candidates")
     assert listed.status_code == 200
     assert listed.json()["items"][0]["status"] == "applied"

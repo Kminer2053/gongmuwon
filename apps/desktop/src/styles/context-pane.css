@@ -1,0 +1,154 @@
+/* 우측 컨텍스트 패널 전용 스타일 (design §3.8, C-04/05/08/10/12/14)
+   styles.css는 동결 파일이므로 신규 규칙은 이 파일에만 추가한다. */
+
+/* C-10: 탭 배지 도트 */
+.context-pane__tab {
+  position: relative;
+}
+
+.context-pane__tab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #1f6b55;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(31, 107, 85, 0.35);
+  pointer-events: none;
+}
+
+/* C-14: 리사이저 키보드 포커스 표시 */
+.context-pane-resizer:focus-visible {
+  outline: 2px solid rgba(31, 107, 85, 0.65);
+  outline-offset: 1px;
+  background: rgba(31, 107, 85, 0.18);
+}
+
+/* C-04: 현재 컨텍스트 카드 */
+.context-current {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.context-current__row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink, #111214);
+  text-align: left;
+  box-shadow: none;
+}
+
+.context-current__row:hover:not(:disabled) {
+  transform: none;
+  background: rgba(17, 18, 20, 0.05);
+  box-shadow: none;
+}
+
+.context-current__row:disabled {
+  cursor: default;
+  opacity: 0.6;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.context-current__label {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  color: var(--text-subtle);
+}
+
+.context-current__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.context-current__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+  padding: 0.15rem 0.2rem 0;
+  font-size: 0.76rem;
+  color: var(--text-subtle);
+}
+
+.context-current__meta span {
+  min-width: 0;
+}
+
+/* C-05: 승인 후 다음 단계 안내 카드 */
+.context-followup {
+  margin-top: 0.7rem;
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(31, 107, 85, 0.35);
+  border-radius: 14px;
+  background: var(--accent-green-soft, rgba(31, 107, 85, 0.12));
+}
+
+.context-followup p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.context-followup .button-secondary {
+  justify-self: start;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.8rem;
+}
+
+/* C-12: 색인 상세 로그 행의 원본 이벤트 키(참고용 보조 표기) */
+.context-log-raw-event {
+  margin: 0.1rem 0 0;
+  font-size: 0.68rem;
+  opacity: 0.75;
+}
+
+/* 작업 실패 한글 요약 + 원문 접힘 */
+.job-error {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.job-error__summary {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #7a3b3b;
+}
+
+.job-error__raw summary {
+  cursor: pointer;
+  font-size: 0.74rem;
+  color: var(--text-subtle);
+}
+
+.job-error__raw pre {
+  margin: 0.35rem 0 0;
+  max-height: 160px;
+  overflow: auto;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(17, 18, 20, 0.04);
+  font-size: 0.7rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}

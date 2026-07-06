@@ -4,6 +4,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { generate as generateNsisTips } from "./generate-nsis-tips.mjs";
+
 const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(scriptPath), "..");
 const desktopRoot = path.join(repoRoot, "apps", "desktop");
@@ -154,7 +156,18 @@ export function manualLinkPerUserMsi({
 export function main(argv = process.argv.slice(2)) {
   const debug = argv.includes("--debug");
   const config = readTauriConfig();
+
+  // NSIS 설치 프로그램 팁을 tips.ts(단일 원천)에서 최신 상태로 추출한다.
+  generateNsisTips({ root: repoRoot });
   const profile = debug ? "debug" : "release";
+
+  // Tauri는 target 리소스를 병합 복사만 하고 삭제된 파일을 지우지 않는다.
+  // 구 사이드카 잔재(예: 레거시 chromadb)가 설치 페이로드에 섞이지 않도록
+  // 빌드 전에 target 리소스의 사이드카 트리를 항상 비운다.
+  const staleTargetSidecar = path.join(
+    desktopRoot, "src-tauri", "target", profile, "resources", "sidecar",
+  );
+  fs.rmSync(staleTargetSidecar, { recursive: true, force: true });
   const tauriArgs = [resolveTauriCli(), "build"];
 
   if (debug) {

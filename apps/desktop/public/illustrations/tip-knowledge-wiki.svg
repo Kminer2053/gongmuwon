@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="지식폴더에서 위키와 근거 답변">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .accent{fill:#3d7a4f;}
+      .accentline{stroke:#3d7a4f;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .amberfill{fill:#f3d9a4;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+    </style>
+  </defs>
+  <path d="M22 40 h34 l8 8 h50 v52 a8 8 0 0 1 -8 8 h-84 a8 8 0 0 1 -8 -8 v-52 a8 8 0 0 1 8 -8 z" class="amberfill" stroke="#d9a441" stroke-width="2"/>
+  <text class="txt" x="34" y="84">427개 문서</text>
+  <path class="accentline" d="M126 74 h24 M142 66 l10 8 -10 8"/>
+  <rect class="panel" x="160" y="30" width="66" height="84" rx="10"/>
+  <path class="ink" d="M172 46 h42 M172 58 h30"/>
+  <rect class="accent" x="172" y="68" width="42" height="8" rx="4" opacity="0.25"/>
+  <rect class="accent" x="172" y="82" width="42" height="8" rx="4" opacity="0.5"/>
+  <rect class="accent" x="172" y="96" width="28" height="8" rx="4" opacity="0.8"/>
+  <text class="txtsub" x="168" y="126">업무별 위키</text>
+  <path class="accentline" d="M232 74 h24 M248 66 l10 8 -10 8"/>
+  <rect class="panel" x="262" y="42" width="44" height="60" rx="10"/>
+  <circle cx="280" cy="62" r="9" fill="none" stroke="#2b2f2a" stroke-width="2"/>
+  <path class="ink" d="M287 69 l7 7"/>
+  <path class="accentline" d="M272 88 l4 4 8 -8"/>
+  <text class="txt" x="16" y="146">폴더를 지정하면 업무별 지식위키가 생깁니다.</text>
+  <text class="txtsub" x="16" y="164">위키 탭에서 검색하면 문서 근거를 붙인 답변까지 받을 수 있습니다.</text>
+</svg>

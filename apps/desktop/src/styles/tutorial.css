@@ -1,0 +1,222 @@
+/* W6: 최초 실행 튜토리얼 (2026-07-05)
+   Codex 톤 유지: 라이트 글래스, ink #111214, radius 12-24 */
+
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(17, 18, 20, 0.38);
+  backdrop-filter: blur(3px);
+}
+
+.tutorial-dialog {
+  width: min(560px, 100%);
+  max-height: min(82vh, 640px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.4rem 1.5rem;
+  border-radius: 24px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 24px 60px rgba(17, 18, 20, 0.24);
+  outline: none;
+}
+
+.tutorial-dialog__header h2 {
+  margin: 0.25rem 0 0;
+  font-size: 1.15rem;
+  line-height: 1.35;
+}
+
+/* 단계 표시줄 — taxonomy-wizard__steps와 같은 문법 */
+.tutorial-steps {
+  display: flex;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: rgba(17, 18, 20, 0.55);
+}
+
+.tutorial-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.tutorial-steps li span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 0.72rem;
+}
+
+.tutorial-steps li.is-active {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.tutorial-steps li.is-active span {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #ffffff;
+}
+
+.tutorial-steps li.is-complete span {
+  background: var(--accent-green-soft, rgba(31, 107, 85, 0.12));
+  border-color: transparent;
+}
+
+.tutorial-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.tutorial-step-body p {
+  margin: 0;
+}
+
+.tutorial-step-body .button-with-icon {
+  align-self: flex-start;
+}
+
+/* ① 메뉴 6개 요약 */
+.tutorial-menu-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.9rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  list-style: none;
+  border-radius: 16px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.tutorial-menu-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.84rem;
+}
+
+.tutorial-menu-list li span {
+  color: rgba(17, 18, 20, 0.6);
+  font-size: 0.78rem;
+}
+
+/* ②·③ 현재 상태 표시 */
+.tutorial-status {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 16px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-size: 0.86rem;
+}
+
+.tutorial-status > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.tutorial-status dt {
+  color: rgba(17, 18, 20, 0.6);
+}
+
+.tutorial-status dd,
+.tutorial-status p {
+  margin: 0;
+}
+
+.tutorial-pill--warning {
+  background: rgba(176, 108, 0, 0.12);
+  color: #8a5400;
+}
+
+/* ④ 팁 인용 */
+.tutorial-tip-quote {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-left: 3px solid var(--accent-strong);
+  border-radius: 0 12px 12px 0;
+  background: rgba(17, 18, 20, 0.04);
+  font-size: 0.88rem;
+}
+
+.tutorial-dialog__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.tutorial-dialog__nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* "~로 이동" 후 대기하는 최소화 칩 */
+.tutorial-minimized-chip {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 140;
+  padding: 0.55rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: var(--accent-strong);
+  color: #ffffff;
+  font-size: 0.85rem;
+  box-shadow: 0 10px 28px rgba(17, 18, 20, 0.28);
+  cursor: pointer;
+}
+
+.tutorial-minimized-chip:hover {
+  background: var(--accent);
+}
+
+/* 환경설정 > [튜토리얼 다시 보기] 진입점 (tutorial.css는 App에 항상 로드됨) */
+.settings-tutorial-replay {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.settings-tutorial-replay .detail-panel__title {
+  margin: 0;
+}
+
+/* W6.5: 튜토리얼 단계 일러스트 */
+.tutorial-illustration {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  border: 1px solid var(--line-soft, #e3e8e0);
+  border-radius: 14px;
+  background: #ffffff;
+  display: block;
+  margin-bottom: 0.4rem;
+}

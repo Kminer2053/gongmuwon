@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import json
 import re
 import tempfile
-from typing import Literal, cast
+from typing import Any, Literal, cast
 import zipfile
 
 from hwpx import HwpxDocument
@@ -20,6 +21,119 @@ BUILTIN_FORMAT_DIRS = {
     "fullReport": "format_full",
     "email": "format_email",
 }
+
+# 미리보기(render_preview)와 최종 HWPX가 공유하는 위계 표기
+ROMAN_NUMERALS = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ"]
+GANADA = ["가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하"]
+
+
+# ---------------------------------------------------------------------------
+# 구조 마커: authoring /build 가 content-base 마크다운에 구조 JSON을 심어 두면
+# finalize(write_public_hwpx_document)가 이를 그대로 문단화한다.
+# 미리보기 = 최종 HWPX (WYSIWYG) 를 보장하는 단일 중간 표현이다.
+# ---------------------------------------------------------------------------
+
+STRUCTURE_MARKER_PREFIX = "<!--gongmu-doc-structure:"
+_STRUCTURE_MARKER_RE = re.compile(r"^<!--gongmu-doc-structure:(\{.*\})-->[ \t]*$", re.MULTILINE)
+
+
+def embed_structure_marker(format_key: str, structure: dict[str, Any]) -> str:
+    payload = json.dumps({"format": format_key, "structure": structure}, ensure_ascii=False)
+    return f"{STRUCTURE_MARKER_PREFIX}{payload}-->"
+
+
+def extract_structure_marker(markdown_text: str) -> tuple[str, dict[str, Any]] | None:
+    match = _STRUCTURE_MARKER_RE.search(markdown_text or "")
+    if not match:
+        return None
+    try:
+        parsed = json.loads(match.group(1))
+    except json.JSONDecodeError:
+        return None
+    format_key = parsed.get("format") if isinstance(parsed, dict) else None
+    structure = parsed.get("structure") if isinstance(parsed, dict) else None
+    if format_key in BUILTIN_FORMAT_DIRS and isinstance(structure, dict):
+        return str(format_key), structure
+    return None
+
+
+def strip_structure_marker(markdown_text: str) -> str:
+    return _STRUCTURE_MARKER_RE.sub("", markdown_text or "")
+
+
+def structure_to_lines(format_key: str, structure: dict[str, Any]) -> list[str]:
+    """구조 JSON → 문단 줄 목록. render_preview(텍스트 미리보기)와 최종 HWPX가
+    같은 목록을 소비한다 — 두 산출물의 문단 구성이 1:1 로 일치해야 한다."""
+    if format_key == "onePageReport":
+        lines = [str(structure.get("title", ""))]
+        if structure.get("subtitle"):
+            lines.append(f"- {structure['subtitle']} -")
+        lines += ["", "□ 요약", f" ◦ {structure.get('summary', '')}"]
+        for section in structure.get("sections", []) or []:
+            lines += ["", f"□ {section.get('heading', '')}"]
+            for item in section.get("items", []) or []:
+                lines.append(f" ◦ {item}")
+            if section.get("detail"):
+                lines.append(f"   - {section['detail']}")
+            if section.get("note"):
+                lines.append(f" ※ {section['note']}")
+        return lines
+
+    if format_key == "fullReport":
+        lines = [str(structure.get("title", "")), "", "□ 요약"]
+        for summary_line in structure.get("summary", []) or []:
+            lines.append(f" ◦ {summary_line}")
+        for index, chapter in enumerate(structure.get("chapters", []) or []):
+            numeral = ROMAN_NUMERALS[min(index, len(ROMAN_NUMERALS) - 1)]
+            lines += ["", f"{numeral}. {chapter.get('heading', '')}"]
+            for section in chapter.get("sections", []) or []:
+                lines.append(f"□ {section.get('heading', '')}")
+                for item in section.get("items", []) or []:
+                    lines.append(f" ◦ {item}")
+        schedule = structure.get("schedule") or {}
+        rows = schedule.get("rows") if isinstance(schedule, dict) else None
+        if rows:
+            lines += ["", "※ 추진 일정"]
+            for row in rows:
+                note = row.get("비고") or ""
+                suffix = f" ({note})" if note else ""
+                lines.append(f" ◦ {row.get('항목', '')}: {row.get('일정', '')}{suffix}")
+        return lines
+
+    if format_key == "officialMemo":
+        lines = [
+            f"수신: {structure.get('receiver', '')}",
+            f"제목: {structure.get('title', '')}",
+            "",
+            f"1. {structure.get('opening', '')}",
+            "2. 세부 사항",
+        ]
+        for index, item in enumerate(structure.get("items", []) or []):
+            marker = GANADA[min(index, len(GANADA) - 1)]
+            lines.append(f"  {marker}. {item.get('text', '')}")
+            for sub_index, sub in enumerate(item.get("subs") or [], start=1):
+                lines.append(f"    {sub_index}) {sub}")
+        attachments = structure.get("attachments") or []
+        for attachment in attachments:
+            lines.append(f"붙임: {attachment}")
+        lines.append("끝.")
+        if structure.get("sender"):
+            lines += ["", str(structure["sender"])]
+        return lines
+
+    if format_key == "email":
+        lines = [f"제목: {structure.get('subject', '')}"]
+        if structure.get("greeting"):
+            lines += ["", str(structure["greeting"])]
+        for paragraph in structure.get("body_paragraphs", []) or []:
+            lines += ["", str(paragraph)]
+        if structure.get("closing"):
+            lines += ["", str(structure["closing"])]
+        if structure.get("signature"):
+            lines += ["", str(structure["signature"])]
+        return lines
+
+    raise ValueError(f"지원하지 않는 문서 양식입니다: {format_key}")
 
 
 @dataclass(frozen=True)
@@ -36,7 +150,6 @@ class PublicDocumentPayload:
     actions: list[str]
     requested_action: list[str]
     evidence: list[str]
-    quality_checks: list[str]
     related: str
     recipient: str
     sender: str
@@ -128,11 +241,10 @@ def build_public_document_payload(
         actions=pick(["후속 조치", "결정 사항", "권고안", "조치사항"], fallback=core_context_lines[:2] if core_context_lines else None),
         requested_action=_apply_writing_principles(requested_action_lines),
         evidence=_apply_writing_principles(evidence_lines),
-        quality_checks=_public_document_quality_checks(),
-        related="; ".join(reference_lines) if reference_lines else "Content Base 초안",
+        related="; ".join(reference_lines) if reference_lines else "작성 내용을 근거로 정리했습니다.",
         recipient=audience_type or "관련 부서",
         sender="공무 워크스페이스",
-        deadline=deadline or "기한 미정",
+        deadline=_normalize_deadline(deadline),
         security_level=security_level or "일반",
         expected_length=expected_length or "미지정",
         urgency_level=urgency_level or "보통",
@@ -191,6 +303,17 @@ def write_public_hwpx_document(
     security_level: str = "",
     user_template_path: str | None = None,
 ) -> dict[str, str]:
+    structured = extract_structure_marker(content_markdown)
+    if structured is not None:
+        structured_format, structure = structured
+        return _write_structured_document(
+            output_path=output_path,
+            format_key=structured_format,
+            structure=structure,
+            fallback_title=title,
+            user_template_path=user_template_path,
+        )
+
     payload = build_public_document_payload(
         title=title,
         purpose=purpose,
@@ -259,6 +382,460 @@ def _builtin_skeleton_path(selected_format: PublicDocumentFormat) -> Path | None
         return None
     path = BUILTIN_TEMPLATE_ROOT / directory / "skeleton.hwpx"
     return path if path.exists() else None
+
+
+# ---------------------------------------------------------------------------
+# 구조 기반(WYSIWYG) 최종 렌더링 — 고정 목차 슬롯 매핑을 쓰지 않는다.
+# 스켈레톤은 용지 서식·헤더(제목 상자)·날짜 표기용으로만 쓰고,
+# 본문은 구조의 섹션 제목·항목을 □→◦→-→※ 위계 문단으로 그대로 옮긴다.
+# ---------------------------------------------------------------------------
+
+_TOKEN_PATTERN = re.compile(r"\{\{([^}]+)\}\}")
+
+# 본문 주입 영역: 이 토큰들이 들어 있는 최상위 문단 구간을 통째로 걷어내고
+# 구조에서 생성한 문단으로 대체한다.
+_STRUCTURED_BODY_TOKENS: dict[str, set[str]] = {
+    "onePageReport": {f"text_{index:03d}" for index in range(4, 24)},
+    "email": {f"text_{index:03d}" for index in range(5, 18)},
+    "officialMemo": {
+        "목차_항목_001",
+        "목차_항목_002",
+        "목차_항목_003",
+        "text_010",
+        "text_011",
+        "text_012",
+        "text_013",
+    },
+}
+
+# 위계 수준별 문단 스타일 표본(스켈레톤 자신의 문단을 복제해 서식을 물려받는다)
+_STRUCTURED_LEVEL_TOKENS: dict[str, dict[str, str]] = {
+    "onePageReport": {"heading": "text_004", "item": "text_005", "sub": "text_007", "note": "text_008"},
+    "fullReport": {"heading": "본문_절_001", "item": "본문_항목_001", "sub": "본문_세부_001", "note": "본문_주석_001"},
+    "officialMemo": {"item": "목차_항목_001", "sub": "text_010", "attach": "목차_항목_003"},
+    "email": {"item": "text_006"},
+}
+
+
+def _normalize_deadline(value: str) -> str:
+    text = (value or "").strip()
+    return "" if text in {"", "기한 미정", "미정"} else text
+
+
+def _split_top_level_paragraph_spans(xml: str) -> list[tuple[int, int]]:
+    """<hp:sec> 바로 아래의 최상위 <hp:p> 구간을 찾는다(표 안의 중첩 문단 제외)."""
+    spans: list[tuple[int, int]] = []
+    depth = 0
+    start = 0
+    for match in re.finditer(r"<hp:p\b|</hp:p>", xml):
+        if match.group(0) == "<hp:p":
+            if depth == 0:
+                start = match.start()
+            depth += 1
+        else:
+            depth -= 1
+            if depth == 0:
+                spans.append((start, match.end()))
+    return spans
+
+
+def _paragraph_tokens(paragraph: str) -> list[str]:
+    return _TOKEN_PATTERN.findall(paragraph)
+
+
+_HIERARCHY_MARKERS = ("□", "◦", "-", "※", "•", "·")
+
+
+def _fill_template_text(template: str, text: str) -> str:
+    # 표본 문단이 글머리 기호를 별도 런(run)으로 이미 갖고 있으면(예: 풀버전 ◦)
+    # 주입 텍스트의 같은 기호를 제거해 이중 표기를 막는다.
+    literal_texts = re.findall(r"<hp:t(?:\s[^>]*)?>(.*?)</hp:t>", template, re.DOTALL)
+    literal = _TOKEN_PATTERN.sub("", re.sub(r"<[^>]+>", "", "".join(literal_texts))).strip()
+    body = text
+    if literal and literal in _HIERARCHY_MARKERS:
+        stripped = text.lstrip()
+        if stripped.startswith(literal):
+            body = stripped[len(literal):].lstrip()
+    escaped = _xml_escape(body)
+    filled = _TOKEN_PATTERN.sub(lambda _match: escaped, template, count=1)
+    return _TOKEN_PATTERN.sub("", filled)
+
+
+def _paragraphs_from_plan(
+    plan: list[tuple[str, str]],
+    templates: dict[str, str],
+    gap_template: str,
+) -> list[str]:
+    fallback = templates.get("item") or next(iter(templates.values()), "")
+    paragraphs: list[str] = []
+    for level, text in plan:
+        if level == "gap":
+            if gap_template:
+                paragraphs.append(gap_template)
+            continue
+        template = templates.get(level) or fallback
+        if not template:
+            continue
+        paragraphs.append(_fill_template_text(template, text))
+    return paragraphs
+
+
+def _harvest_level_templates(paragraphs: list[str], format_key: str) -> dict[str, str]:
+    templates: dict[str, str] = {}
+    for level, token in _STRUCTURED_LEVEL_TOKENS[format_key].items():
+        needle = "{{" + token + "}}"
+        for paragraph in paragraphs:
+            if needle in paragraph and "<hp:tbl" not in paragraph:
+                templates[level] = paragraph
+                break
+    return templates
+
+
+def _structured_body_plan(format_key: str, structure: dict[str, Any]) -> list[tuple[str, str]]:
+    """structure_to_lines(미리보기)와 1:1 로 대응하는 (스타일, 본문 텍스트) 목록.
+
+    미리보기에서 양식 고유 슬롯(제목 상자·수신/발신 칸 등)으로 옮겨지는 줄만 제외한다.
+    """
+    plan: list[tuple[str, str]] = []
+    if format_key == "onePageReport":
+        plan.append(("heading", "□ 요약"))
+        summary = str(structure.get("summary", "")).strip()
+        if summary:
+            plan.append(("item", f"◦ {summary}"))
+        for section in structure.get("sections", []) or []:
+            plan.append(("gap", ""))
+            plan.append(("heading", f"□ {section.get('heading', '')}"))
+            for item in section.get("items", []) or []:
+                plan.append(("item", f"◦ {item}"))
+            if section.get("detail"):
+                # 1p 세부 문단 스타일은 자체 '-' 글머리를 갖고 있어 텍스트에는 넣지 않는다
+                plan.append(("sub", str(section["detail"])))
+            if section.get("note"):
+                plan.append(("note", f"※ {section['note']}"))
+        return plan
+
+    if format_key == "officialMemo":
+        for index, item in enumerate(structure.get("items", []) or []):
+            marker = GANADA[min(index, len(GANADA) - 1)]
+            plan.append(("item", f"{marker}. {item.get('text', '')}"))
+            for sub_index, sub in enumerate(item.get("subs") or [], start=1):
+                plan.append(("sub", f"{sub_index}) {sub}"))
+        attachments = structure.get("attachments") or []
+        if attachments:
+            plan.append(("gap", ""))
+            for attachment in attachments:
+                plan.append(("attach", f"붙임: {attachment}"))
+        return plan
+
+    if format_key == "email":
+        if structure.get("greeting"):
+            plan.append(("item", str(structure["greeting"])))
+            plan.append(("gap", ""))
+        body_paragraphs = structure.get("body_paragraphs", []) or []
+        for index, paragraph in enumerate(body_paragraphs):
+            plan.append(("item", str(paragraph)))
+            if index < len(body_paragraphs) - 1:
+                plan.append(("gap", ""))
+        if structure.get("closing"):
+            plan.append(("gap", ""))
+            plan.append(("item", str(structure["closing"])))
+        if structure.get("signature"):
+            plan.append(("gap", ""))
+            plan.append(("item", str(structure["signature"])))
+        return plan
+
+    raise ValueError(f"본문 계획을 만들 수 없는 양식입니다: {format_key}")
+
+
+def _structured_full_plans(structure: dict[str, Any]) -> tuple[list[tuple[str, str]], list[list[tuple[str, str]]]]:
+    summary_plan: list[tuple[str, str]] = [("heading", "□ 요약")]
+    for summary_line in structure.get("summary", []) or []:
+        summary_plan.append(("item", f"◦ {summary_line}"))
+
+    chapter_plans: list[list[tuple[str, str]]] = []
+    for chapter in structure.get("chapters", []) or []:
+        plan: list[tuple[str, str]] = []
+        for section in chapter.get("sections", []) or []:
+            plan.append(("heading", f"□ {section.get('heading', '')}"))
+            for item in section.get("items", []) or []:
+                plan.append(("item", f"◦ {item}"))
+            plan.append(("gap", ""))
+        chapter_plans.append(plan)
+
+    schedule = structure.get("schedule") or {}
+    rows = schedule.get("rows") if isinstance(schedule, dict) else None
+    if rows and chapter_plans:
+        tail = chapter_plans[-1]
+        tail.append(("note", "※ 추진 일정"))
+        for row in rows:
+            note = row.get("비고") or ""
+            suffix = f" ({note})" if note else ""
+            tail.append(("item", f"◦ {row.get('항목', '')}: {row.get('일정', '')}{suffix}"))
+    return summary_plan, chapter_plans
+
+
+def _structured_values(format_key: str, structure: dict[str, Any], title: str) -> dict[str, str]:
+    """스켈레톤에 남는 고정 슬롯 값 — 용지 서식·헤더·날짜·양식 고유 요소(수신/발신/붙임)만."""
+    date_label = _safe_date_label()
+    if format_key == "onePageReport":
+        return {
+            "표지_제목": title,
+            "text_001": title,
+            "text_002": str(structure.get("subtitle") or ""),
+            "text_003": f"<공무원, {date_label}>",
+        }
+
+    if format_key == "officialMemo":
+        receiver = str(structure.get("receiver") or "관련 부서")
+        sender = str(structure.get("sender") or "공무원")
+        return {
+            "표지_제목": title,
+            "text_001": "로컬 AI 업무 에이전트",
+            "text_002": "",
+            "text_003": sender,
+            "text_004": f"수신: {receiver}",
+            "text_005": "",
+            "text_006": title,
+            "text_007": f"1. {structure.get('opening', '')}",
+            "text_008": "2. 세부 사항" if structure.get("items") else "",
+            "text_009": "",
+            "목차_항목_004": "끝.",
+            "text_014": sender,
+            "text_015": receiver,
+            "text_020": "공무원-문서",
+            "text_021": date_label,
+            "text_022": "전화",
+            "text_023": "전송",
+        }
+
+    if format_key == "fullReport":
+        values: dict[str, str] = {
+            "표지_제목": title,
+            "text_001": "",
+            "text_002": title,
+            "문서번호": "-",
+            "보존기간": "1년",
+            "보고일": date_label,
+            "기관명": "공무원",
+            "본부부서명": "로컬 AI 업무 에이전트",
+            "참고자료_1": "",
+            "참고자료_2": "",
+            "참고자료_3": "",
+        }
+        chapters = structure.get("chapters", []) or []
+        toc_rows: list[str] = []
+        for index, chapter in enumerate(chapters):
+            numeral = ROMAN_NUMERALS[min(index, len(ROMAN_NUMERALS) - 1)]
+            toc_rows.append(f"{numeral}. {chapter.get('heading', '')}")
+            if index < 6:
+                # 장 상자에는 로마숫자 디자인 셀이 이미 있으므로 제목만 넣는다
+                values[f"장{index + 1:02d}_제목"] = str(chapter.get("heading", ""))
+        for slot in range(1, 53):
+            if slot % 2 == 1:
+                row = (slot - 1) // 2
+                values[f"목차_항목_{slot:03d}"] = toc_rows[row] if row < len(toc_rows) else ""
+            else:
+                values[f"목차_항목_{slot:03d}"] = ""
+        return values
+
+    if format_key == "email":
+        return {
+            "문서_제목": title,
+            "text_000": "업무 이메일",
+            "text_001": f"제목: {title}",
+            "text_004": f"작성일: {date_label}",
+        }
+
+    raise ValueError(f"지원하지 않는 문서 양식입니다: {format_key}")
+
+
+def _render_structured_section_xml(xml: str, format_key: str, structure: dict[str, Any]) -> str:
+    spans = _split_top_level_paragraph_spans(xml)
+    if not spans:
+        return xml
+    paragraphs = [xml[start:end] for start, end in spans]
+    prefix = xml[: spans[0][0]]
+    suffix = xml[spans[-1][1]:]
+    templates = _harvest_level_templates(paragraphs, format_key)
+
+    if format_key == "fullReport":
+        new_paragraphs = _assemble_full_report_paragraphs(paragraphs, structure, templates)
+    else:
+        body_tokens = _STRUCTURED_BODY_TOKENS[format_key]
+        body_indexes = [
+            index
+            for index, paragraph in enumerate(paragraphs)
+            if _paragraph_tokens(paragraph) and set(_paragraph_tokens(paragraph)) <= body_tokens
+        ]
+        if not body_indexes:
+            return xml
+        first, last = min(body_indexes), max(body_indexes)
+        gap_template = next(
+            (paragraph for paragraph in paragraphs[first : last + 1] if not _paragraph_tokens(paragraph)),
+            "",
+        )
+        plan = _structured_body_plan(format_key, structure)
+        injected = _paragraphs_from_plan(plan, templates, gap_template)
+        new_paragraphs = paragraphs[:first] + injected + paragraphs[last + 1 :]
+
+    return prefix + "".join(new_paragraphs) + suffix
+
+
+def _assemble_full_report_paragraphs(
+    paragraphs: list[str],
+    structure: dict[str, Any],
+    templates: dict[str, str],
+) -> list[str]:
+    box_positions: list[int] = []
+    for chapter_number in range(1, 7):
+        needle = "{{장" + f"{chapter_number:02d}" + "_제목}}"
+        position = next((index for index, paragraph in enumerate(paragraphs) if needle in paragraph), None)
+        if position is not None:
+            box_positions.append(position)
+    if not box_positions:
+        return paragraphs
+
+    first_box = box_positions[0]
+    boundaries = box_positions + [len(paragraphs)]
+    first_region = paragraphs[box_positions[0] + 1 : boundaries[1]]
+    gap_template = next((paragraph for paragraph in first_region if not _paragraph_tokens(paragraph)), "")
+
+    summary_plan, chapter_plans = _structured_full_plans(structure)
+    assembled = list(paragraphs[:first_box])
+    assembled += _paragraphs_from_plan(summary_plan, templates, gap_template)
+    for region_index, box_index in enumerate(box_positions):
+        if region_index >= len(chapter_plans):
+            continue  # 사용하지 않는 장 상자와 그 구간은 통째로 제거
+        assembled.append(paragraphs[box_index])
+        assembled += _paragraphs_from_plan(chapter_plans[region_index], templates, gap_template)
+    return assembled
+
+
+def _drop_unfilled_token_paragraphs(xml: str, values: dict[str, str]) -> str:
+    """채워지지 않는 토큰만 남은 최상위 문단(빈 장 상자·안 쓰는 슬롯)을 삭제한다."""
+    spans = _split_top_level_paragraph_spans(xml)
+    pieces: list[str] = []
+    cursor = 0
+    for start, end in spans:
+        paragraph = xml[start:end]
+        pieces.append(xml[cursor:start])
+        cursor = end
+        tokens = _paragraph_tokens(paragraph)
+        keep = True
+        if tokens and "<hp:secPr" not in paragraph:
+            if not any(str(values.get(token) or "").strip() for token in tokens):
+                texts = re.findall(r"<hp:t[^>]*>(.*?)</hp:t>", paragraph, re.DOTALL)
+                if all(re.fullmatch(r"(?:\s|\{\{[^}]+\}\})*", text or "") for text in texts):
+                    keep = False
+        if keep:
+            pieces.append(paragraph)
+    pieces.append(xml[cursor:])
+    return "".join(pieces)
+
+
+def _fill_structured_skeleton(
+    skeleton_path: Path,
+    output_path: Path,
+    *,
+    format_key: str,
+    structure: dict[str, Any],
+    values: dict[str, str],
+    lines: list[str],
+) -> None:
+    with tempfile.TemporaryDirectory(prefix="gongmu-hwpx-") as temp_dir:
+        workdir = Path(temp_dir)
+        with zipfile.ZipFile(skeleton_path, "r") as archive:
+            archive.extractall(workdir)
+
+        section_path = workdir / "Contents" / "section0.xml"
+        if section_path.exists():
+            section_xml = section_path.read_text(encoding="utf-8", errors="ignore")
+            section_xml = _render_structured_section_xml(section_xml, format_key, structure)
+            section_xml = _drop_unfilled_token_paragraphs(section_xml, values)
+            section_path.write_text(section_xml, encoding="utf-8")
+
+        for xml_path in workdir.rglob("*.xml"):
+            text = xml_path.read_text(encoding="utf-8", errors="ignore")
+            text = _replace_skeleton_tokens(text, values)
+            xml_path.write_text(text, encoding="utf-8")
+
+        hpf_path = workdir / "Contents" / "content.hpf"
+        if hpf_path.exists() and values.get("표지_제목"):
+            hpf = hpf_path.read_text(encoding="utf-8", errors="ignore")
+            safe_title = _xml_escape(values["표지_제목"])
+            hpf = re.sub(r"<opf:title>[^<]*</opf:title>", f"<opf:title>{safe_title}</opf:title>", hpf, count=1)
+            hpf_path.write_text(hpf, encoding="utf-8")
+
+        preview_text_path = workdir / "Preview" / "PrvText.txt"
+        if preview_text_path.exists():
+            preview_text_path.write_bytes("\n".join(lines).encode("utf-16-le"))
+
+        if output_path.exists():
+            output_path.unlink()
+        with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            mimetype = workdir / "mimetype"
+            if mimetype.exists():
+                archive.write(mimetype, "mimetype", compress_type=zipfile.ZIP_STORED)
+            for file_path in sorted(workdir.rglob("*")):
+                if not file_path.is_file() or file_path.name == "mimetype":
+                    continue
+                archive.write(file_path, file_path.relative_to(workdir).as_posix())
+
+
+def _write_structured_document(
+    *,
+    output_path: Path,
+    format_key: str,
+    structure: dict[str, Any],
+    fallback_title: str,
+    user_template_path: str | None,
+) -> dict[str, str]:
+    title = str(structure.get("title") or structure.get("subject") or "").strip() or (
+        (fallback_title or "").strip() or "공무 업무 문서"
+    )
+    lines = structure_to_lines(format_key, structure)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path = output_path.with_suffix(".md")
+
+    builtin_template_path = _builtin_skeleton_path(cast(PublicDocumentFormat, format_key))
+    if user_template_path:
+        document = _open_template_document(user_template_path)
+        document.add_paragraph("")
+        document.add_paragraph("---- 공무 워크스페이스 생성 내용 ----")
+        for line in lines:
+            document.add_paragraph(line)
+        document.save_to_path(output_path)
+        template_source = "user"
+        template_path = str(Path(user_template_path))
+    elif builtin_template_path:
+        values = _structured_values(format_key, structure, title)
+        _fill_structured_skeleton(
+            builtin_template_path,
+            output_path,
+            format_key=format_key,
+            structure=structure,
+            values=values,
+            lines=lines,
+        )
+        template_source = "builtin"
+        template_path = str(builtin_template_path)
+    else:
+        document = HwpxDocument.new()
+        for line in lines:
+            document.add_paragraph(line)
+        document.save_to_path(output_path)
+        template_source = "generated"
+        template_path = ""
+    markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    return {
+        "path": str(output_path),
+        "markdown_path": str(markdown_path),
+        "format": format_key,
+        "template_source": template_source,
+        "template_path": template_path,
+    }
 
 
 def _fill_skeleton_template(skeleton_path: Path, values: dict[str, str], output_path: Path) -> None:
@@ -332,22 +909,22 @@ def _build_onepage_values(payload: PublicDocumentPayload, lines: list[str]) -> d
         "text_005": _line_or(payload.summary, 0, payload.document_purpose),
         "text_006": _line_or(payload.summary, 1, "업무대화와 연결자료를 바탕으로 핵심을 정리"),
         "text_007": _line_or(payload.background, 0, "검토 배경을 간결하게 정리"),
-        "text_008": _line_or(payload.quality_checks, 0, ""),
+        "text_008": _line_or(payload.background, 1, ""),
         "text_009": "2. 현황 및 쟁점",
         "text_010": _line_or(payload.issues, 0, "주요 쟁점을 요약"),
         "text_011": _line_or(payload.current_status, 0, "현재 상황을 정리"),
         "text_012": _line_or(payload.issues, 1, ""),
-        "text_013": _line_or(payload.quality_checks, 1, ""),
+        "text_013": _line_or(payload.current_status, 1, ""),
         "text_014": "3. 조치안",
         "text_015": _line_or(payload.solutions, 0, "후속 조치안을 제시"),
         "text_016": _line_or(payload.actions, 0, _line_or(payload.requested_action, 0, "검토 후 결정")),
         "text_017": _line_or(payload.solutions, 1, ""),
-        "text_018": _line_or(payload.quality_checks, 2, ""),
+        "text_018": _line_or(payload.actions, 1, ""),
         "text_019": "4. 기대효과 및 요청",
         "text_020": _line_or(payload.expected_effects, 0, "업무 처리 기준 명확화"),
         "text_021": _line_or(payload.requested_action, 0, "검토 요청"),
-        "text_022": f"기한: {payload.deadline}",
-        "text_023": _line_or(payload.quality_checks, 3, ""),
+        "text_022": f"기한: {payload.deadline}" if payload.deadline else "",
+        "text_023": _line_or(payload.expected_effects, 1, ""),
         "장01_제목": "붙임",
         "장02_제목": "근거 및 연결자료",
         "본문_절_001": "□ 출처 및 활용 계획",
@@ -355,11 +932,11 @@ def _build_onepage_values(payload: PublicDocumentPayload, lines: list[str]) -> d
         "text_025": _line_or(payload.evidence, 1, ""),
         "text_026": _line_or(payload.evidence, 2, ""),
         "본문_주석_001": "※ 연결 파일과 대화 이력을 근거로 정리",
-        "본문_절_002": "□ 작성 품질 점검",
-        "text_027": _line_or(payload.quality_checks, 0, ""),
-        "text_028": _line_or(payload.quality_checks, 1, ""),
-        "text_029": _line_or(payload.quality_checks, 2, ""),
-        "본문_주석_002": _line_or(payload.quality_checks, 3, ""),
+        "본문_절_002": "",
+        "text_027": _line_or(payload.evidence, 3, ""),
+        "text_028": _line_or(payload.evidence, 4, ""),
+        "text_029": _line_or(payload.evidence, 5, ""),
+        "본문_주석_002": "",
     }
     _fill_numbered_text_tokens(values, lines, start=30, end=35)
     return values
@@ -466,13 +1043,13 @@ def _build_email_values(payload: PublicDocumentPayload, lines: list[str]) -> dic
         "text_008": "2. 요청사항",
         "text_009": f"- {_line_or(payload.requested_action, 0, '검토 요청')}",
         "text_010": f"- {_line_or(payload.requested_action, 1, '')}",
-        "text_011": f"- 요청 기한: {payload.deadline}",
+        "text_011": f"- 요청 기한: {payload.deadline}" if payload.deadline else "",
         "text_012": "3. 근거 및 연결 파일",
         "text_013": f"- {_line_or(evidence, 0, payload.related)}",
         "text_014": f"- {_line_or(evidence, 1, '')}",
-        "text_015": "4. 작성 점검",
-        "text_016": f"- {_line_or(payload.quality_checks, 0, '')}",
-        "text_017": f"- {_line_or(payload.quality_checks, 1, '')}",
+        "text_015": "",
+        "text_016": "",
+        "text_017": "",
     }
     _fill_numbered_text_tokens(values, lines, start=18, end=24)
     return values
@@ -518,7 +1095,7 @@ def _first_non_empty(
         values = _usable_section_values(sections, key)
         if values:
             return values
-    return fallback or ["Content Base 내용을 기준으로 정리합니다."]
+    return fallback or ["작성 내용을 기준으로 정리합니다."]
 
 
 def _usable_section_values(sections: dict[str, list[str]], key: str) -> list[str]:
@@ -629,15 +1206,6 @@ def _compact_public_sentence(value: str) -> str:
     return compacted.strip()
 
 
-def _public_document_quality_checks() -> list[str]:
-    return [
-        "두괄식: 결론과 요청사항을 앞부분에 배치했습니다.",
-        "개조식: 문단을 짧은 항목으로 나누어 빠르게 읽히도록 정리했습니다.",
-        "한 문장 한 핵심: 긴 서술 대신 판단 단위를 분리했습니다.",
-        "적/의/것/들: 불필요한 표현을 줄여 공공문서 문체로 압축했습니다.",
-    ]
-
-
 def _section(title: str, items: list[str]) -> list[str]:
     lines = [title]
     for item in items:
@@ -662,7 +1230,7 @@ def _evidence_items(payload: PublicDocumentPayload) -> list[str]:
         return payload.evidence
     if payload.related:
         return [payload.related]
-    return ["Content Base 초안을 근거로 작성했습니다."]
+    return ["작성 내용을 근거로 작성했습니다."]
 
 
 def _render_onepage(payload: PublicDocumentPayload) -> list[str]:
@@ -674,7 +1242,6 @@ def _render_onepage(payload: PublicDocumentPayload) -> list[str]:
     lines += _section("4. 기대효과", payload.expected_effects)
     lines += _section("5. 요청사항", payload.requested_action)
     lines += _section("6. 근거 및 연결자료", _evidence_items(payload))
-    lines += _section("7. 작성 품질 점검", payload.quality_checks)
     return lines
 
 
@@ -688,17 +1255,14 @@ def _render_official_memo(payload: PublicDocumentPayload) -> list[str]:
     lines.append("")
     for item in payload.requested_action:
         lines.append(f"- {item}")
-    lines.append(f"- 제출 기한: {payload.deadline}")
+    if payload.deadline:
+        lines.append(f"- 제출 기한: {payload.deadline}")
     lines.append("")
     lines.append("3. 근거 및 연결자료")
     for item in _evidence_items(payload):
         lines.append(f"- {item}")
     lines.append("")
-    lines.append("4. 작성 품질 점검")
-    for item in payload.quality_checks:
-        lines.append(f"- {item}")
-    lines.append("")
-    lines.append("5. 문의: 담당 부서")
+    lines.append("4. 문의: 담당 부서")
     lines.append("")
     return lines
 
@@ -715,7 +1279,6 @@ def _render_full_report(payload: PublicDocumentPayload) -> list[str]:
     lines.append("VI. 조치사항")
     lines.append("VII. 요청사항")
     lines.append("VIII. 근거 및 연결자료")
-    lines.append("IX. 작성 품질 점검")
     lines.append("")
     lines += _section("I. 추진배경 및 목적", payload.background)
     lines += _section("II. 현황", payload.current_status)
@@ -725,7 +1288,6 @@ def _render_full_report(payload: PublicDocumentPayload) -> list[str]:
     lines += _section("VI. 조치사항", payload.actions)
     lines += _section("VII. 요청사항", payload.requested_action)
     lines += _section("VIII. 근거 및 연결자료", _evidence_items(payload))
-    lines += _section("IX. 작성 품질 점검", payload.quality_checks)
     return lines
 
 
@@ -735,9 +1297,9 @@ def _render_email(payload: PublicDocumentPayload) -> list[str]:
     lines += _section("요지", payload.summary)
     lines += _section("요청사항", payload.requested_action)
     lines += _section("근거 및 연결자료", _evidence_items(payload))
-    lines += _section("작성 품질 점검", payload.quality_checks)
-    lines.append(f"- 요청 기한: {payload.deadline}")
-    lines.append("")
+    if payload.deadline:
+        lines.append(f"- 요청 기한: {payload.deadline}")
+        lines.append("")
     lines.append("감사합니다.")
     lines.append("")
     return lines

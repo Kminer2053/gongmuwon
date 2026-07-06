@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="클립보드 이미지 붙여넣기">
+  <defs>
+    <style>
+      .panel{fill:#f6f8f5;stroke:#e3e8e0;stroke-width:1.5;}
+      .ink{stroke:#2b2f2a;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .accent{fill:#3d7a4f;}
+      .accentline{stroke:#3d7a4f;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+      .amber{stroke:#d9a441;stroke-width:2;fill:none;stroke-linecap:round;}
+      .txt{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:11px;fill:#2b2f2a;}
+      .txtsub{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;font-size:10px;fill:#8a948a;}
+      .key{fill:#ffffff;stroke:#2b2f2a;stroke-width:1.5;}
+      .keytxt{font-family:Consolas,monospace;font-size:11px;fill:#2b2f2a;}
+    </style>
+  </defs>
+  <rect class="key" x="22" y="34" width="46" height="30" rx="6"/>
+  <text class="keytxt" x="34" y="53">Ctrl</text>
+  <text class="txt" x="76" y="54">+</text>
+  <rect class="key" x="88" y="34" width="30" height="30" rx="6"/>
+  <text class="keytxt" x="99" y="53">V</text>
+  <path class="accentline" d="M132 49 h34"/>
+  <path class="accentline" d="M158 41 l10 8 -10 8"/>
+  <rect class="panel" x="182" y="22" width="116" height="80" rx="12"/>
+  <rect x="194" y="34" width="52" height="40" rx="6" fill="#ffffff" stroke="#b7c0b6" stroke-width="1.5"/>
+  <circle cx="206" cy="46" r="4" fill="#d9a441"/>
+  <path class="amber" d="M196 66 l12 -10 8 7 10 -9 12 12"/>
+  <text class="txtsub" x="194" y="92">첨부 미리보기</text>
+  <path class="ink" d="M258 44 h28 M258 54 h28 M258 64 h18"/>
+  <text class="txt" x="16" y="140">화면 캡처를 그대로 붙여넣어 질문하세요.</text>
+  <text class="txtsub" x="16" y="158">업무대화 입력창은 클립보드 이미지를 바로 첨부합니다.</text>
+</svg>

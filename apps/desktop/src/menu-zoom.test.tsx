@@ -115,7 +115,6 @@ beforeEach(() => {
       const emptyCollections: Record<string, unknown> = {
         "/api/schedules": { items: [] },
         "/api/work-sessions": { items: [] },
-        "/api/reference-sets": { items: [] },
         "/api/templates": { items: [] },
         "/api/knowledge/candidates": { items: [] },
         "/api/knowledge/pages": { items: [] },

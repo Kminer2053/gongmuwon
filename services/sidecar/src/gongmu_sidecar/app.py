@@ -17,17 +17,20 @@ from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
+from .context_budget import (
+    assemble_turn_context,
+    deterministic_digest,
+    LLM_SUMMARY_CAP,
+)
 from .db import Database, now_iso
+from .document_authoring import register_authoring_routes
 from .document_parsers import parse_document
 from .documents import DocumentManager
-from .embeddings import embed_text
-from .file_organizer import FileOrganizer
-from .graphrag_backends import ChromaVectorBackend
-from .graphrag_ingestion import GraphRAGIngestionManager
 from .job_runner import JobRunner
 from .jobs import JobManager
 from .kordoc_bridge import kordoc_status
 from .knowledge import KnowledgeManager
+from .knowledge_wiki import KnowledgeWikiManager
 from .local_file_search import (
     compact_filename_text,
     scan_local_files_for_index,
@@ -38,9 +41,8 @@ from .llm import LLMGenerationError, generate_session_reply, generate_session_re
 from .personalization import PersonalizationManager
 from .settings import SidecarSettings, WorkspaceSettingsResponse, WorkspaceSettingsUpdate
 from .tools import TOOLS
+from .work_taxonomy import InvalidTagError, WorkTaxonomyManager
 from .workspace import WorkspacePaths, ensure_workspace
-
-ANYTHING_RELEASES_URL = "https://github.com/chrisryugj/Docufinder/releases"
 
 
 class ScheduleCreate(BaseModel):
@@ -48,6 +50,8 @@ class ScheduleCreate(BaseModel):
     starts_at: str
     ends_at: str
     view: Literal["month", "week", "day"] = "day"
+    # F-20: 분 단위 사전 알림 (None = 알림 없음)
+    remind_before_minutes: int | None = Field(default=None, ge=0)
 
 
 class ScheduleUpdate(BaseModel):
@@ -55,6 +59,7 @@ class ScheduleUpdate(BaseModel):
     starts_at: str
     ends_at: str
     view: Literal["month", "week", "day"] = "day"
+    remind_before_minutes: int | None = Field(default=None, ge=0)
 
 
 class WorkSessionCreate(BaseModel):
@@ -97,18 +102,6 @@ class LLMConnectionTestRequest(BaseModel):
     prompt: str = "간단한 상태 점검 응답을 한 문장으로 돌려주세요."
 
 
-class ReferenceItemInput(BaseModel):
-    kind: str
-    label: str
-    value: str
-
-
-class ReferenceSetCreate(BaseModel):
-    title: str
-    session_id: str | None = None
-    items: list[ReferenceItemInput] = Field(default_factory=list)
-
-
 class CandidateFromNote(BaseModel):
     title: str
     body: str
@@ -136,8 +129,60 @@ class KnowledgeRetrieveRequest(BaseModel):
     limit: int = 5
 
 
+class KnowledgeEnrichRequest(BaseModel):
+    source_id: str | None = None
+    background: bool = True
+    # P2a §5.4: 실행당 LLM 호출 상한 — 기본 20건(사용자 승인값), 초과분 이월.
+    limit: int | None = None
+
+
+class KnowledgeLintRequest(BaseModel):
+    fix: bool = True
+    deep: bool = False
+
+
+class KnowledgeVerifyRequest(BaseModel):
+    # P3 §6: quick 모드는 재해시 금지 — deep=True일 때만 전량 재해시(V11 silent change).
+    deep: bool = False
+    background: bool = False
+
+
+class KnowledgeDocUidMigrateRequest(BaseModel):
+    source_id: str | None = None
+
+
 class KnowledgeParseDocumentRequest(BaseModel):
     file_path: str
+
+
+class TaxonomyInterviewRequest(BaseModel):
+    org_type: str = ""
+    department: str = ""
+    duty: str = ""
+    purpose: str = ""
+
+
+class TaxonomyWorkAreaInput(BaseModel):
+    name: str
+    folders: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+
+
+class TaxonomyConfirmRequest(BaseModel):
+    source_id: str
+    work_areas: list[TaxonomyWorkAreaInput]
+    doc_roles_enabled: list[str] = Field(default_factory=list)
+    family_policy: str = "latest_representative"
+
+
+class TaxonomyApplyRequest(BaseModel):
+    source_id: str
+    background: bool = False
+
+
+class TaxonomyQueueResolveRequest(BaseModel):
+    work_area_slug: str = ""
+    doc_role: str = ""
 
 
 class PersonalizationDecisionRequest(BaseModel):
@@ -147,7 +192,6 @@ class PersonalizationDecisionRequest(BaseModel):
 class ContentBaseCreate(BaseModel):
     title: str
     purpose: str
-    reference_set_id: str | None = None
     template_key: Literal["report", "meeting", "review"] = "report"
     source_session_id: str | None = None
     outline: str = ""
@@ -173,20 +217,6 @@ class DocumentGenerateRequest(ContentBaseCreate):
     output_name: str | None = None
 
 
-class AnythingLaunchRequest(BaseModel):
-    query: str | None = None
-
-
-class AnythingLaunchImportRequest(BaseModel):
-    title: str
-    session_id: str | None = None
-    paths: list[str] = Field(default_factory=list)
-
-
-class FileProposalRequest(BaseModel):
-    target_path: str
-
-
 class ApprovalDecisionRequest(BaseModel):
     status: Literal["approved", "rejected"]
     decision_note: str | None = None
@@ -202,15 +232,22 @@ class AppServices:
         self.recovered_work_jobs = self.jobs.recover_interrupted_jobs()
         self.job_runner = JobRunner(self.jobs)
         self.knowledge = KnowledgeManager(self.paths, self.db)
-        self.graphrag = GraphRAGIngestionManager(
-            self.db,
-            embedding_provider=self._embed_for_graphrag,
-            vector_backend=self._create_graphrag_vector_backend(),
-        )
-        self.recovered_knowledge_jobs = self.graphrag.recover_interrupted_jobs()
+        self.wiki = KnowledgeWikiManager(self.paths, self.db)
+        # W7 P1 §4.3: 스캔의 MOVED 판정이 위키 rebind(경로 사본 7곳 전파)를
+        # 파일당 단일 트랜잭션 안에서 호출할 수 있게 배선한다.
+        self.knowledge.wiki_rebinder = self.wiki.rebind_moved_source_file
+        # 이동이 있었던 스캔은 index.md를 바로 재생성해 구 슬러그 카드로의
+        # 일시적 죽은 링크(다음 인제스트/lint까지)를 없앤다.
+        self.knowledge.wiki_index_rebuilder = self.wiki.rebuild_index
+        self.taxonomy = WorkTaxonomyManager(self.paths, self.db, self.wiki)
+        # W7 P2a §5.3: 색인 내 증분 태깅·패밀리 국소 재평가가 dirty 업무 허브만
+        # 축소 재작성할 수 있게 배선한다(순환 의존 없이 훅 주입).
+        self.wiki.hub_refresher = self.taxonomy.refresh_hubs
+        # W7 P3 §5.9: 스캔 완료 시 분류체계 드리프트 감지에 편승한다(제안 배지만).
+        self.knowledge.drift_detector = self.taxonomy.detect_drift
+        self.recovered_knowledge_jobs = self.wiki.recover_interrupted_jobs()
         self.personalization = PersonalizationManager(self.db)
         self.documents = DocumentManager(self.paths, self.db)
-        self.file_organizer = FileOrganizer(self.paths, self.db)
 
     @property
     def personalization_root(self) -> Path:
@@ -232,19 +269,72 @@ class AppServices:
         ):
             path.mkdir(parents=True, exist_ok=True)
 
-    def _create_graphrag_vector_backend(self) -> ChromaVectorBackend | None:
-        if self.settings.graphrag_vector_backend != "chromadb":
-            return None
-        return ChromaVectorBackend(self.paths.knowledge_graph / "chroma")
-
-    def _embed_for_graphrag(self, text: str):
-        return embed_text(
-            text,
-            provider=self.settings.embedding_provider,
-            model=self.settings.embedding_model,
-            base_url=self.settings.embedding_base_url,
-            fallback=self.settings.embedding_fallback_enabled,
+    def analyze_work_session(self, session_id: str) -> dict[str, Any]:
+        """'이 세션 지식 반영': 개인화 요약 저장 후 위키 업무 기록(work/) 페이지를 갱신한다."""
+        result = self.personalization.analyze_session(
+            session_id=session_id,
+            apply_mode=self.settings.personalization_apply_mode,
+            personalization_root=self.personalization_root,
         )
+        session = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if session is None:
+            raise KeyError(session_id)
+        messages = self.db.fetch_all(
+            "SELECT * FROM work_session_messages WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        )
+        file_links = self.db.fetch_all(
+            "SELECT * FROM work_session_file_links WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        )
+        schedule = None
+        if session.get("schedule_id"):
+            schedule = self.db.fetch_one(
+                "SELECT * FROM schedules WHERE id = ?", (session["schedule_id"],)
+            )
+        summary = ""
+        try:
+            proposed = json.loads(result["candidate"]["proposed_payload"])
+            summary = str(proposed.get("summary") or "")
+        except (KeyError, TypeError, ValueError):
+            summary = ""
+        work_page: dict[str, Any] | None = None
+        try:
+            work_page = self.wiki.write_work_page(
+                session=session,
+                messages=messages,
+                file_links=file_links,
+                summary=summary,
+                schedule=schedule,
+            )
+            self.db.log(
+                feature="knowledge",
+                action="knowledge.wiki.work_page.updated",
+                status="success",
+                inputs={"session_id": session_id},
+                outputs={
+                    "slug": work_page["slug"],
+                    "relative_path": work_page["relative_path"],
+                    "cited_doc_count": len(work_page["cited_doc_slugs"]),
+                },
+            )
+        except OSError as exc:
+            self.db.log(
+                feature="knowledge",
+                action="knowledge.wiki.work_page.failed",
+                status="failed",
+                inputs={"session_id": session_id},
+                outputs={"error": str(exc)},
+            )
+        return {**result, "wiki_work_page": work_page}
+
+    def _wiki_llm_generate(self, messages: list[dict[str, Any]]) -> str | None:
+        """지식위키 ask/enrich용 LLM 호출. 실패 시 None → 결정론 답변 유지."""
+        try:
+            result = generate_session_reply(self.settings, messages)
+        except LLMGenerationError:
+            return None
+        return self._prepare_assistant_output_text(result.text)
 
     def _serialize_attachment(self, record: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -256,6 +346,7 @@ class AppServices:
             "stored_path": record["stored_path"],
             "size_bytes": record["size_bytes"],
             "text_excerpt": record.get("text_excerpt"),
+            "text_char_count": record.get("text_char_count"),
             "created_at": record["created_at"],
         }
 
@@ -277,11 +368,38 @@ class AppServices:
 
         return [
             {
-                **record,
+                **{key: value for key, value in record.items() if key != "citations_json"},
                 "attachments": attachments_by_message.get(record["id"], []),
+                "citations": self._parse_citations_json(record.get("citations_json")),
             }
             for record in records
         ]
+
+    @staticmethod
+    def _parse_citations_json(raw: str | None) -> list[dict[str, str]]:
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return []
+        if not isinstance(parsed, list):
+            return []
+        citations: list[dict[str, str]] = []
+        for entry in parsed:
+            if not isinstance(entry, dict):
+                continue
+            citations.append(
+                {
+                    "title": str(entry.get("title") or ""),
+                    "file_path": str(entry.get("file_path") or ""),
+                    "snippet": str(entry.get("snippet") or ""),
+                    # §5.6: doc_uid — 원본 이동·삭제 시 위키 카드 폴백 키.
+                    # 기존 3필드 인용(doc_uid 부재)은 빈 문자열로 하위호환.
+                    "doc_uid": str(entry.get("doc_uid") or ""),
+                }
+            )
+        return citations
 
     def _serialize_work_session(self, record: dict[str, Any]) -> dict[str, Any]:
         messages = self.db.fetch_all(
@@ -382,6 +500,9 @@ class AppServices:
             "starts_at": payload.starts_at,
             "ends_at": payload.ends_at,
             "view": payload.view,
+            "remind_before_minutes": payload.remind_before_minutes,
+            "reminder_acknowledged_at": None,
+            "reminder_notified_at": None,
             "created_at": now_iso(),
         }
         self.db.insert("schedules", record)
@@ -402,13 +523,22 @@ class AppServices:
         if not existing:
             raise KeyError(schedule_id)
 
+        # 일정 내용이 바뀌면 알림 상태(확인/발생)를 초기화해 다시 알림이 가도록 한다.
         self.db.execute(
             """
             UPDATE schedules
-            SET title = ?, starts_at = ?, ends_at = ?, view = ?
+            SET title = ?, starts_at = ?, ends_at = ?, view = ?,
+                remind_before_minutes = ?, reminder_acknowledged_at = NULL, reminder_notified_at = NULL
             WHERE id = ?
             """,
-            (payload.title, payload.starts_at, payload.ends_at, payload.view, schedule_id),
+            (
+                payload.title,
+                payload.starts_at,
+                payload.ends_at,
+                payload.view,
+                payload.remind_before_minutes,
+                schedule_id,
+            ),
         )
         updated = self.db.fetch_one("SELECT * FROM schedules WHERE id = ?", (schedule_id,))
         assert updated is not None
@@ -436,10 +566,84 @@ class AppServices:
         )
         return {"id": schedule_id, "deleted": True, "schedule": existing}
 
+    @staticmethod
+    def _parse_schedule_moment(value: Any) -> datetime | None:
+        """일정 ISO 문자열 → aware datetime. naive 값은 로컬 시간으로 해석한다."""
+        try:
+            parsed = datetime.fromisoformat(str(value))
+        except (TypeError, ValueError):
+            return None
+        return parsed.astimezone()
+
+    def list_due_schedule_reminders(self) -> list[dict[str, Any]]:
+        """F-20: 알림 창(starts_at - remind_before <= now < starts_at)에 들어온 미확인 일정.
+
+        클라이언트가 기존 30초 heartbeat 로 이 목록을 폴링한다. 처음 목록에 실린
+        시점(reminder_notified_at)에 실행기록(알림 발생)을 1회 남긴다.
+        """
+        now = datetime.now(timezone.utc)
+        rows = self.db.fetch_all(
+            """
+            SELECT * FROM schedules
+            WHERE remind_before_minutes IS NOT NULL AND reminder_acknowledged_at IS NULL
+            ORDER BY starts_at ASC
+            """
+        )
+        due: list[dict[str, Any]] = []
+        for row in rows:
+            starts_at = self._parse_schedule_moment(row.get("starts_at"))
+            if starts_at is None:
+                continue
+            try:
+                window = timedelta(minutes=int(row["remind_before_minutes"]))
+            except (TypeError, ValueError):
+                continue
+            if not (starts_at - window <= now < starts_at):
+                continue
+            if not row.get("reminder_notified_at"):
+                notified_at = now_iso()
+                self.db.execute(
+                    "UPDATE schedules SET reminder_notified_at = ? WHERE id = ?",
+                    (notified_at, row["id"]),
+                )
+                row["reminder_notified_at"] = notified_at
+                self.db.log(
+                    feature="schedule",
+                    action="schedule.reminder.triggered",
+                    status="success",
+                    inputs={"schedule_id": row["id"]},
+                    outputs={
+                        "title": row["title"],
+                        "starts_at": row["starts_at"],
+                        "remind_before_minutes": row["remind_before_minutes"],
+                    },
+                )
+            due.append(row)
+        return due
+
+    def acknowledge_schedule_reminder(self, schedule_id: str) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM schedules WHERE id = ?", (schedule_id,))
+        if not existing:
+            raise KeyError(schedule_id)
+        acknowledged_at = now_iso()
+        self.db.execute(
+            "UPDATE schedules SET reminder_acknowledged_at = ? WHERE id = ?",
+            (acknowledged_at, schedule_id),
+        )
+        updated = self.db.fetch_one("SELECT * FROM schedules WHERE id = ?", (schedule_id,))
+        assert updated is not None
+        self.db.log(
+            feature="schedule",
+            action="schedule.reminder.acknowledged",
+            status="success",
+            inputs={"schedule_id": schedule_id},
+            outputs={"title": updated["title"], "acknowledged_at": acknowledged_at},
+        )
+        return updated
+
     def update_settings(self, payload: WorkspaceSettingsUpdate) -> WorkspaceSettingsResponse:
         self.settings = self.settings.apply_update(payload)
         self._ensure_personalization_root()
-        self.graphrag.vector_backend = self._create_graphrag_vector_backend()
         self.settings.persist(self.paths.config_file)
         self.db.log(
             feature="settings",
@@ -463,6 +667,7 @@ class AppServices:
                 "embedding_base_url": self.settings.embedding_base_url,
                 "embedding_fallback_enabled": self.settings.embedding_fallback_enabled,
                 "graphrag_vector_backend": self.settings.graphrag_vector_backend,
+                "knowledge_engine": self.settings.knowledge_engine,
             },
         )
         return WorkspaceSettingsResponse(
@@ -474,7 +679,6 @@ class AppServices:
                 "llm_site_url": self.settings.llm_site_url,
                 "llm_application_name": self.settings.llm_application_name,
                 "profiles": self.settings.llm_profiles,
-                "anything_launch_mode": self.settings.anything_launch_mode,
                 "default_template_key": self.settings.default_template_key,
                 "internal_api_base_url": self.settings.internal_api_base_url,
                 "personalization_apply_mode": self.settings.personalization_apply_mode,
@@ -483,6 +687,7 @@ class AppServices:
                 "embedding_base_url": self.settings.embedding_base_url,
                 "embedding_fallback_enabled": self.settings.embedding_fallback_enabled,
                 "graphrag_vector_backend": self.settings.graphrag_vector_backend,
+                "knowledge_engine": self.settings.knowledge_engine,
             },
             paths={
                 "workspace_root": str(self.paths.root),
@@ -732,10 +937,15 @@ class AppServices:
             "provider": payload.provider,
             "model": payload.model,
             "latency_ms": payload.latency_ms,
+            "citations_json": None,
             "created_at": now_iso(),
         }
         self.db.insert("work_session_messages", record)
-        return {**record, "attachments": []}
+        return {
+            **{key: value for key, value in record.items() if key != "citations_json"},
+            "attachments": [],
+            "citations": [],
+        }
 
     def list_work_session_messages(self, session_id: str) -> list[dict[str, Any]]:
         existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
@@ -766,10 +976,14 @@ class AppServices:
 
             guessed_mime = mime_type or mimetypes.guess_type(safe_name)[0]
             excerpt: str | None = None
-            if guessed_mime and guessed_mime.startswith("text/"):
-                excerpt = payload.decode("utf-8", errors="ignore")[:4000].strip() or None
-            elif safe_name.lower().endswith((".md", ".txt", ".json", ".csv", ".js", ".ts", ".tsx", ".py")):
-                excerpt = payload.decode("utf-8", errors="ignore")[:4000].strip() or None
+            text_char_count: int | None = None
+            is_texty = bool(guessed_mime and guessed_mime.startswith("text/")) or safe_name.lower().endswith(
+                (".md", ".txt", ".json", ".csv", ".js", ".ts", ".tsx", ".py")
+            )
+            if is_texty:
+                decoded = payload.decode("utf-8", errors="ignore").strip()
+                text_char_count = len(decoded) or None
+                excerpt = decoded[:4000].strip() or None
 
             record = {
                 "id": str(uuid4()),
@@ -780,6 +994,7 @@ class AppServices:
                 "stored_path": str(stored_path),
                 "size_bytes": len(payload),
                 "text_excerpt": excerpt,
+                "text_char_count": text_char_count,
                 "created_at": now_iso(),
             }
             self.db.insert("work_session_attachments", record)
@@ -826,8 +1041,13 @@ class AppServices:
             lines.append(
                 f"- {attachment['file_name']} ({attachment.get('mime_type') or 'unknown'}, {attachment['size_bytes']} bytes)"
             )
-            if attachment.get("text_excerpt"):
-                lines.append(f"  excerpt: {attachment['text_excerpt']}")
+            excerpt = attachment.get("text_excerpt")
+            if excerpt:
+                # T-02: 발췌가 원문의 일부임을 모델·사용자 검증이 알 수 있게 표기.
+                # (전체 FTS 색인 기반 질의연동 발췌는 W4+ 과제)
+                total_chars = attachment.get("text_char_count") or len(excerpt)
+                lines.append(f"  [첨부 발췌: 전체 {total_chars}자 중 {len(excerpt)}자]")
+                lines.append(f"  excerpt: {excerpt}")
         return "\n".join(lines)
 
     def create_document_attachments(self, files: list[tuple[str, str | None, bytes]]) -> list[dict[str, Any]]:
@@ -942,67 +1162,174 @@ class AppServices:
             [
                 "[Gongmu safety policy]",
                 "모든 답변은 한국어로 간결하게 작성하세요.",
-                "로컬 문서, GraphRAG 근거, 첨부파일, 연결파일에 비밀번호, API Key, 토큰, 인증키, 주민등록번호 같은 민감정보가 있으면 값을 그대로 말하지 말고 [보호됨]으로 가리세요.",
+                "로컬 문서, 지식폴더 근거, 첨부파일, 연결파일에 비밀번호, API Key, 토큰, 인증키, 주민등록번호 같은 민감정보가 있으면 값을 그대로 말하지 말고 [보호됨]으로 가리세요.",
                 "민감정보의 존재나 위치는 업무상 필요한 범위에서만 설명하고, 실제 값 복사 요청은 거절한 뒤 사용자가 직접 원문 파일에서 확인하도록 안내하세요.",
-                "GraphRAG 근거를 사용할 때는 추정과 확인된 사실을 구분하고, 가능하면 출처 문서명과 파일 경로를 함께 제시하세요.",
+                "지식폴더 근거를 사용할 때는 추정과 확인된 사실을 구분하고, 가능하면 출처 문서명과 파일 경로를 함께 제시하세요.",
                 "일정 등록, 일정 조회, 일정 삭제, 문서작성처럼 Gongmu가 직접 수행할 수 있는 업무는 일반 조언으로 돌리지 말고 도구 실행 결과를 우선 사용하세요.",
                 "내부 추론, 라우팅 판단, 시스템 프롬프트, 정책 점검 과정은 절대 출력하지 말고 사용자에게 보여줄 최종 답변만 작성하세요.",
                 "긴 문단 하나로 쓰지 말고 짧은 문단, 번호 목록, 표, 굵게 표시를 활용해 ChatGPT처럼 읽기 쉬운 Markdown으로 작성하세요.",
             ]
         )
 
-    def _build_graphrag_prompt_block(self, *, session_id: str, query: str) -> str | None:
+    def _build_knowledge_context(
+        self, *, session_id: str, query: str
+    ) -> tuple[str | None, list[dict[str, str]]]:
+        """지식폴더 근거 프롬프트 블록과 인용 메타데이터(citations)를 함께 만든다.
+
+        반환값의 두 번째 요소는 [{title, file_path, snippet}] 형태로, 어시스턴트
+        메시지에 citations_json으로 저장되어 데스크톱에서 출처 칩을 렌더링하는 데 쓰인다.
+        """
         normalized_query = query.strip()
         if not normalized_query:
-            return None
+            return None, []
         try:
-            retrieval = self.graphrag.retrieve(query=normalized_query, session_id=session_id, limit=5)
+            retrieval = self.wiki.retrieve(query=normalized_query, session_id=session_id, limit=5)
         except Exception as exc:
             self.db.log(
                 feature="chat",
-                action="work_session.graphrag_context.failed",
+                action="work_session.knowledge_context.failed",
                 status="failed",
                 inputs={"session_id": session_id, "query": normalized_query},
                 outputs={"error": str(exc)},
             )
-            return None
+            return None, []
 
         items = retrieval.get("items") if isinstance(retrieval, dict) else None
         if not isinstance(items, list) or not items:
-            return None
+            return None, []
 
         lines = [
-            "[GraphRAG context]",
-            "아래 근거는 사용자가 등록한 지식폴더와 이 업무대화 세션에 연결된 파일에서 검색한 로컬 근거입니다.",
-            "답변에는 이 근거를 우선 반영하고, 확실하지 않은 내용은 추정이라고 표시하세요.",
+            "[지식폴더 근거]",
+            "아래 근거는 사용자가 등록한 지식폴더 위키에서 검색한 로컬 근거입니다.",
+            "답변에는 이 근거를 우선 반영하고, 각 내용 뒤에 (출처: 문서 제목) 형식으로 인용하세요. 파일 경로는 답변에 쓰지 마세요.",
         ]
+        citations: list[dict[str, str]] = []
         for index, item in enumerate(items[:5], start=1):
             if not isinstance(item, dict):
                 continue
             document = item.get("document") if isinstance(item.get("document"), dict) else {}
             title = str(document.get("title") or item.get("title") or "제목 없음")
             file_path = str(document.get("file_path") or item.get("file_path") or "")
-            evidence_type = str(item.get("evidence_type") or "section")
             chunk = item.get("chunk") if isinstance(item.get("chunk"), dict) else {}
             text = str(item.get("text") or item.get("snippet") or chunk.get("text") or "").strip()
             text = self._redact_sensitive_text(text)
-            if len(text) > 700:
-                text = f"{text[:700]}..."
-            relation_labels = [
-                str(relation.get("target_label") or relation.get("relation") or "").strip()
-                for relation in item.get("relations", [])
-                if isinstance(relation, dict)
-            ]
+            if len(text) > 500:
+                text = f"{text[:500]}..."
             lines.append(f"{index}. {title}")
             if file_path:
-                lines.append(f"   path: {file_path}")
-            lines.append(f"   evidence_type: {evidence_type}")
-            if relation_labels:
-                lines.append(f"   relations: {', '.join(label for label in relation_labels if label)}")
+                lines.append(f"   원본: {file_path}")
             if text:
-                lines.append(f"   excerpt: {text}")
+                lines.append(f"   발췌: {text}")
+            snippet = text[:200] if text else ""
+            citations.append(
+                {
+                    "title": title,
+                    "file_path": file_path,
+                    "snippet": snippet,
+                    # §5.6: 인용 칩 '원본 열기' 폴백용 doc_uid (title/file_path/snippet 유지).
+                    "doc_uid": str(item.get("doc_uid") or ""),
+                }
+            )
 
-        return "\n".join(lines).strip() or None
+        prompt_block = "\n".join(lines).strip() or None
+        return prompt_block, citations
+
+    def _build_knowledge_prompt_block(self, *, session_id: str, query: str) -> str | None:
+        prompt_block, _citations = self._build_knowledge_context(session_id=session_id, query=query)
+        return prompt_block
+
+    def _assemble_chat_prompt(
+        self,
+        *,
+        session: dict[str, Any],
+        session_id: str,
+        assistant_message_id: str,
+        attached_files: list[dict[str, Any]],
+        graphrag_prompt_block: str | None,
+    ) -> tuple[list[dict[str, Any]], bool, dict[str, int]]:
+        """T-02: 턴 프롬프트를 컨텍스트 예산 안에서 조립한다.
+
+        고정 순서: 가드레일 → 지식폴더 근거 → 첨부 발췌 → [이전 대화 요약] → 최근 N턴 원문.
+        예산에서 밀려난 과거 턴은 세션 롤링 요약 블록으로 대표된다.
+        """
+        session_messages = [
+            message
+            for message in self.list_work_session_messages(session_id)
+            if message["id"] != assistant_message_id and message.get("status") != "pending"
+        ]
+        attachment_block = (
+            self._build_attachment_prompt_block(attached_files) if attached_files else None
+        )
+        return assemble_turn_context(
+            guardrail_block=self._chat_guardrail_prompt(),
+            knowledge_block=graphrag_prompt_block,
+            attachment_block=attachment_block,
+            session_messages=session_messages,
+            rolling_summary=session.get("context_summary_text"),
+            budget_tokens=self.settings.context_budget_tokens,
+        )
+
+    def _update_session_rolling_summary(
+        self,
+        session_id: str,
+        *,
+        user_text: str,
+        assistant_text: str,
+        upto_message_id: str,
+    ) -> None:
+        """T-02: 턴 성공 후 세션 롤링 요약을 증분 갱신한다.
+
+        LLM이 구성돼 있으면 짧은 호출 1회(이전 요약 + 이번 턴 2메시지 → 5문장 요약).
+        LLM 호출이 실패하면 결정론 다이제스트(사용자 첫 문장 bullet, 800자 제한)로
+        대체하고, 그 외 예기치 못한 오류는 기존 요약을 유지한다. 어떤 경우에도
+        턴 응답을 막거나 실패시키지 않는다.
+        """
+        try:
+            row = self.db.fetch_one(
+                "SELECT context_summary_text FROM work_sessions WHERE id = ?",
+                (session_id,),
+            )
+        except Exception:
+            return
+        previous = (row or {}).get("context_summary_text")
+        prompt = [
+            {
+                "role": "system",
+                "text": (
+                    "[대화 요약 갱신]\n"
+                    "당신은 업무대화 세션의 롤링 요약기입니다. 이전 요약과 이번 턴의 두 메시지를 "
+                    "반영해 갱신된 요약을 한국어 5문장 이내로만 출력하세요. "
+                    "업무 사실(주제, 결정, 일정, 파일, 요청)만 남기고 인사말과 군더더기는 제외합니다."
+                ),
+            },
+            {
+                "role": "user",
+                "text": (
+                    f"[이전 요약]\n{previous or '(없음)'}\n\n"
+                    f"[이번 턴 사용자]\n{str(user_text or '')[:2000]}\n\n"
+                    f"[이번 턴 어시스턴트]\n{str(assistant_text or '')[:2000]}\n\n"
+                    "갱신된 요약:"
+                ),
+            },
+        ]
+        new_summary: str | None
+        try:
+            result = generate_session_reply(self.settings, prompt)
+            candidate = self._prepare_assistant_output_text(result.text or "").strip()
+            new_summary = candidate[:LLM_SUMMARY_CAP] or previous
+        except LLMGenerationError:
+            new_summary = deterministic_digest(previous, user_text) or previous
+        except Exception:
+            return
+        if not new_summary or new_summary == previous:
+            return
+        try:
+            self.db.execute(
+                "UPDATE work_sessions SET context_summary_text = ?, context_summary_upto = ? WHERE id = ?",
+                (new_summary, upto_message_id, session_id),
+            )
+        except Exception:
+            return
 
     def _try_run_work_session_skill(
         self,
@@ -1035,8 +1362,6 @@ class AppServices:
             return self._run_schedule_list_skill()
         if self._looks_like_document_create_request(normalized):
             return self._run_document_create_skill(session_id=session_id, session=session, text=normalized)
-        if self._looks_like_knowledge_request(normalized):
-            return self._run_knowledge_search_skill(session_id=session_id, query=normalized)
         return None
 
     def _plan_work_session_intents(self, text: str) -> list[str]:
@@ -1047,8 +1372,6 @@ class AppServices:
             planned.append("schedule.create")
         elif self._looks_like_schedule_list_request(text):
             planned.append("schedule.list")
-        if self._looks_like_knowledge_request(text):
-            planned.append("knowledge.search")
         if self._looks_like_document_create_request(text):
             planned.append("documents.generate")
         return planned
@@ -1073,8 +1396,6 @@ class AppServices:
                 skill_result = self._run_schedule_create_skill(text)
             elif intent == "schedule.list":
                 skill_result = self._run_schedule_list_skill()
-            elif intent == "knowledge.search":
-                skill_result = self._run_knowledge_search_skill(session_id=session_id, query=text)
             elif intent == "documents.generate":
                 skill_result = self._run_document_create_skill(session_id=session_id, session=session, text=text)
 
@@ -1088,7 +1409,6 @@ class AppServices:
                 "schedule.delete": "일정 삭제",
                 "schedule.create": "일정 등록",
                 "schedule.list": "일정 조회",
-                "knowledge.search": "지식폴더 검색",
                 "documents.generate": "문서작성",
             }.get(intent, intent)
             sections.extend(["", f"## {label}", str(skill_result.get("text") or "").strip()])
@@ -1107,12 +1427,9 @@ class AppServices:
         usage_markers = ["사용법", "어떻게", "안내", "설명", "도움말", "가이드", "help", "guide", "how to"]
         feature_markers = [
             "업무대화",
-            "파일찾기",
             "일정",
             "문서작성",
             "지식폴더",
-            "graphrag",
-            "그래프rag",
             "실행기록",
             "환경설정",
         ]
@@ -1126,35 +1443,29 @@ class AppServices:
             "1. 업무대화",
             "- 작업을 자연어로 말하면 일정 조회/등록, 지식폴더 검색, 문서작성 같은 연계 기능을 먼저 시도합니다.",
             "- 답변에 출처가 있는 경우 파일 열기/폴더 열기 링크로 원문 위치를 확인할 수 있습니다.",
+            "- 필요한 파일은 툴바의 [파일 연결] 버튼으로 검색해 현재 세션에 연결한 뒤 대화와 문서작성 근거로 사용할 수 있습니다.",
             "",
-            "2. 파일찾기",
-            "- 로컬 PC와 등록된 지식폴더의 파일명/경로/본문 색인을 검색합니다.",
-            "- 필요한 파일은 현재 업무대화 세션에 연결해 이후 대화와 문서작성 근거로 사용할 수 있습니다.",
-            "",
-            "3. 일정",
+            "2. 일정",
             "- 캘린더 칸을 클릭해 일정을 등록하거나, 업무대화에서 '내일 오후 2시 회의 일정 등록'처럼 요청할 수 있습니다.",
             "",
-            "4. 문서작성",
-            "- 업무대화 세션, 연결 파일, Reference Set, 직접 입력한 개요를 Content Base로 정리한 뒤 HWPX 산출로 이어갑니다.",
+            "3. 문서작성",
+            "- 업무대화 세션, 연결 파일, 직접 입력한 개요를 작성 콘텐츠로 정리한 뒤 HWPX 산출로 이어갑니다.",
             "- 시행문, 1페이지 보고서, 풀버전 보고서, 이메일 형식 중 하나를 선택할 수 있습니다.",
             "",
-            "5. 내 지식폴더",
-            "- 업무 폴더를 등록한 뒤 색인 처리에서 GraphRAG 인덱싱을 실행하면 업무대화 검색 근거로 사용됩니다.",
+            "4. 내 지식폴더",
+            "- 업무 폴더를 등록한 뒤 색인 처리를 실행하면 지식위키가 만들어져 업무대화 검색 근거로 사용됩니다.",
+            "",
+            "5. 실행기록",
+            "- 업무대화, 일정, 문서작성, 지식폴더 등에서 실행된 작업 이력과 승인 내역을 확인합니다.",
+            "",
+            "6. 환경설정",
+            "- LLM 연결, 개인화, 지식폴더 색인 등 동작 방식을 프로필 단위로 관리합니다.",
         ]
         return {
             "actions": ["help.guide"],
-            "results": [{"query": query, "guide_sections": 5}],
+            "results": [{"query": query, "guide_sections": 6}],
             "text": "\n".join(lines),
         }
-
-    @staticmethod
-    def _looks_like_knowledge_request(text: str) -> bool:
-        lowered = text.lower()
-        knowledge_markers = ["지식폴더", "graphrag", "그래프rag", "근거", "출처", "자료", "knowledge", "rag", "source"]
-        action_markers = ["찾", "알려", "검색", "알아", "무엇", "뭐", "search", "find", "lookup", "show"]
-        return any(marker in lowered for marker in knowledge_markers) and any(
-            marker in lowered for marker in action_markers
-        )
 
     @staticmethod
     def _looks_like_schedule_create_request(text: str) -> bool:
@@ -1236,47 +1547,6 @@ class AppServices:
                 "export",
             ]
         )
-
-    def _run_knowledge_search_skill(self, *, session_id: str, query: str) -> dict[str, Any]:
-        result = self.graphrag.ask(query=query, session_id=session_id, limit=5)
-        citations = [citation for citation in result.get("citations", []) if isinstance(citation, dict)]
-        lines = [
-            "GraphRAG 검색 결과입니다.",
-            "",
-            self._redact_sensitive_text(
-                str(result.get("answer") or "관련 근거를 찾았지만 요약 답변을 만들지 못했습니다.").strip()
-            ),
-        ]
-        if citations:
-            lines.extend(["", "출처"])
-            for index, citation in enumerate(citations[:5], start=1):
-                title = str(citation.get("title") or "제목 없음")
-                file_path = str(citation.get("file_path") or "")
-                folder_path = str(Path(file_path).parent) if file_path else ""
-                lines.append(f"{index}. {title}")
-                if file_path:
-                    lines.append(f"   - 파일 열기: {file_path}")
-                    lines.append(f"   - 폴더 열기: {folder_path}")
-                relation_labels = [
-                    str(relation.get("target_label") or relation.get("relation") or "").strip()
-                    for relation in citation.get("relations", [])
-                    if isinstance(relation, dict)
-                ]
-                if relation_labels:
-                    lines.append(f"   - 관계: {', '.join(label for label in relation_labels if label)}")
-        else:
-            lines.extend(["", "출처: 검색된 문서 없음"])
-        return {
-            "actions": ["knowledge.search"],
-            "results": [
-                {
-                    "query": query,
-                    "citation_count": len(citations),
-                    "retrieval_summary": result.get("retrieval_summary") or {},
-                }
-            ],
-            "text": "\n".join(lines).strip(),
-        }
 
     def _run_schedule_list_skill(self) -> dict[str, Any]:
         schedules = self.list_schedules()
@@ -1443,7 +1713,6 @@ class AppServices:
             title=f"{session['title']} 문서",
             purpose="업무대화 세션 기반 자동 문서작성",
             template_key="report",
-            reference_set_id=self._latest_reference_set_id_for_session(session_id),
             source_session_id=session_id,
             outline=text,
             document_format=document_format,
@@ -1509,67 +1778,10 @@ class AppServices:
             ),
         }
 
-    def _generate_document_from_request_legacy_unused(self, payload: DocumentGenerateRequest) -> dict[str, Any]:
-        return self.generate_document_from_request(payload)
-        work_job = self.jobs.create_job(
-            kind="documents.generate",
-            title=f"{session['title']} HWPX 생성",
-            input={
-                "source": "work_session_skill",
-                "session_id": session_id,
-                "document_format": document_format,
-                "linked_file_count": len(direct_paths),
-            },
-            resource_key=f"work_session:{session_id}:document",
-            resource_policy="exclusive",
-        )
-        self.jobs.start_job(work_job["id"], stage="업무대화 컨텍스트 수집")
-        content_base = self.documents.create_content_base(
-            title=payload.title,
-            purpose=payload.purpose,
-            reference_set_id=payload.reference_set_id,
-            template_key=payload.template_key,
-            source_session_id=payload.source_session_id,
-            outline=payload.outline,
-            document_format=payload.document_format,
-            audience_type=payload.audience_type,
-            expected_length=payload.expected_length,
-            urgency_level=payload.urgency_level,
-            needs_traceability=payload.needs_traceability,
-            requires_official_form=payload.requires_official_form,
-            requested_action=payload.requested_action,
-            deadline=payload.deadline,
-            security_level=payload.security_level,
-            direct_file_paths=payload.direct_file_paths,
-            user_template_path=payload.user_template_path,
-        )
-        self.jobs.update_progress(work_job["id"], progress_percent=35, stage="콘텐츠 베이스 구성")
-        finalize = self.documents.request_final_document_output(
-            content_base_id=content_base["id"],
-            output_name=(payload.output_name or payload.title).strip() or content_base["title"],
-        )
-        ticket_id = finalize["approval_ticket"]["id"]
-        approved_ticket = self.decide_approval_ticket(
-            ticket_id,
-            ApprovalDecisionRequest(status="approved", decision_note="document generate one-shot approved"),
-        )
-        finalize["approval_ticket"] = approved_ticket
-        applied = self.documents.apply_final_document_output(ticket_id)
-        return {
-            "content_base": content_base,
-            "finalize": {
-                **finalize,
-                "final_document_output": applied["final_document_output"],
-                "artifact": applied["artifact"],
-            },
-            "artifact": applied["artifact"],
-        }
-
     def generate_document_from_request(self, payload: DocumentGenerateRequest) -> dict[str, Any]:
         content_base = self.documents.create_content_base(
             title=payload.title,
             purpose=payload.purpose,
-            reference_set_id=payload.reference_set_id,
             template_key=payload.template_key,
             source_session_id=payload.source_session_id,
             outline=payload.outline,
@@ -1619,19 +1831,6 @@ class AppServices:
             return "onePageReport"
         return "auto"
 
-    def _latest_reference_set_id_for_session(self, session_id: str) -> str | None:
-        row = self.db.fetch_one(
-            """
-            SELECT id
-            FROM reference_sets
-            WHERE session_id = ?
-            ORDER BY created_at DESC
-            LIMIT 1
-            """,
-            (session_id,),
-        )
-        return str(row["id"]) if row else None
-
     def update_work_session_message(
         self,
         message_id: str,
@@ -1641,25 +1840,30 @@ class AppServices:
         provider: str | None = None,
         model: str | None = None,
         latency_ms: int | None = None,
+        citations: list[dict[str, str]] | None = None,
     ) -> dict[str, Any]:
         existing = self.db.fetch_one("SELECT * FROM work_session_messages WHERE id = ?", (message_id,))
         if not existing:
             raise KeyError(message_id)
 
+        if citations is None:
+            citations_json = existing.get("citations_json")
+        elif citations:
+            citations_json = json.dumps(citations, ensure_ascii=False)
+        else:
+            citations_json = None
+
         self.db.execute(
             """
             UPDATE work_session_messages
-            SET text = ?, status = ?, provider = ?, model = ?, latency_ms = ?
+            SET text = ?, status = ?, provider = ?, model = ?, latency_ms = ?, citations_json = ?
             WHERE id = ?
             """,
-            (text.strip(), status, provider, model, latency_ms, message_id),
+            (text.strip(), status, provider, model, latency_ms, citations_json, message_id),
         )
         updated = self.db.fetch_one("SELECT * FROM work_session_messages WHERE id = ?", (message_id,))
         assert updated is not None
-        return {
-            **updated,
-            "attachments": self._serialize_work_session_messages([updated])[0]["attachments"],
-        }
+        return self._serialize_work_session_messages([updated])[0]
 
     def run_work_session_turn(self, session_id: str, payload: WorkSessionTurnRequest) -> dict[str, Any]:
         existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
@@ -1800,22 +2004,7 @@ class AppServices:
                 },
             }
 
-        session_messages = self.list_work_session_messages(session_id)
-        prompt_messages: list[dict[str, Any]] = [
-            {
-                "id": f"{user_message['id']}-guardrail",
-                "session_id": session_id,
-                "role": "system",
-                "text": self._chat_guardrail_prompt(),
-                "message_type": "system",
-                "status": "completed",
-                "created_at": user_message["created_at"],
-            }
-        ]
-        attachment_prompt_block = (
-            self._build_attachment_prompt_block(attached_files) if attached_files else None
-        )
-        graphrag_prompt_block = self._build_graphrag_prompt_block(
+        graphrag_prompt_block, knowledge_citations = self._build_knowledge_context(
             session_id=session_id,
             query=payload.text,
         )
@@ -1829,6 +2018,14 @@ class AppServices:
             else 0
         )
         linked_file_count = len(self.list_work_session_file_links(session_id))
+        # T-02: 세션 전체 이력 주입 대신 예산 기반 조립(최근 N턴 + 롤링 요약)
+        prompt_messages, context_summary_used, context_stats = self._assemble_chat_prompt(
+            session=existing,
+            session_id=session_id,
+            assistant_message_id=assistant_message["id"],
+            attached_files=attached_files,
+            graphrag_prompt_block=graphrag_prompt_block,
+        )
         context_summary: dict[str, Any] = {
             "graphrag_used": bool(graphrag_prompt_block),
             "graphrag_evidence_count": graphrag_evidence_count,
@@ -1836,36 +2033,22 @@ class AppServices:
             "linked_file_count": linked_file_count,
             "provider": None,
             "model": None,
+            "input_token_estimate": context_stats["estimated_tokens"],
+            "context_included_turns": context_stats["included_turns"],
+            "context_summarized_turns": context_stats["summarized_turns"],
+            "context_summary_used": context_summary_used,
+            "context_budget_tokens": self.settings.context_budget_tokens,
         }
-        if graphrag_prompt_block:
-            prompt_messages.append(
-                {
-                    "id": f"{user_message['id']}-graphrag-context",
-                    "session_id": session_id,
-                    "role": "system",
-                    "text": graphrag_prompt_block,
-                    "message_type": "system",
-                    "status": "completed",
-                    "created_at": user_message["created_at"],
-                }
-            )
-        for message in session_messages:
-            if message["id"] == assistant_message["id"] or message.get("status") == "pending":
-                continue
-            next_message = dict(message)
-            if (
-                attachment_prompt_block
-                and next_message["id"] == user_message["id"]
-                and next_message["role"] == "user"
-            ):
-                next_message["text"] = f"{next_message['text']}\n\n{attachment_prompt_block}".strip()
-            prompt_messages.append(next_message)
         try:
             self.jobs.update_progress(
                 work_job["id"],
                 progress_percent=35,
                 stage="LLM 응답 생성",
-                payload={"graphrag_used": bool(graphrag_prompt_block), "attachment_count": len(attached_files)},
+                payload={
+                    "graphrag_used": bool(graphrag_prompt_block),
+                    "attachment_count": len(attached_files),
+                    "input_token_estimate": context_stats["estimated_tokens"],
+                },
             )
             result = generate_session_reply(
                 self.settings,
@@ -1881,6 +2064,7 @@ class AppServices:
                 provider=result.provider,
                 model=result.model,
                 latency_ms=duration_ms,
+                citations=knowledge_citations,
             )
             work_job_result = self.jobs.complete_job(
                 work_job["id"],
@@ -1892,8 +2076,15 @@ class AppServices:
                     "duration_ms": duration_ms,
                     "provider": result.provider,
                     "model": result.model,
+                    "input_token_estimate": context_stats["estimated_tokens"],
                 },
                 stage="업무대화 응답 완료",
+            )
+            self._update_session_rolling_summary(
+                session_id,
+                user_text=user_message["text"],
+                assistant_text=assistant_message["text"],
+                upto_message_id=assistant_message["id"],
             )
         except LLMGenerationError as exc:
             duration_ms = int((perf_counter() - turn_started) * 1000)
@@ -2103,22 +2294,7 @@ class AppServices:
             }
             return
 
-        session_messages = self.list_work_session_messages(session_id)
-        prompt_messages: list[dict[str, Any]] = [
-            {
-                "id": f"{user_message['id']}-guardrail",
-                "session_id": session_id,
-                "role": "system",
-                "text": self._chat_guardrail_prompt(),
-                "message_type": "system",
-                "status": "completed",
-                "created_at": user_message["created_at"],
-            }
-        ]
-        attachment_prompt_block = (
-            self._build_attachment_prompt_block(attached_files) if attached_files else None
-        )
-        graphrag_prompt_block = self._build_graphrag_prompt_block(
+        graphrag_prompt_block, knowledge_citations = self._build_knowledge_context(
             session_id=session_id,
             query=payload.text,
         )
@@ -2132,6 +2308,14 @@ class AppServices:
             else 0
         )
         linked_file_count = len(self.list_work_session_file_links(session_id))
+        # T-02: 세션 전체 이력 주입 대신 예산 기반 조립(최근 N턴 + 롤링 요약)
+        prompt_messages, context_summary_used, context_stats = self._assemble_chat_prompt(
+            session=existing,
+            session_id=session_id,
+            assistant_message_id=assistant_message["id"],
+            attached_files=attached_files,
+            graphrag_prompt_block=graphrag_prompt_block,
+        )
         context_summary: dict[str, Any] = {
             "graphrag_used": bool(graphrag_prompt_block),
             "graphrag_evidence_count": graphrag_evidence_count,
@@ -2139,37 +2323,24 @@ class AppServices:
             "linked_file_count": linked_file_count,
             "provider": None,
             "model": None,
+            "input_token_estimate": context_stats["estimated_tokens"],
+            "context_included_turns": context_stats["included_turns"],
+            "context_summarized_turns": context_stats["summarized_turns"],
+            "context_summary_used": context_summary_used,
+            "context_budget_tokens": self.settings.context_budget_tokens,
         }
-        if graphrag_prompt_block:
-            prompt_messages.append(
-                {
-                    "id": f"{user_message['id']}-graphrag-context",
-                    "session_id": session_id,
-                    "role": "system",
-                    "text": graphrag_prompt_block,
-                    "message_type": "system",
-                    "status": "completed",
-                    "created_at": user_message["created_at"],
-                }
-            )
-        for message in session_messages:
-            if message["id"] == assistant_message["id"] or message.get("status") == "pending":
-                continue
-            next_message = dict(message)
-            if (
-                attachment_prompt_block
-                and next_message["id"] == user_message["id"]
-                and next_message["role"] == "user"
-            ):
-                next_message["text"] = f"{next_message['text']}\n\n{attachment_prompt_block}".strip()
-            prompt_messages.append(next_message)
 
         events: Queue[tuple[str, Any]] = Queue()
         self.jobs.update_progress(
             work_job["id"],
             progress_percent=35,
             stage="LLM 응답 생성",
-            payload={"graphrag_used": bool(graphrag_prompt_block), "attachment_count": len(attached_files), "stream": True},
+            payload={
+                "graphrag_used": bool(graphrag_prompt_block),
+                "attachment_count": len(attached_files),
+                "input_token_estimate": context_stats["estimated_tokens"],
+                "stream": True,
+            },
         )
 
         def run_llm() -> None:
@@ -2260,6 +2431,7 @@ class AppServices:
                 provider=result.provider,
                 model=result.model,
                 latency_ms=duration_ms,
+                citations=knowledge_citations,
             )
             context_summary["provider"] = assistant_message.get("provider")
             context_summary["model"] = assistant_message.get("model")
@@ -2273,8 +2445,15 @@ class AppServices:
                     "duration_ms": duration_ms,
                     "provider": result.provider,
                     "model": result.model,
+                    "input_token_estimate": context_stats["estimated_tokens"],
                 },
                 stage="업무대화 응답 완료",
+            )
+            self._update_session_rolling_summary(
+                session_id,
+                user_text=user_message["text"],
+                assistant_text=assistant_message["text"],
+                upto_message_id=assistant_message["id"],
             )
             yield {
                 "event": "done",
@@ -2330,201 +2509,6 @@ class AppServices:
                 "text": str(exc),
             }
 
-    def create_reference_set(self, payload: ReferenceSetCreate) -> dict[str, Any]:
-        record = {
-            "id": str(uuid4()),
-            "title": payload.title,
-            "session_id": payload.session_id,
-            "created_at": now_iso(),
-        }
-        self.db.insert("reference_sets", record)
-        items = []
-        for item in payload.items:
-            stored = {
-                "id": str(uuid4()),
-                "reference_set_id": record["id"],
-                "kind": item.kind,
-                "label": item.label,
-                "value": item.value,
-                "created_at": now_iso(),
-            }
-            self.db.insert("reference_items", stored)
-            items.append(
-                {
-                    "id": stored["id"],
-                    "kind": item.kind,
-                    "label": item.label,
-                    "value": item.value,
-                }
-            )
-        self.db.log(
-            feature="references",
-            action="reference_set.created",
-            status="success",
-            inputs=payload.model_dump(),
-            outputs={"reference_set_id": record["id"], "item_count": len(items)},
-        )
-        return {
-            "id": record["id"],
-            "title": record["title"],
-            "session_id": record["session_id"],
-            "items": items,
-            "created_at": record["created_at"],
-        }
-
-    def list_reference_sets(self) -> list[dict[str, Any]]:
-        rows = self.db.fetch_all("SELECT * FROM reference_sets ORDER BY created_at DESC")
-        result = []
-        for row in rows:
-            items = self.db.fetch_all(
-                "SELECT id, kind, label, value FROM reference_items WHERE reference_set_id = ? ORDER BY created_at ASC",
-                (row["id"],),
-            )
-            result.append(
-                {
-                    "id": row["id"],
-                    "title": row["title"],
-                    "session_id": row["session_id"],
-                    "items": items,
-                    "created_at": row["created_at"],
-                }
-            )
-        return result
-
-    def create_anything_launch_ticket(self, payload: AnythingLaunchRequest) -> dict[str, Any]:
-        query = (payload.query or "").strip() or "Anything"
-        ticket = self.db.create_approval_ticket(
-            target_type="external_launch",
-            target_id=str(uuid4()),
-            action="anything.launch",
-        )
-        launch_request = {
-            "id": str(uuid4()),
-            "approval_ticket_id": ticket["id"],
-            "query": query,
-            "launch_target": ANYTHING_RELEASES_URL,
-            "status": "pending",
-            "created_at": now_iso(),
-            "applied_at": None,
-        }
-        self.db.insert("anything_launch_requests", launch_request)
-        self.db.log(
-            feature="search",
-            action="anything.launch.requested",
-            status="pending_approval",
-            inputs={"query": query},
-            outputs={
-                "approval_ticket_id": ticket["id"],
-                "launch_request_id": launch_request["id"],
-                "launch_target": launch_request["launch_target"],
-            },
-            approval_ticket_id=ticket["id"],
-        )
-        return {
-            "approval_ticket": ticket,
-            "launch_request": launch_request,
-        }
-
-    def list_anything_launches(self) -> list[dict[str, Any]]:
-        return self.db.fetch_all(
-            "SELECT * FROM anything_launch_requests ORDER BY created_at DESC"
-        )
-
-    def apply_anything_launch(self, ticket_id: str) -> dict[str, Any]:
-        launch_request = self.db.fetch_one(
-            "SELECT * FROM anything_launch_requests WHERE approval_ticket_id = ?",
-            (ticket_id,),
-        )
-        if launch_request is None:
-            raise KeyError(ticket_id)
-
-        ticket = self.db.fetch_one(
-            "SELECT * FROM approval_tickets WHERE id = ?",
-            (ticket_id,),
-        )
-        if ticket is None:
-            raise KeyError(ticket_id)
-        if ticket["status"] != "approved":
-            raise PermissionError(ticket_id)
-        if launch_request["status"] == "applied":
-            raise ValueError("anything launch already applied")
-
-        applied_at = now_iso()
-        self.db.execute(
-            "UPDATE anything_launch_requests SET status = ?, applied_at = ? WHERE approval_ticket_id = ?",
-            ("applied", applied_at, ticket_id),
-        )
-        self.db.log(
-            feature="search",
-            action="anything.launch.applied",
-            status="success",
-            inputs={
-                "approval_ticket_id": ticket_id,
-                "query": launch_request["query"],
-            },
-            outputs={
-                "launch_request_id": launch_request["id"],
-                "launch_target": launch_request["launch_target"],
-            },
-            approval_ticket_id=ticket_id,
-        )
-
-        launch_request = self.db.fetch_one(
-            "SELECT * FROM anything_launch_requests WHERE approval_ticket_id = ?",
-            (ticket_id,),
-        )
-        return {
-            "approval_ticket": ticket,
-            "launch_request": launch_request,
-        }
-
-    def import_anything_launch_reference_set(
-        self, ticket_id: str, payload: AnythingLaunchImportRequest
-    ) -> dict[str, Any]:
-        launch_request = self.db.fetch_one(
-            "SELECT * FROM anything_launch_requests WHERE approval_ticket_id = ?",
-            (ticket_id,),
-        )
-        if launch_request is None:
-            raise KeyError(ticket_id)
-        if launch_request["status"] != "applied":
-            raise PermissionError(ticket_id)
-
-        reference_set = self.create_reference_set(
-            ReferenceSetCreate(
-                title=payload.title,
-                session_id=payload.session_id,
-                items=[
-                    ReferenceItemInput(
-                        kind="file",
-                        label=Path(path).name or path,
-                        value=path,
-                    )
-                    for path in payload.paths
-                ],
-            )
-        )
-        self.db.log(
-            feature="search",
-            action="anything.launch.imported",
-            status="success",
-            inputs={
-                "approval_ticket_id": ticket_id,
-                "title": payload.title,
-                "session_id": payload.session_id,
-                "path_count": len(payload.paths),
-            },
-            outputs={
-                "reference_set_id": reference_set["id"],
-                "launch_request_id": launch_request["id"],
-            },
-            approval_ticket_id=ticket_id,
-        )
-        return {
-            "launch_request": launch_request,
-            "reference_set": reference_set,
-        }
-
     def list_approval_tickets(self) -> list[dict[str, Any]]:
         return self.db.fetch_all(
             "SELECT * FROM approval_tickets ORDER BY requested_at DESC"
@@ -2562,43 +2546,6 @@ class AppServices:
             approval_ticket_id=ticket_id,
         )
         return updated
-
-    def propose_file_organization(self, target_path: str) -> list[dict[str, Any]]:
-        path = Path(target_path)
-        proposals = []
-        if path.exists() and path.is_dir():
-            candidates = sorted(path.iterdir(), key=lambda candidate: candidate.name.lower())[:10]
-            for candidate in candidates:
-                proposal_type = "knowledge_candidate" if candidate.suffix.lower() in {".md", ".txt"} else "archive"
-                destination = (
-                    self.paths.knowledge_raw / candidate.name
-                    if proposal_type == "knowledge_candidate"
-                    else self.paths.root / "archive" / candidate.name
-                )
-                proposal = {
-                    "id": str(uuid4()),
-                    "target_path": str(candidate),
-                    "proposal_type": proposal_type,
-                    "proposed_destination": str(destination),
-                    "reason": "최근 변경분을 지식 반영 또는 보관 후보로 제안합니다.",
-                    "status": "proposed",
-                    "created_at": now_iso(),
-                }
-                self.db.insert("file_org_proposals", proposal)
-                proposals.append(proposal)
-        self.db.log(
-            feature="fileorg",
-            action="file_org.proposals.created",
-            status="success",
-            inputs={"target_path": target_path},
-            outputs={"proposal_count": len(proposals)},
-        )
-        return proposals
-
-    def list_file_organization_proposals(self) -> list[dict[str, Any]]:
-        return self.db.fetch_all(
-            "SELECT * FROM file_org_proposals ORDER BY created_at DESC"
-        )
 
     def rebuild_file_search_index(self) -> dict[str, Any]:
         work_job = self.jobs.create_job(
@@ -2692,13 +2639,13 @@ class AppServices:
         return result
 
     def run_knowledge_ingestion_work_job(self, work_job_id: str, ingestion_job_id: str) -> dict[str, Any]:
-        started_job = self.jobs.start_job_with_lock(work_job_id, stage="GraphRAG 인덱싱 실행")
+        started_job = self.jobs.start_job_with_lock(work_job_id, stage="지식위키 색인 실행")
         if started_job["status"] == "blocked":
             return started_job
         try:
-            result = self.graphrag.run_job(ingestion_job_id)
+            result = self.wiki.run_job(ingestion_job_id)
         except Exception as exc:
-            self.jobs.fail_job(work_job_id, error_message=str(exc), stage="GraphRAG 인덱싱 실패")
+            self.jobs.fail_job(work_job_id, error_message=str(exc), stage="지식위키 색인 실패")
             raise
         status = result.get("status")
         terminal_status = (
@@ -2715,7 +2662,174 @@ class AppServices:
                 "processed_count": result.get("processed_count"),
                 "failed_count": result.get("failed_count"),
             },
-            stage="GraphRAG 인덱싱 완료" if terminal_status in {"succeeded", "partial"} else "GraphRAG 인덱싱 중단",
+            stage="지식위키 색인 완료" if terminal_status in {"succeeded", "partial"} else "지식위키 색인 중단",
+        )
+
+    def run_knowledge_enrichment_work_job(
+        self, work_job_id: str, source_id: str | None, limit: int | None = None
+    ) -> dict[str, Any]:
+        started_job = self.jobs.start_job_with_lock(work_job_id, stage="지식위키 LLM 보강 실행")
+        if started_job["status"] == "blocked":
+            return started_job
+
+        def should_cancel() -> bool:
+            job = self.jobs.get_job(work_job_id)
+            return bool(job and (job.get("cancel_requested") or job.get("status") == "cancel_requested"))
+
+        def report_progress(done: int, total: int) -> None:
+            percent = 99 if total <= 0 else max(1, min(99, round((done / total) * 100)))
+            self.jobs.update_progress(
+                work_job_id,
+                progress_percent=percent,
+                stage="지식위키 LLM 보강",
+                message=f"{done}/{total} 문서 보강",
+            )
+
+        try:
+            result = self.wiki.enrich(
+                source_id=source_id,
+                llm=self._wiki_llm_generate,
+                should_cancel=should_cancel,
+                progress_cb=report_progress,
+                limit=limit,
+            )
+        except Exception as exc:
+            self.jobs.fail_job(work_job_id, error_message=str(exc), stage="지식위키 LLM 보강 실패")
+            raise
+        status_map = {"completed": "succeeded", "canceled": "canceled", "partial": "partial"}
+        return self.jobs.complete_job(
+            work_job_id,
+            status=status_map.get(str(result.get("status")), "partial"),
+            result=result,
+            stage="지식위키 LLM 보강 완료" if result.get("status") == "completed" else "지식위키 LLM 보강 중단",
+        )
+
+    def run_knowledge_verify_work_job(self, work_job_id: str, *, deep: bool = False) -> dict[str, Any]:
+        """P3 §6: 무결성 점검(verify) 잡 — 색인과 동일 리소스 키(exclusive)로 상호 배제."""
+        started_job = self.jobs.start_job_with_lock(work_job_id, stage="지식위키 무결성 점검 실행")
+        if started_job["status"] == "blocked":
+            return started_job
+        try:
+            report = self.wiki.verify(deep=deep, job_id=work_job_id)
+        except Exception as exc:
+            self.jobs.fail_job(work_job_id, error_message=str(exc), stage="지식위키 무결성 점검 실패")
+            raise
+        return self.jobs.complete_job(
+            work_job_id,
+            status="succeeded",
+            result=report,
+            stage="지식위키 무결성 점검 완료",
+        )
+
+    def run_taxonomy_apply_work_job(self, work_job_id: str, source_id: str) -> dict[str, Any]:
+        started_job = self.jobs.start_job_with_lock(work_job_id, stage="업무 분류 적용 실행")
+        if started_job["status"] == "blocked":
+            return started_job
+
+        def should_cancel() -> bool:
+            job = self.jobs.get_job(work_job_id)
+            return bool(job and (job.get("cancel_requested") or job.get("status") == "cancel_requested"))
+
+        indexed_before_apply = False
+        indexed_count = 0
+        ingestion_job_id: str | None = None
+        try:
+            # 1) 스캔 연쇄: 파일이 아예 없으면(미스캔) 폴더 스캔을 먼저 실행한다.
+            file_count_row = self.db.fetch_one(
+                "SELECT COUNT(*) AS count FROM knowledge_source_files WHERE source_id = ? AND status != ?",
+                (source_id, "deleted"),
+            )
+            if int(file_count_row["count"] if file_count_row else 0) == 0:
+                self.jobs.update_progress(
+                    work_job_id,
+                    progress_percent=2,
+                    stage="색인",
+                    message="스캔된 파일이 없어 지식폴더 스캔을 먼저 실행합니다.",
+                )
+                self.knowledge.scan_source(source_id)
+
+            # 2) 색인 연쇄: 미색인 파일이 있거나 위키 문서가 없으면 같은 작업에서 색인을 선실행한다.
+            pending_files, skipped_count = self.wiki._source_files_for_ingestion(source_id)
+            wiki_doc_row = self.db.fetch_one(
+                "SELECT COUNT(*) AS count FROM knowledge_wiki_docs WHERE source_id = ?",
+                (source_id,),
+            )
+            wiki_doc_count = int(wiki_doc_row["count"] if wiki_doc_row else 0)
+            if pending_files or wiki_doc_count == 0:
+                self.jobs.update_progress(
+                    work_job_id,
+                    progress_percent=5,
+                    stage="색인",
+                    message=f"미색인 문서 {len(pending_files)}건을 먼저 색인합니다.",
+                    payload={"pending_count": len(pending_files), "skipped_count": skipped_count},
+                )
+                # 기존 enqueue 흐름과 동일하게 knowledge_ingestion_jobs 레코드를 만들고
+                # 같은 스레드에서 동기 실행한다(별도 work_job/락 없음 → 데드락·409 없음).
+                ingestion_job = self.wiki.ingest_source(source_id, run_now=False)
+                ingestion_job_id = str(ingestion_job["id"])
+                if should_cancel():
+                    self.wiki.request_cancel(ingestion_job_id)
+                finished = self.wiki.run_job(ingestion_job_id)
+                indexed_before_apply = True
+                indexed_count = int(finished.get("processed_count") or 0)
+                self.jobs.update_progress(
+                    work_job_id,
+                    progress_percent=50,
+                    stage="색인",
+                    message=f"색인 {indexed_count}건 완료",
+                    payload={
+                        "ingestion_job_id": ingestion_job_id,
+                        "ingestion_status": finished.get("status"),
+                        "processed_count": indexed_count,
+                        "failed_count": finished.get("failed_count"),
+                        "skipped_count": finished.get("skipped_count"),
+                    },
+                )
+                if finished.get("status") == "canceled" or should_cancel():
+                    return self.jobs.complete_job(
+                        work_job_id,
+                        status="canceled",
+                        result={
+                            "source_id": source_id,
+                            "indexed_before_apply": indexed_before_apply,
+                            "indexed_count": indexed_count,
+                            "ingestion_job_id": ingestion_job_id,
+                        },
+                        stage="업무 분류 적용 취소",
+                    )
+
+            base_percent = 50 if indexed_before_apply else 0
+
+            def report_progress(done: int, total: int) -> None:
+                span = 99 - base_percent
+                percent = (
+                    99
+                    if total <= 0
+                    else max(base_percent + 1, min(99, base_percent + round((done / total) * span)))
+                )
+                self.jobs.update_progress(
+                    work_job_id,
+                    progress_percent=percent,
+                    stage="분류 적용",
+                    message=f"{done}/{total} 문서 태깅",
+                )
+
+            report = self.taxonomy.apply_taxonomy(
+                source_id,
+                progress_cb=report_progress,
+                should_cancel=should_cancel,
+                indexed_before_apply=indexed_before_apply,
+                indexed_count=indexed_count,
+            )
+        except Exception as exc:
+            self.jobs.fail_job(work_job_id, error_message=str(exc), stage="업무 분류 적용 실패")
+            raise
+        result = {**report, "ingestion_job_id": ingestion_job_id}
+        return self.jobs.complete_job(
+            work_job_id,
+            status="succeeded",
+            result=result,
+            stage="업무 분류 적용 완료",
         )
 
     def _search_indexed_files(self, query: str, limit: int) -> dict[str, Any]:
@@ -2836,19 +2950,33 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.state.services = services
+    register_authoring_routes(app, services)
     app.state.test_client_factory = lambda: TestClient(app)
 
     def ensure_no_active_knowledge_ingestion() -> None:
-        active_job = services.graphrag.active_job()
-        if active_job is None:
-            return
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "GraphRAG ingestion 작업이 진행 중입니다. "
-                f"작업 {str(active_job['id'])[:8]}을 완료하거나 취소한 뒤 다시 시도하세요."
-            ),
+        active_job = services.wiki.active_job()
+        if active_job is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "지식폴더 색인 작업이 진행 중입니다. "
+                    f"작업 {str(active_job['id'])[:8]}을 완료하거나 취소한 뒤 다시 시도하세요."
+                ),
+            )
+        # §6: verify↔색인 양방향 상호 배제 — verify 진행 중에는 색인·스캔도 막아
+        # V4 GC·V5 FTS 재동기화가 병행 색인의 쓰기 중 상태를 오판하지 않게 한다.
+        active_verify = services.db.fetch_one(
+            "SELECT id FROM work_jobs WHERE kind = ? AND status IN ('queued', 'running') LIMIT 1",
+            ("knowledge.verify",),
         )
+        if active_verify is not None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "지식폴더 무결성 점검이 진행 중입니다. "
+                    f"작업 {str(active_verify['id'])[:8]}이 끝난 뒤 다시 시도하세요."
+                ),
+            )
 
     @app.get("/health")
     def health() -> dict[str, Any]:
@@ -2886,7 +3014,7 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     @app.get("/api/runtime/metrics")
     def runtime_metrics() -> dict[str, Any]:
         job_counts = services.jobs.status_counts()
-        knowledge_active = services.graphrag.active_job()
+        knowledge_active = services.wiki.active_job()
         return {
             "jobs": {
                 "active_count": job_counts.get("active_count", 0),
@@ -2948,7 +3076,6 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
                 "llm_site_url": services.settings.llm_site_url,
                 "llm_application_name": services.settings.llm_application_name,
                 "profiles": services.settings.llm_profiles,
-                "anything_launch_mode": services.settings.anything_launch_mode,
                 "default_template_key": services.settings.default_template_key,
                 "internal_api_base_url": services.settings.internal_api_base_url,
                 "personalization_apply_mode": services.settings.personalization_apply_mode,
@@ -2957,6 +3084,7 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
                 "embedding_base_url": services.settings.embedding_base_url,
                 "embedding_fallback_enabled": services.settings.embedding_fallback_enabled,
                 "graphrag_vector_backend": services.settings.graphrag_vector_backend,
+                "knowledge_engine": services.settings.knowledge_engine,
             },
             paths={
                 "workspace_root": str(services.paths.root),
@@ -3008,6 +3136,17 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     def delete_schedule(schedule_id: str) -> dict[str, Any]:
         try:
             return services.delete_schedule(schedule_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail="schedule not found") from error
+
+    @app.get("/api/schedules/reminders/due")
+    def list_due_schedule_reminders() -> dict[str, Any]:
+        return {"items": services.list_due_schedule_reminders(), "now": now_iso()}
+
+    @app.post("/api/schedules/{schedule_id}/reminders/ack")
+    def acknowledge_schedule_reminder(schedule_id: str) -> dict[str, Any]:
+        try:
+            return services.acknowledge_schedule_reminder(schedule_id)
         except KeyError as error:
             raise HTTPException(status_code=404, detail="schedule not found") from error
 
@@ -3111,14 +3250,6 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    @app.post("/api/reference-sets", status_code=201)
-    def create_reference_set(payload: ReferenceSetCreate) -> dict[str, Any]:
-        return services.create_reference_set(payload)
-
-    @app.get("/api/reference-sets")
-    def list_reference_sets() -> dict[str, Any]:
-        return {"items": services.list_reference_sets()}
-
     @app.post("/api/knowledge/candidates/from-note", status_code=201)
     def create_candidate(payload: CandidateFromNote) -> dict[str, Any]:
         return services.knowledge.create_candidate(
@@ -3160,6 +3291,16 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+    @app.get("/api/knowledge/sources/{source_id}/diff")
+    def diff_knowledge_source(source_id: str) -> dict[str, Any]:
+        """W7 P1 §9: 변경 확인 견적 — 읽기 전용 diff(반영·기록 없음, 연속 호출 동일 결과)."""
+        try:
+            return services.knowledge.diff_source(source_id)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge source not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     @app.get("/api/knowledge/source-files")
     def list_knowledge_source_files(source_id: str | None = None) -> dict[str, Any]:
         return {"items": services.knowledge.list_source_files(source_id=source_id)}
@@ -3176,19 +3317,33 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise KeyError(payload.source_id)
         work_job = services.jobs.create_job(
             kind="knowledge.reindex" if force else "knowledge.ingest",
-            title=f"{source['label']} GraphRAG {'강제 재색인' if force else '인덱싱'}",
+            title=f"{source['label']} 지식위키 {'강제 재색인' if force else '색인'}",
             input={"source_id": payload.source_id, "run_now": payload.run_now, "background": payload.background, "force": force},
             resource_key=f"knowledge_source:{payload.source_id}",
             resource_policy="exclusive",
         )
-        services.knowledge.scan_source(payload.source_id)
+        scan_result = services.knowledge.scan_source(payload.source_id)
+        scan_unstable = int(scan_result.get("unstable_count") or 0)
+
+        def stamp_unstable(ingestion_job: dict[str, Any]) -> dict[str, Any]:
+            # W7 P1: 잡 카드의 "보류 N건 — 다음 스캔에서 처리" 배지용.
+            if scan_unstable:
+                services.db.execute(
+                    "UPDATE knowledge_ingestion_jobs SET unstable_count = ? WHERE id = ?",
+                    (scan_unstable, ingestion_job["id"]),
+                )
+                ingestion_job["unstable_count"] = scan_unstable
+            return ingestion_job
+
         if payload.background and payload.run_now:
-            job = services.graphrag.ingest_source(payload.source_id, run_now=False, force=force)
+            job = stamp_unstable(
+                services.wiki.ingest_source(payload.source_id, run_now=False, force=force)
+            )
             services.jobs.update_progress(
                 work_job["id"],
                 progress_percent=1,
-                stage="GraphRAG 작업 등록",
-                message="백그라운드 인덱싱 작업을 준비했습니다.",
+                stage="지식위키 작업 등록",
+                message="백그라운드 색인 작업을 준비했습니다.",
                 payload={"ingestion_job_id": job["id"]},
             )
             services.job_runner.submit_existing(
@@ -3198,20 +3353,24 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             return {"job": job, "work_job": services.jobs.require_job(work_job["id"])}
 
         if not payload.run_now:
-            job = services.graphrag.ingest_source(payload.source_id, run_now=False, force=force)
+            job = stamp_unstable(
+                services.wiki.ingest_source(payload.source_id, run_now=False, force=force)
+            )
             services.jobs.update_progress(
                 work_job["id"],
                 progress_percent=0,
-                stage="GraphRAG 대기열 등록",
+                stage="지식위키 대기열 등록",
                 message="수동 실행 대기열에 등록했습니다.",
                 payload={"ingestion_job_id": job["id"]},
             )
             return {"job": job, "work_job": services.jobs.require_job(work_job["id"])}
 
-        started_work_job = services.jobs.start_job_with_lock(work_job["id"], stage="GraphRAG 인덱싱 실행")
+        started_work_job = services.jobs.start_job_with_lock(work_job["id"], stage="지식위키 색인 실행")
         if started_work_job["status"] == "blocked":
             return {"job": {}, "work_job": started_work_job}
-        job = services.graphrag.ingest_source(payload.source_id, run_now=True, force=force)
+        job = stamp_unstable(
+            services.wiki.ingest_source(payload.source_id, run_now=True, force=force)
+        )
         terminal_status = (
             "succeeded"
             if job.get("status") == "completed"
@@ -3226,7 +3385,7 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
                 "processed_count": job.get("processed_count"),
                 "failed_count": job.get("failed_count"),
             },
-            stage="GraphRAG 인덱싱 완료" if terminal_status in {"succeeded", "partial"} else "GraphRAG 인덱싱 실패",
+            stage="지식위키 색인 완료" if terminal_status in {"succeeded", "partial"} else "지식위키 색인 실패",
         )
         return {"job": job, "work_job": completed}
 
@@ -3256,51 +3415,132 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
 
     @app.get("/api/knowledge/ingestion-jobs")
     def list_knowledge_ingestion_jobs() -> dict[str, Any]:
-        return {"items": services.graphrag.list_jobs()}
+        return {"items": services.wiki.list_jobs()}
 
     @app.get("/api/knowledge/ingestion-jobs/{job_id}/log")
     def read_knowledge_ingestion_job_log(job_id: str, limit: int = 200) -> dict[str, Any]:
         try:
-            return services.graphrag.read_job_log(job_id, limit=limit)
+            return services.wiki.read_job_log(job_id, limit=limit)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="knowledge ingestion job not found") from exc
 
     @app.post("/api/knowledge/ingestion-jobs/{job_id}/run")
     def run_knowledge_ingestion_job(job_id: str) -> dict[str, Any]:
         try:
-            return {"job": services.graphrag.run_job(job_id)}
+            return {"job": services.wiki.run_job(job_id)}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="knowledge ingestion job not found") from exc
 
     @app.post("/api/knowledge/ingestion-jobs/{job_id}/cancel")
     def cancel_knowledge_ingestion_job(job_id: str) -> dict[str, Any]:
         try:
-            return {"job": services.graphrag.request_cancel(job_id)}
+            return {"job": services.wiki.request_cancel(job_id)}
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="knowledge ingestion job not found") from exc
 
+    @app.post("/api/knowledge/lint")
+    def lint_knowledge_wiki(payload: KnowledgeLintRequest | None = None) -> dict[str, Any]:
+        # W7 P0: lint quick 모드 API 노출 — 기본은 재해시 없는 quick, deep=True만 전량 재해시
+        ensure_no_active_knowledge_ingestion()
+        options = payload or KnowledgeLintRequest()
+        report = services.wiki.lint(fix=options.fix, deep=options.deep)
+        mode_label = "심층" if options.deep else "빠른"
+        services.db.log(
+            feature="knowledge",
+            action="knowledge.wiki.lint",
+            status="completed",
+            inputs={"fix": options.fix, "deep": options.deep},
+            outputs={
+                "message": (
+                    f"지식위키 정합성 점검({mode_label} 모드): 문서 {report['checked_count']}건 점검, "
+                    f"고아 {len(report['orphans'])}건, 카드 실종 {len(report['missing_cards'])}건, "
+                    f"해시 불일치 {len(report['stale'])}건, 자동 정리 {report['fixed']['orphans_removed']}건"
+                ),
+                "mode": report["mode"],
+                "checked_count": report["checked_count"],
+                "orphan_count": len(report["orphans"]),
+                "stale_count": len(report["stale"]),
+                "orphans_removed": report["fixed"]["orphans_removed"],
+            },
+        )
+        return report
+
+    @app.post("/api/knowledge/verify", status_code=201)
+    def verify_knowledge_wiki(payload: KnowledgeVerifyRequest | None = None) -> dict[str, Any]:
+        # P3 §6: verify 잡 — lint 확장. 색인 진행 중에는 409(상호 배제), work_job으로 실행.
+        options = payload or KnowledgeVerifyRequest()
+        ensure_no_active_knowledge_ingestion()
+        work_job = services.jobs.create_job(
+            kind="knowledge.verify",
+            title=f"지식위키 무결성 점검({'심층' if options.deep else '빠른'})",
+            input={"deep": options.deep, "background": options.background},
+            resource_key="knowledge_wiki:verify",
+            resource_policy="exclusive",
+        )
+        if options.background:
+            services.job_runner.submit_existing(
+                work_job["id"],
+                lambda: services.run_knowledge_verify_work_job(work_job["id"], deep=options.deep),
+            )
+            return {"work_job": services.jobs.require_job(work_job["id"])}
+        completed = services.run_knowledge_verify_work_job(work_job["id"], deep=options.deep)
+        return {"work_job": completed, "report": completed.get("result")}
+
+    @app.get("/api/knowledge/verify/latest")
+    def latest_knowledge_verify_report() -> dict[str, Any]:
+        # P3 §6: 대시보드 "마지막 검증 N일 전" 근거 — 0건 리포트도 그대로 노출된다.
+        return {"report": services.wiki.latest_verify_report()}
+
+    @app.post("/api/knowledge/migrate-doc-uid")
+    def migrate_knowledge_doc_uid(
+        payload: KnowledgeDocUidMigrateRequest | None = None,
+    ) -> dict[str, Any]:
+        # W7 P2b §5.6: doc_uid 무파싱 마이그레이션 — 색인 잡 시작 시 자동 편입도 되지만
+        # (run_job 1회성), 수동 즉시 실행 경로를 함께 노출한다. 색인과 상호 배제.
+        ensure_no_active_knowledge_ingestion()
+        options = payload or KnowledgeDocUidMigrateRequest()
+        return services.wiki.migrate_doc_uids(source_id=options.source_id)
+
+    @app.get("/api/knowledge/cards/by-uid/{doc_uid}")
+    def knowledge_card_by_uid(doc_uid: str) -> dict[str, Any]:
+        # W7 P2b §5.6: 채팅 인용 칩 '원본 열기' 폴백 — 카드 존재·상태 조회.
+        try:
+            return services.wiki.card_by_uid(doc_uid)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge card not found") from exc
+
     @app.get("/api/knowledge/chunks")
     def list_knowledge_chunks(document_id: str | None = None) -> dict[str, Any]:
-        return {"items": services.graphrag.list_chunks(document_id=document_id)}
+        # 레거시 호환: wiki 엔진은 청크를 기록하지 않으므로 기존 데이터만 노출된다.
+        if document_id:
+            rows = services.db.fetch_all(
+                "SELECT * FROM knowledge_document_chunks WHERE document_id = ? ORDER BY chunk_index ASC",
+                (document_id,),
+            )
+        else:
+            rows = services.db.fetch_all(
+                "SELECT * FROM knowledge_document_chunks ORDER BY created_at DESC, chunk_index ASC"
+            )
+        return {"items": rows}
 
     @app.get("/api/knowledge/documents")
     def list_knowledge_documents(source_id: str | None = None) -> dict[str, Any]:
-        return {"items": services.graphrag.list_documents(source_id=source_id)}
+        return {"items": services.wiki.list_documents(source_id=source_id)}
 
     @app.get("/api/knowledge/document-structure")
     def knowledge_document_structure(document_id: str, section_limit: int = 60) -> dict[str, Any]:
         try:
-            return services.graphrag.document_structure(document_id, section_limit=section_limit)
+            return services.wiki.document_structure(document_id, section_limit=section_limit)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="knowledge document not found") from exc
 
     @app.get("/api/knowledge/tables")
     def list_knowledge_tables(document_id: str | None = None) -> dict[str, Any]:
-        return {"items": services.graphrag.list_tables(document_id=document_id)}
+        return {"items": services.wiki.list_tables(document_id=document_id)}
 
     @app.post("/api/knowledge/retrieve")
     def retrieve_knowledge(payload: KnowledgeRetrieveRequest) -> dict[str, Any]:
-        return services.graphrag.retrieve(
+        return services.wiki.retrieve(
             query=payload.query,
             session_id=payload.session_id,
             limit=payload.limit,
@@ -3308,10 +3548,11 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
 
     @app.post("/api/knowledge/ask")
     def ask_knowledge(payload: KnowledgeRetrieveRequest) -> dict[str, Any]:
-        return services.graphrag.ask(
+        return services.wiki.ask(
             query=payload.query,
             session_id=payload.session_id,
             limit=payload.limit,
+            llm=services._wiki_llm_generate,
         )
 
     def parse_structured_document_response(payload: KnowledgeParseDocumentRequest) -> dict[str, Any]:
@@ -3385,8 +3626,8 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
         }
 
     @app.get("/api/knowledge/search")
-    def search_knowledge(query: str) -> dict[str, Any]:
-        return services.knowledge.search(query)
+    def search_knowledge(query: str, limit: int = 8) -> dict[str, Any]:
+        return services.wiki.search(query, limit=limit)
 
     @app.get("/api/files/search")
     def search_files(query: str, limit: int = 20) -> dict[str, Any]:
@@ -3398,11 +3639,12 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
 
     @app.get("/api/knowledge/graph")
     def knowledge_graph() -> dict[str, Any]:
-        return services.knowledge.graph_summary()
+        return services.wiki.graph_summary()
 
     @app.get("/api/knowledge/backend-status")
     def knowledge_backend_status() -> dict[str, Any]:
-        return services.graphrag.backend_status()
+        llm_configured = bool(services.settings.llm_model and services.settings.llm_provider)
+        return services.wiki.backend_status(llm_configured=llm_configured)
 
     @app.get("/api/knowledge/parser-status")
     def knowledge_parser_status() -> dict[str, Any]:
@@ -3410,16 +3652,151 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
 
     @app.get("/api/knowledge/graph/query")
     def query_knowledge_graph(query: str, limit: int = 20) -> dict[str, Any]:
-        return services.graphrag.graph_query(query=query, limit=limit)
+        return services.wiki.graph_query(query=query, limit=limit)
+
+    @app.post("/api/knowledge/enrich", status_code=201)
+    def enrich_knowledge(payload: KnowledgeEnrichRequest) -> dict[str, Any]:
+        work_job = services.jobs.create_job(
+            kind="knowledge.enrich",
+            title="지식위키 LLM 보강",
+            input={
+                "source_id": payload.source_id,
+                "background": payload.background,
+                "limit": payload.limit,
+            },
+            resource_key="knowledge_wiki:enrich",
+            resource_policy="exclusive",
+        )
+        if payload.background:
+            services.job_runner.submit_existing(
+                work_job["id"],
+                lambda: services.run_knowledge_enrichment_work_job(
+                    work_job["id"], payload.source_id, payload.limit
+                ),
+            )
+            return {"work_job": services.jobs.require_job(work_job["id"])}
+        return {
+            "work_job": services.run_knowledge_enrichment_work_job(
+                work_job["id"], payload.source_id, payload.limit
+            )
+        }
+
+    @app.get("/api/knowledge/wiki/index")
+    def knowledge_wiki_index() -> dict[str, Any]:
+        return services.wiki.wiki_index()
+
+    @app.get("/api/knowledge/wiki/tree")
+    def knowledge_wiki_tree() -> dict[str, Any]:
+        return services.wiki.wiki_tree()
+
+    @app.get("/api/knowledge/wiki/page")
+    def knowledge_wiki_page(path: str) -> dict[str, Any]:
+        try:
+            return services.wiki.read_page(path)
+        except PermissionError as exc:
+            raise HTTPException(status_code=400, detail="invalid wiki page path") from exc
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="wiki page not found") from exc
+
+    # ----------------------------------------------- T-01 Work-Aware 분류체계
+
+    @app.post("/api/knowledge/taxonomy/interview")
+    def save_taxonomy_interview(payload: TaxonomyInterviewRequest) -> dict[str, Any]:
+        return {"interview": services.taxonomy.save_interview(payload.model_dump())}
+
+    @app.get("/api/knowledge/taxonomy/interview")
+    def get_taxonomy_interview() -> dict[str, Any]:
+        return {"interview": services.taxonomy.get_interview()}
+
+    @app.get("/api/knowledge/taxonomy/proposal")
+    def taxonomy_proposal(source_id: str, llm_refine: bool = False) -> dict[str, Any]:
+        try:
+            return services.taxonomy.analyze_source(
+                source_id,
+                llm=services._wiki_llm_generate if llm_refine else None,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge source not found") from exc
+
+    @app.post("/api/knowledge/taxonomy", status_code=201)
+    def confirm_taxonomy(payload: TaxonomyConfirmRequest) -> dict[str, Any]:
+        try:
+            return services.taxonomy.confirm_taxonomy(
+                source_id=payload.source_id,
+                work_areas=[area.model_dump() for area in payload.work_areas],
+                doc_roles_enabled=payload.doc_roles_enabled,
+                family_policy=payload.family_policy,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="knowledge source not found") from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/knowledge/taxonomy")
+    def get_taxonomy(source_id: str | None = None) -> dict[str, Any]:
+        return services.taxonomy.current_taxonomy(source_id=source_id)
+
+    @app.post("/api/knowledge/taxonomy/apply", status_code=201)
+    def apply_taxonomy(payload: TaxonomyApplyRequest) -> dict[str, Any]:
+        source = services.db.fetch_one(
+            "SELECT * FROM knowledge_sources WHERE id = ?", (payload.source_id,)
+        )
+        if source is None:
+            raise HTTPException(status_code=404, detail="knowledge source not found")
+        configured = services.taxonomy.current_taxonomy(source_id=payload.source_id)
+        if not configured["configured"]:
+            raise HTTPException(status_code=409, detail="taxonomy is not confirmed for this source")
+        work_job = services.jobs.create_job(
+            kind="knowledge.taxonomy.apply",
+            title=f"{source['label']} 업무 분류체계 적용",
+            input={"source_id": payload.source_id, "background": payload.background},
+            resource_key=f"knowledge_source:{payload.source_id}",
+            resource_policy="exclusive",
+        )
+        if payload.background:
+            services.job_runner.submit_existing(
+                work_job["id"],
+                lambda: services.run_taxonomy_apply_work_job(work_job["id"], payload.source_id),
+            )
+            return {"work_job": services.jobs.require_job(work_job["id"])}
+        try:
+            completed = services.run_taxonomy_apply_work_job(work_job["id"], payload.source_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return {"work_job": completed, "quality": (completed.get("result") or {}).get("quality")}
+
+    @app.get("/api/knowledge/taxonomy/quality")
+    def taxonomy_quality(source_id: str | None = None) -> dict[str, Any]:
+        return services.taxonomy.quality(source_id=source_id)
+
+    @app.get("/api/knowledge/taxonomy/queue")
+    def taxonomy_queue(source_id: str | None = None, status: str = "pending") -> dict[str, Any]:
+        return {"items": services.taxonomy.list_queue(source_id=source_id, status=status)}
+
+    @app.post("/api/knowledge/taxonomy/queue/{item_id}/resolve")
+    def resolve_taxonomy_queue_item(
+        item_id: str, payload: TaxonomyQueueResolveRequest
+    ) -> dict[str, Any]:
+        try:
+            return {
+                "item": services.taxonomy.resolve_queue_item(
+                    item_id,
+                    work_area_slug=payload.work_area_slug,
+                    doc_role=payload.doc_role,
+                )
+            }
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="taxonomy queue item not found") from exc
+        except InvalidTagError as exc:
+            # §5.2: 확정 taxonomy에 없는 slug/역할 — 유령 태그 차단 (400)
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post("/api/personalization/work-sessions/{session_id}/analyze", status_code=201)
     def analyze_work_session_for_personalization(session_id: str) -> dict[str, Any]:
         try:
-            return services.personalization.analyze_session(
-                session_id=session_id,
-                apply_mode=services.settings.personalization_apply_mode,
-                personalization_root=services.personalization_root,
-            )
+            return services.analyze_work_session(session_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="work session not found") from exc
 
@@ -3449,7 +3826,6 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             return services.documents.create_content_base(
                 title=payload.title,
                 purpose=payload.purpose,
-                reference_set_id=payload.reference_set_id,
                 template_key=payload.template_key,
                 source_session_id=payload.source_session_id,
                 outline=payload.outline,
@@ -3551,36 +3927,6 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @app.post("/api/integrations/anything/launch", status_code=202)
-    def request_anything_launch(payload: AnythingLaunchRequest) -> dict[str, Any]:
-        return services.create_anything_launch_ticket(payload)
-
-    @app.get("/api/integrations/anything/launches")
-    def list_anything_launches() -> dict[str, Any]:
-        return {"items": services.list_anything_launches()}
-
-    @app.post("/api/integrations/anything/launch/{ticket_id}/apply", status_code=201)
-    def apply_anything_launch(ticket_id: str) -> dict[str, Any]:
-        try:
-            return services.apply_anything_launch(ticket_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="anything launch request not found") from exc
-        except PermissionError as exc:
-            raise HTTPException(status_code=409, detail="approval ticket must be approved") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    @app.post("/api/integrations/anything/launch/{ticket_id}/reference-set", status_code=201)
-    def import_anything_launch_reference_set(
-        ticket_id: str, payload: AnythingLaunchImportRequest
-    ) -> dict[str, Any]:
-        try:
-            return services.import_anything_launch_reference_set(ticket_id, payload)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="anything launch request not found") from exc
-        except PermissionError as exc:
-            raise HTTPException(status_code=409, detail="anything launch must be applied first") from exc
-
     @app.get("/api/approval-tickets")
     def list_approval_tickets() -> dict[str, Any]:
         return {"items": services.list_approval_tickets()}
@@ -3595,93 +3941,6 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="approval ticket not found") from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    @app.post("/api/file-organizer/proposals")
-    def create_file_org_proposals(payload: FileProposalRequest) -> dict[str, Any]:
-        return {"items": services.propose_file_organization(payload.target_path)}
-
-    @app.get("/api/file-organizer/proposals")
-    def list_file_org_proposals() -> dict[str, Any]:
-        return {"items": services.list_file_organization_proposals()}
-
-    @app.post("/api/file-organizer/proposals/{proposal_id}/apply", status_code=202)
-    def request_file_org_apply(proposal_id: str) -> dict[str, Any]:
-        try:
-            return services.file_organizer.request_apply(proposal_id)
-        except KeyError as exc:
-            raise HTTPException(status_code=404, detail="file organizer proposal not found") from exc
-        except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-    @app.post("/api/file-organizer/proposals/{proposal_id}/apply/commit", status_code=201)
-    def commit_file_org_apply(proposal_id: str) -> dict[str, Any]:
-        proposal = services.db.fetch_one("SELECT * FROM file_org_proposals WHERE id = ?", (proposal_id,))
-        if proposal is None:
-            raise HTTPException(status_code=404, detail="file organizer proposal not found")
-        work_job = services.jobs.create_job(
-            kind="fileorg.apply",
-            title=f"{Path(proposal['target_path']).name} 파일정리 적용",
-            input={"proposal_id": proposal_id, "target_path": proposal["target_path"]},
-            resource_key=f"file_path:{proposal['target_path']}",
-            resource_policy="exclusive",
-        )
-        started_job = services.jobs.start_job_with_lock(work_job["id"], stage="파일정리 적용 준비")
-        if started_job["status"] == "blocked":
-            return {"status": "blocked", "work_job": started_job}
-        try:
-            services.jobs.update_progress(work_job["id"], progress_percent=30, stage="승인 상태 확인")
-            result = services.file_organizer.commit_apply(proposal_id)
-            completed = services.jobs.complete_job(
-                work_job["id"],
-                status="succeeded",
-                result={
-                    "proposal_id": proposal_id,
-                    "operation_id": result.get("operation", {}).get("id"),
-                    "destination_path": result.get("operation", {}).get("destination_path"),
-                },
-                stage="파일정리 적용 완료",
-            )
-            result["work_job"] = completed
-            return result
-        except KeyError as exc:
-            services.jobs.fail_job(work_job["id"], error_message="file organizer proposal not found", stage="파일정리 적용 실패")
-            raise HTTPException(status_code=404, detail="file organizer proposal not found") from exc
-        except ValueError as exc:
-            services.jobs.fail_job(work_job["id"], error_message=str(exc), stage="파일정리 적용 검증 실패")
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except OSError as exc:
-            detail = exc.strerror or str(exc)
-            services.jobs.fail_job(work_job["id"], error_message=detail, stage="파일정리 파일 작업 실패")
-            raise HTTPException(status_code=409, detail=f"file organizer apply failed: {detail}") from exc
-
-    @app.post("/api/file-organizer/operations/{operation_id}/rollback")
-    def rollback_file_org(operation_id: str) -> dict[str, Any]:
-        operation = services.db.fetch_one("SELECT * FROM file_org_operations WHERE id = ?", (operation_id,))
-        if operation is None:
-            raise HTTPException(status_code=404, detail="file organizer operation not found")
-        work_job = services.jobs.create_job(
-            kind="fileorg.rollback",
-            title=f"{Path(operation['destination_path']).name} 파일정리 되돌리기",
-            input={"operation_id": operation_id, "destination_path": operation["destination_path"]},
-            resource_key=f"file_path:{operation['destination_path']}",
-            resource_policy="exclusive",
-        )
-        started_job = services.jobs.start_job_with_lock(work_job["id"], stage="파일정리 되돌리기 준비")
-        if started_job["status"] == "blocked":
-            return {"status": "blocked", "work_job": started_job}
-        try:
-            result = services.file_organizer.rollback(operation_id)
-            completed = services.jobs.complete_job(
-                work_job["id"],
-                status="succeeded",
-                result={"operation_id": operation_id, "restored_path": result.get("restored_path")},
-                stage="파일정리 되돌리기 완료",
-            )
-            result["work_job"] = completed
-            return result
-        except KeyError as exc:
-            services.jobs.fail_job(work_job["id"], error_message="file organizer operation not found", stage="파일정리 되돌리기 실패")
-            raise HTTPException(status_code=404, detail="file organizer operation not found") from exc
 
     @app.get("/api/execution-logs")
     def list_execution_logs(limit: int = 50) -> dict[str, Any]:

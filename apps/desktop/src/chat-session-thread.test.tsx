@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkSessionMessageItem } from "./api";
@@ -40,6 +40,12 @@ const jsonResponse = (payload: unknown, status = 200) =>
       headers: { "Content-Type": "application/json" },
     }),
   );
+
+// D-06: 앱 시작 화면이 홈(오늘의 브리핑)으로 바뀌어, 채팅 검증은 먼저 업무대화 메뉴로 이동한다.
+async function openChatFromHome() {
+  const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+  fireEvent.click(within(navigation).getByRole("button", { name: "업무대화" }));
+}
 
 describe("Chat session thread", () => {
   beforeEach(() => {
@@ -149,7 +155,6 @@ describe("Chat session thread", () => {
         }
 
         const collectionMap: Record<string, unknown> = {
-          "/api/reference-sets": { items: [] },
           "/api/templates": { items: [] },
           "/api/knowledge/candidates": { items: [] },
           "/api/knowledge/pages": { items: [] },
@@ -173,6 +178,7 @@ describe("Chat session thread", () => {
   it("appends a typed message into the selected session thread", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await openChatFromHome();
 
     const composer = await screen.findByTestId("chat-composer-form");
     const textarea = within(composer).getByTestId("chat-composer-input");

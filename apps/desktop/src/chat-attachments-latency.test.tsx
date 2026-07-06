@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { WorkSessionItem } from "./api";
@@ -41,6 +41,12 @@ const jsonResponse = (payload: unknown, status = 200) =>
       headers: { "Content-Type": "application/json" },
     }),
   );
+
+// D-06: 앱 시작 화면이 홈(오늘의 브리핑)으로 바뀌어, 채팅 검증은 먼저 업무대화 메뉴로 이동한다.
+async function openChatFromHome() {
+  const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
+  fireEvent.click(within(navigation).getByRole("button", { name: "업무대화" }));
+}
 
 describe("Chat attachments and latency", () => {
   let workSessionsGetCount = 0;
@@ -258,7 +264,6 @@ describe("Chat attachments and latency", () => {
 
         const collectionMap: Record<string, unknown> = {
           "/api/schedules": { items: [] },
-          "/api/reference-sets": { items: [] },
           "/api/templates": { items: [] },
           "/api/knowledge/candidates": { items: [] },
           "/api/knowledge/pages": { items: [] },
@@ -282,6 +287,7 @@ describe("Chat attachments and latency", () => {
   it("uploads attachments, shows image previews, renders markdown output, and shows response latency", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await openChatFromHome();
 
     const input = await screen.findByTestId("chat-composer-input");
     await user.type(input, "Please summarize the attachment");
@@ -317,6 +323,7 @@ describe("Chat attachments and latency", () => {
   it("accumulates image previews, lets the user remove them, and opens a larger preview dialog", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await openChatFromHome();
 
     const attachmentInput = await screen.findByTestId("chat-attachment-input");
     const imageOne = new File(["image-one"], "one.png", { type: "image/png" });
@@ -340,6 +347,7 @@ describe("Chat attachments and latency", () => {
   it("renders detail settings as an overlay and keeps schedule controls outside the chat composer", async () => {
     const user = userEvent.setup();
     render(<App />);
+    await openChatFromHome();
 
     const composer = await screen.findByTestId("chat-composer-form");
     expect(within(composer).queryByText("연결 일정")).not.toBeInTheDocument();

@@ -150,7 +150,6 @@ describe("LLM profile persistence", () => {
         const collectionMap: Record<string, unknown> = {
           "/api/schedules": { items: [] },
           "/api/work-sessions": { items: [] },
-          "/api/reference-sets": { items: [] },
           "/api/templates": { items: [] },
           "/api/knowledge/candidates": { items: [] },
           "/api/knowledge/pages": { items: [] },
@@ -176,7 +175,12 @@ describe("LLM profile persistence", () => {
     render(<App />);
 
     const navigation = await screen.findByRole("navigation", { name: "주요 작업 메뉴" });
-    await user.click(within(navigation).getByRole("button", { name: "기타 환경설정" }));
+    await user.click(within(navigation).getByRole("button", { name: "환경설정" }));
+
+    // OpenRouter는 활성 외부 공급자 카드이므로 [수정]으로 편집 폼을 연다.
+    const profilesPanel = await screen.findByTestId("saved-llm-profiles");
+    const openrouterCard = within(profilesPanel).getByText("OpenRouter").closest("article")!;
+    await user.click(within(openrouterCard).getByRole("button", { name: "수정" }));
 
     await user.clear(await screen.findByLabelText("OpenRouter API Key"));
     await user.type(screen.getByLabelText("OpenRouter API Key"), "sk-or-updated");
@@ -195,7 +199,7 @@ describe("LLM profile persistence", () => {
       expect(screen.getByLabelText("모델 API Base URL")).toHaveValue("https://openrouter.ai/api/v1");
     });
 
-    await user.click(screen.getByRole("button", { name: "설정 저장" }));
+    await user.click(within(profilesPanel).getByRole("button", { name: "설정 저장" }));
 
     await waitFor(() => {
       expect(screen.getByText("환경설정을 저장했습니다.")).toBeInTheDocument();
@@ -205,20 +209,36 @@ describe("LLM profile persistence", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "기타 환경설정" }));
+    await user.click(await screen.findByRole("button", { name: "환경설정" }));
 
-    expect(await screen.findByTestId("saved-llm-profiles")).toBeInTheDocument();
-    expect(screen.getByText("local_first")).toBeInTheDocument();
-    expect(screen.getByText("internal_server")).toBeInTheDocument();
-    expect(screen.getByText("openrouter")).toBeInTheDocument();
-    expect(screen.getByText("anthropic")).toBeInTheDocument();
+    const profilesPanel = await screen.findByTestId("saved-llm-profiles");
+    expect(profilesPanel).toBeInTheDocument();
+    expect(within(profilesPanel).getByText("로컬 우선")).toBeInTheDocument();
+    expect(within(profilesPanel).getByText("내부 서버")).toBeInTheDocument();
+    expect(within(profilesPanel).getByText("OpenRouter")).toBeInTheDocument();
+    expect(within(profilesPanel).getByText("Claude / Anthropic")).toBeInTheDocument();
   });
+
+  it("switches active profile with one click via [이 프로필 사용]", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "환경설정" }));
+
+    const profilesPanel = await screen.findByTestId("saved-llm-profiles");
+    const anthropicCard = within(profilesPanel).getByText("Claude / Anthropic").closest("article")!;
+    await user.click(within(anthropicCard).getByRole("button", { name: "이 프로필 사용" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("선택한 프로필을 활성화했습니다.")).toBeInTheDocument();
+    });
+  }, 15000);
 
   it("saves personalization storage and learning apply mode", async () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await user.click(await screen.findByRole("button", { name: "기타 환경설정" }));
+    await user.click(await screen.findByRole("button", { name: "환경설정" }));
     await user.clear(await screen.findByLabelText("개인화 학습 저장폴더"));
     await user.type(screen.getByLabelText("개인화 학습 저장폴더"), "D:/Gongmu/personalization");
     await user.selectOptions(screen.getByLabelText("학습 후보 반영 방식"), "auto_apply");

@@ -23,10 +23,12 @@ class FileOrganizer:
         if proposal["status"] == "applied":
             raise ValueError("file organizer proposal already applied")
 
+        target_label = self._destination_label(proposal["proposed_destination"])
         ticket = self.db.create_approval_ticket(
             target_type="file_org_apply",
             target_id=proposal_id,
             action="file_org.apply",
+            target_label=target_label,
         )
         self.db.execute(
             "UPDATE file_org_proposals SET status = ? WHERE id = ?",
@@ -95,6 +97,12 @@ class FileOrganizer:
             approval_ticket_id=ticket["id"],
         )
         return {"operation": operation}
+
+    @staticmethod
+    def _destination_label(destination_path: str) -> str:
+        parts = Path(destination_path).parts
+        tail = parts[-2:] if len(parts) >= 2 else parts
+        return "/".join(tail) if tail else destination_path
 
     def _available_destination_path(self, destination: Path) -> Path:
         if not destination.exists():

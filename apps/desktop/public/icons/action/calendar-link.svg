@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" role="img" aria-label="일정 연결">
+  <path fill="none" stroke="#111214" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 4.5h14a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z"/>
+  <path fill="none" stroke="#111214" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 2.5v4M16 2.5v4M3 9.5h18"/>
+  <path fill="none" stroke="#111214" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M9.75 17.25H8.6a2 2 0 0 1 0-4h1.15M14.25 13.25h1.15a2 2 0 0 1 0 4h-1.15M10 15.25h4"/>
+</svg>
