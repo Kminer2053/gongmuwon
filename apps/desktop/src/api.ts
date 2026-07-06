@@ -1287,7 +1287,7 @@ export function parseWorkspaceSettings(value: unknown): WorkspaceSettings {
     WORKSPACE_SETTINGS_VALUES.graphrag_vector_backend,
   )
     ? defaults.graphrag_vector_backend
-    : "chromadb";
+    : "sqlite";
   const internalApiBaseUrl =
     typeof defaults.internal_api_base_url === "string" || defaults.internal_api_base_url === null
       ? defaults.internal_api_base_url

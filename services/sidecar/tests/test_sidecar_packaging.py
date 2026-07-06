@@ -25,10 +25,3 @@ def test_pyinstaller_spec_excludes_legacy_vector_backends() -> None:
     assert 'collect_dynamic_libs("chromadb_rust_bindings")' not in spec_text
     # 실제 필요한 uvicorn 수집은 유지되어야 한다.
     assert 'collect_submodules("uvicorn")' in spec_text
-
-
-def test_sidecar_runtime_pins_chromadb_for_offline_reproducibility() -> None:
-    pyproject_path = Path("services/sidecar/pyproject.toml")
-    pyproject_text = pyproject_path.read_text(encoding="utf-8")
-
-    assert '"chromadb==1.5.9"' in pyproject_text

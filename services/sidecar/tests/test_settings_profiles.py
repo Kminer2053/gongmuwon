@@ -19,7 +19,7 @@ def test_workspace_settings_include_personalization_defaults(tmp_path: Path) -> 
     assert payload["paths"]["personalization_root"].endswith("personalization")
     assert (tmp_path / "personalization" / "session-summaries").exists()
     assert (tmp_path / "personalization" / "audit-log").exists()
-    assert payload["defaults"]["graphrag_vector_backend"] == "chromadb"
+    assert payload["defaults"]["graphrag_vector_backend"] == "sqlite"
     assert payload["defaults"]["knowledge_engine"] == "wiki"
 
 

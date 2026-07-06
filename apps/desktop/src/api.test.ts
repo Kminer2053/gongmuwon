@@ -216,7 +216,7 @@ describe("parseWorkspaceSettings", () => {
       embedding_model: "nomic-embed-text",
       embedding_base_url: "http://127.0.0.1:11434",
       embedding_fallback_enabled: true,
-      graphrag_vector_backend: "chromadb",
+      graphrag_vector_backend: "sqlite",
     });
     expect(parsed.paths).toEqual({
       workspace_root: "/tmp/gongmu-workspace",

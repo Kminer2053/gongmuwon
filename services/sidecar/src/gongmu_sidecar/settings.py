@@ -217,8 +217,9 @@ class SidecarSettings(BaseSettings):
     embedding_model: str = "nomic-embed-text"
     embedding_base_url: str | None = "http://127.0.0.1:11434"
     embedding_fallback_enabled: bool = True
-    # 레거시 벡터/임베딩 설정은 파싱 호환을 위해 유지하지만 wiki 엔진에서는 사용하지 않는다.
-    graphrag_vector_backend: GraphRAGVectorBackendKey = "chromadb"
+    # 레거시 벡터 백엔드(ChromaDB) 코드는 M-07로 제거됨. 이 필드는 기존 settings.json
+    # 파싱 호환을 위해 유지하되, wiki 엔진은 SQLite FTS5만 사용하므로 기본값도 sqlite.
+    graphrag_vector_backend: GraphRAGVectorBackendKey = "sqlite"
     knowledge_engine: KnowledgeEngineKey = "wiki"
     # T-02: 업무대화 턴/문서작성 transcript 조립에 쓰는 입력 토큰 예산.
     # 4k 컨텍스트 경량 모델 기준 출력 여유분을 남기는 보수적 기본값.
