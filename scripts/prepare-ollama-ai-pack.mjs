@@ -416,10 +416,16 @@ bundles the following components, each governed by its OWN license.
 - License: Microsoft's own redistribution terms (NOT Apache/MIT). Redistribution
   of the runtime is permitted under those terms.
 
-## kordoc (python-hwpx)
+## kordoc
 
-- Component: HWPX/HWP document reader bundled in the app installer.
-- License: MIT.
+- Component: Korean document parser (HWP3-5 / HWPX / PDF / DOCX -> Markdown),
+  invoked via a bundled JS bridge.
+- License: MIT. Project: https://github.com/chrisryugj/kordoc
+
+## python-hwpx
+
+- Component: pure-Python HWPX read / edit / create / validate (sidecar).
+- License: Apache-2.0. Project: https://github.com/airmang/python-hwpx
 
 ## Sidecar Python libraries
 
@@ -456,7 +462,11 @@ async function writeLicenseFiles(packageDir) {
   );
   await writeTextFile(
     join(packageDir, "licenses", "kordoc", "NOTICE.txt"),
-    "kordoc (python-hwpx) HWPX reader bundled in the app installer. License: MIT.\n",
+    "kordoc - Korean document parser (HWP/HWPX/PDF/DOCX -> Markdown). License: MIT. https://github.com/chrisryugj/kordoc\n",
+  );
+  await writeTextFile(
+    join(packageDir, "licenses", "python-hwpx", "NOTICE.txt"),
+    "python-hwpx - pure-Python HWPX read/edit/create/validate. License: Apache-2.0. https://github.com/airmang/python-hwpx\n",
   );
 }
 
