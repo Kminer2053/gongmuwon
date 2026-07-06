@@ -153,10 +153,12 @@ npm run release:ai-pack -- --include-models <캐시> --include-ollama-installer 
 
 | 구성요소 | 라이선스 | 재배포 |
 |---|---|---|
-| Ollama · kordoc · Node · FastAPI · Pydantic 등 | MIT | ✅ 자유 |
-| httpx · NumPy · ChromaDB | BSD / Apache-2.0 | ✅ 자유 |
-| Python | PSF | ✅ 자유 |
+| Ollama · kordoc(python-hwpx) · Node · FastAPI · Pydantic · PyYAML | MIT | ✅ 자유 |
+| uvicorn · lxml · pypdf | BSD | ✅ 자유 |
+| Python (LLM 호출은 표준 라이브러리 urllib) | PSF | ✅ 자유 |
 | WebView2 런타임 | Microsoft 재배포 약관(비-Apache) | ✅ 약관 하에 재배포 허용 |
 | **gemma-4 E2B 모델** | **Apache 2.0** | ✅ 자유(라이선스 전문 + NOTICE 동봉, 변경 사실 명시) |
+
+> **번들에서 제외:** 구 GraphRAG 벡터 백엔드(**ChromaDB·LanceDB·NumPy**)는 라이브 임포트 체인에서 제거돼 설치 패키지에 **포함되지 않습니다**(패키징 spec M-07 — 번들 비대·numpy DLL 취약성 회피). 지식 검색은 **SQLite FTS5**로 동작합니다. `httpx`는 개발·테스트 전용입니다.
 
 > Gemma 4는 이전 세대(Gemma 1/2/3/3n의 *Gemma Terms of Use*)와 달리 **Apache 2.0**으로 배포됩니다([Google Gemma 약관](https://ai.google.dev/gemma/terms) → Gemma 4는 [Apache 2.0](https://ai.google.dev/gemma/apache_2)로 분리, 2026-03). 상업적 사용·수정·재배포·파인튜닝이 자유롭고 사용 제한(금지 사용 정책) 전가 의무가 없습니다. 다만 실제로 pull하는 Ollama/GGUF 변환본의 `LICENSE`·`NOTICE`는 업로더가 잘못 표기했을 수 있으니 번들 직전 한 번 확인하세요.
