@@ -1,5 +1,6 @@
 {
   "name": "gongmu-workspace",
+  "license": "MIT",
   "private": true,
   "workspaces": [
     "apps/desktop"
