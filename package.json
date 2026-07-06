@@ -21,6 +21,10 @@
     "desktop:verify:windows:fast": "node scripts/windows-installer-verify.mjs --skip-bundle",
     "sidecar:bundle:windows": "node scripts/portable-run.mjs python -m PyInstaller --noconfirm --clean --distpath release/sidecar/windows-x64 --workpath runtime-workspace/cache/pyinstaller services/sidecar/packaging/gongmu-sidecar.spec",
     "release:offline": "node scripts/prepare-offline-release.mjs",
+    "release:download:gemma4": "node scripts/download-ollama-model-store.mjs --model gemma4:e2b",
+    "release:ai-pack": "node scripts/prepare-ollama-ai-pack.mjs",
+    "release:ai-pack:validate": "node scripts/validate-ai-pack-artifact.mjs --require-zip --min-zip-bytes 7500000000 --run-launcher-dry-run --parse-powershell --hash-zip",
+    "release:test:ai-pack": "node scripts/download-ollama-model-store.test.mjs && node scripts/prepare-ollama-ai-pack.test.mjs && node scripts/validate-ai-pack-artifact.test.mjs",
     "release:alpha": "node scripts/prepare-alpha-release.mjs",
     "verify:all": "npm run sidecar:test && npm run desktop:test && npm run desktop:build && node scripts/portable-run.mjs cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml"
   },
