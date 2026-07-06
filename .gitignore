@@ -14,4 +14,7 @@ apps/desktop/src-tauri/resources/sidecar/windows-x64/
 release/sidecar/
 release/offline/
 release/alpha/20*-windows-*.md
+release/ai-pack/
+release/clean-account-evidence-request/
+docs/operations/generated/
 output/
