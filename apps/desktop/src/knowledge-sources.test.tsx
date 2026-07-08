@@ -1384,6 +1384,32 @@ describe("knowledge source folders", () => {
     expect(screen.getByTestId("knowledge-wiki-browser")).toBeInTheDocument();
   });
 
+  it("previews a doc card in an in-place modal without replacing the viewer (⑥)", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+
+    const browser = await screen.findByTestId("knowledge-wiki-browser");
+    await waitFor(() => expect(browser).toHaveTextContent("폴더별 문서 (2)"));
+
+    // '예산 검토' 문서행의 미리보기 버튼만 눌러 인플레이스 모달을 연다(본문 버튼과 구분).
+    const docButton = within(browser).getByRole("button", { name: /예산 검토/ });
+    const row = docButton.closest("li");
+    expect(row).not.toBeNull();
+    await user.click(within(row as HTMLElement).getByTestId("wiki-tree-preview-button"));
+
+    const modal = await screen.findByTestId("wiki-preview-modal");
+    expect(modal).toHaveTextContent("예산 검토");
+    expect(modal).toHaveTextContent("다음 분기 예산 편성안을 검토하고 주요 변경점을 정리한다.");
+    // 미리보기는 우측 뷰어(전체 페이지)를 대체하지 않는다.
+    expect(screen.queryByTestId("knowledge-wiki-page")).not.toBeInTheDocument();
+
+    await user.click(within(modal).getByRole("button", { name: "닫기" }));
+    await waitFor(() => expect(screen.queryByTestId("wiki-preview-modal")).not.toBeInTheDocument());
+  });
+
   it("shows a duplicate-copy badge and separates missing-original cards in the tree (W7 §5.5/§5.6)", async () => {
     wikiTreePayload = {
       topics: [],

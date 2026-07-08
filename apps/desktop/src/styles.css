@@ -3395,6 +3395,101 @@ label {
   white-space: nowrap;
 }
 
+/* ⑥(3) 문서행: 본문 열기 버튼 + 미리보기(호버 시 노출) 아이콘 버튼을 한 줄에 둔다. */
+.wiki-tree__doc-row {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.wiki-tree__doc-row .wiki-tree__item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.wiki-tree__preview-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-subtle);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.wiki-tree__doc-row:hover .wiki-tree__preview-button,
+.wiki-tree__preview-button:focus-visible {
+  opacity: 1;
+}
+
+.wiki-tree__preview-button:hover {
+  background: rgba(17, 18, 20, 0.08);
+}
+
+.wiki-tree__preview-button:focus-visible {
+  outline: 2px solid var(--accent-green-outline);
+  outline-offset: 2px;
+}
+
+.wiki-tree__preview-button img,
+.wiki-tree__preview-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ⑥(3) 핵심문서 미리보기 모달 — 우측 뷰어를 대체하지 않는 인플레이스 오버레이. */
+.wiki-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1.25rem 2rem;
+  background: rgba(17, 18, 20, 0.36);
+  backdrop-filter: blur(2px);
+  overflow-y: auto;
+}
+
+.wiki-preview-modal {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem 1.4rem 1.4rem;
+  border-radius: 20px;
+  border: 1px solid var(--line-soft);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 60px rgba(17, 18, 20, 0.22);
+}
+
+.wiki-preview-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.wiki-preview-modal__header h3 {
+  margin: 0.15rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+.wiki-preview-modal__body {
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
 /* W7 §5.5: 원본이 삭제/이동된(soft delete) 카드 — 연한 톤 + "원본 삭제됨" 배지 */
 .wiki-tree__badge--missing {
   background: #fef2f2;

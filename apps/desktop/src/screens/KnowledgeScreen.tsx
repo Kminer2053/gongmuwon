@@ -1742,6 +1742,11 @@ export function KnowledgeScreen() {
   // 검색·위키 통합: 위키 탭 우측 뷰어가 위키 페이지를 보여줄지, 검색 결과를 보여줄지.
   const [wikiViewerMode, setWikiViewerMode] = useState<"wiki" | "search">("wiki");
 
+  // ⑥(3) 핵심문서 미리보기: 트리 문서행에서 카드 마크다운을 우측 뷰어 대체 없이 인플레이스
+  // 모달로 미리 본다. 파싱 본문은 이미 fetchWikiPage가 서빙하므로 그대로 재사용한다.
+  const [wikiPreview, setWikiPreview] = useState<{ title: string; content: string } | null>(null);
+  const [wikiPreviewLoading, setWikiPreviewLoading] = useState(false);
+
   // T-01: 분류체계 마법사 열림 상태 + 큐/품질 재조회 트리거 (화면 로컬 상태)
   const [taxonomyWizardOpen, setTaxonomyWizardOpen] = useState(false);
   const [taxonomyRefreshKey, setTaxonomyRefreshKey] = useState(0);
@@ -2272,6 +2277,23 @@ export function KnowledgeScreen() {
       setError(pageError instanceof Error ? pageError.message : "지식위키 문서를 열지 못했습니다.");
     } finally {
       setKnowledgeWikiLoading(false);
+    }
+  }
+
+  /** ⑥(3) 트리 문서행 미리보기 — 카드 마크다운을 우측 뷰어 대체 없이 인플레이스 모달로 띄운다. */
+  async function openWikiDocPreview(path: string, title: string) {
+    setWikiPreviewLoading(true);
+    setWikiPreview({ title, content: "" });
+    try {
+      const page = await fetchWikiPage(resolveWikiTargetPath(path));
+      setWikiPreview({ title, content: page.content });
+    } catch (previewError) {
+      setWikiPreview({
+        title,
+        content: previewError instanceof Error ? previewError.message : "문서를 불러오지 못했습니다.",
+      });
+    } finally {
+      setWikiPreviewLoading(false);
     }
   }
 
@@ -3745,7 +3767,7 @@ export function KnowledgeScreen() {
                             </summary>
                             <ul className="wiki-tree__list">
                               {source.docs.map((doc, docIndex) => (
-                                <li key={`${doc.slug}-${docIndex}`}>
+                                <li key={`${doc.slug}-${docIndex}`} className="wiki-tree__doc-row">
                                   <button
                                     type="button"
                                     className="wiki-tree__item"
@@ -3767,6 +3789,21 @@ export function KnowledgeScreen() {
                                         품질 {Math.round(doc.quality_score * 100)}%
                                       </span>
                                     ) : null}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="wiki-tree__preview-button"
+                                    title={`${displayTitleForFile(doc.title, doc.path)} — 미리보기(현재 화면 유지)`}
+                                    aria-label="문서 카드 미리보기"
+                                    data-testid="wiki-tree-preview-button"
+                                    onClick={() =>
+                                      void openWikiDocPreview(
+                                        doc.path,
+                                        displayTitleForFile(doc.title, doc.path),
+                                      )
+                                    }
+                                  >
+                                    <AssetIcon src="/icons/action/preview.svg" />
                                   </button>
                                 </li>
                               ))}
@@ -4093,6 +4130,53 @@ export function KnowledgeScreen() {
               </div>
             </div>
           </SectionCard>
+        ) : null}
+
+        {/* ⑥(3) 핵심문서 미리보기 — 우측 뷰어를 대체하지 않는 인플레이스 모달. */}
+        {wikiPreview ? (
+          <div
+            className="wiki-preview-overlay"
+            role="presentation"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setWikiPreview(null);
+              }
+            }}
+          >
+            <div
+              className="wiki-preview-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${wikiPreview.title} 미리보기`}
+              data-testid="wiki-preview-modal"
+            >
+              <header className="wiki-preview-modal__header">
+                <div>
+                  <span className="eyebrow">문서 미리보기</span>
+                  <h3>{wikiPreview.title}</h3>
+                </div>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setWikiPreview(null)}
+                  title="미리보기를 닫습니다."
+                >
+                  닫기
+                </button>
+              </header>
+              <div className="wiki-preview-modal__body chat-markdown">
+                {wikiPreviewLoading && !wikiPreview.content ? (
+                  <p className="subtle-text">미리보기를 불러오는 중…</p>
+                ) : (
+                  renderMarkdownContent(wikiPreview.content, (target) => {
+                    // 미리보기 안의 링크는 미리보기를 닫고 우측 뷰어에서 연다.
+                    setWikiPreview(null);
+                    void openKnowledgeWikiTarget(target);
+                  })
+                )}
+              </div>
+            </div>
+          </div>
         ) : null}
       </>
     );
