@@ -25,6 +25,7 @@ import {
   type WorkSessionTurnResult,
   type WorkSessionItem,
   analyzeWorkSessionPersonalization,
+  resetWorkSessionContext,
 } from "../api";
 import { getVisibleMessageText } from "../chatMessageDisplay";
 import { copyTextToClipboard, openExternalTarget } from "../runtime";
@@ -406,6 +407,24 @@ export function ChatScreen() {
     if (analyzed) {
       void refreshDeferredSnapshot("knowledge");
       void refreshDeferredSnapshot("logs");
+    }
+  }
+
+  async function resetSelectedSessionContext() {
+    if (!selectedSession) {
+      return;
+    }
+    const sessionId = selectedSession.id;
+    try {
+      await resetWorkSessionContext(sessionId);
+      setSessionContextSummaries((current) => {
+        const next = { ...current };
+        delete next[sessionId];
+        return next;
+      });
+      pushToast("info", "응답 맥락을 초기화했습니다.");
+    } catch {
+      pushToast("error", "응답 맥락 초기화에 실패했습니다.");
     }
   }
 
@@ -1217,6 +1236,15 @@ export function ChatScreen() {
               {selectedSessionContextEvidence.length > 0 ? (
                 <div className="chat-context-evidence" data-testid="chat-context-evidence">
                   <span className="chat-context-evidence__label">최근 응답 맥락</span>
+                  <button
+                    type="button"
+                    className="chat-context-evidence__reset"
+                    title="이 세션에 쌓인 응답 맥락(요약)을 초기화합니다."
+                    aria-label="응답 맥락 초기화"
+                    onClick={() => void resetSelectedSessionContext()}
+                  >
+                    <AssetIcon src="/icons/action/rebuild.svg" />
+                  </button>
                   {selectedSessionContextEvidence.map((item) => (
                     <button
                       key={item}

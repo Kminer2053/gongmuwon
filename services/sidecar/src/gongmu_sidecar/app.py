@@ -749,6 +749,26 @@ class AppServices:
         )
         return self._serialize_work_session(updated)
 
+    def reset_work_session_context(self, session_id: str) -> dict[str, Any]:
+        existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        if not existing:
+            raise KeyError(session_id)
+        # 세션에 누적된 롤링 요약(응답 맥락)을 비운다 — 이후 턴은 새 맥락으로 시작 (2026-07-08 리뷰).
+        self.db.execute(
+            "UPDATE work_sessions SET context_summary_text = NULL, context_summary_upto = NULL WHERE id = ?",
+            (session_id,),
+        )
+        updated = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
+        assert updated is not None
+        self.db.log(
+            feature="chat",
+            action="work_session.context.reset",
+            status="success",
+            inputs={"session_id": session_id},
+            outputs={"session_id": session_id},
+        )
+        return self._serialize_work_session(updated)
+
     def list_work_session_file_links(self, session_id: str) -> list[dict[str, Any]]:
         existing = self.db.fetch_one("SELECT * FROM work_sessions WHERE id = ?", (session_id,))
         if not existing:
@@ -3211,6 +3231,13 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     def update_work_session(session_id: str, payload: WorkSessionUpdate) -> dict[str, Any]:
         try:
             return services.update_work_session(session_id, payload)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="work session not found") from exc
+
+    @app.post("/api/work-sessions/{session_id}/context/reset")
+    def reset_work_session_context(session_id: str) -> dict[str, Any]:
+        try:
+            return services.reset_work_session_context(session_id)
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="work session not found") from exc
 

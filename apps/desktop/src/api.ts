@@ -914,6 +914,13 @@ export async function createWorkSessionMessage(
   });
 }
 
+/** 세션에 누적된 응답 맥락(롤링 요약)을 초기화한다 (2026-07-08 리뷰). */
+export async function resetWorkSessionContext(sessionId: string): Promise<void> {
+  await requestJson<unknown>(`/api/work-sessions/${sessionId}/context/reset`, {
+    method: "POST",
+  });
+}
+
 export async function runWorkSessionTurn(
   sessionId: string,
   payload: {
