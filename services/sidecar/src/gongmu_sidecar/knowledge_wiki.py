@@ -89,6 +89,56 @@ def _tokenize(text: str) -> list[str]:
     return TOKEN_RE.findall(nfc(text).lower())
 
 
+# 질의에서 걸러낼 명령/일반어(콘텐츠 아님). 이런 term이 OR로 섞이면 "문서" 하나만 겹친
+# 무관 문서가 상위로 떠 오근거로 주입된다 (2026-07-08 리뷰: 문서검색 오류).
+QUERY_STOPWORDS = {
+    "찾아줘", "찾아", "찾기", "알려줘", "알려", "보여줘", "보여", "정리해줘", "정리",
+    "만들어줘", "만들어", "작성", "작성해줘", "해줘", "요약", "요약해줘", "부탁",
+    "지식폴더", "지식폴더에서", "폴더", "문서", "자료", "파일", "내용", "검색",
+    "에서", "대해", "대해서", "좀",
+}
+# 콘텐츠 term 끝에 붙은 접미 일반어를 떼어 recall을 높인다 ("로컬동행관련"→"로컬동행").
+_SUFFIX_STOPWORDS = ("관련해서", "관련", "에대한", "에관한", "내용", "자료", "문서")
+
+
+def _split_ascii_hangul(token: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+|[가-힣]+", token)
+
+
+def _strip_suffix_stopword(term: str) -> str:
+    for suffix in _SUFFIX_STOPWORDS:
+        if term.endswith(suffix) and len(term) - len(suffix) >= 2:
+            return term[: -len(suffix)]
+    return term
+
+
+def _query_terms(query: str) -> list[str]:
+    """검색 질의를 콘텐츠 term으로 정규화한다(결정적, LLM 미개입): 불용어/명령어 제거 +
+    한글↔ASCII 경계 분리 + 접미 일반어 제거 후보 추가."""
+    result: list[str] = []
+    seen: set[str] = set()
+
+    def _add(term: str) -> None:
+        if (
+            len(term) >= 2
+            and term not in STOPWORDS
+            and term not in QUERY_STOPWORDS
+            and term not in seen
+        ):
+            seen.add(term)
+            result.append(term)
+
+    for token in _tokenize(query):
+        if token in STOPWORDS or token in QUERY_STOPWORDS:
+            continue
+        for part in _split_ascii_hangul(token):
+            _add(part)
+            stripped = _strip_suffix_stopword(part)
+            if stripped != part:
+                _add(stripped)
+    return result
+
+
 def _strip_front_matter(body: str) -> str:
     # 발췌/스니펫에 YAML front matter가 새어 나오지 않게 본문 시작 전 블록을 제거한다.
     if not body.startswith("---"):
@@ -2573,10 +2623,19 @@ class KnowledgeWikiManager:
         return {"query": query, "items": items[:safe_limit], "mode": mode}
 
     def _fts_match_expression(self, normalized_query: str) -> str | None:
-        terms = [term for term in _tokenize(normalized_query) if len(term) >= 3]
-        compact = re.sub(r"\s+", "", normalized_query.lower())
-        if not terms and len(compact) >= 3 and TOKEN_RE.fullmatch(compact):
-            terms = [compact]
+        # 콘텐츠 term만 남긴다(명령/일반어 제거) — trigram은 3자 이상에서 유효.
+        terms = [term for term in _query_terms(normalized_query) if len(term) >= 3]
+        if not terms:
+            # 콘텐츠 term이 하나도 없으면(명령/일반어만 입력) 매칭하지 않는다 → 무관 문서
+            # 주입 대신 "관련 근거 없음". 단, 공백 없는 단일 콘텐츠 토큰은 그대로 사용.
+            compact = re.sub(r"\s+", "", normalized_query.lower())
+            if (
+                len(compact) >= 3
+                and TOKEN_RE.fullmatch(compact)
+                and compact not in QUERY_STOPWORDS
+                and compact not in STOPWORDS
+            ):
+                terms = [compact]
         if not terms:
             return None
         return " OR ".join('"' + term.replace('"', '""') + '"' for term in terms[:8])
