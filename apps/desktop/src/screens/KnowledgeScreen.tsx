@@ -2398,8 +2398,15 @@ export function KnowledgeScreen() {
     };
     const kind = inferWikiPageKind(page.relative_path);
     if (!kind) {
+      // work-areas 허브·SCHEMA·index 등 폴백 페이지도 front-matter(YAML)·자동생성 주석은
+      // 감추고 본문만 렌더한다(전용 템플릿과 동일한 가독성).
       return (
-        <div className="chat-markdown">{renderMarkdownContent(page.content, actions.openWikiTarget)}</div>
+        <div className="chat-markdown">
+          {renderMarkdownContent(
+            parseWikiFrontMatter(page.content).body.replace(/<!--[\s\S]*?-->/g, "").trim(),
+            actions.openWikiTarget,
+          )}
+        </div>
       );
     }
     try {
@@ -2422,7 +2429,12 @@ export function KnowledgeScreen() {
       // 렌더 실패/비정형 페이지: 오류를 노출하지 않고 기존 마크다운 렌더로 조용히 폴백한다.
       console.warn("failed to render wiki page template", renderError);
       return (
-        <div className="chat-markdown">{renderMarkdownContent(page.content, actions.openWikiTarget)}</div>
+        <div className="chat-markdown">
+          {renderMarkdownContent(
+            parseWikiFrontMatter(page.content).body.replace(/<!--[\s\S]*?-->/g, "").trim(),
+            actions.openWikiTarget,
+          )}
+        </div>
       );
     }
   }
