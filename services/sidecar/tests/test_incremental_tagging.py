@@ -359,6 +359,37 @@ def test_new_version_ingest_swaps_family_representative(tmp_path: Path) -> None:
     assert "성과평가 결과보고 11월" not in hub_text
 
 
+def test_index_folds_version_family_into_representative(tmp_path: Path) -> None:
+    """⑨ 인덱스 '## 문서'가 판본 계열을 대표 1건 + '버전 이력' 링크로 접는다.
+
+    (1017)/(1118) 두 판본은 apply 시 한 가족이 되어, 최신본만 대표로 노출되고
+    이전 판은 평면 항목이 아니라 대표 아래 '버전 이력' 링크로 접혀야 한다.
+    """
+    client = _client(tmp_path)
+    source_id = _setup(client, tmp_path)
+    services = client.app.state.services
+
+    docs = _docs_by_rel(services.db, source_id)
+    representative = docs["□주요□성과평가/성과평가 결과보고(1118).md"]
+    previous = docs["□주요□성과평가/성과평가 결과보고(1017).md"]
+    assert representative["family_role"] == "latest", "최신 판본이 대표여야 한다"
+    assert previous["family_role"] == "previous"
+    assert representative["family_id"] == previous["family_id"]
+
+    services.wiki.rebuild_index()
+    index_text = (tmp_path / "knowledge-wiki" / "index.md").read_text(encoding="utf-8")
+
+    # 대표는 요약이 붙은 평면 문서 항목으로 노출된다.
+    assert f"- [{representative['title']}](docs/{representative['slug']}.md)" in index_text
+    # 이전 판은 대표 아래 '버전 이력' 링크로 접힌다(클릭 가능, 죽은 텍스트 아님).
+    assert (
+        f"  - 버전 이력 1건: [{previous['title']}](docs/{previous['slug']}.md)"
+        in index_text
+    )
+    # 이전 판이 대표와 동급의 평면 문서 항목(제목 — 요약)으로 다시 등장하지 않는다.
+    assert f"- [{previous['title']}](docs/{previous['slug']}.md) —" not in index_text
+
+
 def test_representative_deletion_promotes_sibling_then_singleton_unfamilies(
     tmp_path: Path,
 ) -> None:

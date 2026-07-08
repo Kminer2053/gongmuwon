@@ -2533,16 +2533,27 @@ class KnowledgeWikiManager:
             label = source["label"] if source else source_id
             lines.append(f"### {label}")
             lines.append("")
-            for doc, duplicate_count in source_docs:
-                summary = str(doc.get("summary") or "").strip()
+            # ⑨ 판본 계열(family)을 대표 1건 + '이전 판 N건'으로 접는다. 동일 해시 사본
+            # 접힘(§5.6)은 이미 적용됐으므로, 그 대표들만 다시 계열로 묶는다.
+            duplicate_by_id = {str(doc["id"]): count for doc, count in source_docs}
+            for representative, previous in self._group_by_family(
+                [doc for doc, _ in source_docs]
+            ):
+                summary = str(representative.get("summary") or "").strip()
                 if not summary:
-                    keywords = self._json_list(doc.get("keywords_json"))
+                    keywords = self._json_list(representative.get("keywords_json"))
                     summary = ", ".join(keywords[:5]) if keywords else "요약 없음"
                 summary = re.sub(r"\s+", " ", summary)[:120]
+                duplicate_count = duplicate_by_id.get(str(representative["id"]), 1)
                 duplicate_note = f" (사본 {duplicate_count}개)" if duplicate_count > 1 else ""
                 lines.append(
-                    f"- [{doc['title']}](docs/{doc['slug']}.md){duplicate_note} — {summary} · 원본: {doc['source_path']}"
+                    f"- [{representative['title']}](docs/{representative['slug']}.md){duplicate_note} — {summary} · 원본: {representative['source_path']}"
                 )
+                if previous:
+                    version_links = ", ".join(
+                        f"[{doc['title']}](docs/{doc['slug']}.md)" for doc in previous
+                    )
+                    lines.append(f"  - 버전 이력 {len(previous)}건: {version_links}")
             lines.append("")
         content = nfc("\n".join(lines).strip() + "\n")
         self.index_path.write_text(content, encoding="utf-8")
@@ -2573,6 +2584,46 @@ class KnowledgeWikiManager:
             by_source.setdefault(source_key, []).append((doc, 1))
             seen[key] = len(by_source[source_key]) - 1
         return by_source
+
+    def _group_by_family(
+        self, docs: list[dict[str, Any]]
+    ) -> list[tuple[dict[str, Any], list[dict[str, Any]]]]:
+        """판본 계열(family_id)을 대표 1건 + 이전 판 목록으로 묶는다 (⑨).
+
+        family_id가 없는 문서는 각자 단독 그룹이다. 대표(official/latest)를 앞세우고
+        나머지(previous)를 '이전 판'으로 접는다. 계열의 첫 등장 위치에 순서를 고정하며,
+        입력(정렬) 순서를 보존한다. 반환: [(대표 doc, [이전 판 doc, ...]), ...]
+        """
+        members: dict[str, list[dict[str, Any]]] = {}
+        layout: list[tuple[str | None, dict[str, Any]]] = []
+        for doc in docs:
+            family_id = str(doc.get("family_id") or "")
+            if not family_id:
+                layout.append((None, doc))
+                continue
+            if family_id not in members:
+                members[family_id] = []
+                layout.append((family_id, doc))
+            members[family_id].append(doc)
+        grouped: list[tuple[dict[str, Any], list[dict[str, Any]]]] = []
+        for marker, anchor in layout:
+            if marker is None:
+                grouped.append((anchor, []))
+                continue
+            group = members[marker]
+            representative = next(
+                (
+                    doc
+                    for doc in group
+                    if str(doc.get("family_role") or "") in {"official", "latest"}
+                ),
+                group[0],
+            )
+            previous = [
+                doc for doc in group if str(doc["id"]) != str(representative["id"])
+            ]
+            grouped.append((representative, previous))
+        return grouped
 
     def _append_log_line(self, message: str) -> None:
         if not self.log_path.exists():
@@ -3062,8 +3113,16 @@ class KnowledgeWikiManager:
                 "",
                 "## 관련 문서",
             ]
-            for doc in docs:
-                lines.append(f"- [{doc['title']}](../docs/{doc['slug']}.md) · 원본: {doc['source_path']}")
+            # ⑨ 판본 계열은 대표 1건 + '이전 판 N건'으로 접어 평면 나열을 막는다.
+            for representative, previous in self._group_by_family(docs):
+                lines.append(
+                    f"- [{representative['title']}](../docs/{representative['slug']}.md) · 원본: {representative['source_path']}"
+                )
+                if previous:
+                    version_links = ", ".join(
+                        f"[{doc['title']}](../docs/{doc['slug']}.md)" for doc in previous
+                    )
+                    lines.append(f"  - 버전 이력 {len(previous)}건: {version_links}")
             if backlinks:
                 lines.append("")
                 lines.append("## 관련 업무 기록")
