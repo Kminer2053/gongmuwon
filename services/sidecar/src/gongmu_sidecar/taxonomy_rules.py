@@ -143,7 +143,9 @@ def normalize_folder_name(name: str) -> str:
     value = nfc(str(name or "")).strip()
     value = FILENAME_SIGNALS["importance_prefix"].sub("", value)
     value = re.sub(r"^\d{1,2}[\.\)\-_]\s*", "", value)
-    value = re.sub(r"(19|20)\d{2}년?", "", value)
+    # 연도 토큰 제거: "2026", "2026년", "2026년도" 모두 소거 (년만 지우고 "도"가
+    # 남아 "도 사업계획" 처럼 나오던 회귀 방지 — 2026-07-08 리뷰).
+    value = re.sub(r"(19|20)\d{2}\s*(?:년도|년)?", "", value)
     value = re.sub(r"[\s_\-]+", " ", value).strip()
     return value
 
@@ -182,7 +184,11 @@ def normalize_family_key(stem: str) -> str:
     value = re.sub(r"[vV]\.?\d+(\.\d+)*", "", value)
     value = re.sub(r"최최종|최종본|최종", "", value)
     value = re.sub(r"(?i:backup|copy|final)|백업|사본|복사본", "", value)
-    value = re.sub(r"(19|20)\d{2}년?", "", value)
+    # Windows 사본 마커 "(1)"/"- 사본"/번호 접미사와 연도(년도 포함) 정규화 —
+    # 유사 파일이 개별문서로 갈라지던 회귀 방지 (2026-07-08 리뷰 §9).
+    value = re.sub(r"[\-_\s]*(?:사본|copy)\s*\d*", "", value, flags=re.IGNORECASE)
+    value = re.sub(r"\(\s*\d+\s*\)", "", value)
+    value = re.sub(r"(19|20)\d{2}\s*(?:년도|년)?", "", value)
     value = re.sub(r"[\s_\-\.\(\)\[\]#,·]+", "", value).lower()
     return value
 

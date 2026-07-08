@@ -1,15 +1,54 @@
+import json
 from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
 
 from gongmu_sidecar.app import create_app
+from gongmu_sidecar.document_authoring import FORMAT_SYSTEM_PROMPTS
 from gongmu_sidecar.llm import LLMGenerationError, LLMGenerationResult
+from test_document_authoring import (
+    EMAIL_JSON,
+    FULL_JSON,
+    GONGMUN_JSON,
+    ONEPAGE_JSON,
+    ORGANIZED_MD,
+)
 
 
 def _client(tmp_path: Path):
     app = create_app(tmp_path)
     return app.state.test_client_factory()
+
+
+_STRUCTURE_BY_FORMAT = {
+    "onePageReport": ONEPAGE_JSON,
+    "fullReport": FULL_JSON,
+    "officialMemo": GONGMUN_JSON,
+    "email": EMAIL_JSON,
+}
+_FORMAT_BY_SYSTEM_PROMPT = {value: key for key, value in FORMAT_SYSTEM_PROMPTS.items()}
+
+
+def authoring_aware_reply(settings, messages, **kwargs):
+    """2026-07-08 리뷰: 업무대화 문서작성이 문서작성 UI와 동일한 authoring 파이프라인
+    (organize→format_to_schema)을 호출하도록 통일됐다. organize/format/일반챗을 구분해
+    유효한 응답을 돌려주는 공용 스텁 — LLM이 실제로 문서 내용을 생성함을 검증한다."""
+    system_text = ""
+    for message in messages:
+        if message.get("role") == "system":
+            system_text = str(message.get("text") or "")
+            break
+    fmt = _FORMAT_BY_SYSTEM_PROMPT.get(system_text)
+    if fmt is not None:  # format_to_schema 단계
+        return LLMGenerationResult(
+            text=json.dumps(_STRUCTURE_BY_FORMAT[fmt], ensure_ascii=False),
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+    if "참고자료" in system_text or "구조화 마크다운" in system_text:  # organize_content 단계
+        return LLMGenerationResult(text=ORGANIZED_MD, provider="ollama", model="gemma4:e2b")
+    return LLMGenerationResult(text="확인했습니다.", provider="ollama", model="gemma4:e2b")
 
 
 def _extract_hwpx_text(path: Path) -> str:
@@ -128,10 +167,7 @@ def test_work_session_turn_blocks_when_same_session_job_is_running(tmp_path: Pat
 
 
 def test_work_session_turn_runs_multiple_clear_tool_intents_in_order(tmp_path: Path, monkeypatch) -> None:
-    def fake_generate_reply(settings, messages, **kwargs):
-        raise AssertionError("clear multi-tool request must not fall through to the LLM")
-
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", authoring_aware_reply)
 
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "다중도구 테스트"})
@@ -615,10 +651,7 @@ def test_work_session_turn_deletes_schedule_from_chat_instruction(tmp_path: Path
 
 
 def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path: Path, monkeypatch) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("document skill should create HWPX without generic LLM fallback")
-
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", authoring_aware_reply)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "문서작성 테스트"})
     session_id = session.json()["id"]
@@ -669,23 +702,20 @@ def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path:
     assert output_path.exists()
     assert markdown_path.exists()
     review_markdown = markdown_path.read_text(encoding="utf-8")
-    assert "AI 추진 배경과 향후 조치사항" in review_markdown
-    assert "보안형 로컬 자동화 중심" in review_markdown
+    # 통일된 파이프라인: 구조화 LLM 출력으로 문서를 채우며, 골격 잔재(플레이스홀더/"연결된
+    # 파일 없음")와 프롬프트 원문 에코가 없어야 한다 (2026-07-08 리뷰 P0).
+    assert "청사 에너지 절감 추진계획 보고" in review_markdown
     assert "이 세션 내용으로 1페이지 보고서 HWPX 문서작성 해줘" not in review_markdown
-    # 작성 가이드 문구는 내부 원칙일 뿐 — 생성 문서(검토 마크다운 포함)에 인쇄되지 않는다
+    assert "내용을 여기에 정리합니다" not in review_markdown
+    assert "아직 연결된 파일이 없습니다" not in review_markdown
     assert "두괄식" not in review_markdown
     assert "개조식" not in review_markdown
     hwpx_text = _extract_hwpx_text(output_path)
-    assert "문서작성 테스트 문서" in hwpx_text
-    assert "AI 추진 배경과 향후 조치사항" in hwpx_text
-    assert "보안형 로컬 자동화 중심" in hwpx_text
+    assert "청사 에너지 절감 추진계획 보고" in hwpx_text
 
 
 def test_work_session_turn_routes_plain_hwpx_requests_to_document_skill(tmp_path: Path, monkeypatch) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("plain HWPX request should use the document generation skill")
-
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", authoring_aware_reply)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "Plain document skill session"})
     session_id = session.json()["id"]
@@ -718,10 +748,7 @@ def test_work_session_turn_routes_plain_hwpx_requests_to_document_skill(tmp_path
 def test_work_session_turn_routes_natural_korean_report_requests_to_document_skill(
     tmp_path: Path, monkeypatch, instruction: str, expected_format: str
 ) -> None:
-    def fail_if_llm_called(settings, messages, **kwargs):
-        raise AssertionError("natural Korean report requests should use the document generation skill")
-
-    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fail_if_llm_called)
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", authoring_aware_reply)
     client = _client(tmp_path)
     session = client.post("/api/work-sessions", json={"title": "보고서 자연어 라우팅"})
     session_id = session.json()["id"]

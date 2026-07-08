@@ -3936,7 +3936,12 @@ class KnowledgeWikiManager:
         cleaned = nfc(str(relative_path or "")).replace("\\", "/").strip().lstrip("/")
         candidate = (self.wiki_root / cleaned).resolve()
         wiki_root = self.wiki_root.resolve()
-        if not str(candidate).startswith(str(wiki_root)) or candidate == wiki_root:
+        # str.startswith는 형제 디렉터리(knowledge-wiki-extra 등)를 오탐하므로 relative_to로 판정.
+        try:
+            rel_check = candidate.relative_to(wiki_root)
+        except ValueError:
+            raise PermissionError(relative_path)
+        if rel_check == Path("."):
             raise PermissionError(relative_path)
         if candidate.suffix.lower() != ".md" or not candidate.exists() or not candidate.is_file():
             raise KeyError(relative_path)

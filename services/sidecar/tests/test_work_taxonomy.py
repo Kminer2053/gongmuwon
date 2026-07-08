@@ -121,7 +121,15 @@ def test_presets_cover_eight_roles_plus_shadow_and_filename_signals() -> None:
 
     assert normalize_folder_name("□주요□예산") == "예산"
     assert normalize_folder_name("01. 2025년 성과평가") == "성과평가"
+    # 2026-07-08 리뷰: "2026년도"에서 "년"만 지우고 "도"가 남던 회귀 방지.
+    assert normalize_folder_name("2026년도 사업계획") == "사업계획"
+    assert normalize_folder_name("□주요□2025년도 성과평가") == "성과평가"
     assert normalize_family_key("2025 예산요구서 (최종)") == normalize_family_key("250110_예산요구서")
+    # 사본/번호 변형이 같은 가족으로 병합되어야 개별문서 분리 회귀가 없다.
+    _fam = normalize_family_key("AI 혁신 운영계획(안)")
+    assert normalize_family_key("AI 혁신 운영계획(안)(1)") == _fam
+    assert normalize_family_key("AI 혁신 운영계획(안) 사본") == _fam
+    assert normalize_family_key("2026년도 AI 혁신 운영계획(안)") == _fam
 
 
 # ----------------------------------------------------------- 초안(proposal)

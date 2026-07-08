@@ -2222,7 +2222,26 @@ export function KnowledgeScreen() {
     return !trimmed.startsWith("/") && !trimmed.startsWith("\\");
   }
 
-  async function openKnowledgeWikiTarget(target: string) {
+  // 위키 내부 링크는 "여는 페이지의 디렉터리" 기준의 상대경로(예: work-areas 허브의
+  // ../docs/foo.md)라, 열린 페이지 경로를 base로 삼아 ./..를 정규화해야 wiki_root 안으로
+  // 떨어진다. base 없이 그냥 fetch하면 백엔드가 wiki_root 밖으로 resolve → 400 (2026-07-08 리뷰).
+  function resolveWikiTargetPath(target: string, base?: string): string {
+    const trimmed = target.trim().replace(/\\/g, "/");
+    const baseDir = base ? base.replace(/\\/g, "/").replace(/\/[^/]*$/, "") : "";
+    const combined = baseDir ? `${baseDir}/${trimmed}` : trimmed;
+    const parts: string[] = [];
+    for (const seg of combined.split("/")) {
+      if (seg === "" || seg === ".") continue;
+      if (seg === "..") {
+        parts.pop();
+        continue;
+      }
+      parts.push(seg);
+    }
+    return parts.join("/");
+  }
+
+  async function openKnowledgeWikiTarget(target: string, base?: string) {
     if (!isRelativeWikiPageTarget(target)) {
       await openExternalTarget(target);
       return;
@@ -2232,7 +2251,7 @@ export function KnowledgeScreen() {
     setKnowledgeWikiLoading(true);
     setError(null);
     try {
-      const page = await fetchWikiPage(target.trim());
+      const page = await fetchWikiPage(resolveWikiTargetPath(target, base));
       setKnowledgeWikiPage(page);
     } catch (pageError) {
       setError(pageError instanceof Error ? pageError.message : "지식위키 문서를 열지 못했습니다.");
@@ -2334,7 +2353,7 @@ export function KnowledgeScreen() {
   /** F-18: 위키 페이지 유형(docs/topics/work)에 맞춰 템플릿을 고르고, 실패 시 기존 마크다운 렌더로 폴백한다. */
   function renderWikiPageBody(page: { relative_path: string; content: string }) {
     const actions: WikiTemplateActions = {
-      openWikiTarget: (target) => void openKnowledgeWikiTarget(target),
+      openWikiTarget: (target) => void openKnowledgeWikiTarget(target, page.relative_path),
       askAboutPage: askAboutWikiPage,
       searchRelated: searchRelatedToWikiPage,
       openSource: (sourcePath) => void openExternalTarget(sourcePath),

@@ -18,12 +18,19 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
 from .context_budget import (
+    assemble_transcript_context,
     assemble_turn_context,
     deterministic_digest,
     LLM_SUMMARY_CAP,
 )
 from .db import Database, now_iso
-from .document_authoring import register_authoring_routes
+from .document_authoring import (
+    FORMAT_SCHEMAS,
+    build_content_base_markdown,
+    register_authoring_routes,
+    run_authoring_stages,
+    strip_structure_marker,
+)
 from .document_parsers import parse_document
 from .documents import DocumentManager
 from .job_runner import JobRunner
@@ -1691,6 +1698,8 @@ class AppServices:
         text: str,
     ) -> dict[str, Any]:
         document_format = self._document_format_from_text(text)
+        if document_format not in FORMAT_SCHEMAS:  # "auto" 등 미지정 → 1페이지 보고서 기본
+            document_format = "onePageReport"
         direct_paths = [
             row["file_path"]
             for row in self.list_work_session_file_links(session_id)
@@ -1709,29 +1718,69 @@ class AppServices:
             resource_policy="exclusive",
         )
         self.jobs.start_job(work_job["id"], stage="업무대화 컨텍스트 수집")
+
+        # 2026-07-08 리뷰 P0: 업무대화 문서작성을 문서작성 UI와 "동일한" 고품질 파이프라인으로
+        # 통일한다. 기존엔 LLM을 호출하지 않고 골격 템플릿(플레이스홀더·프롬프트 원문 에코)을 그대로
+        # HWPX로 렌더해 산출물이 쓰레기였다. organize(LLM 정리)→format_to_schema(검증·repair)→
+        # 구조마커 마크다운→결정적 HWPX. 대화 맥락(축약 transcript)과 연결파일 발췌를 근거로 준다.
+        def _authoring_llm(messages: list[dict[str, Any]], *, temperature: float = 0.2) -> str:
+            return generate_session_reply(self.settings, messages).text
+
+        message_rows = self.db.fetch_all(
+            "SELECT role, text FROM work_session_messages WHERE session_id = ? ORDER BY created_at ASC",
+            (session_id,),
+        )
+        transcript, _budget_stats = assemble_transcript_context(
+            session_messages=[dict(row) for row in message_rows],
+            rolling_summary=session.get("context_summary_text"),
+            budget_tokens=getattr(self.settings, "context_budget_tokens", 6000),
+        )
+        reference_texts = [
+            excerpt
+            for path in direct_paths
+            if (excerpt := self.documents._safe_file_excerpt(path))
+        ]
+
+        self.jobs.update_progress(work_job["id"], progress_percent=35, stage="AI 문서 구조 생성")
+        structure: dict[str, Any] | None = None
+        for stage_item in run_authoring_stages(
+            _authoring_llm,
+            format_key=document_format,
+            instruction=text,
+            reference_texts=reference_texts or None,
+            transcript=transcript or None,
+        ):
+            if stage_item.get("done"):
+                structure = stage_item["structure"]
+        if structure is None:
+            self.jobs.complete_job(work_job["id"], status="failed", stage="문서 구조 생성 실패")
+            raise RuntimeError("문서 구조 생성에 실패했습니다.")
+
+        markdown = build_content_base_markdown(document_format, structure)
         content_base = self.documents.create_content_base(
             title=f"{session['title']} 문서",
             purpose="업무대화 세션 기반 자동 문서작성",
             template_key="report",
             source_session_id=session_id,
-            outline=text,
+            outline="",  # 원시 프롬프트 에코 원천 차단
             document_format=document_format,
-            audience_type="관련 부서",
-            expected_length="1페이지" if document_format == "onePageReport" else "자동",
-            urgency_level="보통",
-            needs_traceability="필요",
-            requires_official_form="필요",
-            requested_action="검토 및 후속 조치",
-            deadline="기한 미정",
-            security_level="내부",
-            direct_file_paths=direct_paths,
         )
+        content_base_markdown_path = Path(content_base["artifact"]["path"])
+        content_base_markdown_path.write_text(markdown, encoding="utf-8")
+        try:
+            Path(content_base["preview"]["path"]).write_text(
+                self.documents._render_html(strip_structure_marker(markdown)),
+                encoding="utf-8",
+            )
+        except (OSError, AttributeError, KeyError):
+            pass
+
         finalize = self.documents.request_final_document_output(
             content_base_id=content_base["id"],
             output_name=content_base["title"],
         )
         ticket_id = finalize["approval_ticket"]["id"]
-        self.jobs.update_progress(work_job["id"], progress_percent=60, stage="HWPX 산출 승인 적용")
+        self.jobs.update_progress(work_job["id"], progress_percent=70, stage="HWPX 산출 승인 적용")
         self.decide_approval_ticket(
             ticket_id,
             ApprovalDecisionRequest(status="approved", decision_note="업무대화 문서작성 스킬 자동 승인"),
