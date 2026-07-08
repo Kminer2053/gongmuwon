@@ -104,4 +104,27 @@ describe("renderMarkdownContent", () => {
     openButton.click();
     expect(onOpenExternal).toHaveBeenCalledWith("C:\\tmp\\result.hwpx");
   });
+
+  it("preserves source ordinals across blank-line-separated numbered items (no all-1 bug)", () => {
+    const { container } = renderMarkdown("1. 첫째 과제\n\n2. 둘째 과제\n\n3. 셋째 과제");
+
+    const ordered = container.querySelectorAll("ol");
+    expect(ordered).toHaveLength(1);
+    const items = ordered[0]!.querySelectorAll("li");
+    expect(items).toHaveLength(3);
+    expect(items[0]!.getAttribute("value")).toBe("1");
+    expect(items[1]!.getAttribute("value")).toBe("2");
+    expect(items[2]!.getAttribute("value")).toBe("3");
+  });
+
+  it("normalizes fullwidth digits and circled numerals into ordered items", () => {
+    const { container } = renderMarkdown("１. 전각 항목\n② 원문자 항목");
+
+    const items = container.querySelectorAll("ol li");
+    expect(items.length).toBeGreaterThanOrEqual(2);
+    expect(items[0]!.textContent).toContain("전각 항목");
+    const circled = Array.from(items).find((li) => li.textContent?.includes("원문자 항목"));
+    expect(circled).toBeTruthy();
+    expect(circled!.getAttribute("value")).toBe("2");
+  });
 });

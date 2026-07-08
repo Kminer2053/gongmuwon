@@ -67,6 +67,7 @@ export type MarkdownListEntry = {
   level: number;
   ordered: boolean;
   text: string;
+  number?: number;
 };
 
 export function parseMarkdownListLine(rawLine: string): MarkdownListEntry | null {
@@ -78,12 +79,13 @@ export function parseMarkdownListLine(rawLine: string): MarkdownListEntry | null
       text: unordered[2].trim(),
     };
   }
-  const ordered = rawLine.match(/^([ \t]*)\d+[.)]\s+(.*)$/);
+  const ordered = rawLine.match(/^([ \t]*)(\d+)[.)]\s+(.*)$/);
   if (ordered) {
     return {
       level: Math.min(2, Math.floor(ordered[1].replace(/\t/g, "  ").length / 2)),
       ordered: true,
-      text: ordered[2].trim(),
+      text: ordered[3].trim(),
+      number: Number.parseInt(ordered[2], 10),
     };
   }
   return null;
@@ -110,6 +112,7 @@ export function buildMarkdownList(
   onOpenExternal?: (target: string) => void,
 ): ReactNode {
   const ordered = entries[cursor.index]?.ordered ?? false;
+  const startNumber = ordered ? entries[cursor.index]?.number : undefined;
   const items: ReactNode[] = [];
 
   while (cursor.index < entries.length) {
@@ -123,7 +126,8 @@ export function buildMarkdownList(
       childList = buildMarkdownList(entries, cursor, level + 1, `${keyPrefix}-${items.length}`, onOpenExternal);
     }
     items.push(
-      <li key={`${keyPrefix}-item-${items.length}`}>
+      // ordered 항목은 원문 번호를 value로 보존한다 — 빈 줄로 목록이 갈려도 "1."만 반복되지 않는다.
+      <li key={`${keyPrefix}-item-${items.length}`} value={ordered ? entry.number : undefined}>
         {renderMarkdownListItemBody(entry.text, onOpenExternal)}
         {childList}
       </li>,
@@ -131,7 +135,9 @@ export function buildMarkdownList(
   }
 
   return ordered ? (
-    <ol key={`${keyPrefix}-ol`}>{items}</ol>
+    <ol key={`${keyPrefix}-ol`} start={startNumber}>
+      {items}
+    </ol>
   ) : (
     <ul key={`${keyPrefix}-ul`}>{items}</ul>
   );
@@ -140,6 +146,16 @@ export function buildMarkdownList(
 export function renderMarkdownContent(markdown: string, onOpenExternal?: (target: string) => void) {
   const normalizedMarkdown = markdown
     .replace(/\r/g, "")
+    // gemma가 섞어 내보내는 전각 숫자·구두점을 ASCII로 정규화한다 (2026-07-08 리뷰: 숫자/원문자 혼재).
+    .replace(/[０-９]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0xff10 + 0x30))
+    .replace(/．/g, ".")
+    .replace(/（/g, "(")
+    .replace(/）/g, ")")
+    // 원문자 ①②③…를 줄머리에서 "1. " 형태의 순서 목록 마커로 치환한다.
+    .replace(
+      /^([ \t]*)([①-⑳])[ \t]*/gm,
+      (_match, indent: string, ch: string) => `${indent}${ch.charCodeAt(0) - 0x2460 + 1}. `,
+    )
     // 선행 글머리표(*, •, ◦)는 들여쓰기를 유지한 채 "- "로 통일한다.
     .replace(/^([ \t]*)[*•◦][ \t]+/gm, "$1- ")
     // 문장 중간에 이어붙은 번호/대시 항목은 줄로 분리하되, 줄바꿈과 들여쓰기는 보존한다.
@@ -256,6 +272,13 @@ export function renderMarkdownContent(markdown: string, onOpenExternal?: (target
       while (index < lines.length) {
         const entry = parseMarkdownListLine(lines[index] ?? "");
         if (!entry) {
+          // 빈 줄 하나로 끊긴 경우 다음 줄이 같은 목록 항목이면 이어서 하나의 목록으로 유지한다
+          // (gemma는 번호 항목 사이에 빈 줄을 자주 넣어 목록이 갈라지고 번호가 리셋됐다).
+          const isBlank = (lines[index] ?? "").trim() === "";
+          if (isBlank && parseMarkdownListLine(lines[index + 1] ?? "")) {
+            index += 1;
+            continue;
+          }
           break;
         }
         const level = Math.min(entry.level, previousLevel + 1);
