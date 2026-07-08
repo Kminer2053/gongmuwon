@@ -4168,11 +4168,16 @@ export function KnowledgeScreen() {
                 {wikiPreviewLoading && !wikiPreview.content ? (
                   <p className="subtle-text">미리보기를 불러오는 중…</p>
                 ) : (
-                  renderMarkdownContent(wikiPreview.content, (target) => {
-                    // 미리보기 안의 링크는 미리보기를 닫고 우측 뷰어에서 연다.
-                    setWikiPreview(null);
-                    void openKnowledgeWikiTarget(target);
-                  })
+                  // 전체 뷰어와 동일하게 front-matter(YAML)와 자동생성 안내 주석은 제거하고
+                  // 본문만 렌더한다.
+                  renderMarkdownContent(
+                    parseWikiFrontMatter(wikiPreview.content).body.replace(/<!--[\s\S]*?-->/g, "").trim(),
+                    (target) => {
+                      // 미리보기 안의 링크는 미리보기를 닫고 우측 뷰어에서 연다.
+                      setWikiPreview(null);
+                      void openKnowledgeWikiTarget(target);
+                    },
+                  )
                 )}
               </div>
             </div>
