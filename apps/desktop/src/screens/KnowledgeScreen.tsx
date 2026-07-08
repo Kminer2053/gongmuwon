@@ -2236,7 +2236,13 @@ export function KnowledgeScreen() {
   // 떨어진다. base 없이 그냥 fetch하면 백엔드가 wiki_root 밖으로 resolve → 400 (2026-07-08 리뷰).
   function resolveWikiTargetPath(target: string, base?: string): string {
     const trimmed = target.trim().replace(/\\/g, "/");
-    const baseDir = base ? base.replace(/\\/g, "/").replace(/\/[^/]*$/, "") : "";
+    // 위키링크([[topics/slug]]) 등 vault-root 기준 경로는 현재 페이지 디렉터리를 base로
+    // 적용하면 안 된다(docs/foo.md 안의 topics/x.md → docs/topics/x.md 오해석). 알려진
+    // 최상위 디렉터리로 시작하고 상대 이동(../)이 없으면 wiki_root 기준으로 해석한다(⑤).
+    const rootRelative =
+      /^(docs|topics|work|work-areas|extracted)\//.test(trimmed) && !trimmed.includes("../");
+    const baseDir =
+      base && !rootRelative ? base.replace(/\\/g, "/").replace(/\/[^/]*$/, "") : "";
     const combined = baseDir ? `${baseDir}/${trimmed}` : trimmed;
     const parts: string[] = [];
     for (const seg of combined.split("/")) {

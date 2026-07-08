@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 
 export function renderInlineMarkdown(text: string, onOpenExternal?: (target: string) => void) {
   const nodes: ReactNode[] = [];
-  const pattern = /(\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
+  // 위키링크 [[target|alias]] 를 표준 링크·강조보다 먼저 매칭한다(⑤).
+  const pattern = /(\[\[[^\]]+\]\]|\[[^\]]+\]\([^)]+\)|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -11,8 +12,31 @@ export function renderInlineMarkdown(text: string, onOpenExternal?: (target: str
       nodes.push(text.slice(lastIndex, match.index));
     }
     const token = match[0];
+    const wikiLink = token.match(/^\[\[([^\]]+)\]\]$/);
     const link = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (link) {
+    if (wikiLink) {
+      // Obsidian 위키링크: [[topics/slug|주제]] → 라벨은 alias, 이동 대상은 target(vault-root 상대).
+      const inner = wikiLink[1];
+      const pipe = inner.indexOf("|");
+      const rawTarget = (pipe >= 0 ? inner.slice(0, pipe) : inner).trim();
+      const label = (pipe >= 0 ? inner.slice(pipe + 1) : inner).trim() || rawTarget;
+      // 확장자가 없으면 .md 카드로 간주한다(topics/slug → topics/slug.md).
+      const target = /\.[a-z0-9]+$/i.test(rawTarget) ? rawTarget : `${rawTarget}.md`;
+      nodes.push(
+        onOpenExternal ? (
+          <button
+            key={`${match.index}-wikilink`}
+            type="button"
+            className="inline-open-target inline-open-target--link"
+            onClick={() => onOpenExternal(target)}
+          >
+            <span>{label}</span>
+          </button>
+        ) : (
+          <span key={`${match.index}-wikilink`}>{label}</span>
+        ),
+      );
+    } else if (link) {
       const label = link[1];
       const target = link[2].trim();
       nodes.push(

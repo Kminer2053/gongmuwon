@@ -63,6 +63,27 @@ describe("renderMarkdownContent", () => {
     expect(level3?.textContent).toBe("3단계");
   });
 
+  it("renders [[target|alias]] wikilinks as clickable links to the .md card (⑤)", () => {
+    const onOpenExternal = vi.fn();
+    const { container } = renderMarkdown(
+      "- [[topics/사업계획|사업계획]]\n- [[지식 인덱스]]",
+      onOpenExternal,
+    );
+
+    // 원문 대괄호가 그대로 노출되지 않는다.
+    expect(container.textContent).not.toContain("[[");
+    const buttons = container.querySelectorAll("button.inline-open-target--link");
+    expect(buttons).toHaveLength(2);
+    // alias가 라벨로, 이동 대상은 확장자 보정된 vault-root 경로.
+    expect(buttons[0]!.textContent).toBe("사업계획");
+    (buttons[0] as HTMLButtonElement).click();
+    expect(onOpenExternal).toHaveBeenCalledWith("topics/사업계획.md");
+    // alias 없는 위키링크는 대상 자체를 라벨로 쓰고 .md를 보정한다.
+    expect(buttons[1]!.textContent).toBe("지식 인덱스");
+    (buttons[1] as HTMLButtonElement).click();
+    expect(onOpenExternal).toHaveBeenCalledWith("지식 인덱스.md");
+  });
+
   it("keeps each source line as its own paragraph instead of joining lines", () => {
     const { container } = renderMarkdown("첫 번째 줄입니다.\n두 번째 줄입니다.");
 
