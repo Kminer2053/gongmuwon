@@ -297,10 +297,17 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .taxonomy-area-card__row input[type="checkbox"] {
   flex: none;
+}
+
+/* 제외/포함 버튼이 좁은 패널에서 잘리지 않도록 축소 방지 (2026-07-08 리뷰) */
+.taxonomy-area-card__row > button {
+  flex: none;
+  margin-left: auto;
 }
 
 .taxonomy-area-card__name {

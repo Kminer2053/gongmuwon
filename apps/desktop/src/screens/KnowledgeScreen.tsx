@@ -364,6 +364,15 @@ function parseWikiOutlineItems(section: WikiPageSection | null): string[] {
     .filter((line) => line && line !== "(섹션 없음)");
 }
 
+/** 마법사 표시용: 폴더명 앞의 중요도 마커(□주요□/★ 등)를 떼어 원문 노출을 막는다.
+ * 매칭·저장은 원문 폴더명을 그대로 쓰고 표시만 정리한다 (2026-07-08 리뷰). */
+function cleanFolderLabel(folder: string): string {
+  const cleaned = folder
+    .replace(/^[\s□■▣◆◇★☆▶▷·]*(?:주요|중요|참고|기타)[\s□■▣◆◇★☆·]*/u, "")
+    .trim();
+  return cleaned || folder;
+}
+
 type WikiPageKind = "docs" | "topics" | "work" | null;
 
 /** 경로 접두사로 페이지 유형을 추정한다(문서 카드/주제/업무 기록). index나 그 외 경로는 null(기존 트리/폴백 유지). */
@@ -1254,7 +1263,7 @@ function TaxonomyWizard({
                     </button>
                   </div>
                   <div className="document-preview__meta">
-                    <span>폴더: {area.folders.length > 0 ? area.folders.join(", ") : "매핑 없음"}</span>
+                    <span>폴더: {area.folders.length > 0 ? area.folders.map(cleanFolderLabel).join(", ") : "매핑 없음"}</span>
                     {area.docCount !== null ? <span>문서 {area.docCount}건</span> : null}
                     {area.confidence ? (
                       <span className={area.confidence === "low" ? "pill pill--warning" : "pill pill--soft"}>
