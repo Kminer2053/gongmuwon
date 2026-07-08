@@ -32,9 +32,10 @@ export const HOOKS_RELATIVE = path.join(
  * 카테고리가 고르게 섞이도록 고른다. 순서 = 설치 로그에 찍히는 순서.
  */
 export const INSTALLER_TIP_IDS = [
-  "chat-clipboard-image",
   "chat-schedule-create",
-  "chat-file-link-doc",
+  "chat-document-create",
+  "chat-multi-intent",
+  "chat-knowledge-evidence",
   "documents-custom-form",
   "knowledge-taxonomy-wizard",
   "settings-profiles",

@@ -14,13 +14,14 @@
 ; --- BEGIN GENERATED TIPS (generate-nsis-tips.mjs) ---
 ; 자동 생성 구간 — 직접 수정 금지. 문구를 바꾸려면
 ; apps/desktop/src/shared/tips.ts 를 고치고 `node scripts/generate-nsis-tips.mjs` 실행.
-!define GONGMU_TIP_COUNT 6
-!define GONGMU_TIP_1 "화면을 캡처한 뒤 업무대화 입력창에 Ctrl+V를 누르면 이미지가 바로 첨부됩니다."
-!define GONGMU_TIP_2 "날짜·시간을 넣어 말하면 업무대화가 일정을 바로 등록합니다."
-!define GONGMU_TIP_3 "[파일 연결]로 자료를 세션에 묶은 뒤 보고서를 요청하면 연결한 파일이 근거로 쓰입니다."
-!define GONGMU_TIP_4 "문서작성의 임의형식 칩에 HWPX/HWTX 양식을 올리면 표·로고·서식을 보존한 채 빈칸을 채웁니다."
-!define GONGMU_TIP_5 "분류체계 마법사가 지식폴더를 분석해 업무 분류 트리를 제안합니다. 검토·편집한 뒤 적용하세요."
-!define GONGMU_TIP_6 "환경설정에서 LLM 프로필을 여러 개 저장해 두고 상황에 맞게 전환할 수 있습니다."
+!define GONGMU_TIP_COUNT 7
+!define GONGMU_TIP_1 "날짜·시간을 넣어 말하면 업무대화가 일정을 바로 등록합니다."
+!define GONGMU_TIP_2 "'보고서·공문·시행문·이메일' 같은 문서 종류와 '작성·정리'를 함께 말하면 업무대화가 문서작성을 실행합니다."
+!define GONGMU_TIP_3 "한 문장에 여러 요청을 담으면 순서대로 처리합니다 — 일정 등록과 문서작성을 한 번에."
+!define GONGMU_TIP_4 "지식폴더를 색인해 두면 업무대화 답변에 출처 칩(원본 열기·경로 복사)이 함께 붙습니다."
+!define GONGMU_TIP_5 "문서작성의 임의형식 칩에 HWPX/HWTX 양식을 올리면 표·로고·서식을 보존한 채 빈칸을 채웁니다."
+!define GONGMU_TIP_6 "분류체계 마법사가 지식폴더를 분석해 업무 분류 트리를 제안합니다. 검토·편집한 뒤 적용하세요."
+!define GONGMU_TIP_7 "환경설정에서 LLM 프로필을 여러 개 저장해 두고 상황에 맞게 전환할 수 있습니다."
 ; --- END GENERATED TIPS ---
 
 ; --------------------------------------------------------------------------
