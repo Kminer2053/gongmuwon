@@ -88,12 +88,12 @@ async function main() {
     assert.match(batchScript, /ExecutionPolicy Bypass/);
     assert.match(batchScript, /install-gongmu-ai\.ps1/);
     assert.match(batchScript, /GONGMU_AI_PACK_DRY_RUN/);
-    assert.match(batchScript, /Gongmu app installer runs LAST/);
-    assert.match(batchScript, /finish the Gongmu installer wizard/i);
-    assert.match(batchScript, /When the app opens it is ready to use/);
-    assert.match(batchScript, /If the Ollama installer or Ollama app opens, finish it and close it/);
-    assert.match(batchScript, /Python, Ollama, and the Gemma model are set up first/);
-    assert.match(batchScript, /Gemma model cache copy can take several minutes/);
+    assert.match(batchScript, /공무원 앱은 맨 마지막에 설치됩니다/);
+    assert.match(batchScript, /Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요/);
+    assert.match(batchScript, /앱이 바로 사용 가능한 상태로 열립니다/);
+    assert.match(batchScript, /Python, Ollama, Gemma 모델을 먼저 설치합니다/);
+    assert.match(batchScript, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
+    assert.match(batchScript, /설치가 끝날 때까지 이 창을 닫지 마세요/);
     assert.match(batchScript, /pause/);
     const guiBatchScript = await readFile(join(result.packageDir, "START_INSTALL_GUI.bat"), "utf8");
     assert.match(guiBatchScript, /powershell\.exe/);
@@ -123,12 +123,11 @@ async function main() {
     assert.match(fullValidationBatch, /GONGMU_AI_PACK_DRY_RUN/);
     assert.match(fullValidationBatch, /install-gongmu-ai\.log/);
     assert.match(fullValidationBatch, /evidence\\ai-pack-clean-account-evidence\.md/);
-    assert.match(fullValidationBatch, /Gongmu app installer runs LAST/);
-    assert.match(fullValidationBatch, /Finish the Gongmu installer wizard/i);
-    assert.match(fullValidationBatch, /When the app opens it is ready to use/);
-    assert.match(fullValidationBatch, /If the Ollama installer or Ollama app opens, finish it and close it/);
-    assert.match(fullValidationBatch, /Do not close this command window/);
-    assert.match(fullValidationBatch, /Gemma model cache copy can take several minutes/);
+    assert.match(fullValidationBatch, /공무원 앱은 맨 마지막에 설치됩니다/);
+    assert.match(fullValidationBatch, /Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요/);
+    assert.match(fullValidationBatch, /앱이 바로 사용 가능한 상태로 열립니다/);
+    assert.match(fullValidationBatch, /이 명령창은 닫지 마세요/);
+    assert.match(fullValidationBatch, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
 
     const validateScript = await readFile(join(result.packageDir, "validate-gongmu-ai.ps1"), "utf8");
     assert.match(validateScript, /Find-Python311/);
@@ -150,22 +149,22 @@ async function main() {
     assert.match(evidenceScript, /iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD\/fteaysAAAAASUVORK5CYII=/);
 
     const readme = await readFile(join(result.packageDir, "README.md"), "utf8");
-    assert.match(readme, /Local AI Agent Workplace/);
+    assert.match(readme, /로컬 AI에이전트 워크플레이스 : 공무원/);
     assert.match(readme, /Python 3\.11/);
     assert.match(readme, /Ollama/);
     assert.match(readme, /gemma4:e2b/);
     assert.match(readme, /START_INSTALL_GUI\.bat/);
-    assert.match(readme, /guided monitor/);
+    assert.match(readme, /진행 상황을 보여주는 안내 창/);
     assert.match(readme, /START_INSTALL\.bat/);
     assert.match(readme, /VALIDATE_INSTALL\.bat/);
     assert.match(readme, /COLLECT_EVIDENCE\.bat/);
     assert.match(readme, /RUN_FULL_VALIDATION\.bat/);
-    assert.match(readme, /The Gongmu app is installed LAST/);
-    assert.match(readme, /Installs Gongmu LAST/);
-    assert.match(readme, /If the Ollama installer or Ollama app opens, finish it and close it/);
-    assert.match(readme, /The Gongmu app is installed only after Python\/Ollama\/Gemma setup completes/);
-    assert.match(readme, /Gemma model cache copy can take several minutes/);
-    assert.match(readme, /WSL is not required for Gongmu or native Windows Ollama/);
+    assert.match(readme, /공무원 앱은 맨 마지막에 설치됩니다/);
+    assert.match(readme, /마지막으로 공무원 앱 설치/);
+    assert.match(readme, /Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요/);
+    assert.match(readme, /검은 명령창.*임의로 닫지 마세요/);
+    assert.match(readme, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
+    assert.match(readme, /WSL은 공무원과 Windows용 Ollama 실행에 필요하지 않습니다/);
 
     const koreanInstallGuide = await readFile(join(result.packageDir, "INSTALL_GUIDE_KO.md"), "utf8");
     assert.equal(koreanInstallGuide.charCodeAt(0), 0xfeff);

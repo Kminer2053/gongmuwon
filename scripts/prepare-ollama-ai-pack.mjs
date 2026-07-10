@@ -132,92 +132,76 @@ async function findDefaultModelStore() {
 
 async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, hasPythonInstaller, hasGongmuInstaller }) {
   const lines = [
-    "# Local AI Agent Workplace : Gongmuwon AI Setup Pack",
+    "# 로컬 AI에이전트 워크플레이스 : 공무원 — AI 설치팩",
     "",
-    "This package prepares a closed-network or clean Windows account for Gongmu local AI use.",
+    "이 설치팩은 인터넷이 없는 폐쇄망(내부망) PC나 새 Windows 계정에서",
+    "'공무원' 앱과 로컬 AI(Ollama + Gemma 모델)를 한 번에 설치하기 위한 것입니다.",
     "",
-    "Korean first-time install guide: `INSTALL_GUIDE_KO.md`",
+    "## 가장 쉬운 시작 방법",
     "",
-    "Recommended guided monitor launcher: `START_INSTALL_GUI.bat`",
-    "",
-    "## What START_INSTALL.bat does",
-    "",
-    "1. Detects Python 3.11. Gongmu's bundled desktop app can run without system Python, but Python 3.11 is useful for repair, diagnostics, and development-mode support.",
-    "2. Installs Python 3.11 when a CPython installer is bundled in `python/`.",
-    "3. Detects or installs Ollama from `ollama/OllamaSetup.exe`.",
-    "4. Copies the packaged Ollama model store from `models/` into `%USERPROFILE%\\.ollama\\models`.",
-    "5. Starts Ollama on `127.0.0.1:11434`.",
-    `6. Verifies that ${MODEL_NAME} is available.`,
-    "7. Runs a text response check and an image-input API check.",
-    "8. Writes Gongmu settings so the app uses Ollama local-first mode.",
-    "9. Installs Gongmu LAST, from the NSIS installer in `gongmu/`, so the app opens in a ready state (Ollama, model, and settings are already prepared).",
-    "",
-    "## Important install-window behavior",
-    "",
-    "- The Gongmu app is installed LAST, after Ollama and the Gemma model are ready. This way, when the app opens after installation it is already connected to local AI (no 'LLM not connected' state).",
-    "- Finish the Gongmu installer wizard completely. When Gongmu opens after installation, it is ready to use.",
-    "- If the Ollama installer or Ollama app opens, finish it and close it so the batch file can continue.",
-    "- Do not close the command window. The Gongmu app is installed only after Python/Ollama/Gemma setup completes.",
-    "- Gemma model cache copy can take several minutes. The command window will print copy progress during this step.",
-    "- WSL is not required for Gongmu or native Windows Ollama. The setup scripts only record WSL status as optional diagnostics.",
-    "- If the window looks paused, check whether the Gongmu installer or Gongmu app is still open behind another window.",
-    "",
-    "## Package status",
-    "",
-    `- Gongmu installer: ${hasGongmuInstaller ? "included" : "not included"}`,
-    `- Python 3.11 installer: ${hasPythonInstaller ? "included" : "not included"}`,
-    `- Ollama installer: ${hasOllamaInstaller ? "included" : "not included"}`,
-    `- Ollama model cache for ${MODEL_NAME}: ${hasModelStore ? "included" : "not included"}`,
-    "",
-    "## Beginner path",
-    "",
-    "For the most user-friendly setup, double-click:",
+    "이 폴더 안의 아래 파일을 더블클릭하세요.",
     "",
     "```text",
     "START_INSTALL_GUI.bat",
     "```",
     "",
-    "This opens a guided monitor window that shows the current setup stage, elapsed time, helpful instructions, and recent log output.",
+    "설치 진행 상황을 보여주는 안내 창이 열리고, 아래 순서대로 자동으로 설치됩니다.",
+    "설치 도중 Ollama 설치 마법사가 뜨면 안내에 따라 완료하면 됩니다.",
+    "자세한 한글 안내는 `INSTALL_GUIDE_KO.md` 파일을 참고하세요.",
     "",
-    "For the simplest clean-account validation, double-click:",
+    "## 설치 순서 (자동으로 진행됩니다)",
     "",
-    "```text",
-    "RUN_FULL_VALIDATION.bat",
-    "```",
+    "1. Python 3.11 확인/설치 (선택 — 진단·복구용이며 없어도 앱은 동작합니다)",
+    "2. Ollama(로컬 AI 엔진) 확인/설치",
+    "3. Gemma 모델을 내 PC로 복사 (몇 분 걸릴 수 있습니다)",
+    "4. Ollama 서버 시작 및 응답 확인",
+    "5. AI 응답(텍스트·이미지) 정상 동작 검증",
+    "6. 공무원 앱이 Ollama/Gemma를 사용하도록 설정 저장",
+    "7. 마지막으로 공무원 앱 설치 — 설치가 끝나면 바로 사용할 수 있습니다.",
     "",
-    "This runs setup, validation, and evidence collection in sequence. It writes `install-gongmu-ai.log`, `validate-gongmu-ai.log`, and `evidence/ai-pack-clean-account-evidence.json`.",
+    "## 설치 중 알아두기",
     "",
-    "If you prefer step-by-step execution, run the files below in order.",
+    "- 공무원 앱은 맨 마지막에 설치됩니다. Ollama·모델·설정이 모두 준비된 뒤라, 앱이 열리면 곧바로 로컬 AI에 연결된 상태입니다.",
+    "- Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요.",
+    "- 검은 명령창(설치 창)은 임의로 닫지 마세요. 모든 설치가 끝날 때까지 그대로 둡니다.",
+    "- Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다. 복사 진행 로그가 표시됩니다.",
+    "- 진행이 멈춘 것처럼 보이면, 설치 마법사 창이 다른 창 뒤에 숨어 있는지 확인하세요.",
+    "- WSL은 공무원과 Windows용 Ollama 실행에 필요하지 않습니다. 상태만 참고로 기록합니다.",
     "",
-    "Double-click:",
+    "## 폴더 안 파일 안내",
     "",
-    "```text",
-    "START_INSTALL.bat",
-    "```",
+    "- `START_INSTALL_GUI.bat` : (권장) 진행 안내 창과 함께 설치합니다.",
+    "- `START_INSTALL.bat` : 안내 창 없이 설치만 실행합니다.",
+    "- `VALIDATE_INSTALL.bat` : 설치가 잘 되었는지 검증합니다.",
+    "- `COLLECT_EVIDENCE.bat` : 설치 결과 증거를 모아 `evidence` 폴더에 저장합니다.",
+    "- `RUN_FULL_VALIDATION.bat` : 설치·검증·증거수집을 한 번에 실행합니다.",
+    "- `INSTALL_GUIDE_KO.md` : 처음 설치하는 분을 위한 자세한 한글 안내입니다.",
+    "- `THIRD_PARTY_NOTICES.md` : 동봉된 구성요소(Ollama·Gemma·Python)의 라이선스 고지입니다.",
     "",
-    "After setup, double-click:",
+    "## 문제가 생기면 확인할 파일",
     "",
-    "```text",
-    "VALIDATE_INSTALL.bat",
-    "```",
+    "- `install-gongmu-ai.log` : 설치 로그",
+    "- `install-gongmu-ai-gui.log` : 진행 안내 창 로그",
+    "- `validate-gongmu-ai.log` : 검증 로그",
+    "- `evidence/ai-pack-clean-account-evidence.md` : 설치 증거 요약(사람이 읽는 형식)",
+    "- `evidence/ai-pack-clean-account-evidence.json` : 설치 증거 원본",
     "",
-    "If guided setup fails, open `install-gongmu-ai-gui.log` and `install-gongmu-ai.log`. If validation fails, open `validate-gongmu-ai.log`.",
+    "설치가 실패하면 위 로그 파일을 열어 확인하고, 같은 배치파일을 다시 실행할 수 있습니다.",
     "",
-    "For clean-account or closed-network release evidence, run after validation:",
+    "## 설치팩 구성 상태",
     "",
-    "```text",
-    "COLLECT_EVIDENCE.bat",
-    "```",
+    `- 공무원 앱 설치파일: ${koreanStatus(hasGongmuInstaller)}`,
+    `- Python 3.11 설치파일: ${koreanStatus(hasPythonInstaller)}`,
+    `- Ollama 설치파일: ${koreanStatus(hasOllamaInstaller)}`,
+    `- Gemma 모델(${MODEL_NAME}) 캐시: ${koreanStatus(hasModelStore)}`,
     "",
-    "This writes `evidence/ai-pack-clean-account-evidence.json` and `evidence/ai-pack-clean-account-evidence.md`.",
+    "## 폐쇄망(오프라인) 설치 확인 사항",
     "",
-    "## Closed-network checklist",
-    "",
-    "- `models/manifests/registry.ollama.ai/library/gemma4/e2b` must exist for a fully offline model install.",
-    "- `models/blobs/` must contain the referenced model layers.",
-    "- `ollama/OllamaSetup.exe` must exist when the target PC does not already have Ollama.",
-    "- `python/python-3.11.x-amd64.exe` is optional for the bundled app, but useful for repair and diagnostics.",
-    "- Use `SHA256SUMS.txt` to verify file integrity after copying the package.",
+    "- `models/manifests/registry.ollama.ai/library/gemma4/e2b` 폴더가 있어야 완전 오프라인 설치가 됩니다.",
+    "- `models/blobs/` 에 모델 데이터(레이어)가 있어야 합니다.",
+    "- 대상 PC에 Ollama가 없으면 `ollama/OllamaSetup.exe` 가 필요합니다.",
+    "- `python/python-3.11.x-amd64.exe` 는 선택 사항이며, 진단·복구에 유용합니다.",
+    "- 파일을 복사한 뒤 `SHA256SUMS.txt` 로 무결성을 확인하세요.",
   ];
   await writeTextFile(path, `${lines.join("\n")}\n`);
 }
@@ -379,7 +363,13 @@ SOFTWARE.
 async function writeThirdPartyNotices(path) {
   await writeTextFile(
     path,
-    `# Third Party Notices
+    `# 라이선스 고지 (Third Party Notices)
+
+이 문서는 설치팩에 동봉된 외부 구성요소(Ollama, Gemma 4 모델, Python 등)의
+라이선스 고지입니다. 공무원 앱 자체는 MIT 라이선스이며, 동봉된 각 구성요소는
+자신의 라이선스를 따릅니다. 아래는 구성요소별 원문 고지(영문)입니다.
+
+---
 
 The Gongmu desktop app source code is licensed under the MIT License (see
 \`licenses/gongmu-app/LICENSE.txt\`). The offline install package additionally
@@ -1349,24 +1339,24 @@ title Gongmu AI Setup Monitor
 cd /d "%~dp0"
 echo.
 echo ============================================================
-echo  Gongmu AI Setup Monitor
+echo  공무원 AI 설치 안내 창
 echo ============================================================
 echo.
-echo This opens a guided setup monitor window.
-echo It shows the current stage, elapsed time, instructions, and recent logs.
+echo 설치 진행 상황을 보여주는 안내 창을 엽니다.
+echo 현재 단계, 경과 시간, 해야 할 일, 최근 로그가 표시됩니다.
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
-  echo Dry run mode: GUI launcher syntax is OK.
+  echo 점검 모드: 안내 창 실행 파일 문법 정상.
   exit /b 0
 )
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0install-gongmu-ai-gui.ps1"
 set EXIT_CODE=%ERRORLEVEL%
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo Guided setup failed or needs attention. Error code: %EXIT_CODE%
-  echo Check install-gongmu-ai.log and install-gongmu-ai-gui.log.
+  echo 설치 안내 창에서 확인이 필요합니다. 오류 코드: %EXIT_CODE%
+  echo install-gongmu-ai.log 와 install-gongmu-ai-gui.log 를 확인하세요.
 ) else (
-  echo Guided setup completed.
+  echo 설치가 완료되었습니다.
 )
 echo.
 pause
@@ -1381,36 +1371,36 @@ title Gongmu Local AI Setup
 cd /d "%~dp0"
 echo.
 echo ============================================================
-echo  Gongmu Local AI Setup
-echo  Python 3.11 check + Ollama + GEMMA4 E2B IT Multimodal
+echo  공무원 로컬 AI 설치
+echo  Python 3.11 확인 + Ollama + Gemma 4 E2B 멀티모달 모델
 echo ============================================================
 echo.
-echo Do not close this window until setup finishes.
+echo 설치가 끝날 때까지 이 창을 닫지 마세요.
 echo.
-echo Important:
-echo  1. Python, Ollama, and the Gemma model are set up first.
-echo  2. If the Ollama installer or Ollama app opens, finish it and close it.
-echo  3. The Gemma model cache copy can take several minutes.
-echo  4. The Gongmu app installer runs LAST.
-echo  5. Please finish the Gongmu installer wizard. When the app opens it is ready to use.
+echo 안내:
+echo  1. Python, Ollama, Gemma 모델을 먼저 설치합니다.
+echo  2. Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요.
+echo  3. Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다.
+echo  4. 공무원 앱은 맨 마지막에 설치됩니다.
+echo  5. 설치 마법사를 완료하면 앱이 바로 사용 가능한 상태로 열립니다.
 echo.
-echo If this window seems paused, check whether the Ollama installer
-echo or Ollama app, or the Gongmu installer is still open behind another window.
+echo 진행이 멈춘 것처럼 보이면, Ollama 설치 창이나 공무원 설치 창이
+echo 다른 창 뒤에 숨어 있는지 확인하세요.
 echo.
-echo If setup fails, check install-gongmu-ai.log in this folder.
+echo 설치가 실패하면 이 폴더의 install-gongmu-ai.log 파일을 확인하세요.
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
-  echo Dry run mode: launcher syntax is OK.
+  echo 점검 모드: 실행 파일 문법 정상.
   exit /b 0
 )
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-gongmu-ai.ps1"
 set EXIT_CODE=%ERRORLEVEL%
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo Setup or validation failed. Error code: %EXIT_CODE%
-  echo Check install-gongmu-ai.log, then run this file again.
+  echo 설치 또는 검증에 실패했습니다. 오류 코드: %EXIT_CODE%
+  echo install-gongmu-ai.log 를 확인한 뒤 이 파일을 다시 실행하세요.
 ) else (
-  echo Setup and basic validation completed.
+  echo 설치와 기본 검증이 완료되었습니다.
 )
 echo.
 pause
@@ -1425,21 +1415,21 @@ title Gongmu Local AI Validation
 cd /d "%~dp0"
 echo.
 echo ============================================================
-echo  Gongmu Local AI Validation
+echo  공무원 로컬 AI 검증
 echo ============================================================
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
-  echo Dry run mode: launcher syntax is OK.
+  echo 점검 모드: 실행 파일 문법 정상.
   exit /b 0
 )
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0validate-gongmu-ai.ps1"
 set EXIT_CODE=%ERRORLEVEL%
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo Validation failed. Error code: %EXIT_CODE%
-  echo Check validate-gongmu-ai.log.
+  echo 검증에 실패했습니다. 오류 코드: %EXIT_CODE%
+  echo validate-gongmu-ai.log 를 확인하세요.
 ) else (
-  echo Validation completed.
+  echo 검증이 완료되었습니다.
 )
 echo.
 pause
@@ -1454,22 +1444,22 @@ title Gongmu Clean Account Evidence
 cd /d "%~dp0"
 echo.
 echo ============================================================
-echo  Gongmu Clean Account Evidence Collection
+echo  공무원 설치 증거 수집
 echo ============================================================
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
-  echo Dry run mode: launcher syntax is OK.
+  echo 점검 모드: 실행 파일 문법 정상.
   exit /b 0
 )
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0collect-clean-account-evidence.ps1"
 set EXIT_CODE=%ERRORLEVEL%
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo Evidence collection found failing checks. Error code: %EXIT_CODE%
-  echo Check evidence\\ai-pack-clean-account-evidence.md.
+  echo 증거 수집에서 실패한 항목이 있습니다. 오류 코드: %EXIT_CODE%
+  echo evidence\\ai-pack-clean-account-evidence.md 를 확인하세요.
 ) else (
-  echo Evidence collection completed.
-  echo Check evidence\\ai-pack-clean-account-evidence.md.
+  echo 증거 수집이 완료되었습니다.
+  echo evidence\\ai-pack-clean-account-evidence.md 를 확인하세요.
 )
 echo.
 pause
@@ -1484,26 +1474,26 @@ title Gongmu Local AI Full Validation
 cd /d "%~dp0"
 echo.
 echo ============================================================
-echo  Gongmu Local AI Full Validation
-echo  Setup + validation + clean-account evidence
+echo  공무원 로컬 AI 통합 검증
+echo  설치 + 검증 + 설치 증거 수집
 echo ============================================================
 echo.
-echo This one-click path runs:
-echo  1. install-gongmu-ai.ps1
-echo  2. validate-gongmu-ai.ps1
-echo  3. collect-clean-account-evidence.ps1
+echo 이 한 번 실행으로 아래가 순서대로 진행됩니다:
+echo  1. 설치 - install-gongmu-ai.ps1
+echo  2. 검증 - validate-gongmu-ai.ps1
+echo  3. 증거 수집 - collect-clean-account-evidence.ps1
 echo.
-echo Important:
-echo  - Python, Ollama, and the Gemma model are set up first; the Gongmu app installer runs LAST.
-echo  - If the Ollama installer or Ollama app opens, finish it and close it.
-echo  - Do not close this command window.
-echo  - The Gemma model cache copy can take several minutes.
-echo  - Finish the Gongmu installer wizard at the end. When the app opens it is ready to use.
+echo 안내:
+echo  - Python, Ollama, Gemma 모델을 먼저 설치하고, 공무원 앱은 맨 마지막에 설치됩니다.
+echo  - Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요.
+echo  - 이 명령창은 닫지 마세요.
+echo  - Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다.
+echo  - 마지막의 공무원 설치 마법사를 완료하면 앱이 바로 사용 가능한 상태로 열립니다.
 echo.
-echo If this window seems paused, check whether the Gongmu installer
-echo or Gongmu app, Ollama installer, or Ollama app is still open behind another window.
+echo 진행이 멈춘 것처럼 보이면, Ollama 설치 창이나 공무원 설치 창이
+echo 다른 창 뒤에 숨어 있는지 확인하세요.
 echo.
-echo Logs:
+echo 로그:
 echo  - install-gongmu-ai.log
 echo  - validate-gongmu-ai.log
 echo  - evidence\\ai-pack-clean-account-evidence.md
@@ -1529,11 +1519,11 @@ if "%EXIT_CODE%"=="0" if not "%EVIDENCE_EXIT%"=="0" set "EXIT_CODE=%EVIDENCE_EXI
 
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo Full validation finished with failures. Error code: %EXIT_CODE%
-  echo Check install-gongmu-ai.log, validate-gongmu-ai.log, and evidence\\ai-pack-clean-account-evidence.md.
+  echo 통합 검증에서 실패한 항목이 있습니다. 오류 코드: %EXIT_CODE%
+  echo install-gongmu-ai.log, validate-gongmu-ai.log, evidence\\ai-pack-clean-account-evidence.md 를 확인하세요.
 ) else (
-  echo Full validation completed.
-  echo Send evidence\\ai-pack-clean-account-evidence.json back to the development repository.
+  echo 통합 검증이 완료되었습니다.
+  echo evidence\\ai-pack-clean-account-evidence.json 파일을 개발 담당자에게 전달하세요.
 )
 echo.
 pause
