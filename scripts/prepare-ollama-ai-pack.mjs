@@ -535,11 +535,13 @@ function Get-WslStatus {
   }
 
   try {
-    $status = (& wsl.exe --status 2>&1 | Out-String).Trim()
-    if (!$status) { $status = "wsl.exe detected." }
+    # 'wsl.exe --status' 출력은 UTF-16LE라 Windows PowerShell 5.1 콘솔 인코딩과 어긋나
+    # 증거 파일에서 한글이 깨진다(mojibake). WSL은 선택 진단 항목이므로 원문 상태는
+    # 담지 않고 '감지됨'만 기록한다.
+    $null = $cmd
     return [ordered]@{
       installed = $true
-      detail = "wsl.exe detected. WSL is optional for Gongmu and native Windows Ollama. $status"
+      detail = "wsl.exe detected. WSL is optional for Gongmu and native Windows Ollama."
     }
   } catch {
     return [ordered]@{
