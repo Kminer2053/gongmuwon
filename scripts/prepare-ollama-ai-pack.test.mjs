@@ -76,18 +76,24 @@ async function main() {
     assert.match(installScript, /images/);
     assert.match(installScript, /settings\.json/);
     assert.match(installScript, /llm_profiles/);
+    // 설치 순서 회귀 방지: 공무원 앱은 의존성(Ollama)·설정 이후 '마지막'에 설치되어야 한다.
+    // 앱을 먼저 설치하면 NSIS 마침 화면 자동 실행 시 Ollama/설정이 없어 'LLM 미연결'로 열린다.
+    assert.match(
+      installScript,
+      /Start-OllamaServer[\s\S]*Write-GongmuSettings[\s\S]*Install-GongmuIfPresent[\s\S]*Write-Step "Setup complete"/,
+    );
 
     const batchScript = await readFile(join(result.packageDir, "START_INSTALL.bat"), "utf8");
     assert.match(batchScript, /powershell\.exe/);
     assert.match(batchScript, /ExecutionPolicy Bypass/);
     assert.match(batchScript, /install-gongmu-ai\.ps1/);
     assert.match(batchScript, /GONGMU_AI_PACK_DRY_RUN/);
-    assert.match(batchScript, /Gongmu app installer runs first/);
-    assert.match(batchScript, /finish the Gongmu installer wizard/);
-    assert.match(batchScript, /If the Gongmu app opens, close the app window/);
+    assert.match(batchScript, /Gongmu app installer runs LAST/);
+    assert.match(batchScript, /finish the Gongmu installer wizard/i);
+    assert.match(batchScript, /When the app opens it is ready to use/);
     assert.match(batchScript, /If the Ollama installer or Ollama app opens, finish it and close it/);
-    assert.match(batchScript, /Python, Ollama, and Gemma setup continue after the installer exits/);
-    assert.match(batchScript, /After Ollama, the Gemma model cache copy can take several minutes/);
+    assert.match(batchScript, /Python, Ollama, and the Gemma model are set up first/);
+    assert.match(batchScript, /Gemma model cache copy can take several minutes/);
     assert.match(batchScript, /pause/);
     const guiBatchScript = await readFile(join(result.packageDir, "START_INSTALL_GUI.bat"), "utf8");
     assert.match(guiBatchScript, /powershell\.exe/);
@@ -117,12 +123,12 @@ async function main() {
     assert.match(fullValidationBatch, /GONGMU_AI_PACK_DRY_RUN/);
     assert.match(fullValidationBatch, /install-gongmu-ai\.log/);
     assert.match(fullValidationBatch, /evidence\\ai-pack-clean-account-evidence\.md/);
-    assert.match(fullValidationBatch, /Gongmu app installer runs first/);
-    assert.match(fullValidationBatch, /finish the installer wizard/);
-    assert.match(fullValidationBatch, /If Gongmu launches after installation, close the app/);
+    assert.match(fullValidationBatch, /Gongmu app installer runs LAST/);
+    assert.match(fullValidationBatch, /Finish the Gongmu installer wizard/i);
+    assert.match(fullValidationBatch, /When the app opens it is ready to use/);
     assert.match(fullValidationBatch, /If the Ollama installer or Ollama app opens, finish it and close it/);
     assert.match(fullValidationBatch, /Do not close this command window/);
-    assert.match(fullValidationBatch, /After Ollama, the Gemma model cache copy can take several minutes/);
+    assert.match(fullValidationBatch, /Gemma model cache copy can take several minutes/);
 
     const validateScript = await readFile(join(result.packageDir, "validate-gongmu-ai.ps1"), "utf8");
     assert.match(validateScript, /Find-Python311/);
@@ -154,10 +160,10 @@ async function main() {
     assert.match(readme, /VALIDATE_INSTALL\.bat/);
     assert.match(readme, /COLLECT_EVIDENCE\.bat/);
     assert.match(readme, /RUN_FULL_VALIDATION\.bat/);
-    assert.match(readme, /The Gongmu app installer runs first/);
-    assert.match(readme, /If Gongmu opens after installation, close the app window/);
+    assert.match(readme, /The Gongmu app is installed LAST/);
+    assert.match(readme, /Installs Gongmu LAST/);
     assert.match(readme, /If the Ollama installer or Ollama app opens, finish it and close it/);
-    assert.match(readme, /Python\/Ollama\/Gemma setup continues only after the Gongmu installer exits/);
+    assert.match(readme, /The Gongmu app is installed only after Python\/Ollama\/Gemma setup completes/);
     assert.match(readme, /Gemma model cache copy can take several minutes/);
     assert.match(readme, /WSL is not required for Gongmu or native Windows Ollama/);
 
@@ -167,11 +173,11 @@ async function main() {
     assert.match(koreanInstallGuide, /\uCC98\uC74C \uC124\uCE58\uD558\uB294 \uC0AC\uC6A9\uC790\uB97C \uC704\uD55C \uC21C\uC11C/);
     assert.match(koreanInstallGuide, /START_INSTALL_GUI\.bat/);
     assert.match(koreanInstallGuide, /\uC124\uCE58 \uBAA8\uB2C8\uD130/);
-    assert.match(koreanInstallGuide, /\uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58 \uB9C8\uBC95\uC0AC\uAC00 \uBA3C\uC800 \uC2E4\uD589\uB429\uB2C8\uB2E4/);
-    assert.match(koreanInstallGuide, /\uC571\uC774 \uC790\uB3D9\uC73C\uB85C \uC2E4\uD589\uB418\uBA74 \uC571 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694/);
-    assert.match(koreanInstallGuide, /Ollama \uC124\uCE58 \uB9C8\uBC95\uC0AC\uB3C4 \uC644\uB8CC\uD558\uACE0 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694/);
+    assert.match(koreanInstallGuide, /\uB9C8\uC9C0\uB9C9\uC73C\uB85C \uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58 \uB9C8\uBC95\uC0AC\uAC00 \uC2E4\uD589\uB429\uB2C8\uB2E4/);
+    assert.match(koreanInstallGuide, /\uBC14\uB85C \uC0AC\uC6A9\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4/);
+    assert.match(koreanInstallGuide, /Ollama \uC124\uCE58 \uB9C8\uBC95\uC0AC\uAC00 \uC5F4\uB9AC\uBA74 \uB05D\uAE4C\uC9C0 \uC644\uB8CC\uD558\uACE0 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694/);
     assert.match(koreanInstallGuide, /\uBC30\uCE58\uD30C\uC77C \uCC3D\uC740 \uB2EB\uC9C0 \uB9C8\uC138\uC694/);
-    assert.match(koreanInstallGuide, /Python, Ollama, Gemma \uBAA8\uB378 \uC124\uCE58\uC640 \uAC80\uC99D\uC774 \uC774\uC5B4\uC9D1\uB2C8\uB2E4/);
+    assert.match(koreanInstallGuide, /Gemma \uBAA8\uB378 \uC124\uCE58\u00B7\uBCF5\uC0AC\uAC00 \uC9C4\uD589\uB429\uB2C8\uB2E4/);
     assert.match(koreanInstallGuide, /Gemma \uBAA8\uB378 \uCE90\uC2DC \uBCF5\uC0AC\uB294 \uBA87 \uBD84 \uC774\uC0C1 \uAC78\uB9B4 \uC218 \uC788\uC2B5\uB2C8\uB2E4/);
     assert.match(koreanInstallGuide, /WSL\uC740 \uACF5\uBB34\uC6D0\uACFC Windows\uC6A9 Ollama \uC2E4\uD589\uC5D0 \uD544\uC218\uAC00 \uC544\uB2D9\uB2C8\uB2E4/);
     assert.match(koreanInstallGuide, /\uBB38\uC81C\uAC00 \uC0DD\uACBC\uC744 \uB54C \uD655\uC778\uD560 \uD30C\uC77C/);
