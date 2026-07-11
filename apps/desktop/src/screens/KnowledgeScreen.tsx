@@ -9,6 +9,7 @@ import {
   fetchTaxonomyQuality,
   fetchTaxonomyQueue,
   fetchTaxonomyStatus,
+  createWorkSession,
   fetchWikiPage,
   fetchKnowledgeVerifyLatest,
   resolveTaxonomyQueueItem,
@@ -1709,6 +1710,7 @@ export function KnowledgeScreen() {
     runningKnowledgeIngestion,
     selectedSession,
     selectedSessionId,
+    setSelectedSessionId,
     setActiveMenu,
     setChatDraft,
     setError,
@@ -2356,8 +2358,29 @@ export function KnowledgeScreen() {
     }
   }
 
+  /** F-14: 선택된 세션이 없으면 자동으로 새 세션을 만들어 연계 흐름의 맥락 유실을 막는다. */
+  async function ensureWorkSession(): Promise<string | null> {
+    if (selectedSessionId) {
+      return selectedSessionId;
+    }
+    try {
+      const created = await createWorkSession({ title: "새 업무 세션", schedule_id: null });
+      setSnapshot((current) => ({
+        ...current,
+        workSessions: [created, ...current.workSessions.filter((session) => session.id !== created.id)],
+      }));
+      setSelectedSessionId(created.id);
+      pushToast("info", "업무대화 세션을 새로 만들었습니다.");
+      return created.id;
+    } catch {
+      pushToast("error", "업무대화 세션 생성에 실패했습니다.");
+      return null;
+    }
+  }
+
   /** J-08: 근거 답변을 업무대화 컴포저에 프리필하고 이동한다. */
-  function continueAnswerInChat(query: string, answer: string) {
+  async function continueAnswerInChat(query: string, answer: string) {
+    await ensureWorkSession();
     setChatDraft(`지식폴더 근거 답변을 이어서 검토하고 싶습니다.\n질문: ${query}\n\n${answer}`);
     setActiveMenu("chat");
     pushToast("info", "업무대화 입력창에 근거 답변을 채워 두었습니다.");
@@ -4012,13 +4035,20 @@ export function KnowledgeScreen() {
                             <button
                               type="button"
                               className="button-secondary"
-                              disabled={!selectedSessionId}
                               title={
                                 selectedSessionId
                                   ? "이 문서를 현재 업무대화 세션에 관련 파일로 연결합니다."
-                                  : "연결할 업무대화 세션을 먼저 선택해 주세요."
+                                  : "세션이 없으면 새 업무대화 세션을 만들어 연결합니다."
                               }
-                              onClick={() => void connectLocalFileToSession(toLocalFileHit(item))}
+                              onClick={() =>
+                                void (async () => {
+                                  // F-14: 세션이 없으면 자동 생성 후 연결(무반응 방지)
+                                  const sessionId = await ensureWorkSession();
+                                  if (sessionId) {
+                                    await connectLocalFileToSession(toLocalFileHit(item), sessionId);
+                                  }
+                                })()
+                              }
                             >
                               세션에 연결
                             </button>
@@ -4064,7 +4094,7 @@ export function KnowledgeScreen() {
                     <button
                       type="button"
                       className="button-secondary button-with-icon"
-                      onClick={() => continueAnswerInChat(knowledgeAskResult.query, knowledgeAskResult.answer)}
+                      onClick={() => void continueAnswerInChat(knowledgeAskResult.query, knowledgeAskResult.answer)}
                     >
                       <AssetIcon src="/icons/action/send.svg" />
                       업무대화로 이어가기

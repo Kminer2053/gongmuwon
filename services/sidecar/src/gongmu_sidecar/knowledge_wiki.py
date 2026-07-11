@@ -99,6 +99,20 @@ QUERY_STOPWORDS = {
 }
 # 콘텐츠 term 끝에 붙은 접미 일반어를 떼어 recall을 높인다 ("로컬동행관련"→"로컬동행").
 _SUFFIX_STOPWORDS = ("관련해서", "관련", "에대한", "에관한", "내용", "자료", "문서")
+# F-01: 자연어 질문의 조사·어미가 붙은 토큰("안전관리등급제에서", "산출하나")이 FTS에서
+# 통째로 매칭 실패하는 문제 — 조사/어미를 뗀 '변형'을 추가해 recall을 높인다(원형 유지).
+_JOSA_SUFFIXES = (
+    "에서는", "에서도", "인가요", "입니까", "이란", "하나요",
+    "에서", "에게", "으로", "이고", "이며", "하나", "할까", "인가", "이나",
+    "은", "는", "이", "가", "을", "를", "과", "와", "의", "도", "만", "로", "란",
+)
+
+
+def _strip_josa_suffix(term: str) -> str:
+    for suffix in _JOSA_SUFFIXES:
+        if term.endswith(suffix) and len(term) - len(suffix) >= 2:
+            return term[: -len(suffix)]
+    return term
 
 
 def _split_ascii_hangul(token: str) -> list[str]:
@@ -136,6 +150,11 @@ def _query_terms(query: str) -> list[str]:
             stripped = _strip_suffix_stopword(part)
             if stripped != part:
                 _add(stripped)
+            # F-01: 조사/어미 제거 변형 추가 ("안전관리등급제에서"→"안전관리등급제")
+            for base in (part, stripped):
+                dejosa = _strip_josa_suffix(base)
+                if dejosa != base:
+                    _add(dejosa)
     return result
 
 
@@ -2640,10 +2659,15 @@ class KnowledgeWikiManager:
             return {"query": query, "items": [], "mode": "empty"}
         items: list[dict[str, Any]] = []
         mode = "like"
-        if getattr(self.db, "fts5_available", False):
-            match_expr = self._fts_match_expression(normalized)
-            if match_expr:
-                mode = "fts5"
+        all_terms = _query_terms(normalized)
+        fts_terms = self._fts_terms(normalized, all_terms)
+        if getattr(self.db, "fts5_available", False) and fts_terms:
+            # F-01: 다수 term이면 AND 결합(정밀)을 먼저 시도하고, 0건일 때 OR(재현)로
+            # 내려간다 — "공공안전지수 산출" 같은 질의에서 흔한 term(공공기관 등)이
+            # OR로 무관 문서를 밀어올리는 문제를 막는다.
+            quoted = ['"' + term.replace('"', '""') + '"' for term in fts_terms[:8]]
+            exprs = ([" AND ".join(quoted)] if len(quoted) >= 2 else []) + [" OR ".join(quoted)]
+            for match_expr in exprs:
                 try:
                     rows = self.db.fetch_all(
                         """
@@ -2657,9 +2681,8 @@ class KnowledgeWikiManager:
                         """,
                         (match_expr, safe_limit),
                     )
-                except Exception:  # noqa: BLE001 - 질의 구문 오류 시 LIKE 폴백
+                except Exception:  # noqa: BLE001 - 질의 구문 오류 시 다음 전략/LIKE 폴백
                     rows = []
-                    mode = "like"
                 for row in rows:
                     doc = self.db.fetch_one(
                         "SELECT * FROM knowledge_wiki_docs WHERE id = ?", (row["doc_id"],)
@@ -2667,15 +2690,21 @@ class KnowledgeWikiManager:
                     if doc is None or str(doc.get("status") or "active") == "missing":
                         continue  # §5.5: FTS 행은 삭제되지만 이중 방어
                     items.append(self._search_item(doc, row.get("body_snippet"), -float(row["rank"] or 0.0)))
+                if items:
+                    mode = "fts5"
+                    break
         if not items:
-            items = self._like_search(normalized, safe_limit)
+            # F-04: 2자 행정명사(예산·집행·기준 등)는 trigram FTS로 매칭 불가 —
+            # 정규화 term 기반 LIKE 폴백으로 회수한다(문장 전체 needle 방식 대체).
+            items = self._like_search(normalized, safe_limit, terms=all_terms)
             if mode != "fts5":
                 mode = "like"
         return {"query": query, "items": items[:safe_limit], "mode": mode}
 
-    def _fts_match_expression(self, normalized_query: str) -> str | None:
+    def _fts_terms(self, normalized_query: str, all_terms: list[str] | None = None) -> list[str]:
         # 콘텐츠 term만 남긴다(명령/일반어 제거) — trigram은 3자 이상에서 유효.
-        terms = [term for term in _query_terms(normalized_query) if len(term) >= 3]
+        source = all_terms if all_terms is not None else _query_terms(normalized_query)
+        terms = [term for term in source if len(term) >= 3]
         if not terms:
             # 콘텐츠 term이 하나도 없으면(명령/일반어만 입력) 매칭하지 않는다 → 무관 문서
             # 주입 대신 "관련 근거 없음". 단, 공백 없는 단일 콘텐츠 토큰은 그대로 사용.
@@ -2687,26 +2716,62 @@ class KnowledgeWikiManager:
                 and compact not in STOPWORDS
             ):
                 terms = [compact]
+        return terms
+
+    def _fts_match_expression(self, normalized_query: str) -> str | None:
+        # (호환 유지) OR 결합 표현식 — search()는 AND→OR 사다리를 직접 구성한다.
+        terms = self._fts_terms(normalized_query)
         if not terms:
             return None
         return " OR ".join('"' + term.replace('"', '""') + '"' for term in terms[:8])
 
-    def _like_search(self, normalized_query: str, limit: int) -> list[dict[str, Any]]:
-        needle = normalized_query.lower()
+    def _like_search(
+        self, normalized_query: str, limit: int, terms: list[str] | None = None
+    ) -> list[dict[str, Any]]:
+        # F-04: 정규화 term(2자 이상) 기반 매칭 — 매칭 term 수로 순위를 매긴다(제목 가중).
+        needles = [t for t in (terms or []) if len(t) >= 2][:8]
+        if not needles:
+            needle = normalized_query.lower()
+            rows = self.db.fetch_all(
+                """
+                SELECT * FROM knowledge_wiki_docs
+                WHERE status != 'missing' AND (norm_title LIKE ? OR norm_body LIKE ?)
+                ORDER BY (norm_title LIKE ?) DESC, updated_at DESC
+                LIMIT ?
+                """,
+                (f"%{needle}%", f"%{needle}%", f"%{needle}%", limit),
+            )
+            return [
+                self._search_item(row, self._context_snippet(str(row.get("norm_body") or ""), needle), 1.0)
+                for row in rows
+            ]
+        conds = " OR ".join("(norm_title LIKE ? OR norm_body LIKE ?)" for _ in needles)
+        params: list[Any] = []
+        for term in needles:
+            params.extend([f"%{term}%", f"%{term}%"])
         rows = self.db.fetch_all(
-            """
-            SELECT * FROM knowledge_wiki_docs
-            WHERE status != 'missing' AND (norm_title LIKE ? OR norm_body LIKE ?)
-            ORDER BY (norm_title LIKE ?) DESC, updated_at DESC
-            LIMIT ?
-            """,
-            (f"%{needle}%", f"%{needle}%", f"%{needle}%", limit),
+            f"SELECT * FROM knowledge_wiki_docs WHERE status != 'missing' AND ({conds}) LIMIT 300",
+            tuple(params),
         )
-        items = []
+        scored: list[tuple[float, str, dict[str, Any], str]] = []
         for row in rows:
-            snippet = self._context_snippet(str(row.get("norm_body") or ""), needle)
-            items.append(self._search_item(row, snippet, 1.0))
-        return items
+            norm_title = str(row.get("norm_title") or "")
+            norm_body = str(row.get("norm_body") or "")
+            score = sum(2.0 for t in needles if t in norm_title) + sum(
+                1.0 for t in needles if t in norm_body
+            )
+            if score <= 0:
+                continue
+            first = next((t for t in needles if t in norm_body), None)
+            snippet = (
+                self._context_snippet(norm_body, first) if first else norm_body[:200].strip()
+            )
+            scored.append((score, str(row.get("updated_at") or ""), row, snippet))
+        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        return [
+            self._search_item(row, snippet, score)
+            for score, _updated, row, snippet in scored[:limit]
+        ]
 
     def _context_snippet(self, body: str, needle: str, radius: int = 120) -> str:
         position = body.find(needle)

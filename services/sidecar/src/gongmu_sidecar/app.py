@@ -1386,7 +1386,7 @@ class AppServices:
             if schedule_result is not None:
                 return schedule_result
         if self._looks_like_schedule_list_request(normalized):
-            return self._run_schedule_list_skill()
+            return self._run_schedule_list_skill(normalized)
         if self._looks_like_document_create_request(normalized):
             return self._run_document_create_skill(session_id=session_id, session=session, text=normalized)
         return None
@@ -1415,16 +1415,36 @@ class AppServices:
         results: list[dict[str, Any]] = [{"intents": intents}]
         sections = ["요청을 여러 작업으로 나누어 순서대로 처리했습니다."]
 
+        # F-17: 앞 인텐트(일정 등록)의 결과를 뒤 문서작성 지시에 넘겨 일시·제목이 반영되게 한다.
+        created_schedule: dict[str, Any] | None = None
         for intent in intents:
             skill_result: dict[str, Any] | None = None
             if intent == "schedule.delete":
                 skill_result = self._run_schedule_delete_skill(text)
             elif intent == "schedule.create":
                 skill_result = self._run_schedule_create_skill(text)
+                if skill_result is not None:
+                    for item in skill_result.get("results", []):
+                        if isinstance(item, dict) and item.get("schedule_id"):
+                            created_schedule = item
             elif intent == "schedule.list":
-                skill_result = self._run_schedule_list_skill()
+                skill_result = self._run_schedule_list_skill(text)
             elif intent == "documents.generate":
-                skill_result = self._run_document_create_skill(session_id=session_id, session=session, text=text)
+                document_text = text
+                if created_schedule is not None:
+                    schedule_row = self.db.fetch_one(
+                        "SELECT title, starts_at, ends_at FROM schedules WHERE id = ?",
+                        (created_schedule["schedule_id"],),
+                    )
+                    if schedule_row:
+                        document_text = (
+                            f"{text}\n\n[등록된 일정 정보 — 문서에 반드시 반영] "
+                            f"제목: {schedule_row['title']}, "
+                            f"일시: {schedule_row['starts_at']} ~ {schedule_row['ends_at']}"
+                        )
+                skill_result = self._run_document_create_skill(
+                    session_id=session_id, session=session, text=document_text
+                )
 
             if skill_result is None:
                 continue
@@ -1575,16 +1595,43 @@ class AppServices:
             ]
         )
 
-    def _run_schedule_list_skill(self) -> dict[str, Any]:
+    def _run_schedule_list_skill(self, text: str = "") -> dict[str, Any]:
         schedules = self.list_schedules()
-        lines = ["등록된 일정입니다."]
+        # F-15: "오늘/내일/이번 주/이번 달" 기간 한정어를 반영해 필터링한다.
+        period_label = ""
+        now = datetime.now()
+        window: tuple[datetime, datetime] | None = None
+        lowered = text.replace(" ", "")
+        if "오늘" in lowered:
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            window, period_label = (start, start + timedelta(days=1)), "오늘"
+        elif "내일" in lowered:
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            window, period_label = (start, start + timedelta(days=1)), "내일"
+        elif "이번주" in lowered:
+            start = now.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=now.weekday())
+            window, period_label = (start, start + timedelta(days=7)), "이번 주"
+        elif "이번달" in lowered:
+            start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            next_month = (start + timedelta(days=32)).replace(day=1)
+            window, period_label = (start, next_month), "이번 달"
+        if window is not None:
+            def _in_window(schedule: dict[str, Any]) -> bool:
+                try:
+                    starts = datetime.fromisoformat(str(schedule["starts_at"]))
+                except (ValueError, KeyError):
+                    return True
+                starts_naive = starts.replace(tzinfo=None) if starts.tzinfo else starts
+                return window[0] <= starts_naive < window[1]
+            schedules = [s for s in schedules if _in_window(s)]
+        lines = [f"등록된 일정입니다.{f' ({period_label})' if period_label else ''}"]
         if not schedules:
-            lines.append("- 등록된 일정이 없습니다.")
+            lines.append(f"- {period_label or '등록된'} 일정이 없습니다.")
         for schedule in schedules[:10]:
             lines.append(f"- {schedule['title']}: {schedule['starts_at']} ~ {schedule['ends_at']}")
         return {
             "actions": ["schedule.list"],
-            "results": [{"count": len(schedules)}],
+            "results": [{"count": len(schedules), "period": period_label or None}],
             "text": "\n".join(lines),
         }
 
@@ -1761,12 +1808,39 @@ class AppServices:
             if (excerpt := self.documents._safe_file_excerpt(path))
         ]
 
+        # F-05: 지식폴더(위키) 근거를 문서작성에 주입한다 — 세션 연결파일만으로는
+        # 실제 보유 문서와 모순되는 '허위 보고서'가 생성됐다(2026-07-11 E2E).
+        wiki_citations: list[dict[str, Any]] = []
+        try:
+            retrieval = self.wiki.retrieve(query=text, session_id=session_id, limit=4)
+            for item in retrieval.get("items", []):
+                body = str(item.get("text") or item.get("snippet") or "").strip()
+                if not body:
+                    continue
+                title = str(item.get("title") or "").strip() or "지식 문서"
+                reference_texts.append(f"[지식폴더 근거: {title}]\n{body}")
+                wiki_citations.append(
+                    {"title": title, "file_path": str(item.get("file_path") or "")}
+                )
+        except Exception:  # noqa: BLE001 - 위키 검색 실패가 문서작성을 막지 않게
+            pass
+
+        # F-06: 근거가 하나도 없으면 '자료를 확인했다'류 단정 서술을 금지한다(정직성).
+        instruction = text
+        if not reference_texts:
+            instruction = (
+                f"{text}\n\n"
+                "[중요] 참고자료가 제공되지 않았다. '자료를 확인한 결과', '검토 결과 파악했다' 등 "
+                "근거를 확인한 듯한 표현을 쓰지 말고, 일반 초안임을 전제로 작성하라. "
+                "지시에 없는 수치·사실을 창작하지 마라."
+            )
+
         self.jobs.update_progress(work_job["id"], progress_percent=35, stage="AI 문서 구조 생성")
         structure: dict[str, Any] | None = None
         for stage_item in run_authoring_stages(
             _authoring_llm,
             format_key=document_format,
-            instruction=text,
+            instruction=instruction,
             reference_texts=reference_texts or None,
             transcript=transcript or None,
         ):
@@ -1777,8 +1851,13 @@ class AppServices:
             raise RuntimeError("문서 구조 생성에 실패했습니다.")
 
         markdown = build_content_base_markdown(document_format, structure)
+        # F-16: 제목은 산출 구조의 제목을 우선 사용한다 — "<세션명> 문서"는 내용과 무관했다.
+        structure_title = str(
+            structure.get("title") or structure.get("subject") or ""
+        ).strip()
+        document_title = structure_title[:80] or f"{session['title']} 문서"
         content_base = self.documents.create_content_base(
-            title=f"{session['title']} 문서",
+            title=document_title,
             purpose="업무대화 세션 기반 자동 문서작성",
             template_key="report",
             source_session_id=session_id,
@@ -1843,7 +1922,13 @@ class AppServices:
                 f"- 형식: {artifact['format']}\n"
                 f"- 파일 열기: {artifact['path']}\n"
                 f"- 폴더 열기: {folder_path}\n"
-                f"- 검토용 Markdown: {artifact['markdown_path']}"
+                f"- 검토용 Markdown: {artifact['markdown_path']}\n"
+                + (
+                    "- 지식폴더 근거: "
+                    + ", ".join(cite["title"] for cite in wiki_citations[:4])
+                    if wiki_citations
+                    else "- 지식폴더 근거: 없음 (근거 미확인 서술 방지 규칙 적용)"
+                )
             ),
         }
 
