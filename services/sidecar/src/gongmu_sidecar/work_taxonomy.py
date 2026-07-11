@@ -1318,15 +1318,24 @@ class WorkTaxonomyManager:
             ),
             reverse=True,
         )
+        # F-10: 양식/서식·임시백업은 '핵심 문서'에서 제외 — 작성양식(최종)이 [공식본]
+        # 1순위로 올라오던 문제. 원본은 절대경로 대신 파일명만 표기해 가독성 확보.
         core = [
             doc for doc in core
-            if str(doc.get("doc_role") or "") in {"plan", "report"}
-            or str(doc.get("family_role") or "") == "official"
+            if str(doc.get("doc_role") or "") not in {"form", "temp_backup"}
+            and (
+                str(doc.get("doc_role") or "") in {"plan", "report"}
+                or str(doc.get("family_role") or "") == "official"
+            )
         ][:8]
         if core:
             for doc in core:
                 badge = " [공식본]" if str(doc.get("family_role") or "") == "official" else ""
-                lines.append(f"- [{doc['title']}](../docs/{doc['slug']}.md){badge} · 원본: {doc['source_path']}")
+                source_name = Path(str(doc.get("source_path") or "")).name
+                lines.append(
+                    f"- [{doc['title']}](../docs/{doc['slug']}.md){badge}"
+                    + (f" · {source_name}" if source_name else "")
+                )
         else:
             lines.append("- (핵심 문서 후보가 아직 없습니다.)")
         lines.append("")
