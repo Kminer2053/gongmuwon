@@ -2855,8 +2855,11 @@ class AppServices:
         # 다음 배치 잡을 자동 체이닝한다 — 동일 resource_key(exclusive) 직렬,
         # 체인 각 배치는 일반 잡이므로 작업 패널의 취소 버튼이 그대로 통한다.
         chained_job: dict[str, Any] | None = None
+        # partial(일부 실패)이라도 이번 배치에 '진전'이 있으면 체인 계속 — 60건 중
+        # 1건 실패로 전량 자동화가 멈추던 문제(2026-07-11 실측). 무진전이면 중단.
         if (
-            str(result.get("status")) == "completed"
+            str(result.get("status")) in {"completed", "partial"}
+            and int(result.get("enriched_count") or 0) > 0
             and int(result.get("remaining_count") or 0) > 0
         ):
             chained_job = self._create_chained_enrichment_job(
