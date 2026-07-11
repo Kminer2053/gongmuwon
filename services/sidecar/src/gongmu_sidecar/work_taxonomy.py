@@ -67,6 +67,32 @@ GOVERNANCE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 CONFIDENCE_LEVELS = ("high", "medium", "low")
 CARD_TAG_KEYS = ("work_area", "doc_role", "tag_confidence", "family_id", "family_role")
 
+# F-07 폴더 교차(cross-folder) 업무 후보 임계(결정적): 어휘/duty 토큰이 서로 다른
+# 1단계 폴더 ≥2곳의 파일 ≥3건에 반복될 때만 후보로 승격한다(우연 일치 억제).
+VOCAB_CROSS_MIN_FILES = 3
+VOCAB_CROSS_MIN_FOLDERS = 2
+# F-07b: llm_refine에 넘기는 영역별 대표 파일명 표본 상한.
+LLM_SAMPLE_FILES_PER_AREA = 8
+
+_DUTY_TOKEN_SPLIT = re.compile(r"[·/,\s]+")
+
+
+def duty_seed_tokens(duty: str) -> list[str]:
+    """인터뷰 duty → 업무 후보 시드 토큰 (F-07c).
+
+    ·, /, 쉼표, 공백으로 분리하고 2자 이상만 남긴다(순서 유지·중복 제거).
+    예: "예산·인사·감사 총괄" → ["예산", "인사", "감사", "총괄"].
+    """
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for raw in _DUTY_TOKEN_SPLIT.split(nfc(str(duty or ""))):
+        token = raw.strip()
+        if len(token) < 2 or token in seen:
+            continue
+        seen.add(token)
+        tokens.append(token)
+    return tokens
+
 # P3 §5.9 드리프트 판정 임계(결정적): 신규 1단계 폴더 파일 ≥5 /
 # 최근 색인분 low 유입률 ≥30%(최소 표본 5건) / 확정 폴더 파일 0건화.
 DRIFT_NEW_FOLDER_MIN_FILES = 5
@@ -193,6 +219,21 @@ class WorkTaxonomyManager:
             else:
                 root_files.append(file_record)
 
+        interview = self.get_interview()
+        duty = str((interview or {}).get("duty") or "")
+
+        # F-07b: 영역별 대표 파일명 표본(영역당 최대 8개) — llm_refine 입력용.
+        samples_by_slug: dict[str, list[str]] = {}
+
+        def add_samples(slug: str, records: list[dict[str, Any]]) -> None:
+            bucket = samples_by_slug.setdefault(slug, [])
+            for record in records:
+                if len(bucket) >= LLM_SAMPLE_FILES_PER_AREA:
+                    break
+                sample_name = Path(nfc(str(record.get("relative_path") or ""))).name
+                if sample_name and sample_name not in bucket:
+                    bucket.append(sample_name)
+
         # 1단계 폴더 승격 + 참고자료 서고 분리
         work_areas: list[dict[str, Any]] = []
         reference_shelves: list[dict[str, Any]] = []
@@ -203,8 +244,20 @@ class WorkTaxonomyManager:
                 continue
             name = normalize_folder_name(folder) or folder
             slug = work_area_slug(name)
-            vocab_hit = any(term in name for term in WORK_VOCAB)
-            confidence = "high" if (folder_importance(folder) == "major" or vocab_hit) else "medium"
+            member_names = [
+                Path(nfc(str(member.get("relative_path") or ""))).name for member in members
+            ]
+            vocab_terms = [term for term in WORK_VOCAB if term in name]
+            # F-07c: 폴더명-어휘 일치만으로는 confidence 상한 medium — 폴더 안
+            # 파일명이 같은 어휘를 반복할 때만 high("행사출장" 폴더에 시설 문서만
+            # 있는 우연 일치 오부여 방지).
+            vocab_confirmed = any(
+                term in member_name for term in vocab_terms for member_name in member_names
+            )
+            confidence = (
+                "high" if (folder_importance(folder) == "major" or vocab_confirmed) else "medium"
+            )
+            add_samples(slug, members)
             existing_area = area_by_slug.get(slug)
             if existing_area is not None:
                 existing_area["folders"].append(folder)
@@ -216,6 +269,7 @@ class WorkTaxonomyManager:
                 "name": name,
                 "slug": slug,
                 "folders": [folder],
+                "keywords": [],
                 "doc_count": len(members),
                 "source": "folder",
                 "confidence": confidence,
@@ -223,24 +277,76 @@ class WorkTaxonomyManager:
             area_by_slug[slug] = area
             work_areas.append(area)
 
-        # WORK_VOCAB 매칭 보정: 폴더가 없는데 어휘가 파일명에 반복되면 후보 추가
+        # F-07/F-07a 폴더 교차 업무 후보: WORK_VOCAB + 인터뷰 duty 토큰을 전체
+        # relative_path(폴더명+파일명)에 매칭해, 관행 폴더(받은파일/백업/인수인계…)
+        # 여러 곳에 흩어진 동일 업무를 하나의 후보로 엮는다 — 1단계 폴더 미러링 해소.
+        seed_terms: list[str] = list(WORK_VOCAB)
+        for token in duty_seed_tokens(duty):
+            if token not in seed_terms:
+                seed_terms.append(token)
+        taggable_files = [
+            file_record
+            for file_record in files
+            if not is_reference_shelf_path(nfc(str(file_record.get("relative_path") or "")))
+        ]
+        for term in seed_terms:
+            matched_files: list[dict[str, Any]] = []
+            matched_folders: set[str] = set()
+            for file_record in taggable_files:
+                rel = nfc(str(file_record.get("relative_path") or ""))
+                if term not in rel:
+                    continue
+                matched_files.append(file_record)
+                parts = rel.split("/")
+                if len(parts) > 1:
+                    matched_folders.add(parts[0])
+            if (
+                len(matched_files) < VOCAB_CROSS_MIN_FILES
+                or len(matched_folders) < VOCAB_CROSS_MIN_FOLDERS
+            ):
+                continue
+            slug = work_area_slug(term)
+            add_samples(slug, matched_files)
+            existing_area = area_by_slug.get(slug)
+            if existing_area is not None:
+                # 기존 폴더 승격 영역과 이름(slug)이 겹치면 새 영역을 만들지 않고
+                # folders/keywords만 병합한다(제안 스키마 유지).
+                existing_area["folders"] = sorted({*existing_area["folders"], *matched_folders})
+                existing_area["keywords"] = sorted({*(existing_area.get("keywords") or []), term})
+                continue
+            area = {
+                "name": term,
+                "slug": slug,
+                "folders": sorted(matched_folders),
+                "keywords": [term],
+                "doc_count": len(matched_files),
+                "source": "vocab-cross",
+                "confidence": "medium",
+            }
+            area_by_slug[slug] = area
+            work_areas.append(area)
+
+        # WORK_VOCAB 매칭 보정: 폴더도 교차 신호도 없는데 어휘가 루트 직속
+        # 파일명에 반복되면 저확신 후보로 추가(기존 동작 유지).
         covered_names = {area["name"] for area in work_areas}
         for term in WORK_VOCAB:
             if any(term in name for name in covered_names):
                 continue
-            hit_count = sum(
-                1 for file_record in root_files
+            root_hits = [
+                file_record for file_record in root_files
                 if term in nfc(str(file_record.get("relative_path") or ""))
-            )
-            if hit_count >= 2:
+            ]
+            if len(root_hits) >= 2:
                 slug = work_area_slug(term)
                 if slug in area_by_slug:
                     continue
+                add_samples(slug, root_hits)
                 area = {
                     "name": term,
                     "slug": slug,
                     "folders": [],
-                    "doc_count": hit_count,
+                    "keywords": [term],
+                    "doc_count": len(root_hits),
                     "source": "vocab",
                     "confidence": "low",
                 }
@@ -282,7 +388,6 @@ class WorkTaxonomyManager:
             "date_prefix": len(files) > 0 and date_prefixed >= 2 and (date_prefixed / len(files)) >= 0.2,
         }
 
-        interview = self.get_interview()
         hints: list[str] = []
         purpose = str((interview or {}).get("purpose") or "")
         if "인수인계" in purpose:
@@ -310,7 +415,9 @@ class WorkTaxonomyManager:
             "llm_suggestions": None,
         }
         if llm is not None and work_areas:
-            proposal["llm_suggestions"] = self._llm_refine(work_areas, llm)
+            proposal["llm_suggestions"] = self._llm_refine(
+                work_areas, llm, samples_by_slug=samples_by_slug, duty=duty
+            )
         return proposal
 
     def _detect_file_families(
@@ -381,18 +488,37 @@ class WorkTaxonomyManager:
         self,
         work_areas: list[dict[str, Any]],
         llm: Callable[[list[dict[str, Any]]], str | None],
+        *,
+        samples_by_slug: dict[str, list[str]] | None = None,
+        duty: str = "",
     ) -> dict[str, Any] | None:
-        names = [area["name"] for area in work_areas]
+        # F-07b: 이름 목록만으로는 업무 복원이 불가("받은파일"→?) — 영역별 대표
+        # 파일명 표본(≤LLM_SAMPLE_FILES_PER_AREA)과 인터뷰 duty를 함께 전달한다.
+        samples = samples_by_slug or {}
+        payload = {
+            "duty": nfc(str(duty or "")),
+            "work_areas": [
+                {
+                    "name": area["name"],
+                    "sample_files": (samples.get(str(area.get("slug") or "")) or [])[
+                        :LLM_SAMPLE_FILES_PER_AREA
+                    ],
+                }
+                for area in work_areas
+            ],
+        }
         messages = [
             {
                 "role": "system",
                 "text": (
-                    "당신은 공공기관 기록관리 전문가입니다. 아래 업무 후보 이름 목록을 다듬어 "
-                    'JSON 하나만 출력하세요: {"work_areas": [{"name": "다듬은 업무명", '
-                    '"merge_of": ["원래 이름"]}], "notes": "병합/개명 제안 요약"}'
+                    "당신은 공공기관 기록관리 전문가입니다. 아래 업무 후보 목록(각 후보의 "
+                    "이름과 대표 파일명 표본)과 담당 업무(duty)를 참고해 업무 후보 이름을 "
+                    '다듬어 JSON 하나만 출력하세요: {"work_areas": [{"name": "다듬은 업무명", '
+                    '"merge_of": ["원래 이름"], "keywords": ["연관 키워드(선택)"]}], '
+                    '"notes": "병합/개명 제안 요약"}'
                 ),
             },
-            {"role": "user", "text": json.dumps(names, ensure_ascii=False)},
+            {"role": "user", "text": json.dumps(payload, ensure_ascii=False)},
         ]
         try:
             raw = llm(messages)
@@ -409,6 +535,10 @@ class WorkTaxonomyManager:
             return None
         if not isinstance(parsed, dict) or not isinstance(parsed.get("work_areas"), list):
             return None
+        # keywords는 선택 필드 — 형식이 틀리면(비리스트) 조용히 제거한다(관대한 파싱).
+        for entry in parsed["work_areas"]:
+            if isinstance(entry, dict) and not isinstance(entry.get("keywords"), list):
+                entry.pop("keywords", None)
         return parsed
 
     # -------------------------------------------------------- 확정 / SCHEMA

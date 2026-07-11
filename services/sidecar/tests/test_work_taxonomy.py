@@ -226,6 +226,199 @@ def test_llm_refine_attaches_suggestions_and_ignores_failure(tmp_path: Path) -> 
     assert plain["work_areas"], "LLM 실패해도 결정론 초안은 유지되어야 한다"
 
 
+# ------------------------------------- F-07 폴더 교차(cross-folder) 업무 후보
+
+
+def _make_messy_source(tmp_path: Path) -> Path:
+    """관행 폴더(받은파일/백업/인수인계)에 같은 업무 문서가 흩어진 엉킨 폴더."""
+    source = tmp_path / "messy"
+    received = source / "받은파일"
+    received.mkdir(parents=True)
+    (received / "2025년도 예산편성지침(수정).md").write_text(
+        "# 예산편성지침\n\n예산 편성 기준입니다.", encoding="utf-8"
+    )
+    (received / "추경예산 편성 협조 요청.txt").write_text("추경 협조 요청.", encoding="utf-8")
+    backup = source / "백업_2025"
+    backup.mkdir()
+    (backup / "예산 집행실적 보고.txt").write_text("분기 집행 실적입니다.", encoding="utf-8")
+    (backup / "구내식당 운영 개선 검토.md").write_text(
+        "# 검토\n\n구내식당 운영 개선.", encoding="utf-8"
+    )
+    handover = source / "김주무관 인수인계"
+    handover.mkdir()
+    (handover / "예산 전용요구서.md").write_text("# 전용요구서\n\n전용 요구.", encoding="utf-8")
+    (handover / "휴직 및 복직 처리 절차.txt").write_text("휴복직 절차입니다.", encoding="utf-8")
+    return source
+
+
+def test_proposal_creates_cross_folder_candidates_from_vocab(tmp_path: Path) -> None:
+    """F-07/F-07a: 어휘가 여러 1단계 폴더의 파일명에 반복되면 폴더 교차 후보가 생긴다."""
+    source = _make_messy_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source, label="엉킨폴더")
+
+    proposal = client.get(
+        "/api/knowledge/taxonomy/proposal", params={"source_id": source_id}
+    ).json()
+
+    budget = next(area for area in proposal["work_areas"] if area["name"] == "예산")
+    assert budget["source"] == "vocab-cross"
+    assert budget["confidence"] == "medium"
+    assert budget["keywords"] == ["예산"]
+    assert budget["doc_count"] == 4
+    assert set(budget["folders"]) == {"받은파일", "백업_2025", "김주무관 인수인계"}
+    assert len(budget["folders"]) >= 2
+
+    # 기존 폴더 승격 영역은 그대로 병렬 유지된다(스키마 필드 유지 + keywords 추가 필드).
+    received_area = next(area for area in proposal["work_areas"] if area["name"] == "받은파일")
+    assert received_area["source"] == "folder"
+    assert received_area["folders"] == ["받은파일"]
+    assert received_area["keywords"] == []
+
+
+def test_duty_tokens_seed_cross_folder_candidates(tmp_path: Path) -> None:
+    """F-07c 시드: WORK_VOCAB에 없는 duty 토큰(·/쉼표/공백 분리)도 교차 후보를 만든다."""
+    source = tmp_path / "messy"
+    for folder, filename in [
+        ("받은파일", "물품관리 대장.md"),
+        ("백업", "물품관리 점검표.md"),
+        ("김주무관 인수인계", "물품관리 처리요령.md"),
+    ]:
+        path = source / folder / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# {filename}\n\n내용.", encoding="utf-8")
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source, label="물품폴더")
+
+    before = client.get(
+        "/api/knowledge/taxonomy/proposal", params={"source_id": source_id}
+    ).json()
+    assert all(area["name"] != "물품관리" for area in before["work_areas"])
+
+    assert (
+        client.post(
+            "/api/knowledge/taxonomy/interview",
+            json={
+                "org_type": "지자체",
+                "department": "총무과",
+                "duty": "물품관리 · 재물조사/기록물",
+                "purpose": "인수인계",
+            },
+        ).status_code
+        == 200
+    )
+    after = client.get(
+        "/api/knowledge/taxonomy/proposal", params={"source_id": source_id}
+    ).json()
+    supplies = next(area for area in after["work_areas"] if area["name"] == "물품관리")
+    assert supplies["source"] == "vocab-cross"
+    assert supplies["doc_count"] == 3
+    assert len(supplies["folders"]) >= 2
+
+
+def test_cross_folder_signal_merges_into_folder_area(tmp_path: Path) -> None:
+    """F-07: 교차 후보 이름이 기존 폴더 승격 영역과 겹치면 folders/keywords만 병합."""
+    source = tmp_path / "src"
+    for folder, filename in [
+        ("예산", "예산요구서.md"),
+        ("예산", "예산편성 일정.md"),
+        ("받은파일", "예산 배정 통보.md"),
+        ("받은파일", "예산 협조 회신.md"),
+    ]:
+        path = source / folder / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"# {filename}\n\n내용.", encoding="utf-8")
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source, label="예산폴더")
+
+    proposal = client.get(
+        "/api/knowledge/taxonomy/proposal", params={"source_id": source_id}
+    ).json()
+
+    budget_areas = [area for area in proposal["work_areas"] if area["name"] == "예산"]
+    assert len(budget_areas) == 1, "교차 후보가 같은 이름의 영역을 중복 생성하면 안 된다"
+    budget = budget_areas[0]
+    assert budget["source"] == "folder"
+    assert set(budget["folders"]) == {"예산", "받은파일"}
+    assert "예산" in budget["keywords"]
+
+
+def test_folder_vocab_match_alone_caps_confidence_at_medium(tmp_path: Path) -> None:
+    """F-07c: 폴더명-어휘 우연 일치는 medium 상한, 파일 신호와 정합하면 high."""
+    source = tmp_path / "src"
+    outing = source / "행사출장"  # '행사' 어휘와 겹치지만 내용물은 시설 문서
+    outing.mkdir(parents=True)
+    (outing / "소방시설 합동점검 출장복명서.md").write_text(
+        "# 복명서\n\n점검 결과.", encoding="utf-8"
+    )
+    (outing / "승강기 유지보수 현장확인.md").write_text(
+        "# 현장확인\n\n확인 결과.", encoding="utf-8"
+    )
+    budget = source / "예산자료"  # '예산' 어휘 + 파일명도 예산 → 정합
+    budget.mkdir()
+    (budget / "예산집행지침.md").write_text("# 지침\n\n집행 지침.", encoding="utf-8")
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source, label="확신도폴더")
+
+    proposal = client.get(
+        "/api/knowledge/taxonomy/proposal", params={"source_id": source_id}
+    ).json()
+
+    outing_area = next(area for area in proposal["work_areas"] if area["name"] == "행사출장")
+    assert outing_area["confidence"] == "medium", "폴더명 어휘 일치만으로 high가 되면 안 된다"
+    budget_area = next(area for area in proposal["work_areas"] if area["name"] == "예산자료")
+    assert budget_area["confidence"] == "high"
+
+
+def test_llm_refine_receives_samples_and_duty_and_accepts_keywords(tmp_path: Path) -> None:
+    """F-07b: llm_refine 입력에 영역별 대표 파일명 표본+duty, 출력 keywords 허용."""
+    source = _make_work_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source)
+    client.post(
+        "/api/knowledge/taxonomy/interview",
+        json={
+            "org_type": "지자체",
+            "department": "기획예산과",
+            "duty": "예산 편성 총괄",
+            "purpose": "보고 생산성",
+        },
+    )
+    taxonomy = client.app.state.services.taxonomy
+
+    captured: dict = {}
+
+    def fake_llm(messages):
+        captured["messages"] = messages
+        return json.dumps(
+            {
+                "work_areas": [
+                    {"name": "예산 관리", "merge_of": ["예산"], "keywords": ["예산", "편성"]}
+                ],
+                "notes": "병합 제안",
+            },
+            ensure_ascii=False,
+        )
+
+    refined = taxonomy.analyze_source(source_id, llm=fake_llm)
+    user_text = next(m["text"] for m in captured["messages"] if m["role"] == "user")
+    assert "예산집행지침" in user_text, "영역별 대표 파일명 표본이 LLM 입력에 포함되어야 한다"
+    assert "예산 편성 총괄" in user_text, "인터뷰 duty가 LLM 입력에 포함되어야 한다"
+    assert refined["llm_suggestions"]["work_areas"][0]["keywords"] == ["예산", "편성"]
+
+    # 관대한 파싱: keywords가 비리스트면 조용히 제거하고 나머지는 유지한다.
+    def sloppy_llm(messages):
+        return json.dumps(
+            {"work_areas": [{"name": "예산", "keywords": "예산"}], "notes": ""},
+            ensure_ascii=False,
+        )
+
+    lenient = taxonomy.analyze_source(source_id, llm=sloppy_llm)
+    entry = lenient["llm_suggestions"]["work_areas"][0]
+    assert entry["name"] == "예산"
+    assert "keywords" not in entry
+
+
 # --------------------------------------------------------- 확정 / SCHEMA.md
 
 
