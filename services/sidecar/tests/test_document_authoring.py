@@ -5,14 +5,20 @@ import pytest
 
 from gongmu_sidecar.app import create_app
 from gongmu_sidecar.document_authoring import (
+    FORMAT_SYSTEM_PROMPTS,
     GongmunItem,
     OnePageSection,
     SchemaEmail,
     SchemaFull,
     SchemaGongmun,
     SchemaOnePage,
+    _sanitize_email_signature,
+    extract_numeric_tokens,
+    find_missing_numeric_tokens,
     register_authoring_routes,
+    render_preview,
 )
+from gongmu_sidecar.hwpx_writer import split_summary_sentences
 
 
 class StubLLM:
@@ -598,3 +604,241 @@ def test_build_then_finalize_apply_produces_hwpx(tmp_path: Path) -> None:
     assert Path(artifact["path"]).exists()
     rendered = Path(artifact["markdown_path"]).read_text(encoding="utf-8")
     assert "전력" in rendered
+
+
+# ---------------------------------------------------------------------------
+# F-12: email 서명 placeholder·창작 연락처 후처리 가드
+# ---------------------------------------------------------------------------
+
+
+def test_email_format_prompt_has_no_personal_contact_fewshot() -> None:
+    """few-shot 예시의 개인명·내선이 산출물로 유출되던 원인(F-12) 제거 확인."""
+    prompt = FORMAT_SYSTEM_PROMPTS["email"]
+    assert '"signature": "행정지원과 드림"' in prompt
+    assert "홍길동" not in prompt
+    assert "내선 1234" not in prompt
+    assert "만들지 말 것" in prompt
+
+
+def test_format_prompts_include_numeric_preservation_rule() -> None:
+    """F-13/F-13b: 수치 보존·창작 금지 규칙이 모든 포맷 프롬프트에 명문화됐는지 확인."""
+    for key, prompt in FORMAT_SYSTEM_PROMPTS.items():
+        assert "표기 그대로 보존" in prompt, key
+        assert "창작하지 않는다" in prompt, key
+
+
+@pytest.mark.parametrize(
+    "signature",
+    [
+        "행정지원과 (담당자명) (내선번호)",
+        "행정지원과 OOO 주무관 (내선 XXXX)",
+        "행정지원과 홍길동 주무관 (내선 1234)",
+        "행정지원과 담당자명 기재",
+        "행정지원과 김민수 주무관 (02-123-4567)",
+        "행정지원과 someone@korea.kr",
+    ],
+)
+def test_sanitize_email_signature_replaces_placeholder_variants(signature: str) -> None:
+    structure = {**EMAIL_JSON, "signature": signature}
+    sanitized = _sanitize_email_signature(structure, "에너지 절감 결과보고 이메일 작성")
+    assert sanitized["signature"] == "행정지원과 드림"
+    # 순수 함수 — 입력 구조는 변경되지 않는다
+    assert structure["signature"] == signature
+
+
+def test_sanitize_email_signature_keeps_contacts_present_in_instruction() -> None:
+    structure = {**EMAIL_JSON, "signature": "행정지원과 김민수 주무관 (내선 5678)"}
+    instruction = "회신용 이메일 작성. 서명에 김민수 주무관, 내선 5678 표기"
+    sanitized = _sanitize_email_signature(structure, instruction)
+    assert sanitized["signature"] == "행정지원과 김민수 주무관 (내선 5678)"
+
+
+def test_sanitize_email_signature_leaves_clean_signature_untouched() -> None:
+    structure = {**EMAIL_JSON, "signature": "행정지원과 드림"}
+    sanitized = _sanitize_email_signature(structure, "")
+    assert sanitized["signature"] == "행정지원과 드림"
+    assert sanitized is structure
+
+
+def test_sanitize_email_signature_falls_back_to_generic_department() -> None:
+    structure = {
+        "subject": "제목",
+        "greeting": None,
+        "body_paragraphs": ["본문"],
+        "closing": None,
+        "signature": "홍길동 드림",
+    }
+    sanitized = _sanitize_email_signature(structure, "이메일 작성")
+    assert sanitized["signature"] == "담당 부서 드림"
+
+
+def test_sanitize_email_signature_ignores_empty_signature() -> None:
+    structure = {**EMAIL_JSON, "signature": None}
+    assert _sanitize_email_signature(structure, "이메일 작성") is structure
+
+
+def test_structure_email_sanitizes_fabricated_signature(tmp_path: Path) -> None:
+    fabricated = dict(EMAIL_JSON)
+    fabricated["signature"] = "행정지원과 홍길동 주무관 (내선 1234)"
+    stub = StubLLM([ORGANIZED_MD, json.dumps(fabricated, ensure_ascii=False)])
+    client = _client(tmp_path, stub)
+
+    response = client.post(
+        "/api/documents/authoring/structure",
+        json={"format": "email", "instruction": "청사 에너지 절감 안내 이메일 작성", "stream": False},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["structure"]["signature"] == "행정지원과 드림"
+    assert "홍길동" not in payload["preview"]
+    assert "내선" not in payload["preview"]
+
+
+# ---------------------------------------------------------------------------
+# F-13/F-13b: 지시 수치 보존 검증 — 누락 시 1회 재생성
+# ---------------------------------------------------------------------------
+
+T2_INSTRUCTION = "2026년 상반기 AI 활용 교육 실시 결과보고 — 교육 3회, 참석률 87%, 만족도 4.3/5"
+
+_DROPPED_NUMBERS_JSON = {
+    "title": "AI 활용 교육 결과보고",
+    "summary": "교육 실시 결과 참석률 분석",
+    "sections": [
+        {"heading": "추진 개요", "items": ["AI 활용 교육 실시"]},
+        {"heading": "결과", "items": ["참석률 분석 실시"]},
+    ],
+}
+
+_PRESERVED_NUMBERS_JSON = {
+    "title": "2026년 상반기 AI 활용 교육 결과보고",
+    "summary": "교육 3회 실시, 참석률 87%, 만족도 4.3/5 달성",
+    "sections": [
+        {"heading": "추진 개요", "items": ["2026년 상반기 교육 3회 실시"]},
+        {"heading": "결과", "items": ["참석률 87%", "만족도 4.3/5"]},
+    ],
+}
+
+
+def test_extract_numeric_tokens_with_units() -> None:
+    assert extract_numeric_tokens(T2_INSTRUCTION) == ["2026년", "3회", "87%", "4.3", "5"]
+    assert extract_numeric_tokens("수치 없음") == []
+    assert extract_numeric_tokens("") == []
+
+
+def test_find_missing_numeric_tokens_ignores_whitespace() -> None:
+    structure = {"title": "결과보고", "summary": "2026년 교육 3 회 실시, 참석률 87%, 5점"}
+    missing = find_missing_numeric_tokens(T2_INSTRUCTION, structure)
+    assert missing == ["4.3"]
+
+
+def test_numeric_guard_retries_once_and_adopts_improved_structure(tmp_path: Path) -> None:
+    stub = StubLLM(
+        [
+            ORGANIZED_MD,
+            json.dumps(_DROPPED_NUMBERS_JSON, ensure_ascii=False),
+            json.dumps(_PRESERVED_NUMBERS_JSON, ensure_ascii=False),
+        ]
+    )
+    client = _client(tmp_path, stub)
+
+    response = client.post(
+        "/api/documents/authoring/structure",
+        json={"format": "onepage", "instruction": T2_INSTRUCTION, "stream": False},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["numeric_retry"] is True
+    assert payload["meta"]["missing_numeric_tokens"] == []
+    serialized = json.dumps(payload["structure"], ensure_ascii=False)
+    for token in ("3회", "87%", "4.3", "2026년"):
+        assert token in serialized
+
+    # 재생성 요청에는 누락 수치를 명시한 보강 지시가 첨부되어야 한다
+    assert len(stub.calls) == 3
+    retry_user = stub.calls[2]["messages"][1]["text"]
+    assert "[수치 보존 지시]" in retry_user
+    assert "- 87%" in retry_user
+    assert "- 3회" in retry_user
+
+
+def test_numeric_guard_keeps_first_result_when_retry_not_better(tmp_path: Path) -> None:
+    stub = StubLLM(
+        [
+            ORGANIZED_MD,
+            json.dumps(_DROPPED_NUMBERS_JSON, ensure_ascii=False),
+            json.dumps(_DROPPED_NUMBERS_JSON, ensure_ascii=False),
+        ]
+    )
+    client = _client(tmp_path, stub)
+
+    response = client.post(
+        "/api/documents/authoring/structure",
+        json={"format": "onepage", "instruction": T2_INSTRUCTION, "stream": False},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"]["numeric_retry"] is True
+    assert "87%" in payload["meta"]["missing_numeric_tokens"]
+    assert payload["structure"]["title"] == _DROPPED_NUMBERS_JSON["title"]
+    assert len(stub.calls) == 3
+
+
+def test_numeric_guard_skips_retry_when_numbers_preserved(tmp_path: Path) -> None:
+    stub = StubLLM([ORGANIZED_MD, json.dumps(_PRESERVED_NUMBERS_JSON, ensure_ascii=False)])
+    client = _client(tmp_path, stub)
+
+    response = client.post(
+        "/api/documents/authoring/structure",
+        json={"format": "onepage", "instruction": T2_INSTRUCTION, "stream": False},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["meta"] == {"attempts": 1, "repaired": False, "hints": []}
+    assert len(stub.calls) == 2
+
+
+# ---------------------------------------------------------------------------
+# F-13a: summary 다문장 → 문장 단위 ◦ 줄 렌더
+# ---------------------------------------------------------------------------
+
+
+def test_split_summary_sentences_rules() -> None:
+    assert split_summary_sentences(
+        "교육 3회를 실시함. 참석률 87%를 기록함. 만족도 4.3/5 달성."
+    ) == ["교육 3회를 실시함.", "참석률 87%를 기록함.", "만족도 4.3/5 달성."]
+    # 숫자 뒤 마침표(소수점·날짜)는 문장 경계가 아니다
+    assert split_summary_sentences("2026. 7. 시범 적용을 개시함. 8월 확대 예정.") == [
+        "2026. 7. 시범 적용을 개시함.",
+        "8월 확대 예정.",
+    ]
+    assert split_summary_sentences("단일 문장 요약") == ["단일 문장 요약"]
+    assert split_summary_sentences("") == []
+    assert split_summary_sentences("   ") == []
+
+
+def test_render_preview_splits_multisentence_onepage_summary() -> None:
+    structure = SchemaOnePage.model_validate(
+        {
+            "title": "AI 활용 교육 결과보고",
+            "summary": "교육 3회를 실시함. 참석률 87%를 기록함. 만족도 4.3/5 달성.",
+            "sections": [
+                {"heading": "개요", "items": ["항목"]},
+                {"heading": "결과", "items": ["항목"]},
+            ],
+        }
+    ).model_dump()
+    lines = render_preview("onePageReport", structure).splitlines()
+    assert " ◦ 교육 3회를 실시함." in lines
+    assert " ◦ 참석률 87%를 기록함." in lines
+    assert " ◦ 만족도 4.3/5 달성." in lines
+    assert " ◦ 교육 3회를 실시함. 참석률 87%를 기록함. 만족도 4.3/5 달성." not in lines
+
+
+def test_render_preview_splits_multisentence_full_summary_entry() -> None:
+    payload = dict(FULL_JSON)
+    payload["summary"] = ["3대 과제를 착수함. 예산 1.8억 원을 재배정함.", "하반기 완료 목표"]
+    structure = SchemaFull.model_validate(payload).model_dump()
+    lines = render_preview("fullReport", structure).splitlines()
+    assert " ◦ 3대 과제를 착수함." in lines
+    assert " ◦ 예산 1.8억 원을 재배정함." in lines
+    assert " ◦ 하반기 완료 목표" in lines

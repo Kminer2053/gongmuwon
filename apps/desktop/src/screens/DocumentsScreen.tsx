@@ -90,6 +90,40 @@ function recordList(record: Record<string, unknown>, key: string): unknown[] {
 }
 
 /**
+ * F-13a: 서버 hwpx_writer.split_summary_sentences 와 동일 규칙의 문장 분리기.
+ * 마침표(.!?)+공백을 문장 경계로 보되, 숫자 사이 마침표(소수점·"2026. 7." 날짜)는 제외한다.
+ * 다문장 요약이 한 ◦줄로 뭉치는 '한 문장 한 줄' 위반을 서버·클라 동일하게 막는다.
+ */
+export function splitSummarySentences(text: string): string[] {
+  const raw = String(text ?? "").trim();
+  if (!raw) {
+    return [];
+  }
+  const parts: string[] = [];
+  let start = 0;
+  const boundary = /(?<=[.!?])\s+/g;
+  let match: RegExpExecArray | null;
+  while ((match = boundary.exec(raw)) !== null) {
+    const punct = match.index >= 1 ? raw[match.index - 1] : "";
+    const before = match.index >= 2 ? raw[match.index - 2] : "";
+    const afterIndex = match.index + match[0].length;
+    if (punct === "." && /\d/.test(before)) {
+      continue; // 소수점·"2026. 7." 날짜 등 숫자 뒤 마침표는 문장 경계가 아니다
+    }
+    const segment = raw.slice(start, match.index).trim();
+    if (segment) {
+      parts.push(segment);
+    }
+    start = afterIndex;
+  }
+  const tail = raw.slice(start).trim();
+  if (tail) {
+    parts.push(tail);
+  }
+  return parts.length > 0 ? parts : [raw];
+}
+
+/**
  * M-09: 사이드카 render_preview 와 동일 규칙의 클라이언트 로컬 렌더러.
  * 구조 편집이 서버 왕복 없이 □/◦ 개조식 평문 미리보기에 즉시 반영된다.
  */
@@ -103,7 +137,12 @@ export function renderLocalAuthoringPreview(
     if (subtitle) {
       lines.push(`- ${subtitle} -`);
     }
-    lines.push("", "□ 요약", ` ◦ ${readStructureText(structure, "summary")}`);
+    lines.push("", "□ 요약");
+    // F-13a: 다문장 요약은 문장마다 별도 ◦ 줄로 렌더한다 (서버 structure_to_lines 와 동일)
+    const summarySentences = splitSummarySentences(readStructureText(structure, "summary"));
+    for (const sentence of summarySentences.length > 0 ? summarySentences : [""]) {
+      lines.push(` ◦ ${sentence}`);
+    }
     for (const section of readStructureList(structure, "sections")) {
       const record = asRecord(section);
       lines.push("", `□ ${recordText(record, "heading")}`);
@@ -125,7 +164,11 @@ export function renderLocalAuthoringPreview(
   if (formatKey === "fullReport") {
     const lines: string[] = [readStructureText(structure, "title"), "", "□ 요약"];
     for (const summaryLine of readStructureList(structure, "summary")) {
-      lines.push(` ◦ ${String(summaryLine ?? "")}`);
+      // F-13a: 항목 안 다문장도 문장마다 별도 ◦ 줄로 렌더한다 (서버 structure_to_lines 와 동일)
+      const sentences = splitSummarySentences(String(summaryLine ?? ""));
+      for (const sentence of sentences.length > 0 ? sentences : [String(summaryLine ?? "")]) {
+        lines.push(` ◦ ${sentence}`);
+      }
     }
     readStructureList(structure, "chapters").forEach((chapter, index) => {
       const chapterRecord = asRecord(chapter);

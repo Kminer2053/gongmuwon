@@ -61,6 +61,37 @@ def strip_structure_marker(markdown_text: str) -> str:
     return _STRUCTURE_MARKER_RE.sub("", markdown_text or "")
 
 
+# F-13a: summary 다문장이 한 ◦줄로 뭉치는 '한 문장 한 줄' 위반 방지 —
+# 마침표(.!?)+공백을 문장 경계로 보되, 숫자 사이 마침표(소수점·"2026. 7." 날짜)는 제외한다.
+_SENTENCE_BOUNDARY_PATTERN = re.compile(r"(?<=[.!?])\s+")
+
+
+def split_summary_sentences(text: str) -> list[str]:
+    """요약 문자열을 문장 단위로 나눈다. 빈 문자열이면 빈 목록을 돌려준다.
+
+    클라이언트 renderLocalAuthoringPreview(DocumentsScreen.tsx)의 splitSummarySentences 와
+    동일 규칙 — 서버 미리보기·최종 HWPX·클라이언트 미리보기가 같은 줄 구성을 가져야 한다.
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return []
+    parts: list[str] = []
+    start = 0
+    for match in _SENTENCE_BOUNDARY_PATTERN.finditer(raw):
+        punct = raw[match.start() - 1] if match.start() >= 1 else ""
+        before = raw[match.start() - 2] if match.start() >= 2 else ""
+        if punct == "." and before.isdigit():
+            continue  # 소수점·"2026. 7." 날짜 등 숫자 뒤 마침표는 문장 경계가 아니다
+        segment = raw[start : match.start()].strip()
+        if segment:
+            parts.append(segment)
+        start = match.end()
+    tail = raw[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts or [raw]
+
+
 def structure_to_lines(format_key: str, structure: dict[str, Any]) -> list[str]:
     """구조 JSON → 문단 줄 목록. render_preview(텍스트 미리보기)와 최종 HWPX가
     같은 목록을 소비한다 — 두 산출물의 문단 구성이 1:1 로 일치해야 한다."""
@@ -68,7 +99,10 @@ def structure_to_lines(format_key: str, structure: dict[str, Any]) -> list[str]:
         lines = [str(structure.get("title", ""))]
         if structure.get("subtitle"):
             lines.append(f"- {structure['subtitle']} -")
-        lines += ["", "□ 요약", f" ◦ {structure.get('summary', '')}"]
+        lines += ["", "□ 요약"]
+        # F-13a: 다문장 요약은 문장마다 별도 ◦ 줄로 렌더한다
+        summary_sentences = split_summary_sentences(str(structure.get("summary", ""))) or [""]
+        lines += [f" ◦ {sentence}" for sentence in summary_sentences]
         for section in structure.get("sections", []) or []:
             lines += ["", f"□ {section.get('heading', '')}"]
             for item in section.get("items", []) or []:
@@ -82,7 +116,9 @@ def structure_to_lines(format_key: str, structure: dict[str, Any]) -> list[str]:
     if format_key == "fullReport":
         lines = [str(structure.get("title", "")), "", "□ 요약"]
         for summary_line in structure.get("summary", []) or []:
-            lines.append(f" ◦ {summary_line}")
+            # F-13a: 항목 안 다문장도 문장마다 별도 ◦ 줄로 렌더한다
+            for sentence in split_summary_sentences(str(summary_line)) or [str(summary_line)]:
+                lines.append(f" ◦ {sentence}")
         for index, chapter in enumerate(structure.get("chapters", []) or []):
             numeral = ROMAN_NUMERALS[min(index, len(ROMAN_NUMERALS) - 1)]
             lines += ["", f"{numeral}. {chapter.get('heading', '')}"]
@@ -501,7 +537,9 @@ def _structured_body_plan(format_key: str, structure: dict[str, Any]) -> list[tu
         plan.append(("heading", "□ 요약"))
         summary = str(structure.get("summary", "")).strip()
         if summary:
-            plan.append(("item", f"◦ {summary}"))
+            # F-13a: structure_to_lines(미리보기)와 동일하게 문장 단위로 나눈다
+            for sentence in split_summary_sentences(summary):
+                plan.append(("item", f"◦ {sentence}"))
         for section in structure.get("sections", []) or []:
             plan.append(("gap", ""))
             plan.append(("heading", f"□ {section.get('heading', '')}"))
@@ -550,7 +588,9 @@ def _structured_body_plan(format_key: str, structure: dict[str, Any]) -> list[tu
 def _structured_full_plans(structure: dict[str, Any]) -> tuple[list[tuple[str, str]], list[list[tuple[str, str]]]]:
     summary_plan: list[tuple[str, str]] = [("heading", "□ 요약")]
     for summary_line in structure.get("summary", []) or []:
-        summary_plan.append(("item", f"◦ {summary_line}"))
+        # F-13a: structure_to_lines(미리보기)와 동일하게 문장 단위로 나눈다
+        for sentence in split_summary_sentences(str(summary_line)) or [str(summary_line)]:
+            summary_plan.append(("item", f"◦ {sentence}"))
 
     chapter_plans: list[list[tuple[str, str]]] = []
     for chapter in structure.get("chapters", []) or []:

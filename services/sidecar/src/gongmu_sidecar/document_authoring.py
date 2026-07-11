@@ -382,6 +382,8 @@ WRITING_CORE_PROMPT = (
     "- 개조식: 한 항목은 40자 내외, 명사형으로 끝맺는다.\n"
     "- '적/의/것/들' 남용을 금지하고 군더더기 조사를 줄인다.\n"
     "- 구체 수치·날짜·기관명을 우선 사용한다.\n"
+    "- 지시문에 포함된 수치·비율·횟수·날짜는 반드시 산출물에 표기 그대로 보존한다.\n"
+    "- 지시에 없는 수치·연도·통계를 창작하지 않는다.\n"
     "- 위계 표기: 1페이지 보고서는 □→◦→-, 풀버전 보고서는 Ⅰ→□→◦→-→※ 순서를 따른다.\n"
 )
 
@@ -530,6 +532,10 @@ FORMAT_SYSTEM_PROMPTS: dict[str, str] = {
         "정리된 마크다운을 '업무 이메일' JSON으로 변환하세요.\n"
         "스키마: subject(제목), greeting?(첫인사), body_paragraphs(본문 문단 목록 1개 이상), "
         "closing?(맺음말), signature?(서명).\n"
+        "서명 규칙(반드시 지킬 것):\n"
+        "- 지시에 없는 개인 이름·직급·내선번호·전화번호·이메일 주소를 만들지 말 것.\n"
+        "- '(담당자명)', 'OOO', '내선 XXXX' 같은 자리표시자를 쓰지 말 것.\n"
+        "- 서명은 부서/팀명만 쓴다(예: '행정지원과 드림'). 지시에 실명·연락처가 있을 때만 그대로 쓴다.\n"
         "완성 예시:\n"
         + json.dumps(
             {
@@ -540,7 +546,7 @@ FORMAT_SYSTEM_PROMPTS: dict[str, str] = {
                     "냉방 설정온도 26℃ 준수와 퇴근 시 대기전력 차단을 부탁드립니다.",
                 ],
                 "closing": "협조에 감사드립니다.",
-                "signature": "행정지원과 홍길동 주무관 (내선 1234)",
+                "signature": "행정지원과 드림",
             },
             ensure_ascii=False,
             indent=2,
@@ -840,6 +846,152 @@ def format_to_schema(
 
     structure = repair_doc(format_key, organized_markdown, retry_dict or raw_dict)
     return structure, {"attempts": 2, "repaired": True, "hints": hints}
+
+
+# ---------------------------------------------------------------------------
+# F-12: email 서명 placeholder·창작 연락처 방어 (후처리 가드)
+# ---------------------------------------------------------------------------
+
+# few-shot 유출(홍길동·내선 1234)·자리표시자((담당자명)·OOO·XXXX)·창작 연락처 판정 패턴.
+# 매칭된 문자열이 지시문에 실제로 등장하면 사용자가 준 정보이므로 유지한다.
+_EMAIL_SIGNATURE_SUSPECT_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\(\s*담당자\s*명?\s*\)"),
+    re.compile(r"\(\s*내선\s*번호?\s*\)"),
+    re.compile(r"담당자명"),
+    re.compile(r"[OＯ○◯]{2,}"),
+    re.compile(r"[XＸ]{2,}"),
+    re.compile(r"홍길동"),
+    re.compile(r"내선\s*(?:번호)?\s*[:：]?\s*\d+"),
+    re.compile(r"\d{2,4}\s*-\s*\d{3,4}\s*-\s*\d{4}"),
+    re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"),
+)
+
+# 서명 치환에 쓸 부서/팀명 추출 — "행정지원과", "총무팀", "AI혁신처" 등
+_DEPARTMENT_NAME_PATTERN = re.compile(
+    r"[가-힣A-Za-z0-9]{2,}(?:과|팀|실|센터|단|국|본부|처|원|청)"
+)
+
+
+def _department_name_from(*texts: str) -> str | None:
+    for text in texts:
+        match = _DEPARTMENT_NAME_PATTERN.search(str(text or ""))
+        if match:
+            return match.group(0)
+    return None
+
+
+def _sanitize_email_signature(structure: dict[str, Any], instruction: str) -> dict[str, Any]:
+    """email 구조의 signature에서 placeholder·창작 연락처를 감지해 부서명 서명으로 치환한다.
+
+    순수 함수 — 입력 구조를 변경하지 않고 필요 시 복사본을 돌려준다.
+    지시문에 실제로 존재하는 값(예: 사용자가 알려준 내선번호)은 창작이 아니므로 유지한다.
+    """
+    signature = str(structure.get("signature") or "").strip()
+    if not signature:
+        return structure
+    instruction_haystack = re.sub(r"\s+", "", str(instruction or ""))
+    tainted = False
+    for pattern in _EMAIL_SIGNATURE_SUSPECT_PATTERNS:
+        for match in pattern.finditer(signature):
+            token = re.sub(r"\s+", "", match.group(0))
+            if token and token in instruction_haystack:
+                continue  # 지시문에 실재하는 값 — 유지
+            tainted = True
+            break
+        if tainted:
+            break
+    if not tainted:
+        return structure
+    department = _department_name_from(
+        signature, str(structure.get("greeting") or ""), str(instruction or "")
+    )
+    sanitized = dict(structure)
+    sanitized["signature"] = f"{department} 드림" if department else "담당 부서 드림"
+    return sanitized
+
+
+# ---------------------------------------------------------------------------
+# F-13/F-13b: 지시 수치 보존 검증 — 누락 시 1회 재생성
+# ---------------------------------------------------------------------------
+
+_NUMERIC_TOKEN_PATTERN = re.compile(r"\d+(?:[.,]\d+)?\s*(?:%|회|건|명|점|년|월|일)?")
+
+
+def extract_numeric_tokens(text: str) -> list[str]:
+    """지시문에서 보존 대상 수치 토큰(수치+단위)을 순서 보존·중복 제거로 추출한다."""
+    tokens: list[str] = []
+    for match in _NUMERIC_TOKEN_PATTERN.finditer(str(text or "")):
+        token = re.sub(r"\s+", "", match.group(0))
+        if token and token not in tokens:
+            tokens.append(token)
+    return tokens
+
+
+def find_missing_numeric_tokens(instruction: str, structure: dict[str, Any]) -> list[str]:
+    """지시문 수치 토큰 중 구조 JSON 직렬화 텍스트에 없는 것을 반환한다(공백 무시 비교)."""
+    tokens = extract_numeric_tokens(instruction)
+    if not tokens:
+        return []
+    haystack = re.sub(r"\s+", "", json.dumps(structure, ensure_ascii=False))
+    return [token for token in tokens if token not in haystack]
+
+
+def _instruction_number_snippets(instruction: str) -> dict[str, str]:
+    """수치 토큰 → 지시문 주변 맥락(앞뒤 8자). 재생성 보강 지시에 함께 실어
+    '3회'가 무엇의 횟수인지 모델이 알 수 있게 한다."""
+    snippets: dict[str, str] = {}
+    text = str(instruction or "")
+    for match in _NUMERIC_TOKEN_PATTERN.finditer(text):
+        token = re.sub(r"\s+", "", match.group(0))
+        if not token or token in snippets:
+            continue
+        start = max(0, match.start() - 8)
+        end = min(len(text), match.end() + 8)
+        snippets[token] = text[start:end].strip()
+    return snippets
+
+
+def format_with_numeric_guard(
+    llm: AuthoringLLM,
+    *,
+    format_key: str,
+    organized_markdown: str,
+    instruction: str = "",
+) -> tuple[BaseModel, dict[str, Any]]:
+    """format_to_schema + 지시 수치 보존 검증.
+
+    지시문 수치 토큰이 구조 결과에서 누락되면 누락 목록을 명시한 보강 지시를 붙여
+    1회 재생성하고, 누락이 줄어든 경우에만 재생성 결과를 채택한다.
+    """
+    structure, meta = format_to_schema(
+        llm, format_key=format_key, organized_markdown=organized_markdown
+    )
+    missing = find_missing_numeric_tokens(instruction, structure.model_dump())
+    if not missing:
+        return structure, meta
+
+    snippets = _instruction_number_snippets(instruction)
+    reinforced_markdown = (
+        f"{organized_markdown}\n\n"
+        "[수치 보존 지시]\n"
+        "- 아래 수치는 작성 지시에 포함된 핵심 수치인데 직전 산출물에서 누락되었습니다.\n"
+        "- 각 수치를 아래 표기 그대로 산출물 본문에 반드시 포함하세요. 수치를 일반 서술로 대체하지 마세요.\n"
+        + "\n".join(
+            f"- {token} (지시문 맥락: …{snippets[token]}…)" if snippets.get(token) else f"- {token}"
+            for token in missing
+        )
+    )
+    retry_structure, retry_meta = format_to_schema(
+        llm, format_key=format_key, organized_markdown=reinforced_markdown
+    )
+    retry_missing = find_missing_numeric_tokens(instruction, retry_structure.model_dump())
+    if len(retry_missing) < len(missing):
+        return retry_structure, {
+            **retry_meta,
+            "numeric_retry": True,
+            "missing_numeric_tokens": retry_missing,
+        }
+    return structure, {**meta, "numeric_retry": True, "missing_numeric_tokens": missing}
 
 
 # ---------------------------------------------------------------------------
@@ -1257,8 +1409,12 @@ def run_authoring_stages(
 
     format_started = perf_counter()
     yield {"stage": "format", "status": "start"}
-    structure, meta = format_to_schema(
-        llm, format_key=format_key, organized_markdown=organized_markdown
+    # F-13/F-13b: 지시문 수치 보존 검증 + 누락 시 1회 재생성
+    structure, meta = format_with_numeric_guard(
+        llm,
+        format_key=format_key,
+        organized_markdown=organized_markdown,
+        instruction=instruction,
     )
     yield {
         "stage": "format",
@@ -1269,6 +1425,9 @@ def run_authoring_stages(
     }
 
     structure_dict = structure.model_dump()
+    if format_key == "email":
+        # F-12: 서명 placeholder·창작 연락처 후처리 가드
+        structure_dict = _sanitize_email_signature(structure_dict, instruction)
     yield {
         "done": True,
         "format": format_key,

@@ -46,6 +46,7 @@ import { App } from "./app";
 import {
   normalizeAuthoringStructureForPreview,
   renderLocalAuthoringPreview,
+  splitSummarySentences,
 } from "./screens/DocumentsScreen";
 
 const jsonResponse = (payload: unknown, status = 200) =>
@@ -913,5 +914,57 @@ describe("normalizeAuthoringStructureForPreview (미리보기 = 문서 내용)",
     ]);
     expect((normalized.summary as string).length).toBe(200);
     expect(renderLocalAuthoringPreview("onePageReport", normalized)).not.toContain(" ◦ \n");
+  });
+});
+
+/**
+ * F-13a: summary 다문장 한 줄 렌더 방지 — 서버 hwpx_writer.split_summary_sentences 와
+ * 동일 규칙(마침표+공백 경계, 숫자 뒤 마침표 제외)으로 문장마다 별도 ◦ 줄을 만든다.
+ */
+describe("splitSummarySentences (F-13a 서버 동일 규칙)", () => {
+  it("마침표+공백 기준으로 문장을 나눈다", () => {
+    expect(
+      splitSummarySentences("교육 3회를 실시함. 참석률 87%를 기록함. 만족도 4.3/5 달성."),
+    ).toEqual(["교육 3회를 실시함.", "참석률 87%를 기록함.", "만족도 4.3/5 달성."]);
+  });
+
+  it("소수점·날짜 표기(숫자 뒤 마침표)는 문장 경계로 보지 않는다", () => {
+    expect(splitSummarySentences("2026. 7. 시범 적용을 개시함. 8월 확대 예정.")).toEqual([
+      "2026. 7. 시범 적용을 개시함.",
+      "8월 확대 예정.",
+    ]);
+    expect(splitSummarySentences("만족도 4.3 이상 달성")).toEqual(["만족도 4.3 이상 달성"]);
+  });
+
+  it("빈 문자열은 빈 목록, 한 문장은 그대로 돌려준다", () => {
+    expect(splitSummarySentences("")).toEqual([]);
+    expect(splitSummarySentences("   ")).toEqual([]);
+    expect(splitSummarySentences("단일 문장 요약")).toEqual(["단일 문장 요약"]);
+  });
+});
+
+describe("renderLocalAuthoringPreview summary 문장 분리 렌더 (F-13a)", () => {
+  it("onePageReport: 다문장 summary가 문장마다 별도 ◦ 줄로 렌더된다", () => {
+    const preview = renderLocalAuthoringPreview("onePageReport", {
+      title: "AI 활용 교육 결과보고",
+      summary: "교육 3회를 실시함. 참석률 87%를 기록함.",
+      sections: [{ heading: "개요", items: ["항목"] }],
+    });
+    const lines = preview.split("\n");
+    expect(lines).toContain(" ◦ 교육 3회를 실시함.");
+    expect(lines).toContain(" ◦ 참석률 87%를 기록함.");
+    expect(lines).not.toContain(" ◦ 교육 3회를 실시함. 참석률 87%를 기록함.");
+  });
+
+  it("fullReport: summary 항목 안 다문장도 문장마다 별도 ◦ 줄로 렌더된다", () => {
+    const preview = renderLocalAuthoringPreview("fullReport", {
+      title: "종합계획",
+      summary: ["3대 과제를 착수함. 예산 1.8억 원을 재배정함.", "하반기 완료 목표"],
+      chapters: [{ heading: "장", sections: [{ heading: "절", items: ["항목"] }] }],
+    });
+    const lines = preview.split("\n");
+    expect(lines).toContain(" ◦ 3대 과제를 착수함.");
+    expect(lines).toContain(" ◦ 예산 1.8억 원을 재배정함.");
+    expect(lines).toContain(" ◦ 하반기 완료 목표");
   });
 });

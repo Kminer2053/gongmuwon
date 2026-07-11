@@ -687,9 +687,12 @@ def test_work_session_turn_creates_hwpx_document_from_chat_instruction(tmp_path:
     assistant_message = response.json()["assistant_message"]
     assert assistant_message["status"] == "completed"
     assert "HWPX 문서를 생성했습니다" in assistant_message["text"]
-    assert "문서작성 테스트 문서" in assistant_message["text"]
+    # F-16: 제목은 세션명("... 문서")이 아니라 산출 구조의 제목을 쓴다.
+    assert "청사 에너지 절감 추진계획 보고" in assistant_message["text"]
     assert "파일 열기:" in assistant_message["text"]
     assert "폴더 열기:" in assistant_message["text"]
+    # F-06: 근거 유무를 응답에 명시한다(정직성).
+    assert "지식폴더 근거" in assistant_message["text"]
     assert response.json()["context_summary"]["skill_actions"] == ["document.create"]
 
     skill_result = response.json()["context_summary"]["skill_results"][0]
