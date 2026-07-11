@@ -2851,12 +2851,53 @@ class AppServices:
             self.jobs.fail_job(work_job_id, error_message=str(exc), stage="지식위키 LLM 보강 실패")
             raise
         status_map = {"completed": "succeeded", "canceled": "canceled", "partial": "partial"}
-        return self.jobs.complete_job(
+        # F-11 자동 연속 보강: 정상 완료(취소·부분 아님)인데 이월분이 남았으면
+        # 다음 배치 잡을 자동 체이닝한다 — 동일 resource_key(exclusive) 직렬,
+        # 체인 각 배치는 일반 잡이므로 작업 패널의 취소 버튼이 그대로 통한다.
+        chained_job: dict[str, Any] | None = None
+        if (
+            str(result.get("status")) == "completed"
+            and int(result.get("remaining_count") or 0) > 0
+        ):
+            chained_job = self._create_chained_enrichment_job(
+                source_id=source_id, limit=limit, parent_job_id=work_job_id
+            )
+        if chained_job is not None:
+            result = {**result, "chained_work_job_id": chained_job["id"]}
+        completed = self.jobs.complete_job(
             work_job_id,
             status=status_map.get(str(result.get("status")), "partial"),
             result=result,
             stage="지식위키 LLM 보강 완료" if result.get("status") == "completed" else "지식위키 LLM 보강 중단",
         )
+        if chained_job is not None:
+            # 현재 잡의 완료(락 해제) 후에 다음 배치를 백그라운드로 잇는다.
+            chained_job_id = str(chained_job["id"])
+            self.job_runner.submit_existing(
+                chained_job_id,
+                lambda: self.run_knowledge_enrichment_work_job(chained_job_id, source_id, limit),
+            )
+        return completed
+
+    def _create_chained_enrichment_job(
+        self, *, source_id: str | None, limit: int | None, parent_job_id: str
+    ) -> dict[str, Any] | None:
+        """F-11: 이월분 잔존 시 다음 보강 배치 잡을 생성한다(실패는 체이닝 생략으로 흡수)."""
+        try:
+            return self.jobs.create_job(
+                kind="knowledge.enrich",
+                title="지식위키 LLM 보강 (자동 연속)",
+                input={
+                    "source_id": source_id,
+                    "background": True,
+                    "limit": limit,
+                    "chained_from": parent_job_id,
+                },
+                resource_key="knowledge_wiki:enrich",
+                resource_policy="exclusive",
+            )
+        except Exception:  # noqa: BLE001 - 체이닝 실패가 완료된 보강을 망치면 안 된다
+            return None
 
     def run_knowledge_verify_work_job(self, work_job_id: str, *, deep: bool = False) -> dict[str, Any]:
         """P3 §6: 무결성 점검(verify) 잡 — 색인과 동일 리소스 키(exclusive)로 상호 배제."""

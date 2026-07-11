@@ -353,6 +353,25 @@ function parseWikiLinkItems(section: WikiPageSection | null): Array<{ label: str
   return items;
 }
 
+/** Wave D F-09: 레벨2 섹션과 그 하위(### 소주제) 섹션을 하나의 마크다운으로 재조립한다.
+ * parseWikiBody가 ###도 독립 섹션으로 쪼개므로, '핵심 내용' 같은 종합 섹션을
+ * 통째로 renderMarkdownContent에 넘기려면 다음 레벨2 헤딩 전까지 이어붙여야 한다. */
+function collectWikiSectionMarkdown(sections: WikiPageSection[], heading: string): string {
+  const start = sections.findIndex((section) => section.heading === heading && section.level === 2);
+  if (start < 0) {
+    return "";
+  }
+  const parts: string[] = [...sections[start].lines];
+  for (let index = start + 1; index < sections.length; index += 1) {
+    const section = sections[index];
+    if (section.level <= 2) {
+      break;
+    }
+    parts.push(`${"#".repeat(section.level)} ${section.heading}`, ...section.lines);
+  }
+  return parts.join("\n").trim();
+}
+
 /** 섹션 아웃라인("- 제목" 목록, 들여쓰기로 레벨 표현)을 트리 없이 평탄한 목록으로 추출한다. */
 function parseWikiOutlineItems(section: WikiPageSection | null): string[] {
   if (!section) {
@@ -564,7 +583,10 @@ function DocsWikiTemplate({ meta, parsedBody, fallbackContent, actions }: WikiTe
   );
 }
 
-/** F-18: topics/ 주제 페이지 템플릿 — 제목 + 문서 수 배지 + 관련 문서/업무 기록 카드 그리드. */
+/** F-18: topics/ 주제 페이지 템플릿 — 제목 + 문서 수 배지 + 관련 문서/업무 기록 카드 그리드.
+ * Wave D F-09: 백과사전 종합본(개요/핵심 내용/경과/문서별 요점/근거 문서)이 있으면
+ * 관련 문서 카드 위에 종합 섹션을 렌더한다. 근거 각주 [n]는 '근거 문서' 목록의
+ * 문서 카드 링크로 이어진다. */
 function TopicsWikiTemplate({ meta, parsedBody, fallbackContent, actions }: WikiTemplateProps) {
   const title = wikiMetaString(meta, "topic") ?? parsedBody.title;
   const docLinks = parseWikiLinkItems(findWikiSection(parsedBody.sections, "관련 문서"));
@@ -573,6 +595,23 @@ function TopicsWikiTemplate({ meta, parsedBody, fallbackContent, actions }: Wiki
   }
   const docCount = wikiMetaString(meta, "doc_count") ?? String(docLinks.length);
   const workLinks = parseWikiLinkItems(findWikiSection(parsedBody.sections, "관련 업무 기록"));
+  const synthesizedAt = wikiMetaString(meta, "synthesized_at");
+  const overviewText = wikiSectionText(findWikiSection(parsedBody.sections, "개요"));
+  const synthesisBlocks: Array<{ heading: string; markdown: string }> = [
+    "핵심 내용",
+    "경과",
+    "문서별 요점",
+    "근거 문서",
+  ]
+    .map((heading) => ({ heading, markdown: collectWikiSectionMarkdown(parsedBody.sections, heading) }))
+    .filter((block) => block.markdown.length > 0);
+  // 연관 주제는 "[[주제A]] · [[주제B]]" 위키링크 표기 — 링크 대상 페이지가 없을 수
+  // 있으므로 클릭 없는 칩으로만 노출한다.
+  const relatedTopics = wikiSectionText(findWikiSection(parsedBody.sections, "연관 주제"))
+    .split(/\[\[([^\]]+)\]\]/)
+    .filter((_part, index) => index % 2 === 1)
+    .map((part) => part.trim())
+    .filter(Boolean);
 
   return (
     <div className="wiki-template wiki-template--topics" data-testid="wiki-template-topics">
@@ -580,9 +619,42 @@ function TopicsWikiTemplate({ meta, parsedBody, fallbackContent, actions }: Wiki
         <h2 className="wiki-template__title">{title}</h2>
         <div className="wiki-template__badges">
           <span className="pill">문서 {docCount}건</span>
+          {synthesizedAt ? (
+            <span className="pill pill--soft" title="LLM이 관련 문서를 종합해 작성한 백과사전 항목입니다.">
+              종합 {synthesizedAt.slice(0, 10)}
+            </span>
+          ) : null}
         </div>
         <WikiPageHeaderActions title={title} sourcePath={null} actions={actions} />
       </header>
+
+      {overviewText ? (
+        <div className="wiki-template__highlight" data-testid="wiki-template-topic-overview">
+          <span className="wiki-template__highlight-label">개요</span>
+          <p>{overviewText}</p>
+        </div>
+      ) : null}
+
+      {synthesisBlocks.length > 0 ? (
+        <div className="chat-markdown" data-testid="wiki-template-topic-synthesis">
+          {synthesisBlocks.map((block) => (
+            <div key={`synthesis-${block.heading}`}>
+              {renderMarkdownContent(`## ${block.heading}\n${block.markdown}`, actions.openWikiTarget)}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {relatedTopics.length > 0 ? (
+        <div className="wiki-template__chips" aria-label="연관 주제" data-testid="wiki-template-topic-related">
+          {relatedTopics.map((topic) => (
+            <span key={`related-${topic}`} className="wiki-template__chip">
+              {topic}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       <div className="wiki-template__grid">
         {docLinks.map((link) => (
           <button
@@ -2544,6 +2616,15 @@ export function KnowledgeScreen() {
       typeof knowledgeBackendStatus?.llm_enrichment?.pending_count === "number"
         ? knowledgeBackendStatus.llm_enrichment.pending_count
         : null;
+    // Wave D F-11: 커버리지 "요약 보유 n/전체" — 두 필드가 모두 있을 때만 표시(구버전 호환).
+    const enrichEnrichedCount =
+      typeof knowledgeBackendStatus?.llm_enrichment?.enriched_count === "number"
+        ? knowledgeBackendStatus.llm_enrichment.enriched_count
+        : null;
+    const enrichTotalCount =
+      typeof knowledgeBackendStatus?.llm_enrichment?.total_count === "number"
+        ? knowledgeBackendStatus.llm_enrichment.total_count
+        : null;
     // P3 §6: 정합성 카드 — 마지막 검증 시점과 확인 필요 건수.
     const verifyAttentionCount = knowledgeVerifyLatest ? verifyAttentionTotal(knowledgeVerifyLatest) : 0;
     const verifyHealedCount = knowledgeVerifyLatest ? verifyHealedTotal(knowledgeVerifyLatest) : 0;
@@ -2718,6 +2799,11 @@ export function KnowledgeScreen() {
                     ? "문서 카드 요약을 LLM으로 보강할 수 있습니다. 실행은 설정 탭에서 시작합니다."
                     : "환경설정에서 LLM 연결을 구성하면 사용할 수 있습니다."}
                 </p>
+                {enrichEnrichedCount !== null && enrichTotalCount !== null ? (
+                  <p data-testid="knowledge-status-enrich-coverage">
+                    요약 보유 {enrichEnrichedCount}건 / 전체 {enrichTotalCount}건
+                  </p>
+                ) : null}
                 {enrichPendingCount !== null ? (
                   <p data-testid="knowledge-status-enrich-pending">요약 대기 {enrichPendingCount}건</p>
                 ) : null}

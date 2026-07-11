@@ -371,6 +371,19 @@ CREATE TABLE IF NOT EXISTS knowledge_tag_queue (
 CREATE INDEX IF NOT EXISTS idx_knowledge_tag_queue_source_status
 ON knowledge_tag_queue(source_id, status);
 
+-- Wave D F-09: 주제 백과사전 종합 저장소 + 증분 dirty 마킹.
+-- topic_key = normalize_topic_key(주제) 정규화 키. payload_json에는
+-- {"synthesis": 골격 JSON, "sources": 각주 근거 목록}을 저장한다.
+-- 문서 색인/보강으로 주제 구성이 바뀌면 dirty=1 → 다음 enrich 말미에 재종합.
+CREATE TABLE IF NOT EXISTS topic_synthesis (
+    topic_key TEXT PRIMARY KEY,
+    topic_label TEXT NOT NULL DEFAULT '',
+    payload_json TEXT NOT NULL DEFAULT '',
+    synthesized_at TEXT,
+    dirty INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL DEFAULT ''
+);
+
 -- W7 P3 §6: 무결성 점검(verify) 리포트 — 실행당 1행 (상세는 logs/knowledge-verify/*.jsonl)
 CREATE TABLE IF NOT EXISTS knowledge_verify_reports (
     id TEXT PRIMARY KEY,

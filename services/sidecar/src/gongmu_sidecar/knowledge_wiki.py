@@ -20,10 +20,20 @@ from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from .db import Database, now_iso
 from .document_parsers import parse_document
 from .graphrag_models import StructuredDocument
 from .kordoc_bridge import kordoc_available
+from .topic_synthesis import (
+    DOC_EXCERPT_CHARS,
+    MAX_INPUT_DOCS,
+    SYNTHESIS_MIN_DOCS,
+    TopicSynthesis,
+    render_topic_synthesis_lines,
+    synthesize_topic,
+)
 from .taxonomy_rules import (
     DEFAULT_DOC_ROLE_KEYS,
     family_id_for,
@@ -174,6 +184,65 @@ def wiki_slugify(title: str, file_hash: str) -> str:
     base = re.sub(r"[\s_]+", "-", base).strip("-")[:48]
     suffix = (file_hash or uuid4().hex)[:8]
     return f"{base}-{suffix}" if base else f"doc-{suffix}"
+
+
+def topic_slugify(topic: str) -> str:
+    """주제 페이지 슬러그 — 이름을 한 번만 슬러그화한다 (F-08 슬러그 버그 수정).
+
+    기존 wiki_slugify(topic, topic) 호출은 suffix 자리에 topic[:8] 원문을 그대로
+    이어붙여 '공공부문-ai-도입-공공부문 AI .md' 같은 이름 중복·후행 공백
+    파일명을 만들었다. 주제는 정규화 병합으로 유일성이 확보되므로 suffix 불필요.
+    """
+    base = nfc(str(topic)).strip().lower()
+    base = re.sub(r"[^\w가-힣\s-]", "", base, flags=re.UNICODE)
+    base = re.sub(r"[\s_]+", "-", base).strip("-")[:48].strip("-")
+    if base:
+        return base
+    digest = hashlib.sha256(nfc(str(topic)).encode("utf-8")).hexdigest()[:8]
+    return f"topic-{digest}"
+
+
+def normalize_topic_key(topic: str) -> str:
+    """주제 정규화 키 (F-08 Entity Resolution): NFC → ASCII 소문자 → 공백 제거 → 조사 제거.
+
+    키가 같은 주제 표기는 저장 전에 기존 표기로 병합한다 ("AI 교육"과 "ai교육",
+    "예산편성"과 "예산편성의"가 하나의 주제로 합쳐진다).
+    """
+    text = re.sub(r"\s+", " ", nfc(str(topic))).strip().lower()
+    collapsed = re.sub(r"[\s ]+", "", text)
+    return _strip_josa_suffix(collapsed)
+
+
+# F-02 저품질 본문유래 제목 판별: 날짜/숫자·구두점만, Part N 조각.
+_TITLE_DATE_ONLY_RE = re.compile(r"^[\d\s.\-/:~()\[\]년월일차호]+$")
+_TITLE_PART_FRAGMENT_RE = re.compile(r"^part[\s_.\-]*\d+$", re.IGNORECASE)
+
+
+def is_low_quality_title(title: str) -> bool:
+    """본문유래 제목의 저품질 판별 (F-02): ≤3자·날짜만·Part N 조각·비한글 잡음."""
+    text = re.sub(r"\s+", " ", nfc(str(title or ""))).strip()
+    if len(text) <= 3:
+        return True
+    if _TITLE_DATE_ONLY_RE.match(text):
+        return True
+    if _TITLE_PART_FRAGMENT_RE.match(text):
+        return True
+    # 비한글 잡음: 한글·영문·숫자 등 유의미 문자가 1/4 미만인 기호 나열.
+    meaningful = re.findall(r"[가-힣a-zA-Z0-9]", text)
+    if len(meaningful) < max(2, len(text) // 4):
+        return True
+    return False
+
+
+def resolve_document_title(body_title: str, source_path: str) -> str:
+    """카드 표시 제목 (F-02): 본문유래 제목이 저품질이면 파일명(stem)을 쓴다."""
+    title = re.sub(r"\s+", " ", nfc(str(body_title or ""))).strip()
+    stem = re.sub(r"\s+", " ", nfc(Path(str(source_path or "")).stem)).strip()
+    if not title:
+        return stem or "제목 없음"
+    if is_low_quality_title(title) and stem:
+        return stem
+    return title
 
 
 def patch_front_matter_text(text: str, updates: dict[str, Any]) -> str | None:
@@ -850,7 +919,11 @@ class KnowledgeWikiManager:
         doc_uid = str(existing.get("doc_uid") or "") if existing else ""
         if not doc_uid:
             doc_uid = uuid4().hex[:8]
-        slug = wiki_slugify(document.title, doc_uid)
+        # F-02: 본문유래 제목이 저품질(≤3자·날짜만·Part N 조각)이면 파일명(stem)을 쓴다.
+        title = resolve_document_title(
+            document.title, source_file.get("relative_path") or source_file["file_path"]
+        )
+        slug = wiki_slugify(title, doc_uid)
 
         keywords = self._keywords(extracted_body)
         overview = self._overview(document)
@@ -867,6 +940,9 @@ class KnowledgeWikiManager:
             summary_stale = 1
             enrich_fail_count = 0
             enrich_skip = 0
+            if topics:
+                # F-09 증분 dirty: 내용이 바뀐 문서의 소속 주제는 다음 보강에서 재종합한다.
+                self.mark_topics_dirty(topics)
         elif existing is not None:
             summary_stale = int(existing.get("summary_stale") or 0)
             enrich_fail_count = int(existing.get("enrich_fail_count") or 0)
@@ -899,7 +975,7 @@ class KnowledgeWikiManager:
                 taxonomy,
                 relative_path=relative_path,
                 source_path=str(source_file["file_path"]),
-                title=nfc(document.title),
+                title=title,
             )
             stem = Path(relative_path).stem
             enabled_keys = list(taxonomy.get("doc_roles_enabled") or DEFAULT_DOC_ROLE_KEYS)
@@ -924,6 +1000,7 @@ class KnowledgeWikiManager:
             quality=quality,
             slug=slug,
             doc_uid=doc_uid,
+            title=title,
             overview=overview,
             keywords=keywords,
             extracted_rel=extracted_rel,
@@ -974,7 +1051,7 @@ class KnowledgeWikiManager:
         card_path.write_text(card_markdown, encoding="utf-8")
 
         timestamp = now_iso()
-        norm_title = nfc(document.title).lower()
+        norm_title = title.lower()
         norm_body = nfc(extracted_body).lower()[:FTS_BODY_MAX_CHARS]
         row = {
             "source_id": source_file["source_id"],
@@ -982,7 +1059,7 @@ class KnowledgeWikiManager:
             "document_id": document_id,
             "slug": slug,
             "doc_uid": doc_uid,
-            "title": nfc(document.title),
+            "title": title,
             "source_path": source_file["file_path"],
             "relative_path": source_file.get("relative_path") or "",
             "file_hash": file_hash,
@@ -1029,7 +1106,7 @@ class KnowledgeWikiManager:
                     f"UPDATE knowledge_wiki_docs SET {assignments} WHERE id = ?",
                     (*row.values(), wiki_doc_id),
                 )
-            self._upsert_fts(wiki_doc_id, nfc(document.title), norm_body, nfc(card_markdown))
+            self._upsert_fts(wiki_doc_id, title, norm_body, nfc(card_markdown))
             if tag_judgment is not None:
                 if queue_payload is not None:
                     # §5.1: 저확신(low)은 분류 대기 큐 upsert (wiki_doc_id 기록).
@@ -1037,7 +1114,7 @@ class KnowledgeWikiManager:
                         source_id=str(source_file["source_id"]),
                         wiki_doc_id=wiki_doc_id,
                         doc_slug=slug,
-                        title=nfc(document.title),
+                        title=title,
                         source_path=str(source_file["file_path"]),
                         candidates=queue_payload["candidates"],
                         reason=str(queue_payload["reason"]),
@@ -1225,6 +1302,8 @@ class KnowledgeWikiManager:
             "WHERE id = ?",
             ("missing", missing_since, missing_since, wiki_doc["id"]),
         )
+        # F-09 증분 dirty: 문서가 주제에서 빠지므로 해당 주제만 재종합 대상으로 마킹.
+        self.mark_topics_dirty(self._json_list(wiki_doc.get("topics_json")))
         self._mark_card_missing(wiki_doc, missing_since=missing_since)
         self._append_log_line(
             f"soft-delete {wiki_doc.get('relative_path') or wiki_doc.get('source_path')} "
@@ -1342,6 +1421,8 @@ class KnowledgeWikiManager:
             area_slug = str(doc.get("work_area_slug") or "")
             if area_slug:
                 result["dirty_work_areas"].add(area_slug)
+            # F-09 증분 dirty: 부활 문서가 주제에 다시 합류하므로 재종합 대상 마킹.
+            self.mark_topics_dirty(self._json_list(doc.get("topics_json")))
             result["restored_count"] += 1
             self._append_log_line(
                 f"restore {relative_path or doc.get('source_path')} "
@@ -2174,7 +2255,7 @@ class KnowledgeWikiManager:
         if topics:
             lines.append("## 주제")
             for topic in topics:
-                lines.append(f"- [[topics/{wiki_slugify(topic, topic)}|{topic}]]")
+                lines.append(f"- [[topics/{topic_slugify(topic)}|{topic}]]")
             lines.append("")
         lines.append("## 원본")
         lines.append(f"- 원본 경로: {source_path}")
@@ -2432,12 +2513,15 @@ class KnowledgeWikiManager:
         summary: str,
         topics: list[str],
         enriched: bool,
+        title: str | None = None,
     ) -> str:
         """카드 기계 영역을 생성한다. 사용자 메모 구역은 compose_card_with_notes가 붙인다."""
+        # F-02: 호출자가 해석한 표시 제목(파일명 폴백 반영)을 우선 사용한다.
+        title = title if title is not None else nfc(document.title)
         front = self._front_matter(
             {
                 "slug": slug,
-                "title": nfc(document.title),
+                "title": title,
                 "source_path": source_file["file_path"],
                 "doc_type": document.document_type,
                 "mtime": source_file.get("modified_at") or "",
@@ -2450,7 +2534,7 @@ class KnowledgeWikiManager:
                 "enriched": enriched,
             }
         )
-        lines: list[str] = [front, CARD_AUTOGEN_COMMENT, f"# {nfc(document.title)}", ""]
+        lines: list[str] = [front, CARD_AUTOGEN_COMMENT, f"# {title}", ""]
         lines.append("## 개요")
         lines.append(overview or "(본문에서 개요를 추출하지 못했습니다.)")
         lines.append("")
@@ -2481,7 +2565,7 @@ class KnowledgeWikiManager:
         if topics:
             lines.append("## 주제")
             for topic in topics:
-                lines.append(f"- [[topics/{wiki_slugify(topic, topic)}|{topic}]]")
+                lines.append(f"- [[topics/{topic_slugify(topic)}|{topic}]]")
             lines.append("")
         lines.append("## 원본")
         lines.append(f"- 원본 경로: {source_file['file_path']}")
@@ -2518,7 +2602,7 @@ class KnowledgeWikiManager:
         lines.append("")
         if topics:
             for topic, doc_rows in sorted(topics.items()):
-                topic_slug = wiki_slugify(topic, topic)
+                topic_slug = topic_slugify(topic)
                 lines.append(f"- [{topic}](topics/{topic_slug}.md) — 문서 {len(doc_rows)}건")
         else:
             lines.append("- (아직 분류된 주제가 없습니다. LLM 보강을 실행하면 주제가 생성됩니다.)")
@@ -2992,6 +3076,10 @@ class KnowledgeWikiManager:
         enriched_count = 0
         failed_count = 0
         canceled = False
+        # F-08 주제 정규화: 기존 주제 사전(정규화 키 → 대표 표기)과 상위 40개
+        # 재사용 힌트를 실행당 1회 준비한다 (Graphiti/Zep Entity Resolution 이식).
+        canonical_topics = self._canonical_topic_map()
+        reuse_hint = self._topic_reuse_hint(canonical_topics)
         for index, doc in enumerate(docs):
             if should_cancel is not None and should_cancel():
                 canceled = True
@@ -3007,6 +3095,7 @@ class KnowledgeWikiManager:
                         "당신은 공공기관 문서 사서입니다. 아래 문서 카드를 읽고 "
                         'JSON 하나만 출력하세요: {"summary": "3~5문장 한국어 요약", '
                         '"topics": ["주제1", "주제2"]} (주제는 1~3개).'
+                        + reuse_hint
                     ),
                 },
                 {"role": "user", "text": str(card_text)[:6000]},
@@ -3035,6 +3124,8 @@ class KnowledgeWikiManager:
                 )
                 continue
             summary, topics = parsed
+            # F-08: 저장 전 정규화 — 키가 같으면 기존 표기로 통일하고 중복을 접는다.
+            topics = self._canonicalize_topics(topics, canonical_topics)
             refreshed_card = self._rewrite_enriched_card(doc, summary, topics)
             if refreshed_card is None:
                 # 카드 쓰기 실패 — card_dirty로 다음 잡 재시도, FTS는 근사 내용으로.
@@ -3057,9 +3148,19 @@ class KnowledgeWikiManager:
                     str(doc.get("norm_body") or ""),
                     nfc(refreshed_card),
                 )
+            # F-09 증분 dirty: 이 문서의 요약/주제 변경이 영향을 주는 주제(구·신 합집합)만
+            # 재종합 대상으로 마킹한다 — 전량 재생성 금지 (Mem0/Letta 증분 증류 이식).
+            old_topics = self._json_list(doc.get("topics_json"))
+            self.mark_topics_dirty(set(old_topics) | set(topics))
             enriched_count += 1
             if progress_cb is not None:
                 progress_cb(index + 1, len(docs))
+        # F-09: enrich 잡 말미 — dirty 주제만 백과사전 종합(주제당 LLM 1회).
+        # 실패는 dirty 유지 + 링크 목록 렌더로 조용히 흡수한다(잡 실패 승격 금지).
+        synthesis = {"synthesized_count": 0, "synthesis_failed_count": 0, "synthesis_skipped_count": 0}
+        if not canceled:
+            synthesis = self.synthesize_dirty_topics(llm=llm, should_cancel=should_cancel)
+            canceled = canceled or bool(synthesis.pop("canceled", False))
         self._write_topic_pages()
         self.rebuild_index()
         status = "canceled" if canceled else ("completed" if failed_count == 0 else "partial")
@@ -3077,7 +3178,9 @@ class KnowledgeWikiManager:
         remaining_count = int((remaining_row or {}).get("count") or 0)
         self._append_log_line(
             f"enrich status={status} enriched={enriched_count} failed={failed_count} "
-            f"total={len(docs)} limit={safe_limit} remaining={remaining_count}"
+            f"total={len(docs)} limit={safe_limit} remaining={remaining_count} "
+            f"synthesized={synthesis.get('synthesized_count', 0)} "
+            f"synthesis_failed={synthesis.get('synthesis_failed_count', 0)}"
         )
         return {
             "status": status,
@@ -3086,6 +3189,9 @@ class KnowledgeWikiManager:
             "failed_count": failed_count,
             "limit": safe_limit,
             "remaining_count": remaining_count,
+            # F-09: 주제 백과사전 종합 집계 (실패는 dirty 유지 → 다음 보강 재시도).
+            "synthesized_count": int(synthesis.get("synthesized_count") or 0),
+            "synthesis_failed_count": int(synthesis.get("synthesis_failed_count") or 0),
         }
 
     def _parse_enrichment(self, raw: Any) -> tuple[str, list[str]] | None:
@@ -3154,30 +3260,267 @@ class KnowledgeWikiManager:
                 topics.setdefault(topic, []).append(doc)
         return topics
 
+    # ------------------------------------------- F-08/F-09 주제 정규화·종합
+
+    def _canonical_topic_map(self) -> dict[str, str]:
+        """정규화 키 → 대표 표기(빈도 최다) 사전 — 저장 전 병합의 기준 (F-08)."""
+        label_counts: dict[str, Counter[str]] = {}
+        for doc in self.db.fetch_all(
+            "SELECT topics_json FROM knowledge_wiki_docs WHERE status != ?", ("missing",)
+        ):
+            for topic in self._json_list(doc.get("topics_json")):
+                key = normalize_topic_key(topic)
+                if not key:
+                    continue
+                label_counts.setdefault(key, Counter())[topic] += 1
+        return {
+            key: counts.most_common(1)[0][0] for key, counts in label_counts.items()
+        }
+
+    def _topic_reuse_hint(self, canonical_topics: dict[str, str], *, limit: int = 40) -> str:
+        """보강 프롬프트에 붙일 기존 주제 상위 N(빈도순) 재사용 유도 문구 (F-08)."""
+        counts: Counter[str] = Counter()
+        for doc in self.db.fetch_all(
+            "SELECT topics_json FROM knowledge_wiki_docs WHERE status != ?", ("missing",)
+        ):
+            for topic in self._json_list(doc.get("topics_json")):
+                key = normalize_topic_key(topic)
+                if key:
+                    counts[key] += 1
+        top_labels = [
+            canonical_topics[key]
+            for key, _count in counts.most_common(limit)
+            if key in canonical_topics
+        ]
+        if not top_labels:
+            return ""
+        return (
+            "\n기존 주제 목록(가능하면 아래 주제를 그대로 재사용하고, "
+            "새 주제는 꼭 필요할 때만 만드세요): " + ", ".join(top_labels)
+        )
+
+    def _canonicalize_topics(
+        self, topics: list[str], canonical_topics: dict[str, str]
+    ) -> list[str]:
+        """저장 전 주제 정규화 병합 (F-08): 키가 같으면 기존 표기로 통일 + 중복 제거.
+
+        canonical_topics는 실행 내에서 갱신된다 — 같은 배치에서 처음 등장한
+        새 주제 표기도 이후 문서들이 재사용한다.
+        """
+        result: list[str] = []
+        seen_keys: set[str] = set()
+        for topic in topics:
+            label = re.sub(r"\s+", " ", nfc(str(topic))).strip()
+            key = normalize_topic_key(label)
+            if not key or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            existing = canonical_topics.get(key)
+            if existing:
+                result.append(existing)
+            else:
+                canonical_topics[key] = label
+                result.append(label)
+        return result
+
+    def mark_topics_dirty(self, topics: Any) -> int:
+        """F-09 증분 dirty 마킹 — topics_json 변경이 영향을 주는 주제만 재종합 대상."""
+        timestamp = now_iso()
+        marked = 0
+        for topic in sorted({str(item) for item in (topics or []) if str(item).strip()}):
+            label = re.sub(r"\s+", " ", nfc(topic)).strip()
+            key = normalize_topic_key(label)
+            if not key:
+                continue
+            self.db.execute(
+                "INSERT INTO topic_synthesis (topic_key, topic_label, payload_json, dirty, updated_at) "
+                "VALUES (?, ?, '', 1, ?) "
+                "ON CONFLICT(topic_key) DO UPDATE SET dirty = 1, topic_label = excluded.topic_label, "
+                "updated_at = excluded.updated_at",
+                (key, label, timestamp),
+            )
+            marked += 1
+        return marked
+
+    def synthesize_dirty_topics(
+        self,
+        *,
+        llm: Callable[[list[dict[str, Any]]], str | None],
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> dict[str, Any]:
+        """F-09: dirty 주제만 백과사전 종합(주제당 LLM 1회) — 전량 재생성 금지.
+
+        문서<2 주제는 종합을 생략(dirty 해제, 링크 목록 유지)하고, 소멸 주제 행은
+        정리한다. 종합 실패는 dirty를 유지해 다음 보강에서 재시도한다.
+        성공 payload는 {"synthesis": 골격, "sources": 각주 스냅샷}으로 저장해
+        렌더 시 evidence 번호와 근거 문서 목록이 항상 일치하게 한다.
+        """
+        grouped: dict[str, tuple[str, list[dict[str, Any]]]] = {}
+        for topic, docs in self._all_topics().items():
+            key = normalize_topic_key(topic)
+            if not key:
+                continue
+            if key in grouped:
+                grouped[key][1].extend(docs)
+            else:
+                grouped[key] = (topic, list(docs))
+        rows = self.db.fetch_all("SELECT * FROM topic_synthesis WHERE dirty = 1")
+        synthesized = failed = skipped = 0
+        canceled = False
+        for row in rows:
+            if should_cancel is not None and should_cancel():
+                canceled = True
+                break
+            key = str(row.get("topic_key") or "")
+            entry = grouped.get(key)
+            if entry is None:
+                # 주제 소멸(문서 삭제·재보강으로 주제 해제) — 종합 행도 정리한다.
+                self.db.execute("DELETE FROM topic_synthesis WHERE topic_key = ?", (key,))
+                continue
+            label, docs = entry
+            if len(docs) < SYNTHESIS_MIN_DOCS:
+                # 싱글턴 주제는 종합 생략 — 문서 카드 링크만 유지 (사양서 §2).
+                self.db.execute(
+                    "UPDATE topic_synthesis SET payload_json = '', synthesized_at = NULL, "
+                    "dirty = 0, topic_label = ?, updated_at = ? WHERE topic_key = ?",
+                    (label, now_iso(), key),
+                )
+                skipped += 1
+                continue
+            sources = self._topic_source_entries(docs)
+            payload = synthesize_topic(topic=label, sources=sources, llm=llm)
+            if payload is None:
+                failed += 1
+                continue
+            stored = json.dumps({"synthesis": payload, "sources": sources}, ensure_ascii=False)
+            timestamp = now_iso()
+            self.db.execute(
+                "UPDATE topic_synthesis SET topic_label = ?, payload_json = ?, "
+                "synthesized_at = ?, dirty = 0, updated_at = ? WHERE topic_key = ?",
+                (label, stored, timestamp, timestamp, key),
+            )
+            synthesized += 1
+        return {
+            "synthesized_count": synthesized,
+            "synthesis_failed_count": failed,
+            "synthesis_skipped_count": skipped,
+            "canceled": canceled,
+        }
+
+    def _topic_source_entries(self, docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """종합 입력·각주용 근거 항목 (제목·날짜·요약 or 추출본 앞 500자, 최대 8건).
+
+        동일 해시 사본은 접고 날짜 내림차순(최신 우선)으로 최대 8건을 고른다 —
+        버전 가족의 최신본이 앞서고 구판은 연표 근거로 쓰인다 (사양서 ③).
+        """
+        deduped: list[dict[str, Any]] = []
+        seen_hashes: set[str] = set()
+        for doc in docs:
+            file_hash = str(doc.get("file_hash") or "")
+            if file_hash and file_hash in seen_hashes:
+                continue
+            if file_hash:
+                seen_hashes.add(file_hash)
+            deduped.append(doc)
+        dated = [(self._topic_doc_date(doc), doc) for doc in deduped]
+        dated.sort(key=lambda pair: pair[0] or "0000-00-00", reverse=True)
+        entries: list[dict[str, Any]] = []
+        for index, (date, doc) in enumerate(dated[:MAX_INPUT_DOCS], start=1):
+            excerpt = re.sub(r"\s+", " ", str(doc.get("summary") or "")).strip()
+            if not excerpt:
+                extracted_path = Path(str(doc.get("extracted_path") or ""))
+                if str(doc.get("extracted_path") or "") and extracted_path.exists():
+                    try:
+                        body = extracted_path.read_text(encoding="utf-8", errors="replace")
+                        excerpt = re.sub(r"\s+", " ", _strip_front_matter(body)).strip()
+                    except OSError:
+                        excerpt = ""
+            source_path = str(doc.get("source_path") or "")
+            entries.append(
+                {
+                    "index": index,
+                    "title": str(doc.get("title") or ""),
+                    "slug": str(doc.get("slug") or ""),
+                    "date": date,
+                    "source_name": Path(source_path).name if source_path else "",
+                    "excerpt": excerpt[:DOC_EXCERPT_CHARS],
+                }
+            )
+        return entries
+
+    def _topic_doc_date(self, doc: dict[str, Any]) -> str:
+        """문서 날짜 (사양서 ③ Temporal): 파일명 날짜 토큰 > 원본 mtime. ISO(YYYY-MM-DD)."""
+        stem = Path(str(doc.get("relative_path") or doc.get("source_path") or "")).stem
+        token = str(version_signals(stem).get("date_token") or "")
+        if len(token) == 8 and token.isdigit():
+            return f"{token[:4]}-{token[4:6]}-{token[6:]}"
+        if len(token) == 6 and token.isdigit():
+            return f"20{token[:2]}-{token[2:4]}-{token[4:]}"
+        source_file = self.db.fetch_one(
+            "SELECT modified_at FROM knowledge_source_files WHERE id = ?",
+            (doc.get("source_file_id"),),
+        )
+        modified_at = str((source_file or {}).get("modified_at") or "")
+        return modified_at[:10] if modified_at else ""
+
+    def _topic_synthesis_row(self, topic: str) -> dict[str, Any] | None:
+        """주제의 저장된 종합본(검증 통과분)을 읽는다 — 렌더·API 공용."""
+        row = self.db.fetch_one(
+            "SELECT * FROM topic_synthesis WHERE topic_key = ? AND payload_json != ''",
+            (normalize_topic_key(topic),),
+        )
+        if row is None:
+            return None
+        try:
+            stored = json.loads(str(row.get("payload_json") or ""))
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(stored, dict):
+            return None
+        try:
+            synthesis = TopicSynthesis.model_validate(stored.get("synthesis")).model_dump()
+        except ValidationError:
+            return None
+        sources = stored.get("sources")
+        return {
+            "synthesis": synthesis,
+            "sources": sources if isinstance(sources, list) else [],
+            "synthesized_at": str(row.get("synthesized_at") or ""),
+        }
+
     def _write_topic_pages(self) -> None:
         work_pages = self.list_work_pages()
         for topic, docs in self._all_topics().items():
-            topic_slug = wiki_slugify(topic, topic)
+            topic_slug = topic_slugify(topic)
             doc_slugs = {str(doc.get("slug") or "") for doc in docs}
             backlinks = [
                 page
                 for page in work_pages
                 if doc_slugs & set(page.get("cited_docs") or [])
             ]
-            lines = [
-                self._front_matter(
-                    {
-                        "topic": topic,
-                        "slug": topic_slug,
-                        "doc_count": len(docs),
-                        "work_count": len(backlinks),
-                        "updated_at": now_iso(),
-                    }
-                ),
-                f"# {topic}",
-                "",
-                "## 관련 문서",
-            ]
+            # F-09: 종합본이 있으면 나무위키식 백과사전 골격, 없으면 기존 링크 목록.
+            synthesis_row = (
+                self._topic_synthesis_row(topic) if len(docs) >= SYNTHESIS_MIN_DOCS else None
+            )
+            front_fields: dict[str, Any] = {
+                "topic": topic,
+                "slug": topic_slug,
+                "doc_count": len(docs),
+                "work_count": len(backlinks),
+                "synthesized": synthesis_row is not None,
+                "updated_at": now_iso(),
+            }
+            if synthesis_row is not None:
+                front_fields["synthesized_at"] = synthesis_row["synthesized_at"]
+            lines = [self._front_matter(front_fields), f"# {topic}", ""]
+            if synthesis_row is not None:
+                lines.extend(
+                    render_topic_synthesis_lines(
+                        synthesis_row["synthesis"], synthesis_row["sources"]
+                    )
+                )
+                lines.append("")
+            lines.append("## 관련 문서")
             # ⑨ 판본 계열은 대표 1건 + '이전 판 N건'으로 접어 평면 나열을 막는다.
             for representative, previous in self._group_by_family(docs):
                 lines.append(
@@ -3775,7 +4118,7 @@ class KnowledgeWikiManager:
         )
 
         # V9 문서 0건 topic 파일 → 자동 삭제
-        valid_topic_slugs = {wiki_slugify(topic, topic) for topic in self._all_topics()}
+        valid_topic_slugs = {topic_slugify(topic) for topic in self._all_topics()}
         orphan_topics: list[str] = []
         for path in sorted(self.topics_dir.glob("*.md")):
             if path.stem in valid_topic_slugs:
@@ -4038,10 +4381,10 @@ class KnowledgeWikiManager:
 
         topics_payload = [
             {
-                "slug": wiki_slugify(topic, topic),
+                "slug": topic_slugify(topic),
                 "title": topic,
                 "doc_count": len(doc_rows),
-                "path": f"topics/{wiki_slugify(topic, topic)}.md",
+                "path": f"topics/{topic_slugify(topic)}.md",
             }
             for topic, doc_rows in sorted(topics.items())
         ]
@@ -4317,7 +4660,7 @@ class KnowledgeWikiManager:
                 {"source": f"source_folder:{doc['source_id']}", "target": doc_node_id, "relation": "contains"}
             )
         for topic, topic_docs in topics.items():
-            topic_node_id = f"topic:{wiki_slugify(topic, topic)}"
+            topic_node_id = f"topic:{topic_slugify(topic)}"
             nodes.append({"id": topic_node_id, "label": topic, "node_type": "topic"})
             for doc in topic_docs:
                 edges.append(
@@ -4399,7 +4742,7 @@ class KnowledgeWikiManager:
         for topic, topic_docs in topics.items():
             topic_matched = normalized in topic.lower()
             topic_node = {
-                "id": f"topic:{wiki_slugify(topic, topic)}",
+                "id": f"topic:{topic_slugify(topic)}",
                 "label": topic,
                 "node_type": "topic",
                 "metadata": {"doc_count": len(topic_docs)},
@@ -4464,11 +4807,28 @@ class KnowledgeWikiManager:
             "storage_path": str(self.paths.db_file),
             "detail": "3자 이상 trigram BM25, 미만은 LIKE 폴백" if fts5_ok else "FTS5 미지원 — LIKE 폴백만 사용",
         }
+        # F-11: 대시보드 'LLM 요약 보강' 카드 커버리지(요약 보유 n/전체) + 대기 건수.
+        total_row = self.db.fetch_one(
+            "SELECT COUNT(*) AS count FROM knowledge_wiki_docs WHERE status != 'missing'"
+        )
+        enriched_row = self.db.fetch_one(
+            "SELECT COUNT(*) AS count FROM knowledge_wiki_docs "
+            "WHERE status != 'missing' AND enriched = 1 AND summary != ''"
+        )
+        pending_row = self.db.fetch_one(
+            "SELECT COUNT(*) AS count FROM knowledge_wiki_docs "
+            "WHERE (enriched = 0 OR summary_stale = 1) AND enrich_skip = 0 AND status != 'missing'"
+        )
         return {
             "engine": self.ENGINE,
             "fts5": {"ok": fts5_ok, "tokenizer": "trigram"},
             "kordoc": {"available": kordoc_ok},
-            "llm_enrichment": {"configured": llm_configured},
+            "llm_enrichment": {
+                "configured": llm_configured,
+                "pending_count": int((pending_row or {}).get("count") or 0),
+                "enriched_count": int((enriched_row or {}).get("count") or 0),
+                "total_count": int((total_row or {}).get("count") or 0),
+            },
             "backends": [wiki_backend, fts_backend],
             # 데스크톱 렌더 호환 필드 (UI 개편 전까지 유지)
             "vector": {

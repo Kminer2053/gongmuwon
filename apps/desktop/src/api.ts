@@ -507,6 +507,9 @@ export type KnowledgeBackendStatus = {
     configured: boolean;
     /** W7 P3 §5.4: 요약 보강 대기 문서 수(enrich remaining) — 구버전 서버 응답에는 없다. */
     pending_count?: number;
+    /** Wave D F-11: 커버리지 "요약 보유 n/전체" — 구버전 서버 응답에는 없다. */
+    enriched_count?: number;
+    total_count?: number;
   };
   backends?: KnowledgeBackendEntry[];
   vector?: {
