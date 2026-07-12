@@ -510,8 +510,13 @@ export type KnowledgeBackendStatus = {
     /** Wave D F-11: 커버리지 "요약 보유 n/전체" — 구버전 서버 응답에는 없다. */
     enriched_count?: number;
     total_count?: number;
-    /** 주제 어휘집 규격 §6: 승인 대기 중인 주제 후보 수 — 구버전 서버 응답에는 없다. */
+    /** 주제 어휘집 규격 §6: 승인 대기 중인 주제 후보 수(전체 pending) — 구버전 서버 응답에는 없다. */
     vocab_candidates_pending?: number;
+    /**
+     * §6 확장(자동 선별): 사람 검토(review) 추천분만 센 수 — 대시보드 "주제 후보 검토 n건"
+     * 배지 근거. merge/reject 추천분은 일괄 적용 대상이라 제외된다. 구버전 서버 응답에는 없다.
+     */
+    vocab_candidates_review?: number;
   };
   backends?: KnowledgeBackendEntry[];
   vector?: {
@@ -2561,6 +2566,13 @@ export type KnowledgeVocabCandidateItem = {
   merged_into_id?: string | null;
   first_seen_at?: string;
   decided_at?: string | null;
+  /**
+   * §6 확장(자동 선별) 추천 — merge(표기 변형)·reject(일회성 잡음)는 일괄 적용 대상,
+   * review는 사람 검토. 구버전 서버 응답에는 없다(없으면 review로 취급).
+   */
+  recommended_action?: "merge" | "reject" | "review" | string;
+  /** 추천이 merge일 때 병합 대상 주제 id. */
+  recommended_target_id?: string | null;
 };
 
 /** POST /api/knowledge/vocab/candidates/{id}/decision 본문 — 규격 §6. */
@@ -2595,6 +2607,27 @@ export async function removeVocabPack() {
 export async function fetchVocabCandidates(status = "pending") {
   return requestJson<{ items: KnowledgeVocabCandidateItem[] }>(
     `/api/knowledge/vocab/candidates?status=${encodeURIComponent(status)}`,
+  );
+}
+
+/** POST /api/knowledge/vocab/candidates/apply-recommended 응답 — §6 확장(자동 선별). */
+export type KnowledgeVocabApplyRecommendedResult = {
+  /** 표기 변형으로 병합 처리된 건수. */
+  merged: number;
+  /** 일회성 잡음으로 거절 처리된 건수. */
+  rejected: number;
+  /** 남은 pending(사람 검토 필요) 건수. */
+  remaining_review: number;
+};
+
+/**
+ * pending 후보 중 merge/reject 추천분을 일괄 적용한다(review 추천분은 남김) — §6 확장.
+ * merge는 서버가 저장해 둔 recommended_target_id로 병합된다.
+ */
+export async function applyRecommendedVocabCandidates() {
+  return requestJson<KnowledgeVocabApplyRecommendedResult>(
+    "/api/knowledge/vocab/candidates/apply-recommended",
+    { method: "POST" },
   );
 }
 

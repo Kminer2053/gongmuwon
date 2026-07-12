@@ -4040,6 +4040,11 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     def list_topic_vocab_candidates(status: str = "pending") -> dict[str, Any]:
         return {"items": services.vocab.list_candidates(status=status)}
 
+    @app.post("/api/knowledge/vocab/candidates/apply-recommended")
+    def apply_recommended_topic_vocab_candidates() -> dict[str, Any]:
+        # §6 확장 자동 선별: pending 중 merge/reject 추천분 일괄 처리(review는 남김).
+        return services.vocab.apply_recommended()
+
     @app.post("/api/knowledge/vocab/candidates/{candidate_id}/decision")
     def decide_topic_vocab_candidate(
         candidate_id: str, payload: VocabCandidateDecisionRequest

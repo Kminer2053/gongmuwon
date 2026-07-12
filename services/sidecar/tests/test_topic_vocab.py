@@ -558,16 +558,89 @@ def test_candidate_approve_collision_with_vocab_key_is_rejected(tmp_path: Path) 
 
 
 # ---------------------------------------------------------------------------
-# 프론트 계약 — backend_status.llm_enrichment.vocab_candidates_pending
+# §6 확장 자동 선별(triage) — 추천 계산 3분기·hit 승격 재계산·일괄 적용
 # ---------------------------------------------------------------------------
 
 
-def test_backend_status_exposes_pending_vocab_candidates(tmp_path: Path) -> None:
+def test_recommendation_merge_for_containment_and_paren_variants(tmp_path: Path) -> None:
+    manager = _manager(tmp_path)
+    # (a) 포함관계 표기 변형 — '예산편성 총괄' 키가 기존 키 '예산편성'을 포함 → merge 추천.
+    variant = manager.enqueue_candidate("예산편성 총괄")
+    assert variant["recommended_action"] == "merge"
+    assert variant["recommended_target_id"] == "budget-formulation"
+    # (b) 괄호 한정어 변형 — 괄호 제거 후 기존 키와 완전 일치 → merge 추천.
+    paren = manager.enqueue_candidate("예산편성(2026)")
+    assert paren["recommended_action"] == "merge"
+    assert paren["recommended_target_id"] == "budget-formulation"
+
+
+def test_recommendation_reject_one_off_then_review_promotion_on_hits(tmp_path: Path) -> None:
+    manager = _manager(tmp_path)
+    first = manager.enqueue_candidate("우주 감자 재배")
+    assert first["recommended_action"] == "reject", "매칭 없는 일회성(hit 1)은 거절 추천"
+    assert first["recommended_target_id"] is None
+    second = manager.enqueue_candidate("우주감자 재배")
+    assert second["hit_count"] == 2
+    assert second["recommended_action"] == "reject", "2회까지는 일회성 잡음으로 본다"
+    third = manager.enqueue_candidate("우주 감자 재배")
+    assert third["hit_count"] == 3
+    assert third["recommended_action"] == "review", "hit 3회 승격 시 review로 재계산된다"
+
+
+def test_apply_recommended_processes_merge_reject_and_leaves_review(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    vocab = client.app.state.services.vocab
+    vocab.enqueue_candidate("예산편성 총괄")
+    vocab.enqueue_candidate("일회성 잡동사니")
+    for _ in range(3):
+        vocab.enqueue_candidate("반복 미지 주제")
+
+    # GET 응답 items에 추천 두 필드가 포함된다(프론트 그룹핑 계약).
+    items = client.get("/api/knowledge/vocab/candidates", params={"status": "pending"}).json()["items"]
+    by_name = {item["name"]: item for item in items}
+    assert by_name["예산편성 총괄"]["recommended_action"] == "merge"
+    assert by_name["예산편성 총괄"]["recommended_target_id"] == "budget-formulation"
+    assert by_name["일회성 잡동사니"]["recommended_action"] == "reject"
+    assert by_name["반복 미지 주제"]["recommended_action"] == "review"
+
+    applied = client.post("/api/knowledge/vocab/candidates/apply-recommended")
+    assert applied.status_code == 200
+    assert applied.json() == {"merged": 1, "rejected": 1, "remaining_review": 1}
+
+    # merge → 대상 synonym 편입, reject → rejected, review → pending 유지.
+    merged_topics = {entry["id"]: entry for entry in vocab.merged_topics()}
+    assert "예산편성 총괄" in merged_topics["budget-formulation"]["synonyms"]
+    rows = {row["name"]: row for row in vocab.list_candidates(status="all")}
+    assert rows["예산편성 총괄"]["status"] == "merged"
+    assert rows["예산편성 총괄"]["merged_into_id"] == "budget-formulation"
+    assert rows["일회성 잡동사니"]["status"] == "rejected"
+    assert rows["반복 미지 주제"]["status"] == "pending"
+    # 멱등 — 재호출 시 처리 대상이 없고 review 잔량만 보고한다.
+    again = client.post("/api/knowledge/vocab/candidates/apply-recommended").json()
+    assert again == {"merged": 0, "rejected": 0, "remaining_review": 1}
+
+
+# ---------------------------------------------------------------------------
+# 프론트 계약 — backend_status.llm_enrichment.vocab_candidates_pending/review
+# ---------------------------------------------------------------------------
+
+
+def test_backend_status_exposes_pending_and_review_vocab_candidates(tmp_path: Path) -> None:
     client = _client(tmp_path)
     services = client.app.state.services
     before = client.get("/api/knowledge/backend-status").json()
     assert before["llm_enrichment"]["vocab_candidates_pending"] == 0
+    assert before["llm_enrichment"]["vocab_candidates_review"] == 0
     services.vocab.enqueue_candidate("대기 후보 1")
     services.vocab.enqueue_candidate("대기 후보 2")
     after = client.get("/api/knowledge/backend-status").json()
     assert after["llm_enrichment"]["vocab_candidates_pending"] == 2
+    assert after["llm_enrichment"]["vocab_candidates_review"] == 0, (
+        "reject 추천(일회성)은 '주제 후보 검토 n건' 배지에 세지 않는다"
+    )
+    # hit 3회 승격 → review 1건 — 배지 수와 프론트 그룹핑이 일치해야 한다.
+    services.vocab.enqueue_candidate("대기 후보 1")
+    services.vocab.enqueue_candidate("대기 후보 1")
+    promoted = client.get("/api/knowledge/backend-status").json()
+    assert promoted["llm_enrichment"]["vocab_candidates_pending"] == 2
+    assert promoted["llm_enrichment"]["vocab_candidates_review"] == 1

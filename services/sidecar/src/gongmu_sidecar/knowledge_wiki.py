@@ -4861,9 +4861,15 @@ class KnowledgeWikiManager:
             "SELECT COUNT(*) AS count FROM knowledge_wiki_docs "
             "WHERE (enriched = 0 OR summary_stale = 1) AND enrich_skip = 0 AND status != 'missing'"
         )
-        # 주제 어휘집 §6: 결정 대기 후보 수 — 대시보드 "주제 후보 대기 n건" 배지 계약.
+        # 주제 어휘집 §6: 결정 대기 후보 수(전체 pending) — 구버전 프론트 호환 유지.
         vocab_pending_row = self.db.fetch_one(
             "SELECT COUNT(*) AS count FROM vocab_candidates WHERE status = 'pending'"
+        )
+        # §6 확장(자동 선별): 사람 검토(review) 추천분만 — 대시보드 "주제 후보 검토 n건" 배지 계약.
+        # merge/reject 추천분은 일괄 적용 대상이라 배지에 세지 않는다(사용자 압도 방지).
+        vocab_review_row = self.db.fetch_one(
+            "SELECT COUNT(*) AS count FROM vocab_candidates "
+            "WHERE status = 'pending' AND recommended_action = 'review'"
         )
         return {
             "engine": self.ENGINE,
@@ -4875,6 +4881,7 @@ class KnowledgeWikiManager:
                 "enriched_count": int((enriched_row or {}).get("count") or 0),
                 "total_count": int((total_row or {}).get("count") or 0),
                 "vocab_candidates_pending": int((vocab_pending_row or {}).get("count") or 0),
+                "vocab_candidates_review": int((vocab_review_row or {}).get("count") or 0),
             },
             "backends": [wiki_backend, fts_backend],
             # 데스크톱 렌더 호환 필드 (UI 개편 전까지 유지)

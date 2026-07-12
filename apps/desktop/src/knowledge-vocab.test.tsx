@@ -62,6 +62,7 @@ describe("topic vocabulary pack import and candidate queue (vocab spec §5·§6)
   let packDeleteCount: number;
   let lastDecisionUrl: string | undefined;
   let lastDecisionBody: Record<string, unknown> | undefined;
+  let applyRecommendedCalls: number;
 
   beforeEach(() => {
     institutionPack = null;
@@ -77,6 +78,7 @@ describe("topic vocabulary pack import and candidate queue (vocab spec §5·§6)
     packDeleteCount = 0;
     lastDecisionUrl = undefined;
     lastDecisionBody = undefined;
+    applyRecommendedCalls = 0;
 
     vi.stubGlobal(
       "fetch",
@@ -119,6 +121,21 @@ describe("topic vocabulary pack import and candidate queue (vocab spec §5·§6)
         }
 
         // ---------------- 어휘집 규격 §5·§6 엔드포인트 ----------------
+
+        // §6 확장(자동 선별): 추천 일괄 적용 — 서버 동작 모사(merge/reject 추천분 제거, review만 잔류).
+        if (url.endsWith("/api/knowledge/vocab/candidates/apply-recommended") && method === "POST") {
+          applyRecommendedCalls += 1;
+          const auto = vocabCandidates.filter(
+            (item) => item.recommended_action === "merge" || item.recommended_action === "reject",
+          );
+          const merged = auto.filter((item) => item.recommended_action === "merge").length;
+          vocabCandidates = vocabCandidates.filter((item) => !auto.includes(item));
+          return jsonResponse({
+            merged,
+            rejected: auto.length - merged,
+            remaining_review: vocabCandidates.length,
+          });
+        }
 
         if (url.includes("/api/knowledge/vocab/candidates/") && url.endsWith("/decision") && method === "POST") {
           lastDecisionUrl = url;
@@ -419,16 +436,17 @@ describe("topic vocabulary pack import and candidate queue (vocab spec §5·§6)
     expect(within(section).getByText("대기 중인 주제 후보가 없습니다.")).toBeInTheDocument();
   }, 20000);
 
-  it("shows the pending-candidate badge on the dashboard enrich card and the compact pack block in wizard step 1", async () => {
-    enrichmentStatus = { configured: true, vocab_candidates_pending: 3 };
+  it("shows the review-candidate badge on the dashboard enrich card and the compact pack block in wizard step 1", async () => {
+    // §6 확장: 배지는 review 추천분 기준 — merge/reject 추천분(전체 pending 7)은 세지 않는다.
+    enrichmentStatus = { configured: true, vocab_candidates_pending: 7, vocab_candidates_review: 3 };
 
     const user = userEvent.setup();
     render(<App />);
 
-    // 대시보드 LLM 요약 보강 카드 — 주제 후보 대기 배지(>0일 때만)
+    // 대시보드 LLM 요약 보강 카드 — 주제 후보 검토 배지(>0일 때만)
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
     const badge = await screen.findByTestId("knowledge-status-vocab-pending");
-    expect(badge).toHaveTextContent("주제 후보 대기 3건");
+    expect(badge).toHaveTextContent("주제 후보 검토 3건");
 
     // 분류체계 마법사 1단계 하단 — 어휘집 팩 축약 블록(경로 입력 + 불러오기 + 상태)
     await user.click(screen.getByRole("tab", { name: "설정" }));
@@ -444,5 +462,74 @@ describe("topic vocabulary pack import and candidate queue (vocab spec §5·§6)
     await waitFor(() =>
       expect(within(compact).getByTestId("knowledge-vocab-pack-status")).toHaveTextContent("미적용"),
     );
+  }, 20000);
+
+  it("groups auto-recommended candidates into a collapsed section and bulk-applies them (§6 자동 선별)", async () => {
+    vocabCandidates = [
+      {
+        id: "cand-review",
+        name: "완전히 새로운 업무",
+        hit_count: 5,
+        sample_docs: [],
+        status: "pending",
+        recommended_action: "review",
+        first_seen_at: "2026-07-10T00:00:00+09:00",
+      },
+      {
+        id: "cand-merge",
+        name: "안전보건경영시스템 구축",
+        hit_count: 1,
+        sample_docs: [],
+        status: "pending",
+        recommended_action: "merge",
+        recommended_target_id: "safety-mgmt-system",
+        first_seen_at: "2026-07-11T00:00:00+09:00",
+      },
+      {
+        id: "cand-reject",
+        name: "일회성 낙서",
+        hit_count: 1,
+        sample_docs: [],
+        status: "pending",
+        recommended_action: "reject",
+        first_seen_at: "2026-07-12T00:00:00+09:00",
+      },
+    ];
+
+    const user = userEvent.setup();
+    render(<App />);
+    await openSettingsTab(user);
+
+    const section = await screen.findByTestId("knowledge-vocab-candidates");
+    // 검토 필요(review)만 기본 펼침 목록으로 노출된다.
+    const reviewList = await within(section).findByTestId("vocab-review-list");
+    expect(within(reviewList).getAllByTestId("vocab-candidate-item")).toHaveLength(1);
+    expect(reviewList).toHaveTextContent("완전히 새로운 업무");
+    expect(reviewList).toHaveTextContent("검토 필요");
+
+    // merge/reject 추천분은 접힌 details 그룹 — 추천 배지(병합은 대상 주제명) + 오버라이드 버튼 유지.
+    const autoGroup = within(section).getByTestId("vocab-auto-group");
+    expect(autoGroup).not.toHaveAttribute("open");
+    expect(within(autoGroup).getByText("자동 처리 예정 2건")).toBeInTheDocument();
+    const autoItems = within(autoGroup).getAllByTestId("vocab-candidate-item");
+    expect(autoItems).toHaveLength(2);
+    expect(autoItems[0]).toHaveTextContent("병합 추천 → 안전보건경영시스템");
+    expect(within(autoItems[0]).getByRole("button", { name: "승인" })).toBeInTheDocument();
+    expect(within(autoItems[0]).getByRole("button", { name: "거절" })).toBeInTheDocument();
+    expect(autoItems[1]).toHaveTextContent("거절 추천");
+
+    // 일괄 적용 버튼: 병합/거절 개수 표기 → POST → 결과 토스트 → 재조회로 review만 잔류.
+    const applyButton = within(section).getByTestId("vocab-apply-recommended");
+    expect(applyButton).toHaveTextContent("추천 일괄 적용 (병합 1 · 거절 1)");
+    await user.click(applyButton);
+    await waitFor(() => expect(applyRecommendedCalls).toBe(1));
+    expect(
+      await screen.findByText(/병합 1건 · 거절 1건 · 검토 필요 1건 남음/),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(section).queryByTestId("vocab-auto-group")).not.toBeInTheDocument(),
+    );
+    expect(within(section).getAllByTestId("vocab-candidate-item")).toHaveLength(1);
+    expect(within(section).getByTestId("vocab-apply-recommended")).toBeDisabled();
   }, 20000);
 });

@@ -9,6 +9,7 @@ import {
   fetchTaxonomyQuality,
   fetchTaxonomyQueue,
   fetchTaxonomyStatus,
+  applyRecommendedVocabCandidates,
   decideVocabCandidate,
   fetchVocabCandidates,
   fetchVocabSummary,
@@ -1997,8 +1998,26 @@ type VocabCandidateSectionProps = {
 };
 
 /**
- * §6 "주제 어휘 후보" 섹션 — 색인·보강 중 LLM `NEW:` 제안이 쌓인 pending 후보를
- * [승인]/[병합(기존 주제 선택)]/[거절]로 처리한다. 기존 '분류 대기 큐' 패턴 재사용.
+ * §6 확장: 서버 추천을 렌더 그룹으로 환원한다 — merge 추천인데 대상 id가 없거나
+ * 구버전 서버라 필드가 없으면 안전하게 review(사람 검토)로 강등한다.
+ */
+function vocabRecommendationOf(
+  item: KnowledgeVocabCandidateItem,
+): "merge" | "reject" | "review" {
+  if (item.recommended_action === "merge" && item.recommended_target_id) {
+    return "merge";
+  }
+  if (item.recommended_action === "reject") {
+    return "reject";
+  }
+  return "review";
+}
+
+/**
+ * §6 "주제 어휘 후보" 섹션 — 자동 선별(triage) 추천과 함께 pending 후보를 처리한다.
+ * 검토 필요(review)만 기본 펼침 목록으로 보여주고, merge/reject 추천분은 접힌
+ * "자동 처리 예정" 그룹 + 상단 [추천 일괄 적용] 버튼으로 몰아 사용자 압도를 막는다.
+ * 각 행에는 추천 배지와 개별 오버라이드([승인]/[병합]/[거절])를 유지한다.
  * 후보 조회가 실패하면(구버전 서버/백엔드 미기동) 섹션 전체를 숨긴다.
  */
 function VocabCandidateSection({ refreshKey, pushToast }: VocabCandidateSectionProps) {
@@ -2006,6 +2025,9 @@ function VocabCandidateSection({ refreshKey, pushToast }: VocabCandidateSectionP
   const [topics, setTopics] = useState<KnowledgeVocabTopicItem[]>([]);
   const [mergeTargets, setMergeTargets] = useState<Record<string, string>>({});
   const [decidingId, setDecidingId] = useState<string | null>(null);
+  const [applyingRecommended, setApplyingRecommended] = useState(false);
+  /** 일괄 적용 후 서버 상태를 다시 읽기 위한 내부 재조회 트리거. */
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -2027,7 +2049,7 @@ function VocabCandidateSection({ refreshKey, pushToast }: VocabCandidateSectionP
     return () => {
       active = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, reloadKey]);
 
   async function decide(
     item: KnowledgeVocabCandidateItem,
@@ -2049,16 +2071,147 @@ function VocabCandidateSection({ refreshKey, pushToast }: VocabCandidateSectionP
     }
   }
 
+  async function applyRecommended() {
+    setApplyingRecommended(true);
+    try {
+      const result = await applyRecommendedVocabCandidates();
+      pushToast(
+        "info",
+        `추천을 일괄 적용했습니다 — 병합 ${result.merged}건 · 거절 ${result.rejected}건 · 검토 필요 ${result.remaining_review}건 남음`,
+      );
+      // 병합으로 어휘집(동의어)이 바뀌었을 수 있으므로 후보·주제 목록을 함께 재조회한다.
+      setReloadKey((value) => value + 1);
+    } catch (applyError) {
+      pushToast(
+        "error",
+        applyError instanceof Error ? applyError.message : "추천 일괄 적용에 실패했습니다.",
+      );
+    } finally {
+      setApplyingRecommended(false);
+    }
+  }
+
   if (candidates === null) {
     return null;
+  }
+
+  const topicNameById = new Map(topics.map((topic) => [topic.id, topic.name]));
+  const reviewItems = candidates.filter((item) => vocabRecommendationOf(item) === "review");
+  const autoItems = candidates.filter((item) => vocabRecommendationOf(item) !== "review");
+  const mergeCount = autoItems.filter((item) => vocabRecommendationOf(item) === "merge").length;
+  const rejectCount = autoItems.length - mergeCount;
+
+  function renderCandidate(item: KnowledgeVocabCandidateItem) {
+    const recommendation = vocabRecommendationOf(item);
+    const recommendedTargetName = item.recommended_target_id
+      ? (topicNameById.get(item.recommended_target_id) ?? item.recommended_target_id)
+      : "";
+    const mergeTarget = mergeTargets[item.id] ?? "";
+    const sampleLabels = (item.sample_docs ?? []).map(vocabSampleDocLabel).filter(Boolean);
+    const busy = decidingId === item.id;
+    return (
+      <article
+        key={item.id}
+        className="list-card list-card--compact"
+        data-testid="vocab-candidate-item"
+      >
+        <div className="list-card__main list-card__main--static">
+          <div>
+            <h3>{item.name}</h3>
+            <p>
+              등장 {item.hit_count}회
+              {sampleLabels.length > 0 ? ` · 표본 문서: ${sampleLabels.join(", ")}` : ""}
+            </p>
+          </div>
+          {recommendation === "merge" ? (
+            <span className="pill pill--soft" data-testid="vocab-candidate-recommendation">
+              병합 추천 → {recommendedTargetName}
+            </span>
+          ) : recommendation === "reject" ? (
+            <span className="pill pill--soft" data-testid="vocab-candidate-recommendation">
+              거절 추천
+            </span>
+          ) : (
+            <span className="pill pill--warning" data-testid="vocab-candidate-recommendation">
+              검토 필요
+            </span>
+          )}
+        </div>
+        <div className="taxonomy-queue-controls">
+          <button
+            type="button"
+            onClick={() =>
+              void decide(
+                item,
+                { action: "approve" },
+                `'${item.name}' 주제를 어휘집에 추가했습니다.`,
+              )
+            }
+            disabled={busy}
+            title="이 후보를 정식 주제로 어휘집에 편입합니다."
+          >
+            승인
+          </button>
+          <label>
+            병합 대상
+            <select
+              aria-label={`${item.name} 병합 대상 선택`}
+              value={mergeTarget}
+              onChange={(event) =>
+                setMergeTargets((current) => ({ ...current, [item.id]: event.target.value }))
+              }
+            >
+              <option value="">기존 주제 선택</option>
+              {topics.map((topic) => (
+                <option key={topic.id} value={topic.id}>
+                  {topic.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => {
+              const target = topics.find((topic) => topic.id === mergeTarget);
+              void decide(
+                item,
+                { action: "merge", merge_into_id: mergeTarget },
+                `'${item.name}'을(를) '${target?.name ?? mergeTarget}' 주제의 동의어로 병합했습니다.`,
+              );
+            }}
+            disabled={busy || !mergeTarget}
+            title={
+              mergeTarget
+                ? "이 후보명을 선택한 주제의 동의어로 추가합니다."
+                : "병합할 기존 주제를 먼저 선택해 주세요."
+            }
+          >
+            병합
+          </button>
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() =>
+              void decide(item, { action: "reject" }, `'${item.name}' 후보를 거절했습니다.`)
+            }
+            disabled={busy}
+            title="이 후보를 어휘집에 추가하지 않습니다."
+          >
+            거절
+          </button>
+        </div>
+      </article>
+    );
   }
 
   return (
     <SectionCard eyebrow="주제 어휘" title="주제 어휘 후보" testId="knowledge-vocab-candidates">
       <div className="helper-copy">
         <p>
-          색인·요약 보강 중 어휘집에 없는 새 주제 제안이 여기에 모입니다. 승인하면 정식 주제로
-          어휘집에 편입되고, 병합하면 선택한 기존 주제의 동의어로 추가됩니다.
+          색인·요약 보강 중 어휘집에 없는 새 주제 제안이 여기에 모입니다. 기존 주제의 표기
+          변형은 병합, 일회성 잡음은 거절로 자동 추천되므로 검토 필요 후보만 직접 판단하면
+          됩니다.
         </p>
       </div>
       {candidates.length === 0 ? (
@@ -2067,97 +2220,40 @@ function VocabCandidateSection({ refreshKey, pushToast }: VocabCandidateSectionP
           body="색인이나 LLM 요약 보강 중 새 주제가 제안되면 여기에 표시됩니다."
         />
       ) : (
-        <div className="item-list item-list--compact">
-          {candidates.map((item) => {
-            const mergeTarget = mergeTargets[item.id] ?? "";
-            const sampleLabels = (item.sample_docs ?? [])
-              .map(vocabSampleDocLabel)
-              .filter(Boolean);
-            const busy = decidingId === item.id;
-            return (
-              <article
-                key={item.id}
-                className="list-card list-card--compact"
-                data-testid="vocab-candidate-item"
-              >
-                <div className="list-card__main list-card__main--static">
-                  <div>
-                    <h3>{item.name}</h3>
-                    <p>
-                      등장 {item.hit_count}회
-                      {sampleLabels.length > 0 ? ` · 표본 문서: ${sampleLabels.join(", ")}` : ""}
-                    </p>
-                  </div>
-                  <span className="pill pill--soft">대기</span>
-                </div>
-                <div className="taxonomy-queue-controls">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void decide(
-                        item,
-                        { action: "approve" },
-                        `'${item.name}' 주제를 어휘집에 추가했습니다.`,
-                      )
-                    }
-                    disabled={busy}
-                    title="이 후보를 정식 주제로 어휘집에 편입합니다."
-                  >
-                    승인
-                  </button>
-                  <label>
-                    병합 대상
-                    <select
-                      aria-label={`${item.name} 병합 대상 선택`}
-                      value={mergeTarget}
-                      onChange={(event) =>
-                        setMergeTargets((current) => ({ ...current, [item.id]: event.target.value }))
-                      }
-                    >
-                      <option value="">기존 주제 선택</option>
-                      {topics.map((topic) => (
-                        <option key={topic.id} value={topic.id}>
-                          {topic.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    onClick={() => {
-                      const target = topics.find((topic) => topic.id === mergeTarget);
-                      void decide(
-                        item,
-                        { action: "merge", merge_into_id: mergeTarget },
-                        `'${item.name}'을(를) '${target?.name ?? mergeTarget}' 주제의 동의어로 병합했습니다.`,
-                      );
-                    }}
-                    disabled={busy || !mergeTarget}
-                    title={
-                      mergeTarget
-                        ? "이 후보명을 선택한 주제의 동의어로 추가합니다."
-                        : "병합할 기존 주제를 먼저 선택해 주세요."
-                    }
-                  >
-                    병합
-                  </button>
-                  <button
-                    type="button"
-                    className="button-secondary"
-                    onClick={() =>
-                      void decide(item, { action: "reject" }, `'${item.name}' 후보를 거절했습니다.`)
-                    }
-                    disabled={busy}
-                    title="이 후보를 어휘집에 추가하지 않습니다."
-                  >
-                    거절
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        <>
+          <div className="taxonomy-queue-controls">
+            <button
+              type="button"
+              onClick={() => void applyRecommended()}
+              disabled={applyingRecommended || autoItems.length === 0}
+              data-testid="vocab-apply-recommended"
+              title={
+                autoItems.length === 0
+                  ? "자동 처리(병합/거절) 추천 후보가 없습니다."
+                  : "병합 추천은 대상 주제의 동의어로, 거절 추천은 거절로 한 번에 처리합니다. 검토 필요 후보는 남습니다."
+              }
+            >
+              {applyingRecommended
+                ? "적용 중…"
+                : `추천 일괄 적용 (병합 ${mergeCount} · 거절 ${rejectCount})`}
+            </button>
+          </div>
+          {reviewItems.length > 0 ? (
+            <div className="item-list item-list--compact" data-testid="vocab-review-list">
+              {reviewItems.map((item) => renderCandidate(item))}
+            </div>
+          ) : (
+            <p className="subtle-text">검토가 필요한 후보는 없습니다.</p>
+          )}
+          {autoItems.length > 0 ? (
+            <details data-testid="vocab-auto-group">
+              <summary>자동 처리 예정 {autoItems.length}건</summary>
+              <div className="item-list item-list--compact">
+                {autoItems.map((item) => renderCandidate(item))}
+              </div>
+            </details>
+          ) : null}
+        </>
       )}
     </SectionCard>
   );
@@ -3043,11 +3139,15 @@ export function KnowledgeScreen() {
       typeof knowledgeBackendStatus?.llm_enrichment?.total_count === "number"
         ? knowledgeBackendStatus.llm_enrichment.total_count
         : null;
-    // 어휘집 규격 §6: 주제 후보 대기 n건 배지 — 서버가 필드를 내려주고 0보다 클 때만 표시.
-    const vocabCandidatesPending =
-      typeof knowledgeBackendStatus?.llm_enrichment?.vocab_candidates_pending === "number"
-        ? knowledgeBackendStatus.llm_enrichment.vocab_candidates_pending
-        : null;
+    // 어휘집 §6 확장: "주제 후보 검토 n건" 배지 — 사람 검토(review) 추천분 기준.
+    // merge/reject 추천분은 일괄 적용 대상이라 세지 않는다. 구버전 서버(review 필드 없음)는
+    // 전체 pending으로 폴백하고, 필드가 둘 다 없으면 배지를 숨긴다.
+    const vocabCandidatesReview =
+      typeof knowledgeBackendStatus?.llm_enrichment?.vocab_candidates_review === "number"
+        ? knowledgeBackendStatus.llm_enrichment.vocab_candidates_review
+        : typeof knowledgeBackendStatus?.llm_enrichment?.vocab_candidates_pending === "number"
+          ? knowledgeBackendStatus.llm_enrichment.vocab_candidates_pending
+          : null;
     // P3 §6: 정합성 카드 — 마지막 검증 시점과 확인 필요 건수.
     const verifyAttentionCount = knowledgeVerifyLatest ? verifyAttentionTotal(knowledgeVerifyLatest) : 0;
     const verifyHealedCount = knowledgeVerifyLatest ? verifyHealedTotal(knowledgeVerifyLatest) : 0;
@@ -3230,9 +3330,9 @@ export function KnowledgeScreen() {
                 {enrichPendingCount !== null ? (
                   <p data-testid="knowledge-status-enrich-pending">요약 대기 {enrichPendingCount}건</p>
                 ) : null}
-                {vocabCandidatesPending !== null && vocabCandidatesPending > 0 ? (
+                {vocabCandidatesReview !== null && vocabCandidatesReview > 0 ? (
                   <p data-testid="knowledge-status-vocab-pending">
-                    <span className="pill pill--warning">주제 후보 대기 {vocabCandidatesPending}건</span>
+                    <span className="pill pill--warning">주제 후보 검토 {vocabCandidatesReview}건</span>
                   </p>
                 ) : null}
                 <div className="knowledge-status-card__actions">

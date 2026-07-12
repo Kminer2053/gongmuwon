@@ -387,6 +387,9 @@ CREATE TABLE IF NOT EXISTS topic_synthesis (
 -- 주제 어휘집 §6: L3 후보 큐 — 보강 중 LLM `NEW:` 제안·기존 자유 주제의 어휘집 미포함분을
 -- norm_key(normalize_topic_key) 단위로 접어 적재한다. 동일 키 재등장 시 hit_count++.
 -- status: pending | approved | rejected | merged (merged면 merged_into_id에 대상 주제 id).
+-- §6 확장(자동 선별): recommended_action은 적재/hit 갱신 시 결정적 규칙으로 계산되는
+-- 추천 — merge(표기 변형, recommended_target_id에 대상 주제 id) | reject(일회성 잡음) |
+-- review(hit 3회 이상 — 사람 검토 가치). 기존 행은 안전하게 review로 남는다.
 CREATE TABLE IF NOT EXISTS vocab_candidates (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
@@ -396,7 +399,9 @@ CREATE TABLE IF NOT EXISTS vocab_candidates (
     status TEXT NOT NULL DEFAULT 'pending',
     merged_into_id TEXT,
     first_seen_at TEXT NOT NULL,
-    decided_at TEXT
+    decided_at TEXT,
+    recommended_action TEXT NOT NULL DEFAULT 'review',
+    recommended_target_id TEXT
 );
 
 -- 주제 어휘집 §1/§6: L3 승인 확장의 정본. <workspace>/vocab/user-approved.json은 미러(이식성).
@@ -664,6 +669,9 @@ class Database:
         self._ensure_column("content_bases", "security_level", "TEXT NOT NULL DEFAULT ''")
         self._ensure_column("content_bases", "direct_file_paths_json", "TEXT NOT NULL DEFAULT '[]'")
         self._ensure_column("content_bases", "user_template_path", "TEXT")
+        # 주제 어휘집 §6 확장(자동 선별) — 기존 행은 review(사람 검토)로 남겨 안전하게 이행.
+        self._ensure_column("vocab_candidates", "recommended_action", "TEXT NOT NULL DEFAULT 'review'")
+        self._ensure_column("vocab_candidates", "recommended_target_id", "TEXT")
         self.fts5_available = self._ensure_knowledge_fts()
         self.connection.commit()
 

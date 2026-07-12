@@ -42,6 +42,10 @@ MATCH_BODY_CHARS = 1500
 MATCH_TOP_N = 3
 # 부분 매칭(후보 랭킹용) bigram 겹침 임계 — 완전 일치(1.0)보다 느슨한 결정적 근사.
 PARTIAL_MATCH_THRESHOLD = 0.5
+# §6 확장(자동 선별): hit_count가 이 값 이상이면 반복 등장 — 사람 검토(review) 가치.
+REVIEW_HIT_THRESHOLD = 3
+# 괄호 그룹 제거 — '예산편성(2026)' 같은 한정어 변형을 본 키로 환원하기 위한 전처리.
+_PAREN_GROUP_RE = re.compile(r"[(\[{（［｛〔【][^)\]}）］｝〕】]*[)\]}）］｝〕】]")
 
 COMMON_PACK_PATH = Path(__file__).resolve().parent / "assets" / "topic_vocab_common.json"
 
@@ -582,13 +586,49 @@ class TopicVocabManager:
 
     # ------------------------------------------------------ §6 L3 후보 큐
 
+    def recommend_action(self, name: Any, *, hit_count: int) -> tuple[str, str | None]:
+        """§6 확장 자동 선별(triage) — 결정적 3분기 규칙. (action, target_id) 반환.
+
+        실측(2026-07-12, 후보 298건)상 ~95%가 (a) 기존 주제의 표기 변형, (b) 일회성 잡음.
+        1) 정규화 키(+괄호 제거 변형)가 결합 어휘집 주제 키와 포함관계면 → merge + 대상 id
+        2) 아니고 hit_count >= REVIEW_HIT_THRESHOLD(반복 등장) → review (사람 검토 가치)
+        3) 그 외(일회성) → reject
+        추천일 뿐 자동 확정이 아니다 — 적용은 apply_recommended/개별 결정에서 일어난다.
+        """
+        label = _clean_label(name)
+        cand_keys: list[str] = []
+        for variant in [label, _PAREN_GROUP_RE.sub("", label)]:
+            key = normalize_topic_key(variant)
+            if len(key) >= 2 and key not in cand_keys:
+                cand_keys.append(key)
+        # (완전 일치 > 긴 겹침) 순으로 대상 선정 — 동률은 id 오름차순(결정적).
+        matches: list[tuple[int, int, str]] = []  # (exact, contained_len, topic_id)
+        for entry in self.merged_topics():
+            for topic_key in entry["_keys"]:
+                for cand_key in cand_keys:
+                    if topic_key in cand_key or cand_key in topic_key:
+                        matches.append(
+                            (
+                                1 if topic_key == cand_key else 0,
+                                min(len(topic_key), len(cand_key)),
+                                entry["id"],
+                            )
+                        )
+        if matches:
+            matches.sort(key=lambda item: (-item[0], -item[1], item[2]))
+            return ("merge", matches[0][2])
+        if int(hit_count) >= REVIEW_HIT_THRESHOLD:
+            return ("review", None)
+        return ("reject", None)
+
     def enqueue_candidate(
         self, name: Any, *, doc: dict[str, Any] | None = None
     ) -> dict[str, Any] | None:
         """NEW 제안/어휘집 미포함 자유 주제를 후보 큐에 적재 — norm_key 단위로 접는다.
 
-        동일 키 재등장 시 hit_count++ + sample_docs 갱신(최대 5). 이미 어휘집에 있는
-        키는 적재하지 않는다. 결정(승인/거절/병합)된 후보는 상태를 유지한 채 집계만 갱신.
+        동일 키 재등장 시 hit_count++ + sample_docs 갱신(최대 5) + 추천 재계산(hit 승격).
+        이미 어휘집에 있는 키는 적재하지 않는다. 결정(승인/거절/병합)된 후보는 상태를
+        유지한 채 집계만 갱신한다.
         """
         label = _clean_label(name)
         key = normalize_topic_key(label)
@@ -606,12 +646,28 @@ class TopicVocabManager:
         row = self.db.fetch_one("SELECT * FROM vocab_candidates WHERE norm_key = ?", (key,))
         if row is not None:
             samples = self._merge_samples(row.get("sample_docs_json"), sample)
-            self.db.execute(
-                "UPDATE vocab_candidates SET hit_count = hit_count + 1, sample_docs_json = ? "
-                "WHERE id = ?",
-                (json.dumps(samples, ensure_ascii=False), row["id"]),
-            )
+            new_hits = int(row.get("hit_count") or 0) + 1
+            # hit 승격 재계산 — 결정된 후보는 추천을 동결(상태와 함께 이력으로 보존)한다.
+            if str(row.get("status")) == "pending":
+                action, target_id = self.recommend_action(row.get("name"), hit_count=new_hits)
+                self.db.execute(
+                    "UPDATE vocab_candidates SET hit_count = ?, sample_docs_json = ?, "
+                    "recommended_action = ?, recommended_target_id = ? WHERE id = ?",
+                    (
+                        new_hits,
+                        json.dumps(samples, ensure_ascii=False),
+                        action,
+                        target_id,
+                        row["id"],
+                    ),
+                )
+            else:
+                self.db.execute(
+                    "UPDATE vocab_candidates SET hit_count = ?, sample_docs_json = ? WHERE id = ?",
+                    (new_hits, json.dumps(samples, ensure_ascii=False), row["id"]),
+                )
             return self.db.fetch_one("SELECT * FROM vocab_candidates WHERE id = ?", (row["id"],))
+        action, target_id = self.recommend_action(label, hit_count=1)
         payload = {
             "id": str(uuid4()),
             "name": label,
@@ -622,6 +678,8 @@ class TopicVocabManager:
             "merged_into_id": None,
             "first_seen_at": now_iso(),
             "decided_at": None,
+            "recommended_action": action,
+            "recommended_target_id": target_id,
         }
         self.db.insert("vocab_candidates", payload)
         return payload
@@ -669,6 +727,9 @@ class TopicVocabManager:
             "merged_into_id": row.get("merged_into_id"),
             "first_seen_at": row.get("first_seen_at"),
             "decided_at": row.get("decided_at"),
+            # §6 확장 자동 선별 추천 — 구버전 행(마이그레이션 전 적재)은 review로 폴백.
+            "recommended_action": str(row.get("recommended_action") or "review"),
+            "recommended_target_id": row.get("recommended_target_id"),
         }
 
     def pending_candidate_count(self) -> int:
@@ -676,6 +737,62 @@ class TopicVocabManager:
             "SELECT COUNT(*) AS count FROM vocab_candidates WHERE status = 'pending'"
         )
         return int((row or {}).get("count") or 0)
+
+    def review_candidate_count(self) -> int:
+        """사람 검토가 필요한 pending 후보 수 — 대시보드 '주제 후보 검토 n건' 배지 근거."""
+        row = self.db.fetch_one(
+            "SELECT COUNT(*) AS count FROM vocab_candidates "
+            "WHERE status = 'pending' AND recommended_action = 'review'"
+        )
+        return int((row or {}).get("count") or 0)
+
+    def apply_recommended(self) -> dict[str, int]:
+        """§6 확장: 추천 일괄 적용 — pending 중 merge/reject 추천분을 전부 처리한다.
+
+        review 추천분은 남긴다(사람 검토). merge는 recommended_target_id로 병합하되,
+        적용 시점에 대상이 사라졌으면(팩 제거 등) 후보를 review로 강등해 pending에 남긴다
+        — 프론트 그룹핑(자동 처리 예정)과 남은 목록이 어긋나지 않게 한다.
+        응답: {merged, rejected, remaining_review}.
+        """
+        rows = self.db.fetch_all(
+            "SELECT * FROM vocab_candidates WHERE status = 'pending' "
+            "AND recommended_action IN ('merge', 'reject') "
+            "ORDER BY hit_count DESC, first_seen_at ASC"
+        )
+        merged = 0
+        rejected = 0
+        for row in rows:
+            candidate_id = str(row.get("id") or "")
+            if str(row.get("recommended_action")) == "merge":
+                try:
+                    self.decide_candidate(
+                        candidate_id,
+                        action="merge",
+                        merge_into_id=str(row.get("recommended_target_id") or ""),
+                    )
+                    merged += 1
+                except (KeyError, ValueError, VocabValidationError):
+                    # 대상 소실/동시 결정 — 자동 확정 대신 사람 검토로 강등.
+                    self.db.execute(
+                        "UPDATE vocab_candidates SET recommended_action = 'review', "
+                        "recommended_target_id = NULL WHERE id = ? AND status = 'pending'",
+                        (candidate_id,),
+                    )
+            else:
+                try:
+                    self.decide_candidate(candidate_id, action="reject")
+                    rejected += 1
+                except (KeyError, ValueError, VocabValidationError):
+                    continue
+        remaining = self.pending_candidate_count()
+        self.db.log(
+            feature="knowledge",
+            action="knowledge.vocab.candidates.apply_recommended",
+            status="completed",
+            inputs={"queued": len(rows)},
+            outputs={"merged": merged, "rejected": rejected, "remaining_review": remaining},
+        )
+        return {"merged": merged, "rejected": rejected, "remaining_review": remaining}
 
     def decide_candidate(
         self,
