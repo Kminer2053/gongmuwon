@@ -162,6 +162,7 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "## 설치 중 알아두기",
     "",
     "- 공무원 앱은 맨 마지막에 설치됩니다. Ollama·모델·설정이 모두 준비된 뒤라, 앱이 열리면 곧바로 로컬 AI에 연결된 상태입니다.",
+    "- 같은 버전의 공무원 앱이 이미 설치되어 있으면 앱 재설치는 자동으로 건너뜁니다. 설치를 마친 뒤 RUN_FULL_VALIDATION.bat을 실행해도 앱 설치 창이 다시 뜨지 않습니다.",
     "- Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요.",
     "- 검은 명령창(설치 창)은 임의로 닫지 마세요. 모든 설치가 끝날 때까지 그대로 둡니다.",
     "- Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다. 복사 진행 로그가 표시됩니다.",
@@ -590,7 +591,7 @@ Write-Host "안내:"
 Write-Host " 1. Python, Ollama, Gemma 모델을 먼저 설치합니다."
 Write-Host " 2. Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요."
 Write-Host " 3. Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다."
-Write-Host " 4. 공무원 앱은 맨 마지막에 설치됩니다."
+Write-Host " 4. 공무원 앱은 맨 마지막에 설치됩니다. (같은 버전이 이미 설치되어 있으면 건너뜁니다)"
 Write-Host " 5. 설치 마법사를 완료하면 앱이 바로 사용 가능한 상태로 열립니다."
 Write-Host ""
 Write-Host "진행이 멈춘 것처럼 보이면, Ollama 설치 창이나 공무원 설치 창이"
@@ -630,6 +631,17 @@ function Install-Python311IfAvailable {
   Write-Warn $message
 }
 
+function Get-InstalledGongmuVersion {
+  foreach ($registryRoot in @("HKCU:", "HKLM:")) {
+    $uninstallKey = "$registryRoot\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Gongmu"
+    if (Test-Path $uninstallKey) {
+      $displayVersion = (Get-ItemProperty -Path $uninstallKey -ErrorAction SilentlyContinue).DisplayVersion
+      if ($displayVersion) { return [string]$displayVersion }
+    }
+  }
+  return $null
+}
+
 function Install-GongmuIfPresent {
   if ($SkipGongmuInstall) { return }
   $gongmuDir = Join-Path $ScriptRoot "gongmu"
@@ -639,6 +651,18 @@ function Install-GongmuIfPresent {
   if (!$installer) {
     Write-Warn "No Gongmu installer found in gongmu/. Skipping app install."
     return
+  }
+  $packVersion = $null
+  if ($installer.Name -match "_(\\d+\\.\\d+\\.\\d+)_") { $packVersion = $Matches[1] }
+  $installedVersion = Get-InstalledGongmuVersion
+  if ($installedVersion -and $packVersion -and ($installedVersion -eq $packVersion)) {
+    Write-Step "Gongmu app already installed"
+    Write-Host "설치된 공무원 앱 버전($installedVersion)이 이 패키지와 같아 앱 재설치를 건너뜁니다."
+    Write-Host "앱을 다시 설치하려면 gongmu 폴더의 설치 파일을 직접 실행하세요."
+    return
+  }
+  if ($installedVersion) {
+    Write-Host "Installed Gongmu version $installedVersion differs from pack version $packVersion. Reinstalling."
   }
   Write-Step "Starting Gongmu installer"
   Start-Process -FilePath $installer.FullName -Wait

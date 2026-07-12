@@ -91,6 +91,11 @@ async function main() {
     assert.match(installScript, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
     assert.match(installScript, /설치가 끝날 때까지 이 명령창은 닫지 마세요/);
     assert.match(installScript, /설치가 실패하면 이 폴더의 install-gongmu-ai\.log 파일을 확인하세요/);
+    // 같은 버전이 이미 설치된 경우 앱 재설치 건너뛰기: 설치 완료 후 RUN_FULL_VALIDATION을
+    // 다시 실행해도 공무원 설치 마법사가 또 뜨지 않아야 한다.
+    assert.match(installScript, /Get-InstalledGongmuVersion/);
+    assert.match(installScript, /Uninstall\\Gongmu/);
+    assert.match(installScript, /앱 재설치를 건너뜁니다/);
 
     // 배치 런처는 순수 ASCII여야 한다: chcp 65001 + UTF-8 한글 .bat 조합에서 cmd가
     // 바이트 오프셋으로 명령을 재탐색하다 중간 절단('olicy'·'og' 파편 실행)하는 실사용 버그 회귀 방지.
