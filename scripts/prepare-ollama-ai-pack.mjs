@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
 import {
   access,
   copyFile,
@@ -14,6 +14,19 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+
+// GUI 진행창 '따라하기 그림': 실제 설치 화면 캡처(scripts/assets/ai-pack-guide/)를
+// GUI ps1에 base64로 내장한다. 팩에 이미지 파일을 따로 두지 않아 단일 ps1이 유지된다.
+function guideImageBase64(name) {
+  return readFileSync(join(scriptDir, "assets", "ai-pack-guide", name)).toString("base64");
+}
+
+// 스테이지 테이블의 한글은 Convert-UiText(런타임 \uXXXX 복원) 규약을 따른다.
+function escapeNonAscii(text) {
+  return text.replace(/[^\x20-\x7e]/g, (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
 
 const MODEL_NAME = "gemma4:e2b";
 const MODEL_DISPLAY_NAME = "GEMMA4 E2B IT Multimodal";
@@ -1163,19 +1176,71 @@ function Convert-UiText([string]$Text) {
   })
 }
 
+# '따라하기 그림' 원본: 실제 설치 화면 캡처 (빌드 시 base64 내장)
+$ImgOllamaWizardB64 = "${guideImageBase64("ollama-wizard.png")}"
+$ImgOllamaAppB64 = "${guideImageBase64("ollama-app.png")}"
+$ImgGongmuWizardB64 = "${guideImageBase64("gongmu-wizard.png")}"
+
+function ConvertTo-GuideImage([string]$Base64) {
+  try {
+    $bytes = [Convert]::FromBase64String($Base64)
+    $stream = New-Object System.IO.MemoryStream(,$bytes)
+    return [System.Drawing.Image]::FromStream($stream)
+  } catch {
+    return $null
+  }
+}
+
+$script:ImgOllamaWizard = ConvertTo-GuideImage $ImgOllamaWizardB64
+$script:ImgOllamaApp = ConvertTo-GuideImage $ImgOllamaAppB64
+$script:ImgGongmuWizard = ConvertTo-GuideImage $ImgGongmuWizardB64
+
+$script:GuideTexts = @{
+  idle = Convert-UiText "${escapeNonAscii("이 단계는 자동으로 진행됩니다.\n\n사용자가 직접 할 작업이 생기면 이곳에 실제 화면 그림과 함께 안내가 나타납니다.")}"
+  ollamaCap1 = Convert-UiText "${escapeNonAscii("① 이 창이 열리면 [Install] 버튼을 누르세요")}"
+  ollamaCap2 = Convert-UiText "${escapeNonAscii("② 설치 후 이 창이 열리면 오른쪽 위 X로 닫으세요")}"
+  gongmuCap1 = Convert-UiText "${escapeNonAscii("① 이 창이 열리면 [다음]을 눌러 설치를 완료하세요")}"
+}
+
+function Set-GuidePanel([string]$Key) {
+  $showPics = $false
+  if ($Key -eq "ollama" -and $script:ImgOllamaWizard) {
+    $script:GuidePic1.Image = $script:ImgOllamaWizard
+    $script:GuideCap1.Text = $script:GuideTexts.ollamaCap1
+    $script:GuidePic2.Image = $script:ImgOllamaApp
+    $script:GuideCap2.Text = $script:GuideTexts.ollamaCap2
+    $script:GuidePic2.Visible = ($null -ne $script:ImgOllamaApp)
+    $script:GuideCap2.Visible = ($null -ne $script:ImgOllamaApp)
+    $showPics = $true
+  } elseif ($Key -eq "gongmu" -and $script:ImgGongmuWizard) {
+    $script:GuidePic1.Image = $script:ImgGongmuWizard
+    $script:GuideCap1.Text = $script:GuideTexts.gongmuCap1
+    $script:GuidePic2.Visible = $false
+    $script:GuideCap2.Visible = $false
+    $showPics = $true
+  }
+  $script:GuidePic1.Visible = $showPics
+  $script:GuideCap1.Visible = $showPics
+  if (-not $showPics) {
+    $script:GuidePic2.Visible = $false
+    $script:GuideCap2.Visible = $false
+  }
+  $script:GuideInfo.Visible = -not $showPics
+}
+
 $script:Stages = @(
   [pscustomobject]@{ Pattern = "Gongmu local AI setup"; Name = "\uC124\uCE58 \uC900\uBE44"; Help = "\uC124\uCE58 \uD658\uACBD\uC744 \uD655\uC778\uD558\uACE0 \uC2DC\uC791\uD569\uB2C8\uB2E4."; Percent = 3 },
   [pscustomobject]@{ Pattern = "Checking Python 3.11"; Name = "Python 3.11 \uD655\uC778"; Help = "Python\uC740 \uBC88\uB4E4 \uC571 \uC2E4\uD589\uC5D0 \uD544\uC218\uB294 \uC544\uB2C8\uC9C0\uB9CC, \uC9C4\uB2E8\uACFC \uBCF5\uAD6C\uC6A9\uC73C\uB85C \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 10 },
   [pscustomobject]@{ Pattern = "Installing Python 3.11"; Name = "Python 3.11 \uC124\uCE58"; Help = "Python \uC124\uCE58\uAC00 \uC9C4\uD589 \uC911\uC785\uB2C8\uB2E4. \uC774 \uCC3D\uC740 \uB2EB\uC9C0 \uB9C8\uC138\uC694."; Percent = 16 },
   [pscustomobject]@{ Pattern = "Checking optional WSL"; Name = "WSL \uC120\uD0DD \uC9C4\uB2E8"; Help = "WSL\uC740 \uACF5\uBB34\uC6D0\uACFC Windows\uC6A9 Ollama \uC2E4\uD589\uC5D0 \uD544\uC218\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC0C1\uD0DC\uB9CC \uAE30\uB85D\uD569\uB2C8\uB2E4."; Percent = 22 },
   [pscustomobject]@{ Pattern = "Checking Ollama"; Name = "Ollama \uD655\uC778"; Help = "\uB85C\uCEEC AI \uC5D4\uC9C4\uC778 Ollama\uAC00 \uC124\uCE58\uB418\uC5C8\uB294\uC9C0 \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 30 },
-  [pscustomobject]@{ Pattern = "Starting Ollama installer"; Name = "Ollama \uC124\uCE58"; Help = "Ollama \uC124\uCE58 \uB9C8\uBC95\uC0AC\uAC00 \uC5F4\uB9AC\uBA74 \uC644\uB8CC\uD558\uACE0 \uCC3D\uC744 \uB2EB\uC544\uC8FC\uC138\uC694."; Percent = 40 },
+  [pscustomobject]@{ Pattern = "Starting Ollama installer"; Name = "Ollama \uC124\uCE58"; Help = "${escapeNonAscii("\uC624\uB978\uCABD \uADF8\uB9BC\uCC98\uB7FC Ollama \uC124\uCE58 \uCC3D\uC774 \uC5F4\uB9AC\uBA74 [Install] \uBC84\uD2BC\uC744 \uB204\uB974\uC138\uC694. \uC124\uCE58 \uD6C4 Ollama \uCC3D\uC774 \uC0C8\uB85C \uC5F4\uB9AC\uBA74 \uC624\uB978\uCABD \uC704 X\uB85C \uB2EB\uC544\uC8FC\uC138\uC694.")}"; Percent = 40; Guide = "ollama" },
   [pscustomobject]@{ Pattern = "Copying packaged Ollama model cache"; Name = "Gemma \uBAA8\uB378 \uBCF5\uC0AC"; Help = "Gemma \uBAA8\uB378 \uCE90\uC2DC\uB97C \uBCF5\uC0AC\uD569\uB2C8\uB2E4. \uBA87 \uBD84 \uC774\uC0C1 \uAC78\uB9B4 \uC218 \uC788\uC73C\uB2C8 \uAE30\uB2E4\uB824\uC8FC\uC138\uC694."; Percent = 60 },
   [pscustomobject]@{ Pattern = "Starting Ollama server"; Name = "Ollama \uC11C\uBC84 \uC2DC\uC791"; Help = "\uB85C\uCEEC AI \uC11C\uBC84\uB97C \uC2DC\uC791\uD558\uACE0 \uC751\uB2F5 \uC0C1\uD0DC\uB97C \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 72 },
   [pscustomobject]@{ Pattern = "Testing text response"; Name = "\uD14D\uC2A4\uD2B8 \uC751\uB2F5 \uAC80\uC99D"; Help = "Gemma \uBAA8\uB378\uC758 \uAE30\uBCF8 \uB300\uD654 \uC751\uB2F5\uC744 \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 80 },
   [pscustomobject]@{ Pattern = "Testing image input API"; Name = "\uC774\uBBF8\uC9C0 \uC785\uB825 \uAC80\uC99D"; Help = "\uBA40\uD2F0\uBAA8\uB2EC \uC774\uBBF8\uC9C0 \uC785\uB825 API\uAC00 \uC751\uB2F5\uD558\uB294\uC9C0 \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 86 },
   [pscustomobject]@{ Pattern = "Writing Gongmu model settings"; Name = "\uACF5\uBB34\uC6D0 \uBAA8\uB378 \uC124\uC815"; Help = "\uC571\uC774 Ollama/Gemma\uB97C \uC0AC\uC6A9\uD558\uB3C4\uB85D \uC124\uC815\uC744 \uC800\uC7A5\uD569\uB2C8\uB2E4."; Percent = 90 },
-  [pscustomobject]@{ Pattern = "Starting Gongmu installer"; Name = "\uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58"; Help = "\uB9C8\uC9C0\uB9C9 \uB2E8\uACC4\uC785\uB2C8\uB2E4. \uACF5\uBB34\uC6D0 \uC124\uCE58 \uB9C8\uBC95\uC0AC\uB97C \uC644\uB8CC\uD558\uBA74 \uBC14\uB85C \uC0AC\uC6A9\uD560 \uC218 \uC788\uC2B5\uB2C8\uB2E4."; Percent = 95 },
+  [pscustomobject]@{ Pattern = "Starting Gongmu installer"; Name = "\uACF5\uBB34\uC6D0 \uC571 \uC124\uCE58"; Help = "${escapeNonAscii("\uB9C8\uC9C0\uB9C9 \uB2E8\uACC4\uC785\uB2C8\uB2E4. \uC624\uB978\uCABD \uADF8\uB9BC\uCC98\uB7FC \uACF5\uBB34\uC6D0 \uC124\uCE58 \uCC3D\uC774 \uC5F4\uB9AC\uBA74 [\uB2E4\uC74C]\uC744 \uB20C\uB7EC \uC124\uCE58\uB97C \uC644\uB8CC\uD558\uC138\uC694. \uAC19\uC740 \uBC84\uC804\uC774 \uC774\uBBF8 \uC124\uCE58\uB418\uC5B4 \uC788\uC73C\uBA74 \uC790\uB3D9\uC73C\uB85C \uAC74\uB108\uB701\uB2C8\uB2E4.")}"; Percent = 95; Guide = "gongmu" },
   [pscustomobject]@{ Pattern = "Setup complete"; Name = "${completed}"; Help = "${completedHelp}"; Percent = 100 }
 )
 
@@ -1193,8 +1258,8 @@ function Get-LatestStage([string]$LogText) {
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "${windowTitle}"
-$form.Size = New-Object System.Drawing.Size(760, 620)
-$form.MinimumSize = New-Object System.Drawing.Size(680, 540)
+$form.Size = New-Object System.Drawing.Size(1120, 620)
+$form.MinimumSize = New-Object System.Drawing.Size(1120, 580)
 $form.StartPosition = "CenterScreen"
 $form.BackColor = [System.Drawing.Color]::FromArgb(250, 250, 248)
 $form.Font = New-Object System.Drawing.Font("Malgun Gothic", 10)
@@ -1252,7 +1317,7 @@ $helpBox.BorderStyle = "FixedSingle"
 $helpBox.BackColor = [System.Drawing.Color]::White
 $helpBox.Location = New-Object System.Drawing.Point(28, 224)
 $helpBox.Size = New-Object System.Drawing.Size(690, 86)
-$helpBox.Anchor = "Top,Left,Right"
+$helpBox.Anchor = "Top,Left"
 $helpBox.Text = "${preparingHelp}"
 $form.Controls.Add($helpBox)
 $script:HelpBox = $helpBox
@@ -1274,7 +1339,7 @@ $logBox.ForeColor = [System.Drawing.Color]::FromArgb(235, 235, 235)
 $logBox.Font = New-Object System.Drawing.Font("Consolas", 9)
 $logBox.Location = New-Object System.Drawing.Point(28, 362)
 $logBox.Size = New-Object System.Drawing.Size(690, 150)
-$logBox.Anchor = "Top,Left,Right,Bottom"
+$logBox.Anchor = "Top,Left,Bottom"
 $logBox.Text = "${noLog}"
 $form.Controls.Add($logBox)
 $script:LogBox = $logBox
@@ -1305,9 +1370,66 @@ $closeButton = New-Object System.Windows.Forms.Button
 $closeButton.Text = "${closeText}"
 $closeButton.Location = New-Object System.Drawing.Point(598, 528)
 $closeButton.Size = New-Object System.Drawing.Size(120, 34)
-$closeButton.Anchor = "Right,Bottom"
+$closeButton.Anchor = "Left,Bottom"
 $closeButton.Add_Click({ $form.Close() })
 $form.Controls.Add($closeButton)
+
+# 오른쪽 '따라하기 그림' 패널: 사용자가 직접 눌러야 하는 단계에서 실제 화면 캡처를 표시한다.
+$guideCaption = New-Object System.Windows.Forms.Label
+$guideCaption.Text = Convert-UiText "${escapeNonAscii("따라하기 그림 안내")}"
+$guideCaption.Font = New-Object System.Drawing.Font("Malgun Gothic", 11, [System.Drawing.FontStyle]::Bold)
+$guideCaption.Location = New-Object System.Drawing.Point(740, 78)
+$guideCaption.Size = New-Object System.Drawing.Size(354, 24)
+$form.Controls.Add($guideCaption)
+
+$guidePanel = New-Object System.Windows.Forms.Panel
+$guidePanel.Location = New-Object System.Drawing.Point(740, 104)
+$guidePanel.Size = New-Object System.Drawing.Size(354, 460)
+$guidePanel.BorderStyle = "FixedSingle"
+$guidePanel.BackColor = [System.Drawing.Color]::White
+$form.Controls.Add($guidePanel)
+
+$guideInfo = New-Object System.Windows.Forms.Label
+$guideInfo.Text = $script:GuideTexts.idle
+$guideInfo.Location = New-Object System.Drawing.Point(14, 16)
+$guideInfo.Size = New-Object System.Drawing.Size(324, 140)
+$guideInfo.ForeColor = [System.Drawing.Color]::FromArgb(90, 90, 90)
+$guidePanel.Controls.Add($guideInfo)
+$script:GuideInfo = $guideInfo
+
+$guidePic1 = New-Object System.Windows.Forms.PictureBox
+$guidePic1.Location = New-Object System.Drawing.Point(8, 6)
+$guidePic1.Size = New-Object System.Drawing.Size(336, 204)
+$guidePic1.SizeMode = "Zoom"
+$guidePic1.Visible = $false
+$guidePanel.Controls.Add($guidePic1)
+$script:GuidePic1 = $guidePic1
+
+$guideCap1 = New-Object System.Windows.Forms.Label
+$guideCap1.Font = New-Object System.Drawing.Font("Malgun Gothic", 9.5, [System.Drawing.FontStyle]::Bold)
+$guideCap1.Location = New-Object System.Drawing.Point(8, 212)
+$guideCap1.Size = New-Object System.Drawing.Size(336, 38)
+$guideCap1.Visible = $false
+$guidePanel.Controls.Add($guideCap1)
+$script:GuideCap1 = $guideCap1
+
+$guidePic2 = New-Object System.Windows.Forms.PictureBox
+$guidePic2.Location = New-Object System.Drawing.Point(8, 252)
+$guidePic2.Size = New-Object System.Drawing.Size(336, 162)
+$guidePic2.SizeMode = "Zoom"
+$guidePic2.Visible = $false
+$guidePanel.Controls.Add($guidePic2)
+$script:GuidePic2 = $guidePic2
+
+$guideCap2 = New-Object System.Windows.Forms.Label
+$guideCap2.Font = New-Object System.Drawing.Font("Malgun Gothic", 9.5, [System.Drawing.FontStyle]::Bold)
+$guideCap2.Location = New-Object System.Drawing.Point(8, 416)
+$guideCap2.Size = New-Object System.Drawing.Size(336, 38)
+$guideCap2.Visible = $false
+$guidePanel.Controls.Add($guideCap2)
+$script:GuideCap2 = $guideCap2
+
+$script:CurrentGuideKey = "-"
 
 $script:StartedAt = Get-Date
 $script:Process = $null
@@ -1337,12 +1459,21 @@ function Update-Monitor {
     $script:ProgressBar.Value = [int]$stage.Percent
   }
 
+  $guideKey = ""
+  if ($stage.PSObject.Properties["Guide"] -and $stage.Guide) { $guideKey = [string]$stage.Guide }
+  if ($script:CurrentGuideKey -ne $guideKey) {
+    $script:CurrentGuideKey = $guideKey
+    Set-GuidePanel $guideKey
+  }
+
   $script:LogBox.Text = $combined
   $script:LogBox.SelectionStart = $script:LogBox.TextLength
   $script:LogBox.ScrollToCaret()
 
   if ($script:Process -and $script:Process.HasExited) {
     $script:Timer.Stop()
+    $script:CurrentGuideKey = ""
+    Set-GuidePanel ""
     if ($script:Process.ExitCode -eq 0) {
       $script:StageLabel.Text = "${completed}"
       $script:HelpBox.Text = "${completedHelp}"

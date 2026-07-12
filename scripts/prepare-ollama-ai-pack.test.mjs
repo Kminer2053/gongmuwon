@@ -127,6 +127,13 @@ async function main() {
     assert.match(guiInstallScript, /\uC124\uCE58 \uBAA8\uB2C8\uD130/);
     assert.match(guiInstallScript, /\uD604\uC7AC \uB2E8\uACC4/);
     assert.match(guiInstallScript, /\uD544\uC694\uD55C \uC791\uC5C5 \uC548\uB0B4/);
+    // GUI '\uB530\uB77C\uD558\uAE30 \uADF8\uB9BC': \uC0AC\uC6A9\uC790\uAC00 \uC9C1\uC811 \uB20C\uB7EC\uC57C \uD558\uB294 \uB2E8\uACC4(Ollama\u00B7\uACF5\uBB34\uC6D0 \uC124\uCE58)\uC5D0\uC11C
+    // \uC2E4\uC81C \uC124\uCE58 \uD654\uBA74 \uCEA1\uCC98(base64 \uB0B4\uC7A5 PNG)\uAC00 \uC624\uB978\uCABD \uD328\uB110\uC5D0 \uD45C\uC2DC\uB418\uC5B4\uC57C \uD55C\uB2E4.
+    assert.match(guiInstallScript, /ConvertTo-GuideImage/);
+    assert.match(guiInstallScript, /Set-GuidePanel/);
+    assert.match(guiInstallScript, /iVBORw0KGgo/);
+    assert.match(guiInstallScript, /Guide = "ollama"/);
+    assert.match(guiInstallScript, /Guide = "gongmu"/);
     const validateBatch = await readFile(join(result.packageDir, "VALIDATE_INSTALL.bat"), "utf8");
     assert.match(validateBatch, /validate-gongmu-ai\.ps1/);
     assert.match(validateBatch, /GONGMU_AI_PACK_DRY_RUN/);
