@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "name": "AI혁신처 기관 어휘집",
+    "publisher": "AI혁신처",
+    "version": "1.0.0",
+    "scope": "institution",
+    "language": "ko",
+    "description": "AI혁신처 고유 업무 주제. 공통 어휘집(L1) 위에 기관 사업·조직 고유 명칭을 추가한다.",
+    "created_at": "2026-07-12"
+  },
+  "topics": [
+    { "id": "ai-task-force", "name": "AI 혁신 추진단", "synonyms": ["AI혁신추진단", "추진단 TF", "AI 추진단", "발대식"], "broader": "ai-strategy", "scope_note": "추진단 구성·운영·회의 문서" },
+    { "id": "ai-idea", "name": "AI 혁신아이디어 구현", "synonyms": ["혁신아이디어", "아이디어 공모", "아이디어 제안서"], "broader": "ai-adoption", "scope_note": "직원 제안 AI 아이디어의 접수·선정·구현" },
+    { "id": "ai-symbol-project", "name": "AI융합 상징프로젝트", "synonyms": ["상징프로젝트", "상징 과제"], "broader": "ai-adoption" },
+    { "id": "ai-internalization", "name": "AI활용 내재화", "synonyms": ["AI 문화조성", "AI 확산", "활용 내재화"], "broader": "ai-literacy" },
+    { "id": "chief-meeting", "name": "처장회의", "synonyms": ["처장회의 발표", "본부장 회의"], "broader": "meeting", "scope_note": "처장·본부장급 회의 발표자료와 결과" },
+    { "id": "air-system", "name": "코레일 AIR시스템", "synonyms": ["AIR 시스템", "AIR"], "broader": "it-system" },
+    { "id": "korail-benchmark", "name": "코레일 AI 벤치마킹", "synonyms": ["철도공사 AI", "코레일 사례"], "broader": "cooperation" },
+    { "id": "future-research", "name": "미래성장 리서치", "synonyms": ["미래성장처", "미래 동향"], "broader": "research" },
+    { "id": "gov-eval-feedback", "name": "정부경평 피드백", "synonyms": ["경평 피드백", "경영평가 대응"], "broader": "gov-mgmt-eval" },
+    { "id": "govtech", "name": "GovTech 혁신", "synonyms": ["거브테크", "공공테크"], "broader": "ai-adoption" }
+  ]
+}
