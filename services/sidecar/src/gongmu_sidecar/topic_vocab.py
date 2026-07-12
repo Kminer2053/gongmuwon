@@ -201,11 +201,14 @@ class TopicVocabManager:
         self.institution_pack_path = self.vocab_dir / "institution-pack.json"
         self.user_mirror_path = self.vocab_dir / "user-approved.json"
         self._merged_cache: list[dict[str, Any]] | None = None
+        # 주제 삭제(차단) 키 캐시 — user-approved.json의 blocked_topics 블록이 정본.
+        self._blocked_keys_cache: set[str] | None = None
 
     # ------------------------------------------------------------ 층 로드
 
     def invalidate(self) -> None:
         self._merged_cache = None
+        self._blocked_keys_cache = None
 
     def load_common_pack(self) -> dict[str, Any]:
         try:
@@ -584,6 +587,125 @@ class TopicVocabManager:
             (now_iso(),),
         )
 
+    # ----------------------------------- 주제 재분류·삭제 (위키 UX 2026-07-12)
+
+    def merge_topic_label(self, label: Any, *, into_topic_id: str) -> dict[str, Any]:
+        """주제 페이지 재분류: 주제명을 대상 어휘집 주제의 synonym으로 user layer 편입.
+
+        후보 큐 행 없이 decide_candidate의 merge 경로(_merge_candidate)를 재사용한다.
+        반환: {"id", "name", "added_synonyms"}. 빈 라벨/대상 부재는 VocabValidationError.
+        """
+        clean = _clean_label(label)
+        if not clean:
+            raise VocabValidationError("병합할 주제명이 비어 있습니다")
+        target = self._merge_candidate(
+            {"id": None, "name": clean}, merge_into_id=into_topic_id, synonyms=[]
+        )
+        self.invalidate()
+        self._write_user_mirror()
+        return target
+
+    def block_topic(self, label: Any) -> dict[str, Any]:
+        """주제 삭제(차단): 어휘집 주제면 enabled:false 오버라이드, 자유 주제면 blocklist.
+
+        두 경우 모두 관련 키 전부(동의어 포함)를 blocked_topics(user-approved.json
+        미러 구조)에 등재해, 이후 태깅(enqueue_candidate)·후보 큐에서 제외한다 —
+        enabled:false만으로는 key_index에서 빠진 키가 후보 큐로 재유입되기 때문.
+        동일 키의 pending 후보도 함께 거절 처리한다(재발 방지).
+        """
+        clean = _clean_label(label)
+        key = normalize_topic_key(clean)
+        if not key:
+            raise VocabValidationError("차단할 주제명이 비어 있습니다")
+        entry = self.key_index().get(key)
+        keys = list(entry["_keys"]) if entry is not None else [key]
+        if entry is not None:
+            self._disable_topic(entry["id"])
+        blocked = [
+            item for item in self.load_blocked_topics() if key not in set(item["keys"])
+        ]
+        blocked.append({"name": clean, "keys": keys, "blocked_at": now_iso()})
+        timestamp = now_iso()
+        for blocked_key in keys:
+            self.db.execute(
+                "UPDATE vocab_candidates SET status = 'rejected', decided_at = ? "
+                "WHERE norm_key = ? AND status = 'pending'",
+                (timestamp, blocked_key),
+            )
+        self.invalidate()
+        self._write_user_mirror(blocked=blocked)
+        return {
+            "topic_id": entry["id"] if entry is not None else None,
+            "vocab_override": entry is not None,
+            "keys": keys,
+        }
+
+    def _disable_topic(self, topic_id: str) -> None:
+        """user layer enabled:false 오버라이드 — 하위 층(L1/L2) 정의까지 결합에서 제외한다(§3)."""
+        timestamp = now_iso()
+        existing = self.db.fetch_one(
+            "SELECT id FROM vocab_user_topics WHERE id = ?", (topic_id,)
+        )
+        if existing is not None:
+            self.db.execute(
+                "UPDATE vocab_user_topics SET enabled = 0, updated_at = ? WHERE id = ?",
+                (timestamp, topic_id),
+            )
+            return
+        self.db.insert(
+            "vocab_user_topics",
+            {
+                "id": topic_id,
+                "name": "",
+                "synonyms_json": "[]",
+                "broader": None,
+                "scope_note": "",
+                "work_area_hint": "",
+                "enabled": 0,
+                "source_candidate_id": None,
+                "created_at": timestamp,
+                "updated_at": timestamp,
+            },
+        )
+
+    def load_blocked_topics(self) -> list[dict[str, Any]]:
+        """차단(삭제) 주제 목록 — user-approved.json 미러의 blocked_topics 블록이 정본."""
+        if not self.user_mirror_path.exists():
+            return []
+        try:
+            payload = json.loads(self.user_mirror_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            return []
+        blocked = payload.get("blocked_topics") if isinstance(payload, dict) else None
+        if not isinstance(blocked, list):
+            return []
+        result: list[dict[str, Any]] = []
+        for item in blocked:
+            if not isinstance(item, dict):
+                continue
+            name = _clean_label(item.get("name"))
+            keys = [str(k) for k in (item.get("keys") or []) if str(k).strip()]
+            if not keys:
+                keys = [normalize_topic_key(name)] if normalize_topic_key(name) else []
+            if name and keys:
+                result.append(
+                    {
+                        "name": name,
+                        "keys": keys,
+                        "blocked_at": str(item.get("blocked_at") or ""),
+                    }
+                )
+        return result
+
+    def blocked_topic_keys(self) -> set[str]:
+        """차단 키 집합 — 태깅 후보 적재(enqueue_candidate)에서 제외한다."""
+        if self._blocked_keys_cache is None:
+            keys: set[str] = set()
+            for item in self.load_blocked_topics():
+                keys.update(item["keys"])
+            self._blocked_keys_cache = keys
+        return self._blocked_keys_cache
+
     # ------------------------------------------------------ §6 L3 후보 큐
 
     def recommend_action(self, name: Any, *, hit_count: int) -> tuple[str, str | None]:
@@ -635,6 +757,9 @@ class TopicVocabManager:
         if not key or len(label) > 60:
             return None
         if key in self.key_index():
+            return None
+        # 삭제(차단)된 주제는 다시 후보로 적재하지 않는다 — 재발 방지.
+        if key in self.blocked_topic_keys():
             return None
         sample = None
         if doc is not None:
@@ -957,11 +1082,14 @@ class TopicVocabManager:
         )
         return len(doc_ids)
 
-    def _write_user_mirror(self) -> None:
+    def _write_user_mirror(self, *, blocked: list[dict[str, Any]] | None = None) -> None:
         """L3 미러 파일(<ws>/vocab/user-approved.json) — 이식성용. 실패는 조용히 무시.
 
         synonym-only 행(name='')은 병합 결과의 name으로 채워 팩 스키마(name 필수)를 지킨다.
+        blocked_topics 블록(주제 삭제 차단 목록)은 이 파일이 정본이므로, 재작성 시
+        기존 값을 읽어 보존한다(blocked 인자로 갱신본을 넘기면 그 값을 쓴다).
         """
+        blocked_topics = blocked if blocked is not None else self.load_blocked_topics()
         merged_by_id = {entry["id"]: entry for entry in self.merged_topics(include_disabled=True)}
         topics = []
         for topic in self.load_user_topics():
@@ -988,6 +1116,8 @@ class TopicVocabManager:
                 "created_at": now_iso()[:10],
             },
             "topics": topics,
+            # 주제 삭제(차단) 목록 — 태깅/후보 적재 제외의 정본(위키 UX 2026-07-12).
+            "blocked_topics": blocked_topics,
         }
         try:
             self.vocab_dir.mkdir(parents=True, exist_ok=True)

@@ -209,6 +209,19 @@ class VocabCandidateDecisionRequest(BaseModel):
     synonyms: list[str] = Field(default_factory=list)
 
 
+class WikiTopicMergeRequest(BaseModel):
+    """주제 상세화면 재분류(위키 UX 2026-07-12) — 주제명을 대상 어휘집 주제로 병합."""
+
+    topic: str
+    into_topic_id: str
+
+
+class WikiTopicDeleteRequest(BaseModel):
+    """주제 상세화면 삭제(차단) — 문서 재태깅 + 향후 태깅/후보 제외."""
+
+    topic: str
+
+
 class PersonalizationDecisionRequest(BaseModel):
     status: Literal["approved", "rejected"]
 
@@ -3923,6 +3936,28 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="invalid wiki page path") from exc
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="wiki page not found") from exc
+
+    # -------------------------------- 주제 상세화면 재분류·삭제 (위키 UX 2026-07-12)
+
+    @app.post("/api/knowledge/wiki/topics/merge")
+    def merge_knowledge_wiki_topic(payload: WikiTopicMergeRequest) -> dict[str, Any]:
+        try:
+            return services.wiki.merge_topic(
+                payload.topic, into_topic_id=payload.into_topic_id
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="wiki topic not found") from exc
+        except VocabValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.post("/api/knowledge/wiki/topics/delete")
+    def delete_knowledge_wiki_topic(payload: WikiTopicDeleteRequest) -> dict[str, Any]:
+        try:
+            return services.wiki.delete_topic(payload.topic)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="wiki topic not found") from exc
+        except VocabValidationError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     # ----------------------------------------------- T-01 Work-Aware 분류체계
 

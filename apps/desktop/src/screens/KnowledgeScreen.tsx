@@ -16,8 +16,11 @@ import {
   importVocabPack,
   removeVocabPack,
   createWorkSession,
+  deleteWikiTopic,
   fetchWikiPage,
+  fetchWikiTree,
   fetchKnowledgeVerifyLatest,
+  mergeWikiTopic,
   resolveTaxonomyQueueItem,
   saveTaxonomyInterview,
   startKnowledgeEnrich,
@@ -432,6 +435,10 @@ type WikiTemplateActions = {
   searchRelated: (title: string) => void;
   openSource: (sourcePath: string) => void;
   copySource: (sourcePath: string) => void;
+  /** 주제 상세 관리(2026-07-12 UX): 다른 어휘집 주제로 병합. 미제공 시 관리 UI 숨김. */
+  mergeTopic?: (topic: string, intoTopicId: string, intoTopicName: string) => void;
+  /** 주제 상세 관리(2026-07-12 UX): 주제 삭제(차단). 미제공 시 관리 UI 숨김. */
+  deleteTopic?: (topic: string) => void;
 };
 
 type WikiTemplateProps = {
@@ -594,6 +601,75 @@ function DocsWikiTemplate({ meta, parsedBody, fallbackContent, actions }: WikiTe
   );
 }
 
+/** 주제 상세 관리(2026-07-12 UX): 재분류(어휘집 주제로 병합)·삭제 컨트롤.
+ * 병합 대상 셀렉트는 마운트 시 결합 어휘집(enabled만)을 1회 조회해 채운다. */
+function TopicWikiManageActions({
+  topic,
+  onMerge,
+  onDelete,
+}: {
+  topic: string;
+  onMerge: (intoTopicId: string, intoTopicName: string) => void;
+  onDelete: () => void;
+}) {
+  const [vocabTopics, setVocabTopics] = useState<KnowledgeVocabTopicItem[]>([]);
+  const [mergeTargetId, setMergeTargetId] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const summary = await fetchVocabSummary();
+        if (active) {
+          setVocabTopics(summary.topics.filter((item) => item.enabled));
+        }
+      } catch {
+        // 어휘집 조회 실패(구버전 서버 등) — 병합 셀렉트만 비워 두고 삭제는 유지한다.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const mergeOptions = vocabTopics.filter((item) => item.name !== topic);
+  const selectedTarget = mergeOptions.find((item) => item.id === mergeTargetId) ?? null;
+
+  return (
+    <div className="inline-actions" data-testid="wiki-topic-manage">
+      <select
+        aria-label={`${topic} 병합 대상 주제 선택`}
+        value={mergeTargetId}
+        onChange={(event) => setMergeTargetId(event.target.value)}
+      >
+        <option value="">병합 대상 주제 선택…</option>
+        {mergeOptions.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="button-secondary"
+        disabled={!selectedTarget}
+        title="이 주제로 분류된 문서를 선택한 어휘집 주제로 재분류하고, 이 주제명을 동의어로 편입합니다."
+        onClick={() => selectedTarget && onMerge(selectedTarget.id, selectedTarget.name)}
+      >
+        다른 주제로 병합
+      </button>
+      <button
+        type="button"
+        className="button-secondary"
+        title="이 주제를 문서에서 제거하고, 이후 자동 분류에서도 제외합니다."
+        onClick={onDelete}
+      >
+        주제 삭제
+      </button>
+    </div>
+  );
+}
+
 /** F-18: topics/ 주제 페이지 템플릿 — 제목 + 문서 수 배지 + 관련 문서/업무 기록 카드 그리드.
  * Wave D F-09: 백과사전 종합본(개요/핵심 내용/경과/문서별 요점/근거 문서)이 있으면
  * 관련 문서 카드 위에 종합 섹션을 렌더한다. 근거 각주 [n]는 '근거 문서' 목록의
@@ -637,6 +713,15 @@ function TopicsWikiTemplate({ meta, parsedBody, fallbackContent, actions }: Wiki
           ) : null}
         </div>
         <WikiPageHeaderActions title={title} sourcePath={null} actions={actions} />
+        {actions.mergeTopic && actions.deleteTopic ? (
+          <TopicWikiManageActions
+            topic={title}
+            onMerge={(intoTopicId, intoTopicName) =>
+              actions.mergeTopic?.(title, intoTopicId, intoTopicName)
+            }
+            onDelete={() => actions.deleteTopic?.(title)}
+          />
+        ) : null}
       </header>
 
       {overviewText ? (
@@ -2311,6 +2396,7 @@ export function KnowledgeScreen() {
     setKnowledgeSourceForm,
     setKnowledgeWikiLoading,
     setKnowledgeWikiPage,
+    setKnowledgeWikiTree,
     setNotice,
     setSnapshot,
     snapshot,
@@ -2326,6 +2412,11 @@ export function KnowledgeScreen() {
 
   // 검색·위키 통합: 위키 탭 우측 뷰어가 위키 페이지를 보여줄지, 검색 결과를 보여줄지.
   const [wikiViewerMode, setWikiViewerMode] = useState<"wiki" | "search">("wiki");
+
+  // 위키 이동 히스토리(2026-07-12 UX): 각주·연관주제 링크로 들어가도 '← 이전'으로
+  // 직전 페이지에 돌아갈 수 있게 relative_path 스택을 유지한다(최대 20).
+  // '← 이전'으로 여는 이동은 push하지 않아(fromHistory) 무한루프를 막는다.
+  const [wikiPageHistory, setWikiPageHistory] = useState<string[]>([]);
 
   // ⑥(3) 핵심문서 미리보기: 트리 문서행에서 카드 마크다운을 우측 뷰어 대체 없이 인플레이스
   // 모달로 미리 본다. 파싱 본문은 이미 fetchWikiPage가 서빙하므로 그대로 재사용한다.
@@ -2849,7 +2940,14 @@ export function KnowledgeScreen() {
     return parts.join("/");
   }
 
-  async function openKnowledgeWikiTarget(target: string, base?: string) {
+  /** 위키 이동 히스토리 상한 — 스택이 무한히 자라지 않게 오래된 항목부터 버린다. */
+  const WIKI_HISTORY_LIMIT = 20;
+
+  async function openKnowledgeWikiTarget(
+    target: string,
+    base?: string,
+    options?: { fromHistory?: boolean },
+  ) {
     if (!isRelativeWikiPageTarget(target)) {
       await openExternalTarget(target);
       return;
@@ -2860,12 +2958,33 @@ export function KnowledgeScreen() {
     setError(null);
     try {
       const page = await fetchWikiPage(resolveWikiTargetPath(target, base));
+      // 페이지 전환 성공 시에만 직전 페이지를 push — '← 이전'을 통한 이동은 제외(무한루프 방지).
+      const previousPath = knowledgeWikiPage?.relative_path ?? null;
+      if (!options?.fromHistory && previousPath && previousPath !== page.relative_path) {
+        setWikiPageHistory((current) => [...current, previousPath].slice(-WIKI_HISTORY_LIMIT));
+      }
       setKnowledgeWikiPage(page);
     } catch (pageError) {
       setError(pageError instanceof Error ? pageError.message : "지식위키 문서를 열지 못했습니다.");
     } finally {
       setKnowledgeWikiLoading(false);
     }
+  }
+
+  /** '← 이전': 히스토리 스택 top의 페이지로 돌아간다(이 이동은 push하지 않는다). */
+  function goBackWikiPage() {
+    const previous = wikiPageHistory[wikiPageHistory.length - 1];
+    if (!previous) {
+      return;
+    }
+    setWikiPageHistory((current) => current.slice(0, -1));
+    void openKnowledgeWikiTarget(previous, undefined, { fromHistory: true });
+  }
+
+  /** '← 목차'/주제 관리 성공 시: 뷰어를 목차 상태로 되돌리고 히스토리를 초기화한다. */
+  function returnToWikiToc() {
+    setKnowledgeWikiPage(null);
+    setWikiPageHistory([]);
   }
 
   /** ⑥(3) 트리 문서행 미리보기 — 카드 마크다운을 우측 뷰어 대체 없이 인플레이스 모달로 띄운다. */
@@ -2996,6 +3115,55 @@ export function KnowledgeScreen() {
     }
   }
 
+  /** 주제 병합/삭제 후 위키 목차 트리를 다시 조회한다(실패 시 다음 탭 진입 때 store가 재조회). */
+  async function refreshKnowledgeWikiTree() {
+    try {
+      setKnowledgeWikiTree(await fetchWikiTree());
+    } catch (treeError) {
+      console.warn("failed to refresh knowledge wiki tree", treeError);
+    }
+  }
+
+  /** 주제 상세 관리(2026-07-12 UX): 주제를 다른 어휘집 주제로 병합 — synonym 편입 + 문서 재태깅. */
+  async function mergeKnowledgeWikiTopic(topic: string, intoTopicId: string, intoTopicName: string) {
+    const confirmed = window.confirm(
+      `'${topic}' 주제를 '${intoTopicName}' 주제로 병합할까요?\n` +
+        `이 주제로 분류된 문서가 '${intoTopicName}'(으)로 재분류되고, 기존 주제 페이지는 삭제됩니다.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const result = await mergeWikiTopic({ topic, into_topic_id: intoTopicId });
+      pushToast(
+        "info",
+        `'${topic}' 주제를 '${intoTopicName}'(으)로 병합했습니다 — 문서 ${result.retagged_docs}건 재분류.`,
+      );
+      returnToWikiToc();
+      await refreshKnowledgeWikiTree();
+    } catch (mergeError) {
+      pushToast("error", mergeError instanceof Error ? mergeError.message : "주제 병합에 실패했습니다.");
+    }
+  }
+
+  /** 주제 상세 관리(2026-07-12 UX): 주제 삭제(차단) — 문서에서 제거 + 이후 자동 분류 제외. */
+  async function deleteKnowledgeWikiTopic(topic: string) {
+    const confirmed = window.confirm(
+      `'${topic}' 주제를 삭제할까요?\n문서에서 이 주제가 제거되고, 이후 자동 분류에서도 제외됩니다.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const result = await deleteWikiTopic({ topic });
+      pushToast("info", `'${topic}' 주제를 삭제했습니다 — 문서 ${result.retagged_docs}건에서 제거.`);
+      returnToWikiToc();
+      await refreshKnowledgeWikiTree();
+    } catch (deleteError) {
+      pushToast("error", deleteError instanceof Error ? deleteError.message : "주제 삭제에 실패했습니다.");
+    }
+  }
+
   /** F-18: 위키 페이지 유형(docs/topics/work)에 맞춰 템플릿을 고르고, 실패 시 기존 마크다운 렌더로 폴백한다. */
   function renderWikiPageBody(page: { relative_path: string; content: string }) {
     const actions: WikiTemplateActions = {
@@ -3004,6 +3172,9 @@ export function KnowledgeScreen() {
       searchRelated: searchRelatedToWikiPage,
       openSource: (sourcePath) => void openExternalTarget(sourcePath),
       copySource: (sourcePath) => void copyWikiSourcePath(sourcePath),
+      mergeTopic: (topic, intoTopicId, intoTopicName) =>
+        void mergeKnowledgeWikiTopic(topic, intoTopicId, intoTopicName),
+      deleteTopic: (topic) => void deleteKnowledgeWikiTopic(topic),
     };
     const kind = inferWikiPageKind(page.relative_path);
     if (!kind) {
@@ -4774,11 +4945,23 @@ export function KnowledgeScreen() {
                       <button
                         type="button"
                         className="button-secondary button-with-icon"
-                        onClick={() => setKnowledgeWikiPage(null)}
+                        onClick={returnToWikiToc}
                       >
                         <AssetIcon src="/icons/action/list.svg" />
                         ← 목차
                       </button>
+                      {/* 위키 이동 히스토리(2026-07-12 UX): 스택이 비어 있으면 숨긴다. */}
+                      {wikiPageHistory.length > 0 ? (
+                        <button
+                          type="button"
+                          className="button-secondary"
+                          data-testid="knowledge-wiki-back"
+                          title="직전에 보던 위키 페이지로 돌아갑니다."
+                          onClick={goBackWikiPage}
+                        >
+                          ← 이전
+                        </button>
+                      ) : null}
                       <span className="pill pill--soft" data-testid="knowledge-wiki-breadcrumb">
                         목차 / {knowledgeWikiPage.relative_path}
                       </span>

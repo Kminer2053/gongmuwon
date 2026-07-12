@@ -3583,6 +3583,126 @@ class KnowledgeWikiManager:
                 nfc("\n".join(lines).strip() + "\n"), encoding="utf-8"
             )
 
+    # --------------------------- 주제 재분류·삭제 (사용자 직접 관리, 2026-07-12 UX)
+
+    def _docs_with_topic_keys(self, keys: set[str]) -> list[dict[str, Any]]:
+        """topics_json에 키 일치 주제가 있는 문서 — missing 포함(부활 시 재유입 방지)."""
+        matched: list[dict[str, Any]] = []
+        for doc in self.db.fetch_all("SELECT * FROM knowledge_wiki_docs"):
+            topics = self._json_list(doc.get("topics_json"))
+            if any(normalize_topic_key(topic) in keys for topic in topics):
+                matched.append(doc)
+        return matched
+
+    def _retag_topic_docs(
+        self, docs: list[dict[str, Any]], keys: set[str], *, replacement: str | None
+    ) -> int:
+        """문서 topics_json에서 키 일치 주제를 치환(replacement)/제거(None)한다(중복 제거).
+
+        카드의 front matter·'## 주제' 링크도 DB 재투영(_rewrite_enriched_card)으로 즉시
+        갱신해, 삭제된 주제 페이지로 가는 죽은 링크가 카드에 남지 않게 한다.
+        """
+        retagged = 0
+        for doc in docs:
+            topics = self._json_list(doc.get("topics_json"))
+            result: list[str] = []
+            seen_keys: set[str] = set()
+            for label in topics:
+                value = replacement if normalize_topic_key(label) in keys else label
+                if value is None:
+                    continue
+                value_key = normalize_topic_key(value)
+                if value_key and value_key in seen_keys:
+                    continue
+                seen_keys.add(value_key)
+                result.append(value)
+            if result == topics:
+                continue
+            self.db.execute(
+                "UPDATE knowledge_wiki_docs SET topics_json = ?, updated_at = ? WHERE id = ?",
+                (json.dumps(result, ensure_ascii=False), now_iso(), doc["id"]),
+            )
+            refreshed = self._rewrite_enriched_card(
+                doc, str(doc.get("summary") or ""), result
+            )
+            if refreshed is not None:
+                self._upsert_fts(
+                    str(doc["id"]),
+                    str(doc.get("title") or ""),
+                    str(doc.get("norm_body") or ""),
+                    nfc(refreshed),
+                )
+            retagged += 1
+        return retagged
+
+    def merge_topic(self, topic: str, *, into_topic_id: str) -> dict[str, Any]:
+        """주제 재분류(병합): 주제명을 대상 어휘집 주제의 synonym으로 편입 + 문서 재태깅.
+
+        처리: ① vocab user layer synonym 편입(merge_topic_label) ② 문서 topics_json
+        치환·중복 제거 ③ 구 주제 종합 행·페이지 삭제 ④ 대상 주제 dirty 마킹 +
+        주제 페이지·인덱스 재생성. 응답 {ok, retagged_docs}.
+        KeyError: 주제 없음(→404) / VocabValidationError: 대상 부재 등 입력 오류(→400).
+        """
+        label = re.sub(r"\s+", " ", nfc(str(topic or ""))).strip()
+        key = normalize_topic_key(label)
+        old_page = self.topics_dir / f"{topic_slugify(label)}.md"
+        docs = self._docs_with_topic_keys({key}) if key else []
+        if not key or (not docs and not old_page.exists()):
+            raise KeyError(topic)
+        target = self.topic_vocab.merge_topic_label(label, into_topic_id=into_topic_id)
+        target_name = str(target.get("name") or "")
+        retagged = self._retag_topic_docs(docs, {key}, replacement=target_name)
+        self.db.execute("DELETE FROM topic_synthesis WHERE topic_key = ?", (key,))
+        if topic_slugify(label) != topic_slugify(target_name):
+            old_page.unlink(missing_ok=True)
+        self.mark_topics_dirty([target_name])
+        self._write_topic_pages()
+        self.rebuild_index()
+        self._append_log_line(
+            f"topic merge '{label}' -> '{target_name}' retagged={retagged}"
+        )
+        self.db.log(
+            feature="knowledge",
+            action="knowledge.wiki.topic.merged",
+            status="completed",
+            inputs={"topic": label, "into_topic_id": into_topic_id},
+            outputs={"target_name": target_name, "retagged_docs": retagged},
+        )
+        return {"ok": True, "retagged_docs": retagged}
+
+    def delete_topic(self, topic: str) -> dict[str, Any]:
+        """주제 삭제(차단): user layer 차단 등재 + 문서 재태깅 + 페이지·인덱스 정리.
+
+        어휘집 주제는 enabled:false 오버라이드, 자유 주제는 blocklist(둘 다 blocked
+        키로 태깅·후보 적재에서 제외 — 재발 방지). 동의어 표기 문서까지 함께 정리한다.
+        응답 {ok, retagged_docs}. KeyError: 주제 없음(→404).
+        """
+        label = re.sub(r"\s+", " ", nfc(str(topic or ""))).strip()
+        key = normalize_topic_key(label)
+        old_page = self.topics_dir / f"{topic_slugify(label)}.md"
+        if not key:
+            raise KeyError(topic)
+        if not self._docs_with_topic_keys({key}) and not old_page.exists():
+            raise KeyError(topic)
+        block = self.topic_vocab.block_topic(label)
+        keys = set(block.get("keys") or []) or {key}
+        retagged = self._retag_topic_docs(
+            self._docs_with_topic_keys(keys), keys, replacement=None
+        )
+        self.db.execute("DELETE FROM topic_synthesis WHERE topic_key = ?", (key,))
+        old_page.unlink(missing_ok=True)
+        self._write_topic_pages()
+        self.rebuild_index()
+        self._append_log_line(f"topic delete '{label}' retagged={retagged}")
+        self.db.log(
+            feature="knowledge",
+            action="knowledge.wiki.topic.deleted",
+            status="completed",
+            inputs={"topic": label},
+            outputs={"retagged_docs": retagged, "blocked_keys": sorted(keys)},
+        )
+        return {"ok": True, "retagged_docs": retagged}
+
     # ------------------------------------------------------------ work pages
 
     def write_work_page(

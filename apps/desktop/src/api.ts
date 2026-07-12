@@ -2254,6 +2254,28 @@ export async function fetchWikiPage(path: string) {
   );
 }
 
+/** 주제 상세화면 재분류·삭제 응답(위키 UX 2026-07-12) — 재태깅된 문서 수 포함. */
+export type WikiTopicActionResult = {
+  ok: boolean;
+  retagged_docs: number;
+};
+
+/** 주제를 대상 어휘집 주제로 병합한다 — synonym 편입 + 문서 재태깅 + 구 페이지 삭제. */
+export async function mergeWikiTopic(payload: { topic: string; into_topic_id: string }) {
+  return requestJson<WikiTopicActionResult>("/api/knowledge/wiki/topics/merge", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** 주제를 삭제(차단)한다 — 문서에서 제거 + 페이지 삭제 + 향후 태깅/후보에서 제외. */
+export async function deleteWikiTopic(payload: { topic: string }) {
+  return requestJson<WikiTopicActionResult>("/api/knowledge/wiki/topics/delete", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // T-01: Work-Aware 지식 분류체계 (인터뷰 → 초안 → 확정 → 적용 → 큐/품질)
 // ---------------------------------------------------------------------------
