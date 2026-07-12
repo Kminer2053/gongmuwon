@@ -28,6 +28,15 @@ if (SRC_ROOT / "gongmu_sidecar" / "public_doc_templates").exists():
             "gongmu_sidecar/public_doc_templates",
         )
     ]
+# L1 내장 통제어휘(topic_vocab_common.json) — 누락 시 설치본에서 통제어휘 전체가
+# 조용히 비활성화된다(2026-07-13 수용 테스트에서 실제 발생, vocab common=0).
+if (SRC_ROOT / "gongmu_sidecar" / "assets").exists():
+    datas += [
+        (
+            str(SRC_ROOT / "gongmu_sidecar" / "assets"),
+            "gongmu_sidecar/assets",
+        )
+    ]
 
 a = Analysis(
     [str(SRC_ROOT / "gongmu_sidecar" / "__main__.py")],
