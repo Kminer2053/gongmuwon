@@ -10,8 +10,8 @@
     "created_at": "2026-07-12"
   },
   "topics": [
-    { "id": "ai-task-force", "name": "AI 혁신 추진단", "synonyms": ["AI혁신추진단", "추진단 TF", "AI 추진단", "발대식"], "broader": "ai-strategy", "scope_note": "추진단 구성·운영·회의 문서" },
-    { "id": "ai-idea", "name": "AI 혁신아이디어 구현", "synonyms": ["혁신아이디어", "아이디어 공모", "아이디어 제안서"], "broader": "ai-adoption", "scope_note": "직원 제안 AI 아이디어의 접수·선정·구현" },
+    { "id": "ai-task-force", "name": "AI 혁신 추진단", "synonyms": ["AI혁신추진단", "추진단 TF", "AI 추진단"], "broader": "ai-strategy", "scope_note": "추진단 구성·운영·회의 문서" },
+    { "id": "ai-idea", "name": "AI 혁신아이디어 구현", "synonyms": ["AI 아이디어 공모", "AI 아이디어 제안서"], "broader": "ai-adoption", "scope_note": "직원 제안 AI 아이디어의 접수·선정·구현" },
     { "id": "ai-symbol-project", "name": "AI융합 상징프로젝트", "synonyms": ["상징프로젝트", "상징 과제"], "broader": "ai-adoption" },
     { "id": "ai-internalization", "name": "AI활용 내재화", "synonyms": ["AI 문화조성", "AI 확산", "활용 내재화"], "broader": "ai-literacy" },
     { "id": "chief-meeting", "name": "처장회의", "synonyms": ["처장회의 발표", "본부장 회의"], "broader": "meeting", "scope_note": "처장·본부장급 회의 발표자료와 결과" },
