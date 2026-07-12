@@ -82,24 +82,34 @@ async function main() {
       installScript,
       /Start-OllamaServer[\s\S]*Write-GongmuSettings[\s\S]*Install-GongmuIfPresent[\s\S]*Write-Step "Setup complete"/,
     );
+    // 한글 안내 배너는 BOM이 있는 PS1에서 출력한다. (.bat은 ASCII 전용 — 아래 배치 검사 참고)
+    assert.match(installScript, /공무원 로컬 AI 설치/);
+    assert.match(installScript, /공무원 앱은 맨 마지막에 설치됩니다/);
+    assert.match(installScript, /Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요/);
+    assert.match(installScript, /앱이 바로 사용 가능한 상태로 열립니다/);
+    assert.match(installScript, /Python, Ollama, Gemma 모델을 먼저 설치합니다/);
+    assert.match(installScript, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
+    assert.match(installScript, /설치가 끝날 때까지 이 명령창은 닫지 마세요/);
+    assert.match(installScript, /설치가 실패하면 이 폴더의 install-gongmu-ai\.log 파일을 확인하세요/);
 
+    // 배치 런처는 순수 ASCII여야 한다: chcp 65001 + UTF-8 한글 .bat 조합에서 cmd가
+    // 바이트 오프셋으로 명령을 재탐색하다 중간 절단('olicy'·'og' 파편 실행)하는 실사용 버그 회귀 방지.
     const batchScript = await readFile(join(result.packageDir, "START_INSTALL.bat"), "utf8");
     assert.match(batchScript, /powershell\.exe/);
     assert.match(batchScript, /ExecutionPolicy Bypass/);
     assert.match(batchScript, /install-gongmu-ai\.ps1/);
     assert.match(batchScript, /GONGMU_AI_PACK_DRY_RUN/);
-    assert.match(batchScript, /공무원 앱은 맨 마지막에 설치됩니다/);
-    assert.match(batchScript, /Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요/);
-    assert.match(batchScript, /앱이 바로 사용 가능한 상태로 열립니다/);
-    assert.match(batchScript, /Python, Ollama, Gemma 모델을 먼저 설치합니다/);
-    assert.match(batchScript, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
-    assert.match(batchScript, /설치가 끝날 때까지 이 창을 닫지 마세요/);
+    assert.match(batchScript, /Korean guidance will appear/);
     assert.match(batchScript, /pause/);
+    assert.doesNotMatch(batchScript, /[^\x00-\x7F]/);
+    const installBatchCopy = await readFile(join(result.packageDir, "install-gongmu-ai.bat"), "utf8");
+    assert.doesNotMatch(installBatchCopy, /[^\x00-\x7F]/);
     const guiBatchScript = await readFile(join(result.packageDir, "START_INSTALL_GUI.bat"), "utf8");
     assert.match(guiBatchScript, /powershell\.exe/);
     assert.match(guiBatchScript, /-STA/);
     assert.match(guiBatchScript, /install-gongmu-ai-gui\.ps1/);
     assert.match(guiBatchScript, /GONGMU_AI_PACK_DRY_RUN/);
+    assert.doesNotMatch(guiBatchScript, /[^\x00-\x7F]/);
     const guiInstallScript = await readFile(join(result.packageDir, "install-gongmu-ai-gui.ps1"), "utf8");
     assert.match(guiInstallScript, /System\.Windows\.Forms/);
     assert.match(guiInstallScript, /System\.Drawing/);
@@ -112,9 +122,14 @@ async function main() {
     assert.match(guiInstallScript, /\uC124\uCE58 \uBAA8\uB2C8\uD130/);
     assert.match(guiInstallScript, /\uD604\uC7AC \uB2E8\uACC4/);
     assert.match(guiInstallScript, /\uD544\uC694\uD55C \uC791\uC5C5 \uC548\uB0B4/);
-    assert.equal(await exists(join(result.packageDir, "install-gongmu-ai.bat")), true);
-    assert.equal(await exists(join(result.packageDir, "VALIDATE_INSTALL.bat")), true);
-    assert.equal(await exists(join(result.packageDir, "COLLECT_EVIDENCE.bat")), true);
+    const validateBatch = await readFile(join(result.packageDir, "VALIDATE_INSTALL.bat"), "utf8");
+    assert.match(validateBatch, /validate-gongmu-ai\.ps1/);
+    assert.match(validateBatch, /GONGMU_AI_PACK_DRY_RUN/);
+    assert.doesNotMatch(validateBatch, /[^\x00-\x7F]/);
+    const evidenceBatch = await readFile(join(result.packageDir, "COLLECT_EVIDENCE.bat"), "utf8");
+    assert.match(evidenceBatch, /collect-clean-account-evidence\.ps1/);
+    assert.match(evidenceBatch, /GONGMU_AI_PACK_DRY_RUN/);
+    assert.doesNotMatch(evidenceBatch, /[^\x00-\x7F]/);
 
     const fullValidationBatch = await readFile(join(result.packageDir, "RUN_FULL_VALIDATION.bat"), "utf8");
     assert.match(fullValidationBatch, /install-gongmu-ai\.ps1/);
@@ -123,20 +138,18 @@ async function main() {
     assert.match(fullValidationBatch, /GONGMU_AI_PACK_DRY_RUN/);
     assert.match(fullValidationBatch, /install-gongmu-ai\.log/);
     assert.match(fullValidationBatch, /evidence\\ai-pack-clean-account-evidence\.md/);
-    assert.match(fullValidationBatch, /공무원 앱은 맨 마지막에 설치됩니다/);
-    assert.match(fullValidationBatch, /Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요/);
-    assert.match(fullValidationBatch, /앱이 바로 사용 가능한 상태로 열립니다/);
-    assert.match(fullValidationBatch, /이 명령창은 닫지 마세요/);
-    assert.match(fullValidationBatch, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
+    assert.doesNotMatch(fullValidationBatch, /[^\x00-\x7F]/);
 
     const validateScript = await readFile(join(result.packageDir, "validate-gongmu-ai.ps1"), "utf8");
     assert.match(validateScript, /Find-Python311/);
     assert.match(validateScript, /Find-OllamaExe/);
     assert.match(validateScript, /gemma4:e2b/);
     assert.match(validateScript, /settings\.json/);
+    assert.match(validateScript, /공무원 로컬 AI 검증을 시작합니다/);
 
     const evidenceScript = await readFile(join(result.packageDir, "collect-clean-account-evidence.ps1"), "utf8");
     assert.match(evidenceScript, /Gongmu clean-account evidence/);
+    assert.match(evidenceScript, /공무원 설치 증거 수집을 시작합니다/);
     assert.match(evidenceScript, /WSL optional status/);
     assert.match(evidenceScript, /WSL is optional for Gongmu and native Windows Ollama/);
     assert.match(evidenceScript, /install-gongmu-ai\.log/);

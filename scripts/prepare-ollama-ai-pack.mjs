@@ -577,6 +577,28 @@ Start-Transcript -Path $LogPath -Append | Out-Null
 
 ${commonPowerShellFunctions()}
 
+# 한글 안내는 BOM이 있는 이 PS1에서 출력한다. (.bat은 chcp 65001 + UTF-8 한글 조합에서
+# cmd가 바이트 오프셋으로 명령을 재탐색하다 중간 절단되므로 ASCII 전용으로 유지)
+Write-Host "============================================================"
+Write-Host " 공무원 로컬 AI 설치"
+Write-Host " Python 3.11 확인 + Ollama + Gemma 4 E2B 멀티모달 모델"
+Write-Host "============================================================"
+Write-Host ""
+Write-Host "설치가 끝날 때까지 이 명령창은 닫지 마세요."
+Write-Host ""
+Write-Host "안내:"
+Write-Host " 1. Python, Ollama, Gemma 모델을 먼저 설치합니다."
+Write-Host " 2. Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요."
+Write-Host " 3. Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다."
+Write-Host " 4. 공무원 앱은 맨 마지막에 설치됩니다."
+Write-Host " 5. 설치 마법사를 완료하면 앱이 바로 사용 가능한 상태로 열립니다."
+Write-Host ""
+Write-Host "진행이 멈춘 것처럼 보이면, Ollama 설치 창이나 공무원 설치 창이"
+Write-Host "다른 창 뒤에 숨어 있는지 확인하세요."
+Write-Host ""
+Write-Host "설치가 실패하면 이 폴더의 install-gongmu-ai.log 파일을 확인하세요."
+Write-Host ""
+
 function Install-Python311IfAvailable {
   Write-Step "Checking Python 3.11"
   $python = Find-Python311
@@ -824,6 +846,8 @@ Start-Transcript -Path $LogPath -Append | Out-Null
 
 ${commonPowerShellFunctions()}
 
+Write-Host "공무원 로컬 AI 검증을 시작합니다. 결과는 validate-gongmu-ai.log 에 기록됩니다."
+
 try {
   Write-Step "Validating Python 3.11"
   $python = Find-Python311
@@ -882,6 +906,8 @@ $LogPath = Join-Path $OutputDir "collect-clean-account-evidence.log"
 Start-Transcript -Path $LogPath -Append | Out-Null
 
 ${commonPowerShellFunctions()}
+
+Write-Host "공무원 설치 증거 수집을 시작합니다. 결과는 evidence 폴더에 저장됩니다."
 
 function Add-Check([string]$Name, [bool]$Passed, [string]$Detail) {
   $script:Checks += [ordered]@{
@@ -1334,31 +1360,30 @@ async function writeGuiInstallScript(path) {
   await writeTextFile(path, `\uFEFF${guiInstallScriptContent()}`);
 }
 
+// NOTE: Batch launchers must stay pure ASCII. cmd.exe re-reads .bat files by
+// byte offset after each command; with chcp 65001 + multi-byte Korean text the
+// offsets drift and cmd executes truncated fragments (e.g. "olicy", "og").
+// All Korean guidance lives in the BOM-prefixed .ps1 scripts instead.
 function guiInstallBatchScriptContent() {
   return `@echo off
 chcp 65001 > nul
 title Gongmu AI Setup Monitor
 cd /d "%~dp0"
 echo.
-echo ============================================================
-echo  공무원 AI 설치 안내 창
-echo ============================================================
-echo.
-echo 설치 진행 상황을 보여주는 안내 창을 엽니다.
-echo 현재 단계, 경과 시간, 해야 할 일, 최근 로그가 표시됩니다.
+echo Gongmu AI Setup Monitor
+echo Korean guidance will appear in the setup monitor window.
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
-  echo 점검 모드: 안내 창 실행 파일 문법 정상.
+  echo Dry run mode: launcher syntax is OK.
   exit /b 0
 )
 powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0install-gongmu-ai-gui.ps1"
 set EXIT_CODE=%ERRORLEVEL%
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo 설치 안내 창에서 확인이 필요합니다. 오류 코드: %EXIT_CODE%
-  echo install-gongmu-ai.log 와 install-gongmu-ai-gui.log 를 확인하세요.
+  echo Setup needs attention. Exit code: %EXIT_CODE% - see install-gongmu-ai.log and install-gongmu-ai-gui.log
 ) else (
-  echo 설치가 완료되었습니다.
+  echo Setup completed.
 )
 echo.
 pause
@@ -1372,37 +1397,20 @@ chcp 65001 > nul
 title Gongmu Local AI Setup
 cd /d "%~dp0"
 echo.
-echo ============================================================
-echo  공무원 로컬 AI 설치
-echo  Python 3.11 확인 + Ollama + Gemma 4 E2B 멀티모달 모델
-echo ============================================================
-echo.
-echo 설치가 끝날 때까지 이 창을 닫지 마세요.
-echo.
-echo 안내:
-echo  1. Python, Ollama, Gemma 모델을 먼저 설치합니다.
-echo  2. Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요.
-echo  3. Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다.
-echo  4. 공무원 앱은 맨 마지막에 설치됩니다.
-echo  5. 설치 마법사를 완료하면 앱이 바로 사용 가능한 상태로 열립니다.
-echo.
-echo 진행이 멈춘 것처럼 보이면, Ollama 설치 창이나 공무원 설치 창이
-echo 다른 창 뒤에 숨어 있는지 확인하세요.
-echo.
-echo 설치가 실패하면 이 폴더의 install-gongmu-ai.log 파일을 확인하세요.
+echo Gongmu Local AI Setup
+echo Korean guidance will appear in the installer window. Keep this window open.
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
-  echo 점검 모드: 실행 파일 문법 정상.
+  echo Dry run mode: launcher syntax is OK.
   exit /b 0
 )
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0install-gongmu-ai.ps1"
 set EXIT_CODE=%ERRORLEVEL%
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo 설치 또는 검증에 실패했습니다. 오류 코드: %EXIT_CODE%
-  echo install-gongmu-ai.log 를 확인한 뒤 이 파일을 다시 실행하세요.
+  echo Setup failed. Exit code: %EXIT_CODE% - see install-gongmu-ai.log and run this file again.
 ) else (
-  echo 설치와 기본 검증이 완료되었습니다.
+  echo Setup and basic validation completed.
 )
 echo.
 pause
@@ -1416,22 +1424,20 @@ chcp 65001 > nul
 title Gongmu Local AI Validation
 cd /d "%~dp0"
 echo.
-echo ============================================================
-echo  공무원 로컬 AI 검증
-echo ============================================================
+echo Gongmu Local AI Validation
+echo Korean guidance will appear in the validation window.
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
-  echo 점검 모드: 실행 파일 문법 정상.
+  echo Dry run mode: launcher syntax is OK.
   exit /b 0
 )
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0validate-gongmu-ai.ps1"
 set EXIT_CODE=%ERRORLEVEL%
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo 검증에 실패했습니다. 오류 코드: %EXIT_CODE%
-  echo validate-gongmu-ai.log 를 확인하세요.
+  echo Validation failed. Exit code: %EXIT_CODE% - see validate-gongmu-ai.log
 ) else (
-  echo 검증이 완료되었습니다.
+  echo Validation completed.
 )
 echo.
 pause
@@ -1445,23 +1451,20 @@ chcp 65001 > nul
 title Gongmu Clean Account Evidence
 cd /d "%~dp0"
 echo.
-echo ============================================================
-echo  공무원 설치 증거 수집
-echo ============================================================
+echo Gongmu Clean Account Evidence
+echo Korean guidance will appear in the evidence window.
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
-  echo 점검 모드: 실행 파일 문법 정상.
+  echo Dry run mode: launcher syntax is OK.
   exit /b 0
 )
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0collect-clean-account-evidence.ps1"
 set EXIT_CODE=%ERRORLEVEL%
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo 증거 수집에서 실패한 항목이 있습니다. 오류 코드: %EXIT_CODE%
-  echo evidence\\ai-pack-clean-account-evidence.md 를 확인하세요.
+  echo Evidence collection has failing checks. Exit code: %EXIT_CODE% - see evidence\\ai-pack-clean-account-evidence.md
 ) else (
-  echo 증거 수집이 완료되었습니다.
-  echo evidence\\ai-pack-clean-account-evidence.md 를 확인하세요.
+  echo Evidence collection completed. See evidence\\ai-pack-clean-account-evidence.md
 )
 echo.
 pause
@@ -1475,30 +1478,8 @@ chcp 65001 > nul
 title Gongmu Local AI Full Validation
 cd /d "%~dp0"
 echo.
-echo ============================================================
-echo  공무원 로컬 AI 통합 검증
-echo  설치 + 검증 + 설치 증거 수집
-echo ============================================================
-echo.
-echo 이 한 번 실행으로 아래가 순서대로 진행됩니다:
-echo  1. 설치 - install-gongmu-ai.ps1
-echo  2. 검증 - validate-gongmu-ai.ps1
-echo  3. 증거 수집 - collect-clean-account-evidence.ps1
-echo.
-echo 안내:
-echo  - Python, Ollama, Gemma 모델을 먼저 설치하고, 공무원 앱은 맨 마지막에 설치됩니다.
-echo  - Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요.
-echo  - 이 명령창은 닫지 마세요.
-echo  - Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다.
-echo  - 마지막의 공무원 설치 마법사를 완료하면 앱이 바로 사용 가능한 상태로 열립니다.
-echo.
-echo 진행이 멈춘 것처럼 보이면, Ollama 설치 창이나 공무원 설치 창이
-echo 다른 창 뒤에 숨어 있는지 확인하세요.
-echo.
-echo 로그:
-echo  - install-gongmu-ai.log
-echo  - validate-gongmu-ai.log
-echo  - evidence\\ai-pack-clean-account-evidence.md
+echo Gongmu Local AI Full Validation: install + validate + evidence.
+echo Korean guidance will appear in the installer window. Keep this window open.
 echo.
 if "%GONGMU_AI_PACK_DRY_RUN%"=="1" (
   echo Dry run mode: launcher syntax is OK.
@@ -1521,11 +1502,9 @@ if "%EXIT_CODE%"=="0" if not "%EVIDENCE_EXIT%"=="0" set "EXIT_CODE=%EVIDENCE_EXI
 
 echo.
 if not "%EXIT_CODE%"=="0" (
-  echo 통합 검증에서 실패한 항목이 있습니다. 오류 코드: %EXIT_CODE%
-  echo install-gongmu-ai.log, validate-gongmu-ai.log, evidence\\ai-pack-clean-account-evidence.md 를 확인하세요.
+  echo Full validation has failing items. Exit code: %EXIT_CODE% - see install-gongmu-ai.log, validate-gongmu-ai.log, evidence\\ai-pack-clean-account-evidence.md
 ) else (
-  echo 통합 검증이 완료되었습니다.
-  echo evidence\\ai-pack-clean-account-evidence.json 파일을 개발 담당자에게 전달하세요.
+  echo Full validation completed. Send evidence\\ai-pack-clean-account-evidence.json to the dev team.
 )
 echo.
 pause
