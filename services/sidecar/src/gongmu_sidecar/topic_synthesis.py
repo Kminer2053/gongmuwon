@@ -24,6 +24,8 @@ from pydantic import BaseModel, Field, ValidationError
 
 # 종합 대상 최소 문서 수 — 싱글턴 주제는 종합을 생략하고 문서 카드 링크만 둔다.
 SYNTHESIS_MIN_DOCS = 2
+# '핵심 내용' 소주제 최소 개수 — 미달(얇은 종합)이면 1회 재생성을 시도한다.
+MIN_KEY_POINTS = 2
 # 입력 압축 예산: 최대 8건 × 발췌 500자, 발췌 총량 2.5k자.
 MAX_INPUT_DOCS = 8
 DOC_EXCERPT_CHARS = 500
@@ -108,7 +110,8 @@ def build_synthesis_messages(topic: str, sources: list[dict[str, Any]]) -> list[
         '  "related_topics": ["연관 주제"]\n'
         "}\n"
         "규칙: evidence는 아래 근거 번호만 사용. 근거에 없는 사실·날짜는 만들지 말 것. "
-        "timeline은 날짜를 아는 항목만. key_points는 1~4개, doc_points는 문서당 1줄.\n\n"
+        "timeline은 날짜를 아는 항목만. key_points는 반드시 소주제 2개 이상(2~4개)으로 "
+        "나눠 서술할 것. doc_points는 문서당 1줄.\n\n"
         "[근거 문서]\n" + "\n".join(evidence_lines)
     )
     return [
@@ -141,13 +144,60 @@ def _validation_hints(exc: ValidationError) -> str:
     return "; ".join(hints)
 
 
+def _is_thin(payload: dict[str, Any]) -> bool:
+    """얇은 종합 판정 — '핵심 내용' 소주제가 최소 개수(2) 미만."""
+    key_points = payload.get("key_points") or []
+    return len([point for point in key_points if isinstance(point, dict)]) < MIN_KEY_POINTS
+
+
+def _expand_thin_synthesis(
+    payload: dict[str, Any],
+    messages: list[dict[str, Any]],
+    raw: Any,
+    llm: Callable[[list[dict[str, Any]]], str | None],
+) -> dict[str, Any]:
+    """소주제 최소 2개 강제 — 얇으면 1회 재생성. 재생성도 얇거나 실패하면 원본 유지.
+
+    검증 통과분을 버리지 않는 것이 원칙: 재생성은 '더 나은 결과가 나오면 교체'다.
+    """
+    if not _is_thin(payload):
+        return payload
+    expand_messages = [
+        *messages,
+        {"role": "assistant", "text": str(raw or "")[:2000]},
+        {
+            "role": "user",
+            "text": (
+                "위 출력의 key_points(핵심 내용 소주제)가 2개 미만으로 부족합니다. "
+                "근거 발췌를 바탕으로 소주제를 2~4개로 나눠, 설명 없이 같은 스키마의 "
+                "JSON 하나만 다시 출력하세요."
+            ),
+        },
+    ]
+    try:
+        expanded_raw = llm(expand_messages)
+    except Exception:  # noqa: BLE001 - 재생성 실패는 원본 유지로 흡수
+        return payload
+    expanded = _extract_json_payload(expanded_raw)
+    if expanded is None:
+        return payload
+    try:
+        candidate = TopicSynthesis.model_validate(expanded).model_dump()
+    except ValidationError:
+        return payload
+    return payload if _is_thin(candidate) else candidate
+
+
 def synthesize_topic(
     *,
     topic: str,
     sources: list[dict[str, Any]],
     llm: Callable[[list[dict[str, Any]]], str | None],
 ) -> dict[str, Any] | None:
-    """주제 1건 종합 — 검증 실패 시 1회 repair, 그래도 실패면 None(조용히 링크 목록 유지)."""
+    """주제 1건 종합 — 검증 실패 시 1회 repair, 그래도 실패면 None(조용히 링크 목록 유지).
+
+    검증 통과분이 얇으면(핵심 내용 소주제 <2) 1회 재생성으로 확장을 시도한다.
+    """
     if len(sources) < SYNTHESIS_MIN_DOCS:
         return None
     messages = build_synthesis_messages(topic, sources)
@@ -159,9 +209,11 @@ def synthesize_topic(
     hint = "JSON 객체를 찾지 못했습니다"
     if payload is not None:
         try:
-            return TopicSynthesis.model_validate(payload).model_dump()
+            validated = TopicSynthesis.model_validate(payload).model_dump()
         except ValidationError as exc:
             hint = _validation_hints(exc)
+        else:
+            return _expand_thin_synthesis(validated, messages, raw, llm)
     # 1회 repair — 실패 원인을 한국어 힌트로 되돌려 재요청한다.
     repair_messages = [
         *messages,
@@ -182,9 +234,10 @@ def synthesize_topic(
     if repaired is None:
         return None
     try:
-        return TopicSynthesis.model_validate(repaired).model_dump()
+        validated = TopicSynthesis.model_validate(repaired).model_dump()
     except ValidationError:
         return None
+    return _expand_thin_synthesis(validated, repair_messages, repaired_raw, llm)
 
 
 # ------------------------------------------------------------------- 렌더

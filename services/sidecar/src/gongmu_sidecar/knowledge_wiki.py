@@ -348,8 +348,20 @@ class KnowledgeWikiManager:
         # P2a §5.3: dirty 업무 허브 재작성 훅 — WorkTaxonomyManager.refresh_hubs가
         # app.Services에서 주입된다(순환 의존 회피). 미주입 시 다음 apply가 수복한다.
         self.hub_refresher: Callable[[str, list[str]], Any] | None = None
+        # 주제 어휘집 §4: 보강 태깅 엔진 — app.Services가 공유 인스턴스를 주입한다.
+        # 미주입(단독 사용) 시 topic_vocab 프로퍼티가 지연 생성한다(순환 임포트 회피).
+        self.vocab: Any | None = None
         # P2b §5.5: 소프트 삭제 보관 기간(일) — 상수 기본 30, 인스턴스에서 조정 가능.
         self.missing_retention_days: int = MISSING_RETENTION_DAYS
+
+    @property
+    def topic_vocab(self) -> Any:
+        """주제 어휘집 엔진 — 미주입 시 지연 생성. 함수 내 임포트로 순환 의존을 끊는다."""
+        if self.vocab is None:
+            from .topic_vocab import TopicVocabManager
+
+            self.vocab = TopicVocabManager(self.paths, self.db)
+        return self.vocab
 
     # ------------------------------------------------------------------ jobs
 
@@ -3076,10 +3088,12 @@ class KnowledgeWikiManager:
         enriched_count = 0
         failed_count = 0
         canceled = False
-        # F-08 주제 정규화: 기존 주제 사전(정규화 키 → 대표 표기)과 상위 40개
-        # 재사용 힌트를 실행당 1회 준비한다 (Graphiti/Zep Entity Resolution 이식).
+        # 주제 어휘집 §4: 통제어휘 태깅 — 결정적 매칭 → (2개 미만이면) LLM 후보 선택.
+        # F-08 주제 정규화 사전은 유지하되, 어휘집 정식명(§4-4)이 레거시 변형 표기를
+        # 이기도록 덧입힌다 — 재보강이 돌수록 topics_json이 정식명으로 수렴한다.
+        vocab = self.topic_vocab
         canonical_topics = self._canonical_topic_map()
-        reuse_hint = self._topic_reuse_hint(canonical_topics)
+        canonical_topics.update(vocab.canonical_names())
         for index, doc in enumerate(docs):
             if should_cancel is not None and should_cancel():
                 canceled = True
@@ -3088,14 +3102,36 @@ class KnowledgeWikiManager:
                 card_text = Path(str(doc["card_path"])).read_text(encoding="utf-8", errors="replace")
             except OSError:
                 card_text = doc.get("norm_body") or ""
+            doc_title = str(doc.get("title") or "")
+            doc_file_name = Path(str(doc.get("source_path") or "")).name
+            doc_body = str(doc.get("norm_body") or "")
+            # §4-1 결정적 매칭(비용 0): 제목/파일명 히트×2 + 본문 1,500자 히트×1, 상위 3.
+            det_matches = vocab.match_document(
+                title=doc_title, file_name=doc_file_name, body=doc_body
+            )
+            det_names = [entry["name"] for entry in det_matches]
+            deterministic = len(det_names) >= 2
+            if deterministic:
+                # 주제는 결정적으로 확정 — LLM에는 요약만 요구한다.
+                topic_instruction = 'JSON 하나만 출력하세요: {"summary": "3~5문장 한국어 요약"}'
+                selection_hint = ""
+            else:
+                # §4-2 LLM 선택: 후보(부분 매칭 상위 + 빈도 상위, k≤30)에서만 고르게 한다.
+                candidates = vocab.candidate_topics(
+                    title=doc_title, file_name=doc_file_name, body=doc_body
+                )
+                topic_instruction = (
+                    'JSON 하나만 출력하세요: {"summary": "3~5문장 한국어 요약", '
+                    '"topics": ["주제1", "주제2"]} (주제는 1~3개).'
+                )
+                selection_hint = vocab.selection_hint(candidates)
             messages = [
                 {
                     "role": "system",
                     "text": (
                         "당신은 공공기관 문서 사서입니다. 아래 문서 카드를 읽고 "
-                        'JSON 하나만 출력하세요: {"summary": "3~5문장 한국어 요약", '
-                        '"topics": ["주제1", "주제2"]} (주제는 1~3개).'
-                        + reuse_hint
+                        + topic_instruction
+                        + selection_hint
                     ),
                 },
                 {"role": "user", "text": str(card_text)[:6000]},
@@ -3123,8 +3159,21 @@ class KnowledgeWikiManager:
                     ),
                 )
                 continue
-            summary, topics = parsed
-            # F-08: 저장 전 정규화 — 키가 같으면 기존 표기로 통일하고 중복을 접는다.
+            summary, raw_topics = parsed
+            old_topics = self._json_list(doc.get("topics_json"))
+            if deterministic:
+                topics = det_names[:3]
+            else:
+                # §4-3: 선택분만 저장, NEW 제안(창작 금지 위반 포함)은 후보 큐로.
+                selected, proposals = vocab.resolve_selection(raw_topics)
+                for proposal in proposals:
+                    vocab.enqueue_candidate(proposal, doc=doc)
+                topics = list(dict.fromkeys([*det_names, *selected]))[:3]
+            # §7 마이그레이션: 기존 자유 주제 중 어휘집 미포함분은 재보강 시 후보 큐로.
+            for legacy_topic in old_topics:
+                if not vocab.contains(legacy_topic):
+                    vocab.enqueue_candidate(legacy_topic, doc=doc)
+            # F-08: 저장 전 정규화 — 키가 같으면 정식명/기존 표기로 통일하고 중복을 접는다.
             topics = self._canonicalize_topics(topics, canonical_topics)
             refreshed_card = self._rewrite_enriched_card(doc, summary, topics)
             if refreshed_card is None:
@@ -3150,7 +3199,6 @@ class KnowledgeWikiManager:
                 )
             # F-09 증분 dirty: 이 문서의 요약/주제 변경이 영향을 주는 주제(구·신 합집합)만
             # 재종합 대상으로 마킹한다 — 전량 재생성 금지 (Mem0/Letta 증분 증류 이식).
-            old_topics = self._json_list(doc.get("topics_json"))
             self.mark_topics_dirty(set(old_topics) | set(topics))
             enriched_count += 1
             if progress_cb is not None:
@@ -3161,6 +3209,18 @@ class KnowledgeWikiManager:
         if not canceled:
             synthesis = self.synthesize_dirty_topics(llm=llm, should_cancel=should_cancel)
             canceled = canceled or bool(synthesis.pop("canceled", False))
+            # 종합 실패분 1회 재시도 — 실패 주제는 dirty가 유지되므로 같은 호출로 재수행된다.
+            # (경량모델의 간헐 JSON 실패를 잡 안에서 한 번 더 흡수; 재실패는 다음 보강으로.)
+            if not canceled and int(synthesis.get("synthesis_failed_count") or 0) > 0:
+                retry = self.synthesize_dirty_topics(llm=llm, should_cancel=should_cancel)
+                canceled = canceled or bool(retry.pop("canceled", False))
+                synthesis = {
+                    "synthesized_count": int(synthesis.get("synthesized_count") or 0)
+                    + int(retry.get("synthesized_count") or 0),
+                    "synthesis_failed_count": int(retry.get("synthesis_failed_count") or 0),
+                    "synthesis_skipped_count": int(synthesis.get("synthesis_skipped_count") or 0)
+                    + int(retry.get("synthesis_skipped_count") or 0),
+                }
         self._write_topic_pages()
         self.rebuild_index()
         status = "canceled" if canceled else ("completed" if failed_count == 0 else "partial")
@@ -3176,11 +3236,13 @@ class KnowledgeWikiManager:
                 f"SELECT COUNT(*) AS count FROM knowledge_wiki_docs WHERE {target_where}"
             )
         remaining_count = int((remaining_row or {}).get("count") or 0)
+        pending_candidates = vocab.pending_candidate_count()
         self._append_log_line(
             f"enrich status={status} enriched={enriched_count} failed={failed_count} "
             f"total={len(docs)} limit={safe_limit} remaining={remaining_count} "
             f"synthesized={synthesis.get('synthesized_count', 0)} "
-            f"synthesis_failed={synthesis.get('synthesis_failed_count', 0)}"
+            f"synthesis_failed={synthesis.get('synthesis_failed_count', 0)} "
+            f"vocab_candidates_pending={pending_candidates}"
         )
         return {
             "status": status,
@@ -3192,6 +3254,8 @@ class KnowledgeWikiManager:
             # F-09: 주제 백과사전 종합 집계 (실패는 dirty 유지 → 다음 보강 재시도).
             "synthesized_count": int(synthesis.get("synthesized_count") or 0),
             "synthesis_failed_count": int(synthesis.get("synthesis_failed_count") or 0),
+            # 주제 어휘집 §6: 사용자 결정 대기 후보 수 — 대시보드 배지 근거.
+            "vocab_candidates_pending": pending_candidates,
         }
 
     def _parse_enrichment(self, raw: Any) -> tuple[str, list[str]] | None:
@@ -3276,28 +3340,6 @@ class KnowledgeWikiManager:
         return {
             key: counts.most_common(1)[0][0] for key, counts in label_counts.items()
         }
-
-    def _topic_reuse_hint(self, canonical_topics: dict[str, str], *, limit: int = 40) -> str:
-        """보강 프롬프트에 붙일 기존 주제 상위 N(빈도순) 재사용 유도 문구 (F-08)."""
-        counts: Counter[str] = Counter()
-        for doc in self.db.fetch_all(
-            "SELECT topics_json FROM knowledge_wiki_docs WHERE status != ?", ("missing",)
-        ):
-            for topic in self._json_list(doc.get("topics_json")):
-                key = normalize_topic_key(topic)
-                if key:
-                    counts[key] += 1
-        top_labels = [
-            canonical_topics[key]
-            for key, _count in counts.most_common(limit)
-            if key in canonical_topics
-        ]
-        if not top_labels:
-            return ""
-        return (
-            "\n기존 주제 목록(가능하면 아래 주제를 그대로 재사용하고, "
-            "새 주제는 꼭 필요할 때만 만드세요): " + ", ".join(top_labels)
-        )
 
     def _canonicalize_topics(
         self, topics: list[str], canonical_topics: dict[str, str]
@@ -4819,6 +4861,10 @@ class KnowledgeWikiManager:
             "SELECT COUNT(*) AS count FROM knowledge_wiki_docs "
             "WHERE (enriched = 0 OR summary_stale = 1) AND enrich_skip = 0 AND status != 'missing'"
         )
+        # 주제 어휘집 §6: 결정 대기 후보 수 — 대시보드 "주제 후보 대기 n건" 배지 계약.
+        vocab_pending_row = self.db.fetch_one(
+            "SELECT COUNT(*) AS count FROM vocab_candidates WHERE status = 'pending'"
+        )
         return {
             "engine": self.ENGINE,
             "fts5": {"ok": fts5_ok, "tokenizer": "trigram"},
@@ -4828,6 +4874,7 @@ class KnowledgeWikiManager:
                 "pending_count": int((pending_row or {}).get("count") or 0),
                 "enriched_count": int((enriched_row or {}).get("count") or 0),
                 "total_count": int((total_row or {}).get("count") or 0),
+                "vocab_candidates_pending": int((vocab_pending_row or {}).get("count") or 0),
             },
             "backends": [wiki_backend, fts_backend],
             # 데스크톱 렌더 호환 필드 (UI 개편 전까지 유지)

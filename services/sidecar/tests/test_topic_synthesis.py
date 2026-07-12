@@ -57,12 +57,18 @@ def _make_budget_source(tmp_path: Path) -> Path:
 SYNTHESIS_PAYLOAD = {
     "definition": "예산 편성은 연간 예산을 계획·확정하는 업무이다.",
     "overview": "예산 편성은 부서 예산 요구를 취합해 연간 계획을 확정하는 업무다. 지침과 심의 결과 문서가 절차와 결정을 담고 있다.",
+    # 핵심 내용 소주제는 최소 2개(얇은 종합 재생성 규칙과 정합).
     "key_points": [
         {
             "subtopic": "편성 절차",
             "narrative": "요구 취합 후 심의를 거쳐 확정한다.",
             "evidence": [1, 2],
-        }
+        },
+        {
+            "subtopic": "심의 결정",
+            "narrative": "심의 회의에서 조정·확정 결과를 기록한다.",
+            "evidence": [2],
+        },
     ],
     "timeline": [{"date": "2026-01-13", "event": "예산 심의 회의", "evidence": [2]}],
     "doc_points": [{"title": "예산 편성 지침", "point": "편성 기준을 규정한다.", "evidence": [1]}],
@@ -164,11 +170,11 @@ def test_ingest_uses_filename_when_body_title_is_low_quality(tmp_path: Path) -> 
 
 
 # ---------------------------------------------------------------------------
-# F-08 보강 시 주제 재사용·저장 전 병합
+# F-08 보강 시 주제 정규화 — 어휘집 정식명 수렴 (§4-4)
 # ---------------------------------------------------------------------------
 
 
-def test_enrich_normalizes_topic_variants_into_one_topic(tmp_path: Path) -> None:
+def test_enrich_normalizes_topic_variants_into_vocab_canonical_name(tmp_path: Path) -> None:
     source = _make_budget_source(tmp_path)
     client = _client(tmp_path)
     _register_scan_ingest(client, source)
@@ -193,39 +199,36 @@ def test_enrich_normalizes_topic_variants_into_one_topic(tmp_path: Path) -> None
         for doc in client.app.state.services.db.fetch_all("SELECT topics_json FROM knowledge_wiki_docs")
         for topic in json.loads(doc["topics_json"])
     }
-    assert topics == {"예산 편성"}, "정규화 키가 같은 변형 표기는 기존 표기로 병합되어야 한다"
-    topic_pages = list((tmp_path / "knowledge-wiki" / "topics").glob("*.md"))
-    assert [page.name for page in topic_pages] == ["예산-편성.md"]
+    assert "예산편성" in topics, "변형 표기는 어휘집 정식명 '예산편성'으로 수렴해야 한다"
+    assert not topics & {"예산 편성", "예산편성의"}, "동의어/변형 표기가 그대로 저장되면 안 된다"
+    topic_pages = {page.name for page in (tmp_path / "knowledge-wiki" / "topics").glob("*.md")}
+    assert "예산편성.md" in topic_pages
 
 
-def test_enrich_prompt_offers_existing_topics_for_reuse(tmp_path: Path) -> None:
+def test_enrich_prompt_offers_vocab_candidates_for_selection(tmp_path: Path) -> None:
     source = _make_budget_source(tmp_path)
     client = _client(tmp_path)
     _register_scan_ingest(client, source)
     services = client.app.state.services
     wiki = services.wiki
 
-    wiki.enrich(llm=_dispatching_llm())
-
-    # 두 번째 실행: 문서 하나를 재보강 대상으로 되돌리고 프롬프트를 캡처한다.
-    doc = services.db.fetch_all("SELECT id FROM knowledge_wiki_docs")[0]
-    services.db.execute(
-        "UPDATE knowledge_wiki_docs SET enriched = 0, summary_stale = 1 WHERE id = ?",
-        (doc["id"],),
-    )
     captured: list[str] = []
 
     def capturing_llm(messages):
         system_text = str(messages[0]["text"])
         if "백과사전" not in system_text:
             captured.append(system_text)
-        return json.dumps({"summary": "요약. 요약. 요약.", "topics": ["예산 편성"]}, ensure_ascii=False)
+        return json.dumps({"summary": "요약. 요약. 요약.", "topics": ["예산편성"]}, ensure_ascii=False)
 
     wiki.enrich(llm=capturing_llm)
 
     assert captured, "보강 프롬프트가 호출되어야 한다"
-    assert "기존 주제 목록" in captured[0]
-    assert "예산 편성" in captured[0]
+    # 결정적 매칭 2개 미만 문서는 어휘집 후보 목록에서만 고르게 한다 (§4-2).
+    joined = "\n".join(captured)
+    assert "[주제 후보]" in joined
+    assert "예산편성" in joined
+    assert "창작" in joined, "창작 금지가 명시되어야 한다"
+    assert "NEW:" in joined, "NEW: 제안 규칙이 안내되어야 한다"
 
 
 # ---------------------------------------------------------------------------
@@ -244,7 +247,7 @@ def test_enrich_synthesizes_encyclopedia_skeleton_for_multi_doc_topic(tmp_path: 
 
     assert result["status"] == "completed"
     assert result["synthesized_count"] == 1
-    page_path = tmp_path / "knowledge-wiki" / "topics" / "예산-편성.md"
+    page_path = tmp_path / "knowledge-wiki" / "topics" / "예산편성.md"
     text = page_path.read_text(encoding="utf-8")
     assert "synthesized: true" in text
     assert "synthesized_at:" in text
@@ -277,8 +280,8 @@ def test_synthesis_failure_keeps_link_list_and_dirty_for_retry(tmp_path: Path) -
 
     assert result["status"] == "completed", "종합 실패는 잡 실패로 승격되면 안 된다"
     assert result["synthesized_count"] == 0
-    assert result["synthesis_failed_count"] == 1
-    text = (tmp_path / "knowledge-wiki" / "topics" / "예산-편성.md").read_text(encoding="utf-8")
+    assert result["synthesis_failed_count"] == 1, "잡 내 1회 재시도 후에도 실패분은 1건으로 집계된다"
+    text = (tmp_path / "knowledge-wiki" / "topics" / "예산편성.md").read_text(encoding="utf-8")
     assert "synthesized: false" in text
     assert "## 관련 문서" in text
     assert "## 개요" not in text
@@ -300,15 +303,16 @@ def test_singleton_topic_skips_synthesis_quietly(tmp_path: Path) -> None:
         if "백과사전" in str(messages[0]["text"]):
             synthesis_calls.append(1)
             return json.dumps(SYNTHESIS_PAYLOAD, ensure_ascii=False)
-        return json.dumps({"summary": "요약. 요약. 요약.", "topics": ["단일주제"]}, ensure_ascii=False)
+        # 어휘집 후보에서 선택된 정식명(회의운영)만 저장된다 (§4).
+        return json.dumps({"summary": "요약. 요약. 요약.", "topics": ["회의운영"]}, ensure_ascii=False)
 
     result = services.wiki.enrich(llm=llm)
 
     assert not synthesis_calls, "문서 1건 주제는 LLM 종합을 호출하지 않아야 한다"
     assert result["synthesized_count"] == 0
-    row = services.db.fetch_one("SELECT * FROM topic_synthesis WHERE topic_key = ?", ("단일주제",))
+    row = services.db.fetch_one("SELECT * FROM topic_synthesis WHERE topic_key = ?", ("회의운영",))
     assert row is not None and row["dirty"] == 0 and row["payload_json"] == ""
-    text = (tmp_path / "knowledge-wiki" / "topics" / "단일주제.md").read_text(encoding="utf-8")
+    text = (tmp_path / "knowledge-wiki" / "topics" / "회의운영.md").read_text(encoding="utf-8")
     assert "## 관련 문서" in text
 
 
@@ -396,6 +400,52 @@ def test_synthesize_topic_repairs_once_then_gives_up() -> None:
         return "JSON 없음"
 
     assert synthesize_topic(topic="예산", sources=sources, llm=always_bad) is None
+
+
+def test_thin_synthesis_regenerates_once_to_reach_two_key_points() -> None:
+    # 소주제 1개(얇은 종합) → 1회 재생성으로 2개 이상 확보.
+    thin = {**SYNTHESIS_PAYLOAD, "key_points": SYNTHESIS_PAYLOAD["key_points"][:1]}
+    responses = iter(
+        [json.dumps(thin, ensure_ascii=False), json.dumps(SYNTHESIS_PAYLOAD, ensure_ascii=False)]
+    )
+    calls = {"count": 0}
+
+    def llm(messages):
+        calls["count"] += 1
+        return next(responses)
+
+    sources = [
+        {"index": 1, "title": "지침", "slug": "s1", "date": "", "source_name": "a.md", "excerpt": "본문"},
+        {"index": 2, "title": "결과", "slug": "s2", "date": "", "source_name": "b.md", "excerpt": "본문"},
+    ]
+    payload = synthesize_topic(topic="예산", sources=sources, llm=llm)
+    assert payload is not None
+    assert len(payload["key_points"]) >= 2, "얇은 종합은 1회 재생성으로 소주제 2개 이상이 되어야 한다"
+    assert calls["count"] == 2, "재생성은 정확히 1회만"
+
+
+def test_thin_synthesis_keeps_valid_original_when_regen_stays_thin() -> None:
+    thin = {**SYNTHESIS_PAYLOAD, "key_points": SYNTHESIS_PAYLOAD["key_points"][:1]}
+
+    def llm(messages):
+        return json.dumps(thin, ensure_ascii=False)
+
+    sources = [
+        {"index": 1, "title": "지침", "slug": "s1", "date": "", "source_name": "a.md", "excerpt": "본문"},
+        {"index": 2, "title": "결과", "slug": "s2", "date": "", "source_name": "b.md", "excerpt": "본문"},
+    ]
+    payload = synthesize_topic(topic="예산", sources=sources, llm=llm)
+    assert payload is not None, "재생성이 계속 얇아도 검증 통과 원본은 버리지 않는다"
+    assert len(payload["key_points"]) == 1
+
+
+def test_synthesis_prompt_requires_minimum_two_key_points() -> None:
+    sources = [
+        {"index": 1, "title": "지침", "slug": "s1", "date": "", "source_name": "a.md", "excerpt": "본문"},
+        {"index": 2, "title": "결과", "slug": "s2", "date": "", "source_name": "b.md", "excerpt": "본문"},
+    ]
+    system_text = build_synthesis_messages("예산", sources)[0]["text"]
+    assert "2개 이상" in system_text, "프롬프트가 핵심 내용 소주제 최소 2개를 강제해야 한다"
 
 
 # ---------------------------------------------------------------------------

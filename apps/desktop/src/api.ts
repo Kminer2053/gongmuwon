@@ -510,6 +510,8 @@ export type KnowledgeBackendStatus = {
     /** Wave D F-11: 커버리지 "요약 보유 n/전체" — 구버전 서버 응답에는 없다. */
     enriched_count?: number;
     total_count?: number;
+    /** 주제 어휘집 규격 §6: 승인 대기 중인 주제 후보 수 — 구버전 서버 응답에는 없다. */
+    vocab_candidates_pending?: number;
   };
   backends?: KnowledgeBackendEntry[];
   vector?: {
@@ -2497,6 +2499,115 @@ export async function resolveTaxonomyQueueItem(
         work_area_slug: payload.work_area_slug ?? "",
         doc_role: payload.doc_role ?? "",
       }),
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 주제 어휘집 팩(Topic Vocabulary Pack) — 규격서 2026-07-12 §5(기관팩)·§6(후보 큐)
+// ---------------------------------------------------------------------------
+
+/** §5: 현재 적용 중인 L2 기관팩 요약(이름·버전·주제 수). 미적용이면 null. */
+export type KnowledgeVocabInstitutionPack = {
+  name: string;
+  version: string;
+  topics: number;
+};
+
+/** §5: 결합 어휘집의 주제 한 건 — 후보 병합 대상 선택 셀렉트에 쓴다. */
+export type KnowledgeVocabTopicItem = {
+  id: string;
+  name: string;
+  layer: "common" | "institution" | "user" | string;
+  synonyms_count: number;
+  enabled: boolean;
+};
+
+/** GET /api/knowledge/vocab 응답 — 층별 요약 + 결합 주제 목록. */
+export type KnowledgeVocabSummary = {
+  layers: {
+    common: number;
+    institution: KnowledgeVocabInstitutionPack | null;
+    user: number;
+  };
+  topics: KnowledgeVocabTopicItem[];
+};
+
+/** POST /api/knowledge/vocab/pack 본문 — 파일 경로 또는 팩 객체 직접 전달. */
+export type KnowledgeVocabPackImportPayload =
+  | { path: string }
+  | { content: Record<string, unknown> };
+
+/**
+ * POST /api/knowledge/vocab/pack 응답. 검증 오류 시 저장하지 않고
+ * 오류 목록 전체를 반환한다(부분 임포트 금지 — 규격 §5).
+ */
+export type KnowledgeVocabPackImportResult = {
+  ok: boolean;
+  imported?: KnowledgeVocabInstitutionPack | null;
+  errors: string[];
+  warnings: string[];
+};
+
+/** §6: 후보 큐 한 건 — 보강 중 LLM `NEW:` 제안이 쌓인다. */
+export type KnowledgeVocabCandidateItem = {
+  id: string;
+  name: string;
+  norm_key?: string;
+  hit_count: number;
+  /** 표본 문서(최대 5) — 서버 직렬화 형태(문자열/객체)를 모두 허용한다. */
+  sample_docs?: Array<string | { title?: string | null; file_path?: string | null }>;
+  status: "pending" | "approved" | "rejected" | "merged" | string;
+  merged_into_id?: string | null;
+  first_seen_at?: string;
+  decided_at?: string | null;
+};
+
+/** POST /api/knowledge/vocab/candidates/{id}/decision 본문 — 규격 §6. */
+export type KnowledgeVocabCandidateDecisionPayload = {
+  action: "approve" | "reject" | "merge";
+  merge_into_id?: string;
+  name_override?: string;
+  synonyms?: string[];
+};
+
+/** 현재 어휘집 요약(적용 팩·층별 주제 수·결합 주제 목록)을 조회한다. */
+export async function fetchVocabSummary() {
+  return requestJson<KnowledgeVocabSummary>("/api/knowledge/vocab");
+}
+
+/** L2 기관팩을 임포트한다 — 검증 실패 시 ok:false + errors 전체 목록(부분 임포트 없음). */
+export async function importVocabPack(payload: KnowledgeVocabPackImportPayload) {
+  return requestJson<KnowledgeVocabPackImportResult>("/api/knowledge/vocab/pack", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** L2 기관팩을 제거한다(문서 주제는 유지, 이후 태깅에만 반영 — 규격 §5). */
+export async function removeVocabPack() {
+  return requestJson<{ ok?: boolean; removed?: boolean }>("/api/knowledge/vocab/pack", {
+    method: "DELETE",
+  });
+}
+
+/** 주제 후보 큐를 조회한다(기본 pending — 규격 §6). */
+export async function fetchVocabCandidates(status = "pending") {
+  return requestJson<{ items: KnowledgeVocabCandidateItem[] }>(
+    `/api/knowledge/vocab/candidates?status=${encodeURIComponent(status)}`,
+  );
+}
+
+/** 주제 후보를 승인/거절/병합 처리한다 — 규격 §6. */
+export async function decideVocabCandidate(
+  candidateId: string,
+  payload: KnowledgeVocabCandidateDecisionPayload,
+) {
+  return requestJson<{ ok?: boolean; item?: KnowledgeVocabCandidateItem }>(
+    `/api/knowledge/vocab/candidates/${encodeURIComponent(candidateId)}/decision`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
     },
   );
 }

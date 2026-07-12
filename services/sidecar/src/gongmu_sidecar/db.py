@@ -384,6 +384,37 @@ CREATE TABLE IF NOT EXISTS topic_synthesis (
     updated_at TEXT NOT NULL DEFAULT ''
 );
 
+-- 주제 어휘집 §6: L3 후보 큐 — 보강 중 LLM `NEW:` 제안·기존 자유 주제의 어휘집 미포함분을
+-- norm_key(normalize_topic_key) 단위로 접어 적재한다. 동일 키 재등장 시 hit_count++.
+-- status: pending | approved | rejected | merged (merged면 merged_into_id에 대상 주제 id).
+CREATE TABLE IF NOT EXISTS vocab_candidates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    norm_key TEXT NOT NULL UNIQUE,
+    hit_count INTEGER NOT NULL DEFAULT 1,
+    sample_docs_json TEXT NOT NULL DEFAULT '[]',
+    status TEXT NOT NULL DEFAULT 'pending',
+    merged_into_id TEXT,
+    first_seen_at TEXT NOT NULL,
+    decided_at TEXT
+);
+
+-- 주제 어휘집 §1/§6: L3 승인 확장의 정본. <workspace>/vocab/user-approved.json은 미러(이식성).
+-- name이 ''이면 synonym-only 오버라이드(병합 승인) — 하위 층 name/scope_note를 유지한 채
+-- synonyms만 합집합에 기여한다 (§3-1).
+CREATE TABLE IF NOT EXISTS vocab_user_topics (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL DEFAULT '',
+    synonyms_json TEXT NOT NULL DEFAULT '[]',
+    broader TEXT,
+    scope_note TEXT NOT NULL DEFAULT '',
+    work_area_hint TEXT NOT NULL DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    source_candidate_id TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT ''
+);
+
 -- W7 P3 §6: 무결성 점검(verify) 리포트 — 실행당 1행 (상세는 logs/knowledge-verify/*.jsonl)
 CREATE TABLE IF NOT EXISTS knowledge_verify_reports (
     id TEXT PRIMARY KEY,

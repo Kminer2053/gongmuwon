@@ -9,6 +9,11 @@ import {
   fetchTaxonomyQuality,
   fetchTaxonomyQueue,
   fetchTaxonomyStatus,
+  decideVocabCandidate,
+  fetchVocabCandidates,
+  fetchVocabSummary,
+  importVocabPack,
+  removeVocabPack,
   createWorkSession,
   fetchWikiPage,
   fetchKnowledgeVerifyLatest,
@@ -34,6 +39,11 @@ import {
   type KnowledgeSourceScanResult,
   type KnowledgeVerifyCheckItem,
   type KnowledgeVerifyLatestResult,
+  type KnowledgeVocabCandidateDecisionPayload,
+  type KnowledgeVocabCandidateItem,
+  type KnowledgeVocabPackImportResult,
+  type KnowledgeVocabSummary,
+  type KnowledgeVocabTopicItem,
   type LocalFileSearchResult,
   type TaxonomyConfirmResult,
   type TaxonomyProposalResult,
@@ -839,6 +849,8 @@ type TaxonomyWizardProps = {
   runSourceScan: (source: KnowledgeSourceItem) => Promise<KnowledgeSourceScanResult | null>;
   /** W7: 이 소스에서 색인 완료된 문서 수 — 0이면 적용 시 색인이 먼저 실행됨을 안내한다. */
   indexedDocumentCount: number;
+  /** 어휘집 규격 §5: 1단계 하단 축약 팩 블록에서 팩이 바뀌면 호출 — 설정 탭 블록 갱신용. */
+  onVocabChanged?: () => void;
 };
 
 /**
@@ -854,6 +866,7 @@ function TaxonomyWizard({
   onOpenSchema,
   runSourceScan,
   indexedDocumentCount,
+  onVocabChanged,
 }: TaxonomyWizardProps) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [orgType, setOrgType] = useState<string>(TAXONOMY_ORG_TYPES[0]);
@@ -1231,6 +1244,8 @@ function TaxonomyWizard({
                   다음
                 </button>
               </div>
+              {/* 어휘집 규격 §5: 분류체계 설정 시 기관 어휘집 팩을 함께 입력하는 축약 블록 */}
+              <VocabPackBlock variant="compact" pushToast={pushToast} onChanged={onVocabChanged} />
             </div>
           )
         ) : null}
@@ -1748,6 +1763,406 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
   );
 }
 
+// ---------------------------------------------------------------------------
+// 주제 어휘집 팩 규격(2026-07-12) §5 기관팩 임포트 + §6 후보 큐 승인
+// ---------------------------------------------------------------------------
+
+/** §6: 표본 문서 항목(문자열/객체 혼용 허용)을 표시용 짧은 라벨로 바꾼다. */
+function vocabSampleDocLabel(
+  doc: string | { title?: string | null; file_path?: string | null },
+): string {
+  if (typeof doc === "string") {
+    return relativePath(doc);
+  }
+  if (doc.title && doc.title.trim()) {
+    return doc.title;
+  }
+  return doc.file_path ? relativePath(doc.file_path) : "";
+}
+
+type VocabPackBlockProps = {
+  /** full: 설정 탭 위키 구성 카드용(층 요약·제거 버튼 포함) / compact: 마법사 1단계 하단 축약형. */
+  variant: "full" | "compact";
+  pushToast: TaxonomyToastPush;
+  /** 다른 블록(마법사 축약형 등)에서 팩이 바뀌면 증가 — 요약을 다시 조회한다. */
+  refreshKey?: number;
+  /** 임포트/제거 성공 시 호출 — 상위가 형제 블록·후보 섹션을 갱신하는 데 쓴다. */
+  onChanged?: () => void;
+};
+
+/**
+ * §5 "기관 어휘집 팩" 블록 — 현재 적용 팩 정보(GET /api/knowledge/vocab) 표시,
+ * 파일 경로 임포트(POST /pack), 제거(DELETE /pack). 검증 실패 시 저장하지 않고
+ * 서버가 돌려준 오류 목록 전체를 그대로 렌더한다(부분 임포트 금지).
+ */
+function VocabPackBlock({ variant, pushToast, refreshKey = 0, onChanged }: VocabPackBlockProps) {
+  const [summary, setSummary] = useState<KnowledgeVocabSummary | null>(null);
+  const [packPath, setPackPath] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [importResult, setImportResult] = useState<KnowledgeVocabPackImportResult | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
+
+  async function refreshSummary() {
+    try {
+      setSummary(await fetchVocabSummary());
+    } catch {
+      // 구버전 서버/백엔드 미기동 — 요약 없이 "미적용"으로 표시한다.
+      setSummary(null);
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const result = await fetchVocabSummary();
+        if (active) {
+          setSummary(result);
+        }
+      } catch {
+        if (active) {
+          setSummary(null);
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [refreshKey]);
+
+  const institution = summary?.layers.institution ?? null;
+  const isCompact = variant === "compact";
+
+  async function runImport() {
+    const path = packPath.trim();
+    if (!path) {
+      return;
+    }
+    setImporting(true);
+    setRequestError(null);
+    setImportResult(null);
+    try {
+      const result = await importVocabPack({ path });
+      setImportResult(result);
+      if (result.ok) {
+        const imported = result.imported;
+        pushToast(
+          "info",
+          imported
+            ? `기관 어휘집 팩을 적용했습니다 — ${imported.name} v${imported.version} · 주제 ${imported.topics}개`
+            : "기관 어휘집 팩을 적용했습니다.",
+        );
+        setPackPath("");
+        await refreshSummary();
+        onChanged?.();
+      } else {
+        pushToast("error", "어휘집 팩 검증에 실패했습니다. 오류 목록을 확인해 주세요.");
+      }
+    } catch (importError) {
+      const message =
+        importError instanceof Error ? importError.message : "어휘집 팩을 불러오지 못했습니다.";
+      setRequestError(message);
+      pushToast("error", message);
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function runRemove() {
+    setRemoving(true);
+    setRequestError(null);
+    setImportResult(null);
+    try {
+      await removeVocabPack();
+      pushToast("info", "기관 어휘집 팩을 제거했습니다. 기존 문서 주제는 유지되고 이후 태깅에만 반영됩니다.");
+      await refreshSummary();
+      onChanged?.();
+    } catch (removeError) {
+      const message =
+        removeError instanceof Error ? removeError.message : "어휘집 팩을 제거하지 못했습니다.";
+      setRequestError(message);
+      pushToast("error", message);
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <div
+      className="knowledge-settings-subgroup"
+      data-testid={isCompact ? "knowledge-vocab-pack-compact" : "knowledge-vocab-pack"}
+    >
+      <div className="document-preview__meta">
+        <span className="pill">기관 어휘집 팩</span>
+        <span className="subtle-text">
+          {isCompact
+            ? "기관 어휘집 팩(.gongmu-vocab.json)이 있다면 지금 불러와 두세요(선택)."
+            : "기관 고유 업무 주제 어휘집(.gongmu-vocab.json)을 불러오면 주제 태깅이 통제어휘 기반으로 정돈됩니다."}
+        </span>
+      </div>
+      <div className="document-preview__meta" data-testid="knowledge-vocab-pack-status">
+        {institution ? (
+          <>
+            <span className="pill pill--soft">적용 중</span>
+            <span>
+              {institution.name} · v{institution.version} · 주제 {institution.topics}개
+            </span>
+          </>
+        ) : (
+          <span className="pill pill--soft">미적용</span>
+        )}
+        {!isCompact && summary ? (
+          <span className="subtle-text">
+            내장 공통 {summary.layers.common} · 승인 확장 {summary.layers.user}
+          </span>
+        ) : null}
+      </div>
+      <div className="taxonomy-area-add">
+        <label>
+          팩 파일 경로
+          <input
+            value={packPath}
+            onChange={(event) => setPackPath(event.target.value)}
+            placeholder="C:\Users\USER\Documents\기관어휘집.gongmu-vocab.json"
+          />
+        </label>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={() => void runImport()}
+          disabled={importing || !packPath.trim()}
+          title={
+            !packPath.trim()
+              ? "어휘집 팩 파일(.gongmu-vocab.json) 경로를 먼저 입력해 주세요."
+              : "입력한 경로의 어휘집 팩을 검증한 뒤 적용합니다."
+          }
+        >
+          {importing ? "불러오는 중…" : "팩 불러오기"}
+        </button>
+        {!isCompact && institution ? (
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => void runRemove()}
+            disabled={removing}
+            title="적용 중인 기관 어휘집 팩을 제거합니다. 이미 태깅된 문서 주제는 유지됩니다."
+          >
+            {removing ? "제거 중…" : "팩 제거"}
+          </button>
+        ) : null}
+      </div>
+      {requestError ? (
+        <div className="hint-box hint-box--warning" role="alert">
+          {requestError}
+        </div>
+      ) : null}
+      {importResult && !importResult.ok ? (
+        <div
+          className="hint-box hint-box--warning"
+          role="alert"
+          data-testid="knowledge-vocab-import-errors"
+        >
+          <p>팩을 저장하지 않았습니다 — 아래 오류를 모두 수정한 뒤 다시 불러와 주세요.</p>
+          <ul>
+            {(importResult.errors ?? []).map((error, index) => (
+              <li key={`${index}-${error.slice(0, 24)}`}>{error}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {importResult?.ok && importResult.imported ? (
+        <p className="subtle-text" data-testid="knowledge-vocab-import-result">
+          불러오기 완료 — {importResult.imported.name} v{importResult.imported.version} · 주제{" "}
+          {importResult.imported.topics}개
+        </p>
+      ) : null}
+      {importResult && (importResult.warnings ?? []).length > 0 ? (
+        <div className="hint-box" data-testid="knowledge-vocab-import-warnings">
+          {(importResult.warnings ?? []).map((warning) => (
+            <p key={warning} className="subtle-text">
+              {warning}
+            </p>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type VocabCandidateSectionProps = {
+  /** 팩 임포트/제거 시 증가 — 후보·병합 대상 주제 목록을 다시 조회한다. */
+  refreshKey: number;
+  pushToast: TaxonomyToastPush;
+};
+
+/**
+ * §6 "주제 어휘 후보" 섹션 — 색인·보강 중 LLM `NEW:` 제안이 쌓인 pending 후보를
+ * [승인]/[병합(기존 주제 선택)]/[거절]로 처리한다. 기존 '분류 대기 큐' 패턴 재사용.
+ * 후보 조회가 실패하면(구버전 서버/백엔드 미기동) 섹션 전체를 숨긴다.
+ */
+function VocabCandidateSection({ refreshKey, pushToast }: VocabCandidateSectionProps) {
+  const [candidates, setCandidates] = useState<KnowledgeVocabCandidateItem[] | null>(null);
+  const [topics, setTopics] = useState<KnowledgeVocabTopicItem[]>([]);
+  const [mergeTargets, setMergeTargets] = useState<Record<string, string>>({});
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const [candidatesResult, summaryResult] = await Promise.allSettled([
+        fetchVocabCandidates("pending"),
+        fetchVocabSummary(),
+      ]);
+      if (!active) {
+        return;
+      }
+      setCandidates(candidatesResult.status === "fulfilled" ? candidatesResult.value.items : null);
+      setTopics(
+        summaryResult.status === "fulfilled"
+          ? summaryResult.value.topics.filter((topic) => topic.enabled !== false)
+          : [],
+      );
+    })();
+    return () => {
+      active = false;
+    };
+  }, [refreshKey]);
+
+  async function decide(
+    item: KnowledgeVocabCandidateItem,
+    payload: KnowledgeVocabCandidateDecisionPayload,
+    successMessage: string,
+  ) {
+    setDecidingId(item.id);
+    try {
+      await decideVocabCandidate(item.id, payload);
+      setCandidates((current) => (current ?? []).filter((candidate) => candidate.id !== item.id));
+      pushToast("info", successMessage);
+    } catch (decideError) {
+      pushToast(
+        "error",
+        decideError instanceof Error ? decideError.message : "주제 후보 처리에 실패했습니다.",
+      );
+    } finally {
+      setDecidingId(null);
+    }
+  }
+
+  if (candidates === null) {
+    return null;
+  }
+
+  return (
+    <SectionCard eyebrow="주제 어휘" title="주제 어휘 후보" testId="knowledge-vocab-candidates">
+      <div className="helper-copy">
+        <p>
+          색인·요약 보강 중 어휘집에 없는 새 주제 제안이 여기에 모입니다. 승인하면 정식 주제로
+          어휘집에 편입되고, 병합하면 선택한 기존 주제의 동의어로 추가됩니다.
+        </p>
+      </div>
+      {candidates.length === 0 ? (
+        <EmptyState
+          title="대기 중인 주제 후보가 없습니다."
+          body="색인이나 LLM 요약 보강 중 새 주제가 제안되면 여기에 표시됩니다."
+        />
+      ) : (
+        <div className="item-list item-list--compact">
+          {candidates.map((item) => {
+            const mergeTarget = mergeTargets[item.id] ?? "";
+            const sampleLabels = (item.sample_docs ?? [])
+              .map(vocabSampleDocLabel)
+              .filter(Boolean);
+            const busy = decidingId === item.id;
+            return (
+              <article
+                key={item.id}
+                className="list-card list-card--compact"
+                data-testid="vocab-candidate-item"
+              >
+                <div className="list-card__main list-card__main--static">
+                  <div>
+                    <h3>{item.name}</h3>
+                    <p>
+                      등장 {item.hit_count}회
+                      {sampleLabels.length > 0 ? ` · 표본 문서: ${sampleLabels.join(", ")}` : ""}
+                    </p>
+                  </div>
+                  <span className="pill pill--soft">대기</span>
+                </div>
+                <div className="taxonomy-queue-controls">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void decide(
+                        item,
+                        { action: "approve" },
+                        `'${item.name}' 주제를 어휘집에 추가했습니다.`,
+                      )
+                    }
+                    disabled={busy}
+                    title="이 후보를 정식 주제로 어휘집에 편입합니다."
+                  >
+                    승인
+                  </button>
+                  <label>
+                    병합 대상
+                    <select
+                      aria-label={`${item.name} 병합 대상 선택`}
+                      value={mergeTarget}
+                      onChange={(event) =>
+                        setMergeTargets((current) => ({ ...current, [item.id]: event.target.value }))
+                      }
+                    >
+                      <option value="">기존 주제 선택</option>
+                      {topics.map((topic) => (
+                        <option key={topic.id} value={topic.id}>
+                          {topic.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => {
+                      const target = topics.find((topic) => topic.id === mergeTarget);
+                      void decide(
+                        item,
+                        { action: "merge", merge_into_id: mergeTarget },
+                        `'${item.name}'을(를) '${target?.name ?? mergeTarget}' 주제의 동의어로 병합했습니다.`,
+                      );
+                    }}
+                    disabled={busy || !mergeTarget}
+                    title={
+                      mergeTarget
+                        ? "이 후보명을 선택한 주제의 동의어로 추가합니다."
+                        : "병합할 기존 주제를 먼저 선택해 주세요."
+                    }
+                  >
+                    병합
+                  </button>
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() =>
+                      void decide(item, { action: "reject" }, `'${item.name}' 후보를 거절했습니다.`)
+                    }
+                    disabled={busy}
+                    title="이 후보를 어휘집에 추가하지 않습니다."
+                  >
+                    거절
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 export function KnowledgeScreen() {
   const {
     error,
@@ -1824,6 +2239,9 @@ export function KnowledgeScreen() {
   // T-01: 분류체계 마법사 열림 상태 + 큐/품질 재조회 트리거 (화면 로컬 상태)
   const [taxonomyWizardOpen, setTaxonomyWizardOpen] = useState(false);
   const [taxonomyRefreshKey, setTaxonomyRefreshKey] = useState(0);
+
+  // 어휘집 규격 §5·§6: 팩 임포트/제거 시 증가 — 팩 블록·후보 섹션이 요약을 다시 조회한다.
+  const [vocabRefreshKey, setVocabRefreshKey] = useState(0);
 
   // 대시보드 "위키 구성" 상태 카드 + 드리프트 배지(§5.9)용 — 확정 분류체계·품질(분류 대기 수)을 조회한다.
   // 드리프트 배지는 설정 탭 위키 구성 그룹에도 붙으므로 대시보드·설정 두 탭에서 갱신한다.
@@ -2625,6 +3043,11 @@ export function KnowledgeScreen() {
       typeof knowledgeBackendStatus?.llm_enrichment?.total_count === "number"
         ? knowledgeBackendStatus.llm_enrichment.total_count
         : null;
+    // 어휘집 규격 §6: 주제 후보 대기 n건 배지 — 서버가 필드를 내려주고 0보다 클 때만 표시.
+    const vocabCandidatesPending =
+      typeof knowledgeBackendStatus?.llm_enrichment?.vocab_candidates_pending === "number"
+        ? knowledgeBackendStatus.llm_enrichment.vocab_candidates_pending
+        : null;
     // P3 §6: 정합성 카드 — 마지막 검증 시점과 확인 필요 건수.
     const verifyAttentionCount = knowledgeVerifyLatest ? verifyAttentionTotal(knowledgeVerifyLatest) : 0;
     const verifyHealedCount = knowledgeVerifyLatest ? verifyHealedTotal(knowledgeVerifyLatest) : 0;
@@ -2806,6 +3229,11 @@ export function KnowledgeScreen() {
                 ) : null}
                 {enrichPendingCount !== null ? (
                   <p data-testid="knowledge-status-enrich-pending">요약 대기 {enrichPendingCount}건</p>
+                ) : null}
+                {vocabCandidatesPending !== null && vocabCandidatesPending > 0 ? (
+                  <p data-testid="knowledge-status-vocab-pending">
+                    <span className="pill pill--warning">주제 후보 대기 {vocabCandidatesPending}건</span>
+                  </p>
                 ) : null}
                 <div className="knowledge-status-card__actions">
                   <button
@@ -3188,8 +3616,17 @@ export function KnowledgeScreen() {
                   </button>
                 </div>
               ) : null}
+              {/* 어휘집 규격 §5: 기관 어휘집 팩 — 현재 적용 팩 정보 / 임포트 / 제거 */}
+              <VocabPackBlock
+                variant="full"
+                pushToast={pushToast}
+                refreshKey={vocabRefreshKey}
+                onChanged={() => setVocabRefreshKey((value) => value + 1)}
+              />
             </SectionCard>
             <TaxonomyQueueSection refreshKey={taxonomyRefreshKey} pushToast={pushToast} />
+            {/* 어휘집 규격 §6: 주제 어휘 후보 — pending 후보 승인/병합/거절 */}
+            <VocabCandidateSection refreshKey={vocabRefreshKey} pushToast={pushToast} />
             </div>
 
             {/* 설정 ③ 색인 설정·실행 — 색인 시작/강제 재색인/LLM 요약 보강/진행 상태/색인 상세 로그 */}
@@ -3699,6 +4136,7 @@ export function KnowledgeScreen() {
                 onApplied={handleTaxonomyApplied}
                 onOpenSchema={() => void openSchemaDocument()}
                 runSourceScan={runKnowledgeSourceScan}
+                onVocabChanged={() => setVocabRefreshKey((value) => value + 1)}
                 indexedDocumentCount={
                   snapshot.knowledgeDocuments.filter(
                     (document) => document.source_id === primaryKnowledgeSource.id,

@@ -48,6 +48,7 @@ from .llm import LLMGenerationError, generate_session_reply, generate_session_re
 from .personalization import PersonalizationManager
 from .settings import SidecarSettings, WorkspaceSettingsResponse, WorkspaceSettingsUpdate
 from .tools import TOOLS
+from .topic_vocab import TopicVocabManager, VocabValidationError
 from .work_taxonomy import InvalidTagError, WorkTaxonomyManager
 from .workspace import WorkspacePaths, ensure_workspace
 
@@ -192,6 +193,22 @@ class TaxonomyQueueResolveRequest(BaseModel):
     doc_role: str = ""
 
 
+class VocabPackImportRequest(BaseModel):
+    """주제 어휘집 기관팩 임포트 (§5) — path 또는 content 중 하나."""
+
+    path: str | None = None
+    content: dict[str, Any] | None = None
+
+
+class VocabCandidateDecisionRequest(BaseModel):
+    """주제 후보 결정 (§6)."""
+
+    action: Literal["approve", "reject", "merge"]
+    merge_into_id: str | None = None
+    name_override: str | None = None
+    synonyms: list[str] = Field(default_factory=list)
+
+
 class PersonalizationDecisionRequest(BaseModel):
     status: Literal["approved", "rejected"]
 
@@ -240,6 +257,10 @@ class AppServices:
         self.job_runner = JobRunner(self.jobs)
         self.knowledge = KnowledgeManager(self.paths, self.db)
         self.wiki = KnowledgeWikiManager(self.paths, self.db)
+        # 주제 어휘집 §4: 보강 태깅·팩 임포트·후보 큐가 같은 병합 스냅샷(캐시)을 쓰도록
+        # 단일 인스턴스를 위키에 주입한다.
+        self.vocab = TopicVocabManager(self.paths, self.db)
+        self.wiki.vocab = self.vocab
         # W7 P1 §4.3: 스캔의 MOVED 판정이 위키 rebind(경로 사본 7곳 전파)를
         # 파일당 단일 트랜잭션 안에서 호출할 수 있게 배선한다.
         self.knowledge.wiki_rebinder = self.wiki.rebind_moved_source_file
@@ -3994,6 +4015,46 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="taxonomy queue item not found") from exc
         except InvalidTagError as exc:
             # §5.2: 확정 taxonomy에 없는 slug/역할 — 유령 태그 차단 (400)
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    # ----------------------------------------------- 주제 어휘집 (§5 팩 / §6 후보 큐)
+
+    @app.get("/api/knowledge/vocab")
+    def get_topic_vocab() -> dict[str, Any]:
+        return services.vocab.vocab_overview()
+
+    @app.post("/api/knowledge/vocab/pack")
+    def import_topic_vocab_pack(payload: VocabPackImportRequest) -> dict[str, Any]:
+        # 검증 실패도 {ok:false, errors:[...]} 계약으로 전체 목록을 돌려준다(부분 임포트 금지).
+        if payload.content is None and not (payload.path or "").strip():
+            raise HTTPException(status_code=400, detail="path 또는 content가 필요합니다")
+        return services.vocab.import_pack(path=payload.path, content=payload.content)
+
+    @app.delete("/api/knowledge/vocab/pack")
+    def remove_topic_vocab_pack() -> dict[str, Any]:
+        return services.vocab.remove_institution_pack()
+
+    @app.get("/api/knowledge/vocab/candidates")
+    def list_topic_vocab_candidates(status: str = "pending") -> dict[str, Any]:
+        return {"items": services.vocab.list_candidates(status=status)}
+
+    @app.post("/api/knowledge/vocab/candidates/{candidate_id}/decision")
+    def decide_topic_vocab_candidate(
+        candidate_id: str, payload: VocabCandidateDecisionRequest
+    ) -> dict[str, Any]:
+        try:
+            return services.vocab.decide_candidate(
+                candidate_id,
+                action=payload.action,
+                merge_into_id=payload.merge_into_id,
+                name_override=payload.name_override,
+                synonyms=payload.synonyms,
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="vocab candidate not found") from exc
+        except VocabValidationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
