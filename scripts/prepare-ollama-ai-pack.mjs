@@ -176,7 +176,7 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "",
     "- 공무원 앱은 맨 마지막에 설치됩니다. Ollama·모델·설정이 모두 준비된 뒤라, 앱이 열리면 곧바로 로컬 AI에 연결된 상태입니다.",
     "- 같은 버전의 공무원 앱이 이미 설치되어 있으면 앱 재설치는 자동으로 건너뜁니다. 설치를 마친 뒤 RUN_FULL_VALIDATION.bat을 실행해도 앱 설치 창이 다시 뜨지 않습니다.",
-    "- Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요.",
+    "- Ollama 설치 마법사가 열리면 [Install]을 눌러 완료하세요. 설치 후 Ollama가 자동 실행되면 오른쪽 아래 라마 아이콘을 오른쪽 클릭해 'Quit Ollama'(종료)를 눌러야 설치가 계속됩니다. 창을 X로 닫는 것만으로는 종료되지 않고 백그라운드에 남습니다.",
     "- 검은 명령창(설치 창)은 임의로 닫지 마세요. 모든 설치가 끝날 때까지 그대로 둡니다.",
     "- Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다. 복사 진행 로그가 표시됩니다.",
     "- 진행이 멈춘 것처럼 보이면, 설치 마법사 창이 다른 창 뒤에 숨어 있는지 확인하세요.",
@@ -238,7 +238,7 @@ async function writeKoreanInstallGuide(path, { hasModelStore, hasOllamaInstaller
     "1. 설치팩 폴더를 압축 해제합니다.",
     "2. `START_INSTALL_GUI.bat`을 더블클릭하면 설치 안내(진행률) 창이 열립니다.",
     "3. 먼저 Python(선택) → Ollama → Gemma 모델 설치·복사가 진행됩니다. (모델 복사는 몇 분 걸릴 수 있습니다.)",
-    "4. Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요.",
+    "4. Ollama 설치 마법사가 열리면 [Install]을 눌러 완료하세요. 설치 후 Ollama가 자동 실행되면 오른쪽 아래 라마 아이콘을 오른쪽 클릭해 'Quit Ollama'(종료)를 눌러야 설치가 계속됩니다. (창을 X로 닫아도 백그라운드에 남습니다)",
     "5. 마지막으로 공무원 앱 설치 마법사가 실행됩니다. 안내에 따라 끝까지 완료합니다.",
     "6. 설치가 끝나 앱이 자동으로 열려도, 이미 로컬 AI(Ollama/Gemma)에 연결된 상태라 바로 사용할 수 있습니다.",
     "7. 배치파일(명령) 창은 닫지 마세요.",
@@ -248,6 +248,8 @@ async function writeKoreanInstallGuide(path, { hasModelStore, hasOllamaInstaller
     "",
     "배치파일은 각 설치 마법사(Ollama, 그리고 마지막의 공무원 앱)가 종료될 때까지 기다립니다.",
     "따라서 설치 마법사 창이나 공무원 앱 창이 아직 열려 있으면 다음 단계로 넘어가지 않습니다.",
+    "특히 Ollama는 설치 후 자동 실행되어 백그라운드에 남습니다. 진행이 멈춘 것 같으면",
+    "오른쪽 아래 라마 아이콘을 오른쪽 클릭해 'Quit Ollama'(종료)를 눌러주세요.",
     "",
     "이럴 때는 아래를 확인하세요.",
     "",
@@ -602,10 +604,12 @@ Write-Host "설치가 끝날 때까지 이 명령창은 닫지 마세요."
 Write-Host ""
 Write-Host "안내:"
 Write-Host " 1. Python, Ollama, Gemma 모델을 먼저 설치합니다."
-Write-Host " 2. Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요."
-Write-Host " 3. Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다."
-Write-Host " 4. 공무원 앱은 맨 마지막에 설치됩니다. (같은 버전이 이미 설치되어 있으면 건너뜁니다)"
-Write-Host " 5. 설치 마법사를 완료하면 앱이 바로 사용 가능한 상태로 열립니다."
+Write-Host " 2. Ollama 설치 마법사가 열리면 [Install]을 눌러 완료하세요."
+Write-Host " 3. 설치 후 Ollama가 자동 실행되면: 오른쪽 아래 라마 아이콘을 오른쪽 클릭 →"
+Write-Host "    'Quit Ollama'(종료)를 눌러야 설치가 계속됩니다. (창을 X로 닫아도 백그라운드에 남습니다)"
+Write-Host " 4. Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다."
+Write-Host " 5. 공무원 앱은 맨 마지막에 설치됩니다. (같은 버전이 이미 설치되어 있으면 건너뜁니다)"
+Write-Host " 6. 설치 마법사를 완료하면 앱이 바로 사용 가능한 상태로 열립니다."
 Write-Host ""
 Write-Host "진행이 멈춘 것처럼 보이면, Ollama 설치 창이나 공무원 설치 창이"
 Write-Host "다른 창 뒤에 숨어 있는지 확인하세요."
@@ -696,7 +700,7 @@ function Install-OllamaIfNeeded {
 
   Write-Step "Starting Ollama installer"
   Write-Host "Complete the Ollama installer if a setup window appears. This script will continue after the installer exits."
-  Write-Host "If the Ollama app or installer window opens after installation, close it so setup can continue."
+  Write-Host "If the Ollama app opens after installation, right-click the llama tray icon (bottom-right) and choose 'Quit Ollama' so setup can continue. Closing the window with X is not enough."
   Start-Process -FilePath $installer -Wait
 
   for ($i = 0; $i -lt 20; $i++) {
@@ -1178,7 +1182,7 @@ function Convert-UiText([string]$Text) {
 
 # '따라하기 그림' 원본: 실제 설치 화면 캡처 (빌드 시 base64 내장)
 $ImgOllamaWizardB64 = "${guideImageBase64("ollama-wizard.png")}"
-$ImgOllamaAppB64 = "${guideImageBase64("ollama-app.png")}"
+$ImgOllamaTrayB64 = "${guideImageBase64("ollama-tray-quit.png")}"
 $ImgGongmuWizardB64 = "${guideImageBase64("gongmu-wizard.png")}"
 
 function ConvertTo-GuideImage([string]$Base64) {
@@ -1192,13 +1196,13 @@ function ConvertTo-GuideImage([string]$Base64) {
 }
 
 $script:ImgOllamaWizard = ConvertTo-GuideImage $ImgOllamaWizardB64
-$script:ImgOllamaApp = ConvertTo-GuideImage $ImgOllamaAppB64
+$script:ImgOllamaTray = ConvertTo-GuideImage $ImgOllamaTrayB64
 $script:ImgGongmuWizard = ConvertTo-GuideImage $ImgGongmuWizardB64
 
 $script:GuideTexts = @{
   idle = Convert-UiText "${escapeNonAscii("이 단계는 자동으로 진행됩니다.\n\n사용자가 직접 할 작업이 생기면 이곳에 실제 화면 그림과 함께 안내가 나타납니다.")}"
   ollamaCap1 = Convert-UiText "${escapeNonAscii("① 이 창이 열리면 [Install] 버튼을 누르세요")}"
-  ollamaCap2 = Convert-UiText "${escapeNonAscii("② 설치 후 이 창이 열리면 오른쪽 위 X로 닫으세요")}"
+  ollamaCap2 = Convert-UiText "${escapeNonAscii("② 설치 후: 오른쪽 아래 라마 아이콘 오른쪽 클릭 → Quit Ollama (창을 X로 닫아도 남아있음)")}"
   gongmuCap1 = Convert-UiText "${escapeNonAscii("① 이 창이 열리면 [다음]을 눌러 설치를 완료하세요")}"
 }
 
@@ -1207,10 +1211,10 @@ function Set-GuidePanel([string]$Key) {
   if ($Key -eq "ollama" -and $script:ImgOllamaWizard) {
     $script:GuidePic1.Image = $script:ImgOllamaWizard
     $script:GuideCap1.Text = $script:GuideTexts.ollamaCap1
-    $script:GuidePic2.Image = $script:ImgOllamaApp
+    $script:GuidePic2.Image = $script:ImgOllamaTray
     $script:GuideCap2.Text = $script:GuideTexts.ollamaCap2
-    $script:GuidePic2.Visible = ($null -ne $script:ImgOllamaApp)
-    $script:GuideCap2.Visible = ($null -ne $script:ImgOllamaApp)
+    $script:GuidePic2.Visible = ($null -ne $script:ImgOllamaTray)
+    $script:GuideCap2.Visible = ($null -ne $script:ImgOllamaTray)
     $showPics = $true
   } elseif ($Key -eq "gongmu" -and $script:ImgGongmuWizard) {
     $script:GuidePic1.Image = $script:ImgGongmuWizard
@@ -1234,7 +1238,7 @@ $script:Stages = @(
   [pscustomobject]@{ Pattern = "Installing Python 3.11"; Name = "Python 3.11 \uC124\uCE58"; Help = "Python \uC124\uCE58\uAC00 \uC9C4\uD589 \uC911\uC785\uB2C8\uB2E4. \uC774 \uCC3D\uC740 \uB2EB\uC9C0 \uB9C8\uC138\uC694."; Percent = 16 },
   [pscustomobject]@{ Pattern = "Checking optional WSL"; Name = "WSL \uC120\uD0DD \uC9C4\uB2E8"; Help = "WSL\uC740 \uACF5\uBB34\uC6D0\uACFC Windows\uC6A9 Ollama \uC2E4\uD589\uC5D0 \uD544\uC218\uAC00 \uC544\uB2D9\uB2C8\uB2E4. \uC0C1\uD0DC\uB9CC \uAE30\uB85D\uD569\uB2C8\uB2E4."; Percent = 22 },
   [pscustomobject]@{ Pattern = "Checking Ollama"; Name = "Ollama \uD655\uC778"; Help = "\uB85C\uCEEC AI \uC5D4\uC9C4\uC778 Ollama\uAC00 \uC124\uCE58\uB418\uC5C8\uB294\uC9C0 \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 30 },
-  [pscustomobject]@{ Pattern = "Starting Ollama installer"; Name = "Ollama \uC124\uCE58"; Help = "${escapeNonAscii("\uC624\uB978\uCABD \uADF8\uB9BC\uCC98\uB7FC Ollama \uC124\uCE58 \uCC3D\uC774 \uC5F4\uB9AC\uBA74 [Install] \uBC84\uD2BC\uC744 \uB204\uB974\uC138\uC694. \uC124\uCE58 \uD6C4 Ollama \uCC3D\uC774 \uC0C8\uB85C \uC5F4\uB9AC\uBA74 \uC624\uB978\uCABD \uC704 X\uB85C \uB2EB\uC544\uC8FC\uC138\uC694.")}"; Percent = 40; Guide = "ollama" },
+  [pscustomobject]@{ Pattern = "Starting Ollama installer"; Name = "Ollama \uC124\uCE58"; Help = "${escapeNonAscii("\uC624\uB978\uCABD \uADF8\uB9BC\uCC98\uB7FC Ollama \uC124\uCE58 \uCC3D\uC774 \uC5F4\uB9AC\uBA74 [Install] \uBC84\uD2BC\uC744 \uB204\uB974\uC138\uC694. \uC124\uCE58 \uD6C4 Ollama\uAC00 \uC790\uB3D9 \uC2E4\uD589\uB418\uBA74 \uC624\uB978\uCABD \uC544\uB798 \uB77C\uB9C8 \uC544\uC774\uCF58\uC744 \uC624\uB978\uCABD \uD074\uB9AD\uD574 'Quit Ollama'(\uC885\uB8CC)\uB97C \uB20C\uB7EC\uC57C \uC124\uCE58\uAC00 \uACC4\uC18D\uB429\uB2C8\uB2E4. \uCC3D\uC744 X\uB85C \uB2EB\uB294 \uAC83\uB9CC\uC73C\uB85C\uB294 \uC885\uB8CC\uB418\uC9C0 \uC54A\uC2B5\uB2C8\uB2E4.")}"; Percent = 40; Guide = "ollama" },
   [pscustomobject]@{ Pattern = "Copying packaged Ollama model cache"; Name = "Gemma \uBAA8\uB378 \uBCF5\uC0AC"; Help = "Gemma \uBAA8\uB378 \uCE90\uC2DC\uB97C \uBCF5\uC0AC\uD569\uB2C8\uB2E4. \uBA87 \uBD84 \uC774\uC0C1 \uAC78\uB9B4 \uC218 \uC788\uC73C\uB2C8 \uAE30\uB2E4\uB824\uC8FC\uC138\uC694."; Percent = 60 },
   [pscustomobject]@{ Pattern = "Starting Ollama server"; Name = "Ollama \uC11C\uBC84 \uC2DC\uC791"; Help = "\uB85C\uCEEC AI \uC11C\uBC84\uB97C \uC2DC\uC791\uD558\uACE0 \uC751\uB2F5 \uC0C1\uD0DC\uB97C \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 72 },
   [pscustomobject]@{ Pattern = "Testing text response"; Name = "\uD14D\uC2A4\uD2B8 \uC751\uB2F5 \uAC80\uC99D"; Help = "Gemma \uBAA8\uB378\uC758 \uAE30\uBCF8 \uB300\uD654 \uC751\uB2F5\uC744 \uD655\uC778\uD569\uB2C8\uB2E4."; Percent = 80 },

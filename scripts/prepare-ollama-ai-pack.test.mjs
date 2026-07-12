@@ -66,7 +66,10 @@ async function main() {
     assert.match(installScript, /WSL is optional for Gongmu and native Windows Ollama/);
     assert.match(installScript, /Start-OllamaServer/);
     assert.match(installScript, /Import-PackagedModelStore/);
-    assert.match(installScript, /If the Ollama app or installer window opens after installation, close it/);
+    // 실사용 확인: Ollama는 창을 X로 닫아도 백그라운드에 남아 설치가 멈춘다.
+    // 트레이 아이콘 오른쪽 클릭 → Quit Ollama 안내가 반드시 있어야 한다.
+    assert.match(installScript, /right-click the llama tray icon .*'Quit Ollama' so setup can continue/);
+    assert.match(installScript, /Closing the window with X is not enough/);
     assert.match(installScript, /Copying the packaged model cache can take several minutes/);
     assert.match(installScript, /robocopy/);
     assert.match(installScript, /Test-GemmaMultimodal/);
@@ -85,7 +88,7 @@ async function main() {
     // 한글 안내 배너는 BOM이 있는 PS1에서 출력한다. (.bat은 ASCII 전용 — 아래 배치 검사 참고)
     assert.match(installScript, /공무원 로컬 AI 설치/);
     assert.match(installScript, /공무원 앱은 맨 마지막에 설치됩니다/);
-    assert.match(installScript, /Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요/);
+    assert.match(installScript, /'Quit Ollama'\(종료\)를 눌러야 설치가 계속됩니다/);
     assert.match(installScript, /앱이 바로 사용 가능한 상태로 열립니다/);
     assert.match(installScript, /Python, Ollama, Gemma 모델을 먼저 설치합니다/);
     assert.match(installScript, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
@@ -186,7 +189,7 @@ async function main() {
     assert.match(readme, /RUN_FULL_VALIDATION\.bat/);
     assert.match(readme, /공무원 앱은 맨 마지막에 설치됩니다/);
     assert.match(readme, /마지막으로 공무원 앱 설치/);
-    assert.match(readme, /Ollama 설치 마법사가 열리면 끝까지 완료하고 창을 닫아주세요/);
+    assert.match(readme, /'Quit Ollama'\(종료\)를 눌러야 설치가 계속됩니다/);
     assert.match(readme, /검은 명령창.*임의로 닫지 마세요/);
     assert.match(readme, /Gemma 모델 복사는 몇 분 이상 걸릴 수 있습니다/);
     assert.match(readme, /WSL은 공무원과 Windows용 Ollama 실행에 필요하지 않습니다/);
