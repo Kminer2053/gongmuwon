@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "pack": {
+    "name": "공무원 공통 행정 어휘집",
+    "publisher": "Gongmu (빌드타임 정제: 고성능 모델 리서치 기반)",
+    "version": "1.0.0",
+    "scope": "common",
+    "language": "ko",
+    "description": "전 공공기관 공통 업무 주제. 정부기능분류(BRM)·공공기관 기록관리 기준표의 기능 구분을 참조해 문서 주제 단위로 재정제. 동의어는 실제 공문 파일명 관행(붙임/약어/영문 병기)을 반영.",
+    "created_at": "2026-07-12"
+  },
+  "topics": [
+    { "id": "planning", "name": "기획·계획", "synonyms": ["기획", "계획수립"], "scope_note": "상위 분류. 구체 계획은 하위 주제(업무계획/사업계획 등) 우선" },
+    { "id": "work-plan", "name": "업무계획", "synonyms": ["업무 추진계획", "추진계획", "연간계획", "업무보고"], "broader": "planning", "scope_note": "부서·기관의 연간/반기 업무계획과 추진계획" },
+    { "id": "business-plan", "name": "사업계획", "synonyms": ["사업계획서", "사업 추진계획", "신규사업"], "broader": "planning", "scope_note": "개별 사업 단위 계획. 예산서 동반 문서 포함" },
+    { "id": "midterm-strategy", "name": "중장기 전략", "synonyms": ["중장기계획", "전략계획", "로드맵", "비전"], "broader": "planning", "scope_note": "3년 이상 시계의 전략·로드맵·비전 문서" },
+    { "id": "regulatory-reform", "name": "규제개혁", "synonyms": ["규제철폐", "규제혁신", "규제개선"], "broader": "planning" },
+    { "id": "innovation", "name": "혁신과제", "synonyms": ["혁신아이디어", "혁신활동", "적극행정", "제도개선"], "broader": "planning", "scope_note": "기관 혁신·아이디어 공모·제도개선 과제" },
+
+    { "id": "finance", "name": "재정", "synonyms": ["재무"], "scope_note": "상위 분류. 구체 문서는 예산편성/예산집행/결산 우선" },
+    { "id": "budget-formulation", "name": "예산편성", "synonyms": ["예산요구", "예산안", "예산 편성지침", "본예산", "추경", "추가경정예산"], "broader": "finance", "scope_note": "차년도 예산 요구·편성·심의 단계 문서" },
+    { "id": "budget-execution", "name": "예산집행", "synonyms": ["집행실적", "예산 전용", "이월", "불용", "집행지침", "자금배정"], "broader": "finance", "scope_note": "당해연도 집행·전용·이월 관련" },
+    { "id": "settlement", "name": "결산", "synonyms": ["회계결산", "재무제표", "세입세출 결산"], "broader": "finance" },
+    { "id": "fund-mgmt", "name": "기금·자금관리", "synonyms": ["기금운용", "자금계획", "출연금", "보조금"], "broader": "finance" },
+
+    { "id": "hr", "name": "인사", "synonyms": ["인사관리", "인사운영"], "scope_note": "상위 분류. 채용/승진/복무 등 하위 주제 우선" },
+    { "id": "recruitment", "name": "채용", "synonyms": ["채용계획", "공개채용", "경력채용", "신규임용", "채용공고"], "broader": "hr" },
+    { "id": "promotion", "name": "승진·전보", "synonyms": ["승진심사", "전보", "인사발령", "보직", "인사이동"], "broader": "hr" },
+    { "id": "duty-discipline", "name": "복무·징계", "synonyms": ["복무관리", "근태", "징계", "휴직", "연가", "유연근무"], "broader": "hr" },
+    { "id": "performance-pay", "name": "보수·성과급", "synonyms": ["보수", "성과연봉", "수당", "임금"], "broader": "hr" },
+    { "id": "workforce-org", "name": "조직·정원", "synonyms": ["조직개편", "정원관리", "직제", "조직진단", "TF 구성", "추진단 구성"], "broader": "hr", "scope_note": "조직 신설·개편·정원·TF/추진단 구성" },
+    { "id": "training", "name": "교육훈련", "synonyms": ["직무교육", "교육계획", "교육 실시 결과", "역량강화", "연수", "수료"], "broader": "hr", "scope_note": "직원 대상 교육·연수·수료 관련(주제가 AI 교육이면 ai-literacy 병행)" },
+
+    { "id": "audit", "name": "감사", "synonyms": ["감사계획", "감사결과", "자체감사", "종합감사", "특정감사"], "scope_note": "내·외부 감사 계획·결과·처분 문서" },
+    { "id": "corrective-action", "name": "시정조치", "synonyms": ["감사 지적사항", "처분요구", "이행실적", "조치결과"], "broader": "audit" },
+    { "id": "integrity", "name": "청렴·윤리", "synonyms": ["반부패", "청렴도", "행동강령", "이해충돌방지", "부패방지", "갑질예방"], "broader": "audit" },
+    { "id": "internal-control", "name": "내부통제", "synonyms": ["자체점검", "내부심사", "준법감시"], "broader": "audit" },
+
+    { "id": "evaluation", "name": "성과평가", "synonyms": ["성과관리", "성과보고", "실적평가", "자체평가", "KPI"], "scope_note": "부서·개인·사업 성과의 측정·평가·보고" },
+    { "id": "gov-mgmt-eval", "name": "경영평가", "synonyms": ["정부경영평가", "경평", "공공기관 경영실적 평가", "경영실적보고서"], "broader": "evaluation", "scope_note": "기재부 공공기관 경영평가 대응 문서" },
+
+    { "id": "meeting", "name": "회의운영", "synonyms": ["회의자료", "회의결과", "간부회의", "정기회의", "발표자료", "안건"], "scope_note": "회의 개최·안건·결과. 발표자료 포함" },
+    { "id": "reporting", "name": "보고·결재", "synonyms": ["결과보고", "검토보고", "결재", "보고서 작성", "현안보고"], "scope_note": "결재·보고 절차 문서. 내용 주제와 병행 부여" },
+    { "id": "official-doc", "name": "공문·시행문", "synonyms": ["시행문", "공문서", "협조요청", "회신", "통보"], "scope_note": "대내외 공문 발송·접수" },
+
+    { "id": "civil-service", "name": "민원처리", "synonyms": ["민원응대", "민원 처리현황", "국민신문고", "고충민원", "제안"], "scope_note": "민원 접수·처리·응대 매뉴얼" },
+    { "id": "customer-satisfaction", "name": "고객만족", "synonyms": ["고객서비스", "만족도조사", "CS", "서비스헌장"], "broader": "civil-service" },
+
+    { "id": "procurement", "name": "계약·구매", "synonyms": ["입찰", "조달", "수의계약", "구매요청", "낙찰", "발주"], "scope_note": "물품·용역·공사의 계약 절차" },
+    { "id": "rfp", "name": "제안요청서", "synonyms": ["RFP", "과업지시서", "제안서 평가", "사업자 선정"], "broader": "procurement", "scope_note": "용역 발주 RFP·과업지시·평가" },
+
+    { "id": "legal", "name": "법무·규정", "synonyms": ["규정 개정", "지침 제정", "내규", "사규", "법령 개정", "유권해석", "소송"], "scope_note": "규정·지침의 제·개정과 법률 대응. 특정 분야 지침은 해당 분야 주제 병행" },
+
+    { "id": "safety", "name": "안전관리", "synonyms": ["안전보건", "산업안전"], "scope_note": "상위 분류. 구체 문서는 하위 주제 우선" },
+    { "id": "safety-mgmt-system", "name": "안전보건경영시스템", "synonyms": ["ISO 45001", "KOSHA-MS", "안전보건경영 매뉴얼", "안전보건 절차서"], "broader": "safety", "scope_note": "체계 구축·운영·심사·절차서. 개별 사고는 safety-incident" },
+    { "id": "safety-inspection", "name": "안전점검", "synonyms": ["정기점검", "합동점검", "안전진단", "시설물 점검"], "broader": "safety" },
+    { "id": "risk-assessment", "name": "위험성평가", "synonyms": ["유해위험요인", "위험요소 평가"], "broader": "safety" },
+    { "id": "safety-law", "name": "산업안전보건법", "synonyms": ["산안법", "중대재해처벌법", "안전관리등급제", "공공안전지수"], "broader": "safety", "scope_note": "안전 관련 법령·제도 대응" },
+    { "id": "safety-incident", "name": "안전사고 대응", "synonyms": ["사고보고", "재해조사", "아차사고", "문책"], "broader": "safety" },
+    { "id": "disaster", "name": "재난·비상대응", "synonyms": ["재난대응", "비상대비", "을지훈련", "민방위", "위기관리", "비상대응훈련"], "broader": "safety" },
+    { "id": "safety-education", "name": "안전보건교육", "synonyms": ["관리감독자 교육", "안전교육"], "broader": "safety" },
+
+    { "id": "facility", "name": "시설·자산관리", "synonyms": ["청사관리", "시설 유지보수", "자산관리", "물품관리", "재물조사"], "scope_note": "청사·시설·물품·자산의 운영 관리" },
+    { "id": "energy-saving", "name": "에너지 절감", "synonyms": ["에너지 절약", "온실가스 감축", "탄소중립", "냉난방 관리"], "broader": "facility" },
+
+    { "id": "it-system", "name": "정보시스템", "synonyms": ["시스템 구축", "시스템 운영", "전산", "유지관리 용역", "ISP"], "scope_note": "업무시스템의 구축·운영·고도화" },
+    { "id": "security", "name": "정보보안", "synonyms": ["사이버보안", "보안점검", "망보안", "망분리", "보안체계"], "broader": "it-system" },
+    { "id": "privacy", "name": "개인정보보호", "synonyms": ["개인정보", "정보주체", "개인정보 영향평가"], "broader": "it-system" },
+    { "id": "digital-transform", "name": "디지털 전환", "synonyms": ["DX", "디지털플랫폼정부", "스마트행정", "업무 자동화", "RPA"], "broader": "it-system" },
+
+    { "id": "ai-adoption", "name": "AI 도입·활용", "synonyms": ["AI 활용", "인공지능 도입", "AI 활용사례", "생성형 AI", "LLM 활용", "AI 서비스"], "scope_note": "AI 기술의 업무 도입·활용 전반. 교육은 ai-literacy, 정책은 ai-policy" },
+    { "id": "ai-policy", "name": "AI 정책·법제", "synonyms": ["AI 기본법", "AI 윤리", "AI 규제", "AI 가이드라인", "국가 AI 전략"], "broader": "ai-adoption" },
+    { "id": "ai-strategy", "name": "AX 전략", "synonyms": ["AI 전환", "AX 로드맵", "AI 마스터플랜", "AI 추진전략", "AI 비전"], "broader": "ai-adoption", "scope_note": "기관 차원의 AI 전환 전략·로드맵" },
+    { "id": "ai-literacy", "name": "AI 교육·리터러시", "synonyms": ["AI 교육", "AI 리터러시", "프롬프트 교육", "AI 역량진단", "AI 활용 교육"], "broader": "ai-adoption" },
+    { "id": "ai-infra", "name": "AI 인프라·모델", "synonyms": ["LLM 서버", "GPU", "온프레미스 AI", "sLLM", "파운데이션 모델", "AI 플랫폼"], "broader": "ai-adoption" },
+
+    { "id": "data-mgmt", "name": "데이터 관리", "synonyms": ["데이터 거버넌스", "데이터 품질", "메타데이터", "데이터 표준화"], "scope_note": "데이터의 수집·품질·표준·거버넌스" },
+    { "id": "open-data", "name": "공공데이터 개방", "synonyms": ["공공데이터", "데이터 개방", "오픈데이터", "AI-Ready 데이터"], "broader": "data-mgmt" },
+    { "id": "data-analysis", "name": "데이터 분석", "synonyms": ["통계분석", "빅데이터 분석", "대시보드", "데이터 기반 행정"], "broader": "data-mgmt" },
+
+    { "id": "pr", "name": "홍보·언론", "synonyms": ["보도자료", "언론대응", "홍보계획", "SNS 홍보", "브리핑"], "scope_note": "대외 홍보·보도·언론 대응" },
+    { "id": "cooperation", "name": "대외협력", "synonyms": ["업무협약", "MOU", "기관 협력", "간담회", "벤치마킹"], "scope_note": "타 기관·민간과의 협력·협약·견학" },
+    { "id": "intl", "name": "국제협력", "synonyms": ["국제교류", "해외출장", "글로벌 동향"], "broader": "cooperation" },
+    { "id": "event", "name": "행사·의전", "synonyms": ["행사계획", "기념식", "발대식", "워크숍", "세미나", "포럼", "공모전"], "scope_note": "행사 기획·운영·의전. 내용 주제와 병행 부여" },
+
+    { "id": "records", "name": "문서·기록관리", "synonyms": ["기록물관리", "문서관리", "기록물 이관", "정보공개"], "scope_note": "공문서·기록물의 등록·보존·이관·공개" },
+    { "id": "handover", "name": "인수인계", "synonyms": ["업무 인계", "인계인수서", "업무편람"], "broader": "records" },
+
+    { "id": "welfare", "name": "복리후생", "synonyms": ["복지", "건강검진", "동호회", "경조사"], "broader": "hr" },
+    { "id": "travel", "name": "출장·여비", "synonyms": ["국내출장", "출장복명", "여비정산", "복명서"], "scope_note": "출장 계획·복명·정산" },
+
+    { "id": "esg", "name": "ESG·사회적 가치", "synonyms": ["사회공헌", "동반성장", "지속가능경영", "윤리경영"], "scope_note": "ESG·사회적 가치 실현 활동" },
+    { "id": "startup-support", "name": "창업·중소기업 지원", "synonyms": ["청년창업", "스타트업 지원", "소상공인 지원", "판로지원"], "scope_note": "창업·중소기업 대상 지원 사업" },
+    { "id": "research", "name": "조사·연구", "synonyms": ["연구용역", "리서치", "동향조사", "실태조사", "백서", "사례집"], "scope_note": "동향·실태 조사와 연구 산출물. 분야 주제와 병행 부여" }
+  ]
+}
