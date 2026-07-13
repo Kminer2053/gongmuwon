@@ -559,3 +559,66 @@ def test_retrieve_boosts_session_linked_files(tmp_path: Path) -> None:
     first = response.json()["items"][0]
     assert first["document"]["file_path"] == str(linked)
     assert first["session_context_boost"] > 0
+
+
+def test_force_reindex_succeeds_for_documents_with_table_blocks(tmp_path: Path) -> None:
+    """강제 재색인 FK 순서 회귀 방지 (2026-07-13 수용 테스트 발견).
+
+    chunks/table_blocks가 sections(id)를 FK 참조하므로 sections를 먼저 지우면
+    표 블록 보유 문서(xlsx/docx/표 있는 md)가 전량 'FOREIGN KEY constraint
+    failed'로 실패하고 잡이 partial로 끝난다.
+    """
+    import sqlite3
+
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source)
+
+    db = sqlite3.connect(tmp_path / "db" / "gongmu.db")
+    table_blocks = db.execute("SELECT COUNT(*) FROM knowledge_table_blocks").fetchone()[0]
+    db.close()
+    assert table_blocks > 0, "픽스처가 표 블록을 만들지 않으면 이 회귀 테스트는 무의미하다"
+
+    response = client.post(
+        "/api/knowledge/reindex", json={"source_id": source_id, "run_now": True}
+    )
+    assert response.status_code == 201
+
+    latest = client.get("/api/knowledge/ingestion-jobs").json()["items"][0]
+    assert latest["failed_count"] == 0, latest.get("error_message")
+    assert latest["status"] in ("completed", "succeeded")
+
+
+def test_force_reindex_marks_summary_stale_when_extraction_changes(tmp_path: Path) -> None:
+    """추출본 변화 = 요약 신선도 기준 (2026-07-13 수용 테스트 발견).
+
+    신선도가 원본 file_hash에만 걸려 있으면, 파서가 개선돼(예: kordoc 정상화)
+    추출본이 완전히 달라져도 제목 기반 낡은 요약이 '완료'로 남는다.
+    """
+    import sqlite3
+
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source)
+
+    db = sqlite3.connect(tmp_path / "db" / "gongmu.db")
+    db.execute(
+        "UPDATE knowledge_wiki_docs SET norm_body = '구파서 추출본', "
+        "enriched = 1, summary_stale = 0, summary = '낡은 요약'"
+    )
+    db.commit()
+    db.close()
+
+    response = client.post(
+        "/api/knowledge/reindex", json={"source_id": source_id, "run_now": True}
+    )
+    assert response.status_code == 201
+
+    db = sqlite3.connect(tmp_path / "db" / "gongmu.db")
+    rows = db.execute(
+        "SELECT summary_stale, enriched, summary FROM knowledge_wiki_docs"
+    ).fetchall()
+    db.close()
+    assert rows and all(row[0] == 1 and row[1] == 0 for row in rows), rows
+    # 기존 요약 자체는 지우지 않고 보존한다 (stale 표기가 정직성 계약)
+    assert all(row[2] == "낡은 요약" for row in rows)

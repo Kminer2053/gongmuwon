@@ -946,8 +946,18 @@ class KnowledgeWikiManager:
         enriched = bool(existing.get("enriched")) if existing else False
         # §5.4: 내용(file_hash) 변경 재인제스트는 재보강 대상으로 리셋하되
         # 기존 summary/topics는 유지하고 summary_stale=1로 정직하게 표기한다.
+        norm_body = nfc(extracted_body).lower()[:FTS_BODY_MAX_CHARS]
         content_changed = existing is not None and str(existing.get("file_hash") or "") != file_hash
-        if content_changed:
+        # 추출 변경 감지(2026-07-13): 원본 파일이 같아도 파서가 바뀌면(예: kordoc
+        # 정상화) 추출 본문이 달라진다. 요약의 신선도는 원본이 아니라 '요약의
+        # 재료였던 추출본' 기준이어야 하므로 norm_body 변화도 재보강 대상으로 본다.
+        # (강제 재색인처럼 재파싱이 실제로 일어난 경로에서만 발동한다)
+        extraction_changed = (
+            existing is not None
+            and not content_changed
+            and str(existing.get("norm_body") or "") != norm_body
+        )
+        if content_changed or extraction_changed:
             enriched = False
             summary_stale = 1
             enrich_fail_count = 0
@@ -1064,7 +1074,6 @@ class KnowledgeWikiManager:
 
         timestamp = now_iso()
         norm_title = title.lower()
-        norm_body = nfc(extracted_body).lower()[:FTS_BODY_MAX_CHARS]
         row = {
             "source_id": source_file["source_id"],
             "source_file_id": source_file["id"],
@@ -1251,8 +1260,11 @@ class KnowledgeWikiManager:
                     (source_file["id"],),
                 )
                 for document in documents:
+                    # FK 순서: chunks/table_blocks가 sections(id)를 참조하므로
+                    # 자식을 먼저 지운다. sections를 먼저 지우면 표 블록이 있는
+                    # 문서(xlsx/docx)에서 FOREIGN KEY constraint failed.
                     self.db.execute(
-                        "DELETE FROM knowledge_document_sections WHERE document_id = ?",
+                        "DELETE FROM knowledge_document_chunks WHERE document_id = ?",
                         (document["id"],),
                     )
                     self.db.execute(
@@ -1260,7 +1272,7 @@ class KnowledgeWikiManager:
                         (document["id"],),
                     )
                     self.db.execute(
-                        "DELETE FROM knowledge_document_chunks WHERE document_id = ?",
+                        "DELETE FROM knowledge_document_sections WHERE document_id = ?",
                         (document["id"],),
                     )
                 deleted_count += 1
@@ -2345,10 +2357,17 @@ class KnowledgeWikiManager:
         return existing_id
 
     def _replace_document_children(self, document_id: str, document: StructuredDocument) -> None:
-        """섹션/표 구조를 갱신한다. (청크·그래프·벡터는 위키 경로에서 기록하지 않음)"""
+        """섹션/표 구조를 갱신한다. (청크·그래프·벡터는 위키 경로에서 기록하지 않음)
+
+        삭제는 FK 자식 → 부모 순서여야 한다: chunks/table_blocks가 sections(id)를
+        참조하므로 sections를 먼저 지우면 강제 재색인에서 표 블록 보유 문서
+        (xlsx/docx)가 FOREIGN KEY constraint failed로 전량 실패한다(2026-07-13).
+        레거시 청크가 죽은 섹션을 참조한 채 남지 않도록 청크도 함께 정리한다.
+        """
         timestamp = now_iso()
-        self.db.execute("DELETE FROM knowledge_document_sections WHERE document_id = ?", (document_id,))
+        self.db.execute("DELETE FROM knowledge_document_chunks WHERE document_id = ?", (document_id,))
         self.db.execute("DELETE FROM knowledge_table_blocks WHERE document_id = ?", (document_id,))
+        self.db.execute("DELETE FROM knowledge_document_sections WHERE document_id = ?", (document_id,))
         for section_index, section in enumerate(document.sections):
             section_id = str(uuid4())
             self.db.insert(
@@ -2379,9 +2398,10 @@ class KnowledgeWikiManager:
                 )
 
     def _delete_document_rows(self, document_id: str) -> None:
-        self.db.execute("DELETE FROM knowledge_document_sections WHERE document_id = ?", (document_id,))
-        self.db.execute("DELETE FROM knowledge_table_blocks WHERE document_id = ?", (document_id,))
+        # FK 자식 → 부모 순서 (chunks/table_blocks → sections → documents)
         self.db.execute("DELETE FROM knowledge_document_chunks WHERE document_id = ?", (document_id,))
+        self.db.execute("DELETE FROM knowledge_table_blocks WHERE document_id = ?", (document_id,))
+        self.db.execute("DELETE FROM knowledge_document_sections WHERE document_id = ?", (document_id,))
         self.db.execute("DELETE FROM knowledge_documents WHERE id = ?", (document_id,))
 
     def _source_files_for_ingestion(
