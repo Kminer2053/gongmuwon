@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -7,6 +8,12 @@ from zipfile import BadZipFile, ZipFile
 
 from .graphrag_models import StructuredDocument, StructuredSection, StructuredTable
 from .kordoc_bridge import KORdocParseError, KORdocUnavailable, parse_with_kordoc
+
+logger = logging.getLogger(__name__)
+
+# kordoc 실패는 파일마다 폴백으로 조용히 흡수되므로, 원인을 최소 1회는 로그에
+# 남긴다. (2026-07-13: 설치본에서 HWP 170건 전부가 무증상 폴백된 사고의 가시화)
+_kordoc_failure_logged = False
 
 
 TEXT_EXTENSIONS = {".txt", ".md", ".markdown"}
@@ -22,7 +29,15 @@ def parse_document(path: Path | str) -> StructuredDocument:
     if extension in {".hwp", ".hwpx"}:
         try:
             return parse_with_kordoc(source_path)
-        except (KORdocUnavailable, KORdocParseError):
+        except (KORdocUnavailable, KORdocParseError) as exc:
+            global _kordoc_failure_logged
+            if not _kordoc_failure_logged:
+                _kordoc_failure_logged = True
+                logger.warning(
+                    "kordoc 파싱 실패로 폴백 파서를 사용합니다 (이후 동일 실패는 생략): %s: %s",
+                    type(exc).__name__,
+                    exc,
+                )
             if extension == ".hwp":
                 return StructuredDocument(
                     source_path=source_path,

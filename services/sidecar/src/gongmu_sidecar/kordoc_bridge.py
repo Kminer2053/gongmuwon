@@ -18,10 +18,30 @@ class KORdocParseError(RuntimeError):
     pass
 
 
+def _resolve_node(runner: Path | None = None) -> str:
+    """kordoc 실행용 Node 런타임을 찾는다.
+
+    우선순위: 명시 환경변수 > 러너 옆에 동봉된 node.exe(폐쇄망 설치본) > PATH.
+    폐쇄망 사용자 PC에는 시스템 Node가 없으므로 동봉본이 사실상의 기본이다.
+    """
+    env_node = os.environ.get("GONGMU_NODE_EXE")
+    if env_node:
+        return env_node
+    if runner is None:
+        try:
+            runner = _resolve_runner()
+        except KORdocUnavailable:
+            return "node"
+    bundled = runner.parent / ("node.exe" if os.name == "nt" else "node")
+    if bundled.exists():
+        return str(bundled)
+    return "node"
+
+
 def parse_with_kordoc(path: Path | str, timeout_seconds: int = 60) -> StructuredDocument:
     source_path = Path(path).expanduser().resolve()
     runner = _resolve_runner()
-    node = os.environ.get("GONGMU_NODE_EXE", "node")
+    node = _resolve_node(runner)
     try:
         completed = subprocess.run(
             [node, str(runner), str(source_path)],
@@ -60,16 +80,17 @@ def kordoc_available() -> bool:
 
 
 def kordoc_status(timeout_seconds: int = 5) -> dict[str, Any]:
-    node_command = os.environ.get("GONGMU_NODE_EXE", "node")
     runner_available = False
     runner_path: str | None = None
     runner_error: str | None = None
+    runner_obj: Path | None = None
     try:
-        runner = _resolve_runner()
+        runner_obj = _resolve_runner()
         runner_available = True
-        runner_path = str(runner)
+        runner_path = str(runner_obj)
     except KORdocUnavailable as exc:
         runner_error = str(exc)
+    node_command = _resolve_node(runner_obj)
 
     node_available = False
     node_version: str | None = None
@@ -92,8 +113,36 @@ def kordoc_status(timeout_seconds: int = 5) -> dict[str, Any]:
     except subprocess.TimeoutExpired:
         node_error = f"{node_command} --version timed out"
 
+    # 실제 import까지 검증하는 셀프테스트 — 러너 파일 존재+node 버전만 보고
+    # "사용 가능"이라 답했다가 실사용에서 전부 폴백된 사고(2026-07-13)의 재발 방지.
+    selftest_ok = False
+    selftest_error: str | None = None
+    if runner_available and node_available:
+        try:
+            completed = subprocess.run(
+                [node_command, str(runner_obj), "--selftest"],
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=max(timeout_seconds, 15),
+            )
+            try:
+                payload = json.loads((completed.stdout or "").strip().splitlines()[-1])
+            except (json.JSONDecodeError, IndexError):
+                payload = {}
+            selftest_ok = bool(payload.get("success"))
+            if not selftest_ok:
+                selftest_error = str(
+                    payload.get("error")
+                    or completed.stderr.strip()
+                    or f"selftest exited {completed.returncode}"
+                )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            selftest_error = str(exc)
+
     return {
-        "available": runner_available and node_available,
+        "available": runner_available and node_available and selftest_ok,
         "runner_available": runner_available,
         "runner_path": runner_path,
         "runner_error": runner_error,
@@ -101,6 +150,8 @@ def kordoc_status(timeout_seconds: int = 5) -> dict[str, Any]:
         "node_command": node_command,
         "node_version": node_version,
         "node_error": node_error,
+        "selftest_ok": selftest_ok,
+        "selftest_error": selftest_error,
     }
 
 

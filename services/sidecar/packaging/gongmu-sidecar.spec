@@ -19,8 +19,17 @@ hiddenimports = sorted(set(collect_submodules("uvicorn")))
 datas = []
 
 binaries = []
-if (KORDOC_ROOT / "kordoc_runner.js").exists():
-    datas += [(str(KORDOC_ROOT), "packaging/kordoc")]
+# kordoc은 반드시 '자립 번들 스테이징'을 수집한다. 소스 러너(KORDOC_ROOT)는
+# repo node_modules에 의존하므로 그대로 담으면 설치본에서 조용히 폴백된다
+# (2026-07-13 수용 테스트: HWP 170건 전부 metadata-fallback 사고).
+# 스테이징은 scripts/bundle-kordoc-runner.mjs가 생성한다(번들 JS + node.exe).
+KORDOC_BUNDLE = REPO_ROOT / "runtime-workspace" / "cache" / "kordoc-bundle"
+if not (KORDOC_BUNDLE / "kordoc_runner.js").exists():
+    raise SystemExit(
+        "kordoc bundle staging is missing. Run `node scripts/bundle-kordoc-runner.mjs` "
+        "before PyInstaller (npm run sidecar:bundle:windows does this automatically)."
+    )
+datas += [(str(KORDOC_BUNDLE), "packaging/kordoc")]
 if (SRC_ROOT / "gongmu_sidecar" / "public_doc_templates").exists():
     datas += [
         (

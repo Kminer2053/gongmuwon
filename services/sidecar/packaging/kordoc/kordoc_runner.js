@@ -9,6 +9,27 @@ if (!filePath) {
   process.exit(0);
 }
 
+// 설치본 자가진단: kordoc 패키지가 실제로 로드되는지까지 검증한다.
+// (러너 파일 존재만으로 "사용 가능"이라고 판단했다가 조용히 폴백된 사고 방지)
+if (filePath === "--selftest") {
+  try {
+    const kordoc = await import("kordoc");
+    const parse = kordoc.parse ?? kordoc.default?.parse;
+    const ok = typeof parse === "function";
+    console.log(JSON.stringify({ success: ok, selftest: true, version: kordoc.version ?? "" }));
+    process.exit(ok ? 0 : 1);
+  } catch (error) {
+    console.log(
+      JSON.stringify({
+        success: false,
+        selftest: true,
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    );
+    process.exit(1);
+  }
+}
+
 function normalizeBlock(block) {
   const type = String(block?.type ?? "").toLowerCase();
   if (type === "heading") {

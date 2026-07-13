@@ -5,9 +5,23 @@ def test_pyinstaller_spec_includes_kordoc_runner_resource() -> None:
     spec_path = Path("services/sidecar/packaging/gongmu-sidecar.spec")
     spec_text = spec_path.read_text(encoding="utf-8")
 
-    assert "KORDOC_ROOT" in spec_text
     assert "packaging/kordoc" in spec_text
     assert "kordoc_runner.js" in spec_text
+    # 자립 번들 스테이징 강제: 소스 러너는 repo node_modules에 의존하므로 그대로
+    # 담으면 설치본에서 HWP 전량이 무증상 폴백된다 (2026-07-13 수용 테스트 사고).
+    assert "kordoc-bundle" in spec_text
+    assert "bundle-kordoc-runner.mjs" in spec_text
+    assert "raise SystemExit" in spec_text
+
+
+def test_bundle_kordoc_runner_script_exists_and_is_chained() -> None:
+    """번들 스크립트가 존재하고 sidecar 빌드에 선행 연결되어 있는지 확인."""
+    assert Path("scripts/bundle-kordoc-runner.mjs").exists()
+    import json
+
+    package = json.loads(Path("package.json").read_text(encoding="utf-8"))
+    bundle_script = package["scripts"]["sidecar:bundle:windows"]
+    assert "bundle-kordoc-runner.mjs" in bundle_script.split("&&")[0]
 
 
 def test_pyinstaller_spec_includes_topic_vocab_assets() -> None:

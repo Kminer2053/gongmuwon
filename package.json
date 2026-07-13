@@ -19,7 +19,7 @@
     "desktop:prepare:anything": "node scripts/windows-anything-validation-helper.mjs",
     "desktop:verify:windows": "node scripts/windows-installer-verify.mjs",
     "desktop:verify:windows:fast": "node scripts/windows-installer-verify.mjs --skip-bundle",
-    "sidecar:bundle:windows": "node scripts/portable-run.mjs python -m PyInstaller --noconfirm --clean --distpath release/sidecar/windows-x64 --workpath runtime-workspace/cache/pyinstaller services/sidecar/packaging/gongmu-sidecar.spec",
+    "sidecar:bundle:windows": "node scripts/bundle-kordoc-runner.mjs && node scripts/portable-run.mjs python -m PyInstaller --noconfirm --clean --distpath release/sidecar/windows-x64 --workpath runtime-workspace/cache/pyinstaller services/sidecar/packaging/gongmu-sidecar.spec",
     "release:offline": "node scripts/prepare-offline-release.mjs",
     "release:download:gemma4": "node scripts/download-ollama-model-store.mjs --model gemma4:e2b",
     "release:ai-pack": "node scripts/prepare-ollama-ai-pack.mjs",
