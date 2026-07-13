@@ -1,0 +1,128 @@
+{
+  "root_cause": "[증상 A — 무근거 답변에 무관 citations]\n1) knowledge_wiki.py:3014-3030 — ask()가 retrieve() 결과 items를 **무조건** citations 배열로 변환한다. LLM 합성 이전 시점에 확정되며, 이후 어떤 조건에서도 비우지 않는다.\n2) knowledge_wiki.py:3059-3065 — LLM 답변이 생성되면 텍스트만 교체(answer_mode=\"llm\")하고 반환 dict(3066-3073)는 항상 같은 citations를 싣는다. 답변 텍스트에 대한 무근거 판정 로직이 전무하다.\n3) 기존 마커/규약 부재 — \"(출처: 없음)\"은 코드 어디에도 없다(리포 전체 grep 0건). ask 프롬프트(knowledge_wiki.py:3053-3054 \"각 주장 뒤에 (출처: 문서 제목) 형식의 인용을 붙이고, 근거가 없으면 모른다고 답하세요\")와 업무대화 프롬프트(app.py:1265)의 인용 형식 지시를 경량모델이 스스로 변형해 만든 표기다. 실측 확인: 워크스페이스 DB work_session_messages 4d84b9f3(\"...확인할 수 없습니다. (출처: 없음)\", citations_json 1963B 첨부), 96dc296e(\"...찾을 수 없습니다. (출처: 2026 대한민국 공공기관 현황...)\", citations_json 753B 첨부) — 둘 다 무근거 선언 후 citations가 그대로 붙었다.\n4) 업무대화 동일 이슈 확인 — app.py:2248-2256(비스트리밍) 및 app.py:2615-2623(스트리밍)이 _build_knowledge_context(app.py:1235-1296)가 만든 knowledge_citations를 최종 답변 텍스트와 무관하게 update_work_session_message(citations=...)로 저장한다.\n5) F-06 가드(app.py:1862-1870)는 문서작성 스킬 경로 전용이며 \"근거 0건일 때 지시문에 경고 추가\"만 한다 — citations 억제와 무관하고 ask()/turn 경로에는 아무 가드가 없다.\n\n[증상 B — featherless 5xx 무재시도]\n6) llm.py:103-127(_post_json), 130-152(_post_json_stream_lines) — 단일 시도 urlopen. HTTPError는 즉시 LLMGenerationError(\"LLM request failed (504): {본문}\")로, URLError는 \"LLM server unreachable\"로 변환된다. 재시도·백오프·Retry-After 처리 0. 유일한 정책 노브는 GONGMU_LLM_TIMEOUT_SECONDS(기본 180초, llm.py:111·142). featherless/ollama 프로파일 차이는 헤더(llm.py:447-460)·엔드포인트뿐, 오류 정책은 동일하다. ollama에만 있는 chat→generate 폴백(llm.py:650-668)은 '텍스트 0건' 형태 폴백이지 오류 재시도가 아니다.\n7) 실측: execution_logs 8c178c2e(2026-07-13T14:28) — featherless 504 본문에 \"retryable\":true,\"retry_after\":120 명시, duration_ms 60335. app.py:2277-2294(비스트리밍 except) / 2561-2610(스트리밍 error 이벤트)이 이를 재시도 없이 \"LLM 응답 생성에 실패했습니다\"로 사용자에게 그대로 노출하고 잡을 실패 처리했다.\n8) 부수 관찰: _generate_openai_family_reply(llm.py:513-515)가 오류 '문자열'에서 \"404\"/\"400\"을 검색해 responses→chat 폴백을 결정한다 — 메시지 포맷을 바꾸면 이 폴백이 깨지므로 수정 설계에 반영 필요.",
+  "fix_design": "[A. 무근거 판정 + citations 억제 — 결정적 정규식, LLM 재호출 금지]\n\nA-1. knowledge_wiki.py 모듈 레벨(§ TOKEN_RE 근처)에 추가:\n```python\n# 무근거 답변 판정(결정적) — 실측 표현 기반(2026-07-13 QA W-03, DB 4d84b9f3/96dc296e)\nNO_EVIDENCE_HEAD_CHARS = 200\nNO_EVIDENCE_PATTERNS = [\n    re.compile(r\"찾(?:을 수 없|지 못했?|을 수가 없)\"),\n    re.compile(r\"(?:알|확인할|확인이|답변드릴|파악할) 수 없\"),\n    re.compile(r\"모(?:르겠|릅니다)\"),\n    re.compile(r\"존재하지 않\"),\n    re.compile(r\"(?:나와|포함되어|담겨|들어) ?있지 않\"),\n    re.compile(r\"(?:근거|정보|내용|자료|문서|규정)(?:가|이|는|은|를|도)?\\s*없(?:습니다|음|었)\"),\n]\nNO_SOURCE_MARK_RE = re.compile(r\"\\(\\s*(?:출처|근거)\\s*:?\\s*없음\\s*\\)\")\nREAL_SOURCE_MARK_RE = re.compile(r\"\\(\\s*출처\\s*:\\s*(?!없음)[^)]{2,}\\)\")\n\ndef is_no_evidence_answer(text: str) -> bool:\n    normalized = re.sub(r\"\\s+\", \" \", nfc(str(text or \"\"))).strip()\n    if not normalized:\n        return False\n    if NO_SOURCE_MARK_RE.search(normalized) and not REAL_SOURCE_MARK_RE.search(normalized):\n        return True  # \"(출처: 없음)\"만 있고 실출처 인용이 하나도 없음\n    head = normalized[:NO_EVIDENCE_HEAD_CHARS]\n    return any(p.search(head) for p in NO_EVIDENCE_PATTERNS)\n```\n판정 규칙 근거: (i) 머리 200자 윈도우 — 실측 사례 모두 첫 문장에서 무근거 선언(96dc296e는 무근거 선언 직후 무관 출처를 나열하므로 '실출처 존재 시 유지' 단독 규칙으로는 억제 실패 → 머리 매치가 우선). (ii) 본문 중반의 부분적 \"~는 찾을 수 없으나\"는 머리 윈도우 밖이면 유지 → 유근거 혼합 답변 오억제 완화.\n\nA-2. ask() 수정(knowledge_wiki.py:3063-3073): LLM 답변 채택 직후\n```python\nif generated and str(generated).strip():\n    answer = str(generated).strip()\n    answer_mode = \"llm\"\nsuppressed = bool(items) and answer_mode == \"llm\" and is_no_evidence_answer(answer)\nif suppressed:\n    citations = []\nreturn { ..., \"citations\": citations, \"no_evidence\": suppressed, ... }\n```\n단순 억제안 채택(라벨 구분안 기각 — 프런트 KnowledgeScreen.tsx:4936-4938이 빈 citations에 \"표시할 출처 문서가 없습니다.\"를 이미 렌더링하므로 프런트 무수정). extractive 모드는 억제하지 않는다(결정론 답변은 문서 나열 자체가 목적). items 자체가 0건이면 기존대로 citations가 이미 빈 배열. retrieval_summary는 QA 스크립트 호환 위해 불변. db.log(action=\"knowledge.ask.citations_suppressed\")로 억제 이벤트 기록.\n\nA-3. 업무대화 동일 가드(app.py): `from .knowledge_wiki import is_no_evidence_answer` 후,\n- 비스트리밍 run_work_session_turn(app.py:2248-2256): `final_text = self._prepare_assistant_output_text(result.text)` 계산 후 `citations=[] if is_no_evidence_answer(final_text) else knowledge_citations` 전달.\n- 스트리밍 done 분기(app.py:2614-2623): 동일하게 final_text 기준으로 citations 결정.\nupdate_work_session_message(app.py:2037-2042)는 빈 리스트를 citations_json=None으로 저장하므로 출처 칩이 사라진다 — 추가 스키마 변경 불필요.\n\n[B. retryable 5xx 1회 재시도 — llm.py]\n\nB-1. 오류 타입 구조화:\n```python\nclass LLMGenerationError(RuntimeError):\n    def __init__(self, message: str, *, status_code: int | None = None) -> None:\n        super().__init__(message); self.status_code = status_code\n```\n_generate_openai_family_reply의 문자열 검사(llm.py:513-515)를 `responses_error.status_code in {400, 404}` 우선 + 기존 문자열 검사 폴백으로 교체(메시지 포맷 변경 내성).\n\nB-2. 재시도 정책 상수/헬퍼(모듈 레벨):\n```python\nRETRYABLE_STATUS_CODES = {502, 503, 504}\nRETRY_MAX_ATTEMPTS = 2            # 원 호출 1 + 재시도 1\nRETRY_BACKOFF_DEFAULT_SECONDS = 3.0\nRETRY_BACKOFF_CAP_SECONDS = 5.0   # retry_after 120s여도 캡\nRETRY_ELAPSED_CAP_SECONDS = 90.0  # 1차 시도가 이보다 오래 걸렸으면 재시도 포기(턴 예산 보호)\n_RETRY_AFTER_RE = re.compile(r'\"retry_after\"\\s*:\\s*(\\d+)')\n\ndef _backoff_seconds(detail: str, headers) -> float:\n    # 우선순위: Retry-After 헤더 → 본문 \"retry_after\":N → 기본 3초. 항상 5초 캡.\ndef _urlopen_with_retry(req, timeout, *, provider: str) -> response:\n    # attempt 루프: HTTPError code in RETRYABLE_STATUS_CODES 이고 attempt<2 이고\n    # monotonic 경과 < RETRY_ELAPSED_CAP → time.sleep(backoff) 후 재시도.\n    # 소진 시: LLMGenerationError(\n    #   f\"LLM request failed ({code}): 외부 LLM 서비스가 일시적으로 응답하지 못했습니다. \"\n    #   f\"1회 재시도 후에도 실패해 잠시 후 다시 시도해 주세요.\\n상세: {detail[:500]}\", status_code=code)\n    # 비재시도 HTTPError(400/401/404/429 등): 기존 포맷 f\"LLM request failed ({code}): {detail}\" 유지.\n    # URLError: 재시도 금지. provider==\"ollama\"(또는 base_url에 127.0.0.1:11434)이면\n    #   \"로컬 Ollama 서버에 연결할 수 없습니다. Ollama가 실행 중인지 확인해 주세요.\"\n    #   그 외는 기존 f\"LLM server unreachable: {reason}\" + \" 네트워크 연결을 확인해 주세요.\"\n```\n- _post_json / _post_json_stream_lines에 `provider: str` 인자 추가, 내부 urlopen을 _urlopen_with_retry로 교체. 스트리밍은 urlopen 시점(첫 바이트 수신 전) HTTPError만 재시도 — 델타가 이미 방출된 중도 실패는 재시도하지 않는다(중복 출력 방지). 모든 _generate_* 호출부에서 provider 전달(ollama 경로는 \"ollama\").\n- 총 턴 예산: 최악 경로 = 1차 60s(504) + 백오프 ≤5s + 2차 ≤180s, RETRY_ELAPSED_CAP=90s로 '이미 느린 1차' 후 재시도를 차단. 환경변수 GONGMU_LLM_RETRY_* 로 오버라이드 가능하게(설정 파일 스키마 변경 없음, 기존 GONGMU_LLM_TIMEOUT_SECONDS 패턴 준용).\n- 적용 범위: generate_session_reply(_streaming) 전 공급자 — 업무대화 turn, ask/enrich(_wiki_llm_generate 경유) 모두 자동 수혜. app.py 오류 처리 경로는 무변경(재시도는 llm.py 내부에서 완결).\n\n[테스트 설계]\n- 신규 services/sidecar/tests/test_llm_retry.py — test_llm_providers.py의 _FakeResponse/_FakeSseResponse/monkeypatch(request.urlopen) 패턴 재사용. HTTPError 재현: `urllib.error.HTTPError(url, 504, \"Gateway Time-out\", email.message.Message(), io.BytesIO(featherless_json_bytes))` (실측 8c178c2e 본문 사용). time.sleep은 monkeypatch로 기록만.\n- test_knowledge_wiki.py — fake_llm이 무근거 문구를 반환하는 억제 케이스 + 기존 133/151행 테스트를 네거티브 컨트롤로 유지.\n- test_work_session_turn.py — fake_generate_reply가 무근거 문구 반환 시 assistant_message[\"citations\"]==[] 확인(기존 480행 프롬프트 계약 테스트 패턴 준용).",
+  "files_to_change": [
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/llm.py",
+      "change": "LLMGenerationError에 status_code 속성 추가; RETRYABLE_STATUS_CODES/백오프·경과 캡 상수와 _backoff_seconds·_urlopen_with_retry 헬퍼 신설; _post_json(103-127)·_post_json_stream_lines(130-152)에 provider 인자 추가 후 재시도 헬퍼 경유로 교체; URLError는 무재시도 + ollama일 때 한국어 서버다운 안내; 5xx 소진 시 한국어 안내 메시지(코드 숫자 보존); _generate_openai_family_reply(513-515)의 \"404\"/\"400\" 문자열 검사를 status_code 우선으로 교체; 모든 _generate_* 호출부에 provider 전달"
+    },
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/knowledge_wiki.py",
+      "change": "모듈 레벨 NO_EVIDENCE_PATTERNS/NO_SOURCE_MARK_RE/REAL_SOURCE_MARK_RE + is_no_evidence_answer() 신설(결정적 정규식, LLM 재호출 없음); ask()(3004-3073)에서 answer_mode==\"llm\" 답변이 무근거 판정되면 citations=[] 억제, 응답에 no_evidence 플래그 추가, db.log로 억제 이벤트 기록"
+    },
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/app.py",
+      "change": "is_no_evidence_answer import; 비스트리밍 turn(2248-2256)과 스트리밍 done 분기(2614-2623)에서 최종 텍스트가 무근거 판정이면 update_work_session_message에 citations=[] 전달(빈 리스트→citations_json NULL→출처 칩 미표시). 겸사겸사 2279-2294의 동일 update_work_session_message 중복 호출 1건 제거 검토"
+    },
+    {
+      "path": "services/sidecar/tests/test_llm_retry.py",
+      "change": "신규 — 504→200 성공 시퀀스(시도 2회·sleep 1회 2~5s), retry_after=120 캡(sleep==5.0), 504→504 소진(한국어 안내+시도 2회 상한), 400 무재시도, ollama URLError 무재시도+Ollama 안내, 스트리밍 504→SSE 200 재시도, 경과 캡 초과 시 무재시도"
+    },
+    {
+      "path": "services/sidecar/tests/test_knowledge_wiki.py",
+      "change": "신규 테스트 3개 — fake_llm이 '지식폴더에서 찾을 수 없습니다' 반환 시 citations==[]·no_evidence==True; '(출처: 없음)'만 있는 답변 억제; 실출처 인용 포함 정상 답변은 citations 유지(기존 133·151행 테스트는 네거티브 컨트롤로 무수정 통과 확인)"
+    },
+    {
+      "path": "services/sidecar/tests/test_work_session_turn.py",
+      "change": "신규 테스트 2개 — 지식 근거 존재 + fake LLM 무근거 답변 → assistant_message citations 빈 값; 유근거 답변 '(출처: X)' → citations 유지"
+    }
+  ],
+  "verification_criteria": [
+    "[사전 베이스라인] 구현 전 `node scripts/portable-run.mjs python -m pytest services/sidecar/tests -q` 실행해 통과 개수 N 기록(문서상 387+). 구현 후 동일 명령 실패 0건·통과 개수 >= N+13(신규 최소 13개).",
+    "[A-단위] test_knowledge_wiki.py 신규 3개 + 기존 test_ask_always_returns_citations_with_source_path·test_ask_synthesizes_with_llm_and_falls_back_on_failure 무수정 통과(네거티브 컨트롤).",
+    "[A-실LLM] 무근거 질의 10건 스크립트(E2E-A 시나리오) 실행 결과: is_no_evidence_answer(answer)==True 인 응답 중 citations 비어있지 않은 건수 == 0 (위반 0건이 PASS). 부가 지표: 10건 중 무근거 판정 >= 8건(패턴 커버리지 확인, 미달 시 패턴 보강 후 재실행).",
+    "[A-실LLM 회귀] 유근거 질의 5건: 5/5 citations >= 1 AND answer 길이 > 0 AND (answer_mode in {llm, extractive}).",
+    "[B-단위] mock 504→200: HTTP 시도 정확히 2회, time.sleep 호출 정확히 1회, sleep 인자 2.0 <= s <= 5.0; retry_after=120 본문일 때 sleep == 5.0(캡).",
+    "[B-단위] mock 504→504: LLMGenerationError 발생, str(exc)에 '504'와 '잠시 후' 포함, HTTP 시도 정확히 2회(3회째 없음); ollama URLError: 시도 1회, 메시지에 'Ollama' 포함; HTTP 400: 시도 1회(무재시도).",
+    "[B-회귀] 기존 test_llm_providers.py 12개·test_llm_ollama.py 전부 무수정 통과(정상 200 경로는 재시도 로직 미발동).",
+    "[프런트 무영향] apps/desktop에서 `npx tsc --noEmit`·vitest 스위트 실패 0건(프런트 코드 무변경 확인).",
+    "[성능 상한] 재시도 발동 시 추가 지연 <= 백오프 5s + 2차 시도 시간. RETRY_ELAPSED_CAP(90s) 초과 1차 시도 후에는 재시도 미발동을 단위테스트로 고정."
+  ],
+  "e2e_scenarios": [
+    {
+      "id": "E2E-A1",
+      "scenario": "구현 후 검증 단계: POST http://127.0.0.1:8765/api/knowledge/ask body={\"query\":\"우리 부서 회식 규정 알려줘\",\"limit\":5} (실 LLM 호출 — 지금은 실행 금지). 판정 스크립트가 응답 JSON의 answer에 NO_EVIDENCE_PATTERNS(찾을 수 없/찾지 못/알 수 없/확인할 수 없/모르/출처: 없음 등, 머리 200자)를 적용",
+      "expected": "불변식: is_no_evidence_answer(answer)==True 이면 citations==[] 그리고 no_evidence==true. HTTP 200. (판정이 유근거로 나오면 citations>=1 허용 — 불변식 위반만 FAIL)"
+    },
+    {
+      "id": "E2E-A2",
+      "scenario": "동일 방식, query=\"사무실 주차장 이용 규정이 어떻게 되나요?\" — A1과 유사하나 의문형+조사 변형",
+      "expected": "E2E-A1과 동일 불변식. 무근거 판정 시 citations==[]"
+    },
+    {
+      "id": "E2E-A3",
+      "scenario": "동일 방식, query=\"연차휴가 신청 방법 알려줘\" — 2026_AI혁신처 폴더에 없는 인사 주제",
+      "expected": "동일 불변식. 무근거 판정 시 citations==[] 그리고 answer는 비어있지 않은 한국어 문자열"
+    },
+    {
+      "id": "E2E-A4",
+      "scenario": "동일 방식, query=\"구내식당 운영시간은?\" — 초단문 의문형 변형",
+      "expected": "동일 불변식. retrieval_summary 필드는 계속 존재(응답 스키마 하위호환)"
+    },
+    {
+      "id": "E2E-A5",
+      "scenario": "동일 방식, query=\"경조사비 지급 기준을 정리해줘\" — 명령형 변형. 이후 A1~A5 + 야근 식대/유연근무 신청/명함 제작/출입증 재발급/동호회 지원금 5건 추가로 총 10건 일괄 실행하는 검증 스크립트(scratchpad/verify_ask_noevidence.py)로 집계",
+      "expected": "10건 집계: 불변식 위반(무근거 판정인데 citations 비어있지 않음) == 0건이 PASS. 부가 기준: 무근거 판정률 >= 8/10 (미달 시 패턴 목록 보강)"
+    },
+    {
+      "id": "E2E-A6-CHAT",
+      "scenario": "pytest(모의 LLM, 결정적): 지식 문서 색인된 테스트 클라이언트에서 monkeypatch로 gongmu_sidecar.app.generate_session_reply가 \"요청하신 회식 규정 정보는 지식폴더에서 찾을 수 없습니다.\"를 반환하게 한 뒤 POST /api/work-sessions/{id}/turn body={\"text\":\"우리 부서 회식 규정 알려줘\"}",
+      "expected": "assistant_message.status==\"completed\" AND assistant_message.citations==[] (출처 칩 데이터 없음) AND context_summary.graphrag_used==true(근거 주입 자체는 발생)"
+    },
+    {
+      "id": "E2E-NC1",
+      "scenario": "[네거티브 컨트롤 — 수정 전에도 통과] POST /api/knowledge/ask body={\"query\":\"공공안전지수 산출 방법 알려줘\",\"limit\":5} — 실데이터(2026_AI혁신처)에 1차자료 존재(2026-07-13 QA W-01에서 8/8 인용 확인)",
+      "expected": "HTTP 200, len(citations)>=1, 각 citation에 source_path·title 비어있지 않음, len(answer)>0. 수정 전/후 모두 PASS여야 함(유근거 citations 유지 회귀 방지)"
+    },
+    {
+      "id": "E2E-NC2",
+      "scenario": "[네거티브 컨트롤 — 수정 전에도 통과, LLM 미호출] GET http://127.0.0.1:8765/api/knowledge/search?query=예산 — 검색 경로는 이번 수정 미접촉(지금 즉시 실행 가능한 GET)",
+      "expected": "HTTP 200, items 길이 >= 1, mode in {\"fts5\",\"like\"}. 수정 전/후 결과 동일"
+    },
+    {
+      "id": "E2E-A7-CHAT-REG",
+      "scenario": "pytest(모의 LLM, 결정적): monkeypatch LLM이 \"예산편성은 상반기에 확정됩니다. (출처: 사업계획)\" 반환 — 유근거 답변 변형",
+      "expected": "assistant_message.citations 길이 >= 1 (억제 미발동 — 실출처 인용 포함 답변은 citations 유지)"
+    },
+    {
+      "id": "E2E-B1",
+      "scenario": "pytest test_llm_retry.py: featherless 설정(SidecarSettings llm_provider=\"featherless\", internal_api_base_url=\"https://api.featherless.ai/v1\")에서 fake urlopen이 1회차 urllib.error.HTTPError(504, 본문=실측 Cloudflare JSON \"retryable\":true,\"retry_after\":120) → 2회차 {\"choices\":[{\"message\":{\"content\":\"retry ok\"}}]} 반환. time.sleep monkeypatch로 기록",
+      "expected": "generate_session_reply 성공, result.text==\"retry ok\", urlopen 호출 정확히 2회, sleep 정확히 1회 호출되고 인자==5.0(retry_after 120→5초 캡)"
+    },
+    {
+      "id": "E2E-B2",
+      "scenario": "pytest: 동일 설정에서 fake urlopen이 2회 연속 504 반환(3회차 호출되면 테스트 실패하도록 카운터 가드)",
+      "expected": "LLMGenerationError 발생, str(exc)에 \"504\"와 \"잠시 후\" 포함(한국어 안내), exc.status_code==504, urlopen 호출 정확히 2회, sleep 1회"
+    },
+    {
+      "id": "E2E-B3",
+      "scenario": "pytest: ollama 설정(llm_provider=\"ollama\", base 127.0.0.1:11434)에서 fake urlopen이 urllib.error.URLError(ConnectionRefusedError()) 발생",
+      "expected": "LLMGenerationError 즉시 발생(무재시도 — urlopen 1회, sleep 0회), 메시지에 \"Ollama\"와 \"연결\" 포함(로컬 서버 다운 안내)"
+    },
+    {
+      "id": "E2E-B4",
+      "scenario": "pytest: featherless 스트리밍(generate_session_reply_streaming) — fake urlopen 1회차 504 HTTPError, 2회차 SSE 스트림('data: {\"choices\":[{\"delta\":{\"content\":\"첫 \"}}]}' / '...\"응답\"...' / 'data: [DONE]')",
+      "expected": "result.text==\"첫 응답\", on_delta 2회([\"첫 \",\"응답\"]), urlopen 2회, sleep 1회 2.0<=s<=5.0 (첫 바이트 수신 전 재시도만 허용됨을 확인)"
+    },
+    {
+      "id": "E2E-B5",
+      "scenario": "pytest: HTTP 400 오류(fake urlopen이 HTTPError 400 1회) — 비재시도 코드 확인",
+      "expected": "LLMGenerationError 즉시 발생, urlopen 정확히 1회, sleep 0회, 메시지에 \"400\" 포함(기존 포맷 보존 — responses→chat 폴백 계약 유지)"
+    },
+    {
+      "id": "E2E-NC3",
+      "scenario": "[네거티브 컨트롤 — 수정 전에도 통과] 기존 pytest test_llm_providers.py::test_featherless_uses_official_openai_compatible_chat_contract 및 test_openrouter_streaming_reads_sse_delta_chunks 무수정 실행",
+      "expected": "수정 전/후 모두 PASS — 정상 200 응답 경로에서 재시도 로직이 요청 본문·헤더·URL 계약을 변경하지 않음"
+    }
+  ],
+  "risks": [
+    "오억제(false positive): 유근거 혼합 답변이 첫 문장에서 '~는 찾을 수 없으나'로 시작하면 실출처 인용이 있어도 citations가 억제될 수 있음 — 머리 200자 윈도우로 완화했지만 완전 제거 불가. db.log 억제 이벤트로 실사용 모니터링 후 패턴 조정 필요",
+    "누락(false negative): gemma-4-E2B 경량모델의 무근거 표현 변주('해당 내용은 제공된 문서에 나타나지 않습니다' 등)가 패턴 밖이면 기존 증상 재발 — 패턴 목록은 실측 2건 기반이므로 E2E-A5 집계(>=8/10)에서 미달 시 보강하는 루프를 검증 단계에 포함해야 함",
+    "llm.py:513-515의 \"404\"/\"400\" 문자열 검사 리팩터링 누락 시 openai responses→chat 폴백이 깨져 openai/custom_openai 프로파일 회귀 — status_code 속성 우선 + 문자열 폴백 이중화로 방어하고 E2E-B5로 고정",
+    "재시도로 인한 지연 증가: 최악 1차 60s(504) + 5s 백오프 + 2차 — 스트리밍 UI는 백오프 동안 무출력. RETRY_ELAPSED_CAP(90s)으로 상한을 두지만 QA G5 시간기준(턴<=60s)은 재시도 발동 시 원천적으로 초과 — '실패 노출'보다 '느린 성공'을 택하는 정책 결정임을 릴리스 노트에 명시 필요",
+    "enrich 배치(_wiki_llm_generate 경유)도 재시도를 상속 — 장애 지속 시 배치당 최대 20문서 x (백오프+재시도)로 잡 시간이 늘어남(ENRICH_DEFAULT_LIMIT로 상한은 있음). 문제 되면 enrich 경로만 재시도 비활성 옵션 추가",
+    "app.py:2279-2294에 동일한 update_work_session_message 실패 처리 중복 호출이 이미 존재 — 이번 수정에서 주변 코드를 건드리므로 실수로 한쪽만 고치면 diff가 혼란스러움. 중복 제거는 별도 커밋으로 분리 권장",
+    "ask() 응답에 no_evidence 필드 추가는 스키마 확장(하위호환) — 데스크톱 api.ts 타입에 선택 필드로 추가하지 않아도 동작하지만, 타입 엄격 모드에서 미사용 경고 가능성 확인 필요",
+    "HTTPError.read()는 1회만 읽힘 — 재시도 루프에서 시도마다 새 예외 객체의 본문을 읽어 backoff 파싱과 최종 메시지에 재사용해야 하며, 같은 객체를 두 번 read()하면 빈 문자열이 됨(구현 시 주의)"
+  ]
+}

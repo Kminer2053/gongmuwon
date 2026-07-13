@@ -1,0 +1,136 @@
+{
+  "root_cause": "[핵심 결함 A — 매칭] services/sidecar/src/gongmu_sidecar/taxonomy_rules.py:256-270 `match_work_area()`: 폴더 매칭이 \"문서 경로 세그먼트를 folders에 가진 모든 영역\"을 수집한 뒤, `if len(folder_matches) > 1: return None, \"low\", candidates, \"conflict\"` (263-270행) — 2개 이상이면 무조건 low/conflict로 떨어뜨린다. 의심됐던 NFC/NFD·경로구분자·마커문자는 결함이 아님을 실DB로 확인(비NFC 경로 0건, 백슬래시 0건, □■ 마커는 normalize_folder_name이 정상 처리).\n\n[핵심 결함 B — 노이즈 영역 생성] services/sidecar/src/gongmu_sidecar/work_taxonomy.py:292-327 vocab-cross: 시드 토큰을 `if term not in rel: continue` 로 relative_path 전체(폴더명 포함)에 substring 매칭한다. 그래서 \"AI\"는 폴더명 '□주요□AI활용 내재화 및 문화조성' 등에 걸려 그 폴더의 전 파일(210건/9폴더)이 매칭 → VOCAB_CROSS_MIN_FILES=3/FOLDERS=2를 쉽게 넘겨 후보 승격. 노이즈 토큰 출처는 duty_seed_tokens(work_taxonomy.py:80-94): 인터뷰 duty='AI 도입·확산 전략 수립, 직원 AI 교육, 데이터 기반 업무혁신 과제 총괄' → ['AI','도입','확산','전략','수립','직원','교육','데이터','기반','업무혁신','과제','총괄']. WORK_VOCAB에서도 '평가','조직','보안'이 같은 방식으로 승격. '예산'은 vocab 폴백(work_taxonomy.py:329-354)이 루트 직속 파일 2건('붙임. 2026년도 사업계획 및 예산편성(안).hwp' 등) 매칭으로 folders=[] 후보 생성. 마법사(apps/desktop/src/screens/KnowledgeScreen.tsx:1034-1049 adoptProposal)는 모든 후보를 excluded:false 기본 포함(체크박스는 병합 선택용)이라 노이즈 12개가 그대로 확정으로 유입됐고, confirm_taxonomy(work_taxonomy.py:546-575)는 folders 빈 배열·폴더 중복 claim을 전혀 검증하지 않는다.\n\n[A×B 상호작용 = 0.7%의 직접 원인] 실DB(source d08bd745-266c-4d85-8fd8-2a5bf5eda3c8, active 426건) 검증: 확정 25개 영역 중 노이즈 영역들의 folders가 실폴더 13개를 전부 중복 claim한다. 예: '□주요□2026년도 사업계획'은 사업계획·평가·ai·도입·전략·수립·직원·데이터·기반·과제 10개 영역의 folders에 등장 → 이 폴더 문서 118건 전원 conflict→low. 현행 로직 오프라인 재현 결과 = DB 실측과 정확히 일치: high 3(단독 claim 폴더 '□주요□ 청년창업 관련' 2건 + '□주요□정부경평 피드백' 1건), low 296(conflict 293 + no_signal 3), quality_json conflicts=293. 재적용해도 결정론적으로 같은 결과라 변화 없음.\n\n[결함 아님으로 분리] tag_confidence='' 127건: 전수 검증 결과 127건 모두 is_reference_shelf_path=True(■참고■규정 87 + ■참고■AI관련 참고자료 29 + ■참고■기타 참고자료 10 + □기타□ 전문점 제한경쟁 관련 1). work_taxonomy.py:999-1019 apply와 knowledge_wiki.py:989 색인 태깅이 참고서고를 태깅·큐 대상에서 제외하고 confidence=''로 비우는 것은 설계 의도(§5.1)대로 동작 — 결함 아님. 단, 대시보드 \"분류 대기 296건\"과 별개로 이 127건이 '빈 값'으로 남는 것은 UI 표기 개선 대상.",
+  "fix_design": "## (a) 매칭 결함 수정 — taxonomy_rules.match_work_area() 소유자(owner) 타이브레이크\nmatch_work_area의 폴더 매칭 단계를 3단 결정론 규칙으로 교체(단일 구현이므로 apply 배치·색인 증분 태깅·rebind 세 경로에 동시 적용됨):\n1) folder_matches를 (area, matched_folder, segment_depth) 튜플로 수집(현행처럼 area만 수집하지 않음).\n2) 매칭이 2개 이상이면 순차 타이브레이크: ① 더 깊은(파일에 가까운) 세그먼트를 매칭한 영역 우선 → ② \"소유자\" 우선: `work_area_slug(normalize_folder_name(matched_folder)) == area[\"slug\"]` 인 영역(폴더명에서 파생된 영역 = 그 폴더의 주인). 소유자가 정확히 1개면 (slug, \"high\", [], \"folder\") 반환 → ③ 소유자 판별 실패 시(영역 개명 등) folders 배열 길이가 최소인 영역이 유일하면 그 영역(가장 특이적 claim) → ④ 그래도 복수면 현행대로 conflict/low(진짜 모호 케이스만 큐로).\n   - 신규 헬퍼 `folder_owner_slug(folder: str) -> str`를 taxonomy_rules에 추가해 ②를 재사용.\n   - 실DB 시뮬레이션 검증 완료: high 3→294, low 296→5(루트 직속 5건만 잔류: no_signal 3 + '사업계획vs예산' keyword conflict 2), 참고서고 '' 127 불변. 기존 high 3건 슬러그 불변.\n\n## (c) 단어조각 영역 생성 차단 — work_taxonomy.analyze_source()\n1) vocab-cross(292-327행) 필터 3종: ① term 매칭을 relative_path 전체가 아니라 파일명(Path(rel).name)에만 적용(폴더명 substring 부풀림 차단) ② 이미 1단계 폴더로 승격된 영역의 폴더(area_by_slug에 들어간 folder_files 키) 소속 파일은 cross 집계에서 제외 — 설계 의도('받은파일/백업 등 관행 폴더에 흩어진 업무 묶기')대로 비승격 폴더+루트만 집계 ③ duty_seed 토큰에 불용어 집합 적용: DUTY_STOPWORDS = {\"총괄\",\"관련\",\"업무\",\"담당\",\"지원\",\"운영\",\"추진\",\"확산\",\"수립\",\"도입\",\"기반\",\"과제\",\"직원\",\"교육\",\"및\"} + 최소 길이 2 유지. WORK_VOCAB 항목은 불용어 미적용(정식 어휘). 실DB 재현 결과 이 필터로 노이즈 cross 후보 11개 전부 소멸(전 후보의 매칭 폴더가 이미 승격 폴더뿐이므로).\n2) vocab 폴백(329-354행): 후보 유지하되 source=\"vocab\"·confidence=\"low\"·folders=[] 메타 그대로 노출.\n3) confirm_taxonomy(546-575행) 검증 추가: ① folders가 빈 배열이고 keywords도 비면 keywords=[name] 자동 부여(키워드 전용 영역으로 명시화 — '예산' 같은 영역이 매칭 불능 상태로 남지 않게) ② 폴더 중복 claim 정리: 한 폴더가 여러 영역 folders에 있으면 folder_owner_slug 일치 영역에만 남기고 나머지 영역에서는 제거하고 해당 term을 keywords로 강등(데이터 차원의 구조적 차단; (a)는 기확정 체계용 방어선) ③ 정리 내역을 db.log로 기록.\n4) 마법사(KnowledgeScreen.tsx adoptProposal): `excluded: area.confidence === \"low\" || area.source === \"vocab\"` 으로 저확신·단어조각 후보를 기본 제외(포함 버튼으로 opt-in). 카드에 \"자동 제외됨 — 근거 약함\" pill 표시.\n\n## (b) 남는 애매 문서 auto-triage 검토 큐 UX\n(a) 적용 후 큐는 진짜 모호 문서만 남는다(실DB 기준 5건). 개선:\n1) 백엔드: POST /api/knowledge/taxonomy/queue/bulk-resolve {items:[{id, work_area_slug, doc_role}]} 신설(app.py). work_taxonomy에 resolve_queue_items() 추가 — 기존 resolve_queue_item에서 허브 재작성을 분리한 코어를 루프 실행 후 _write_hubs+rebuild_index를 1회만 수행(현행은 항목당 전체 허브 재작성 — 296건이면 296회). 단건과 동일하게 tag_locked=1, 유령 slug는 InvalidTagError→400.\n2) 큐 정렬·추천: match_work_area가 반환하는 candidates를 folders 길이 오름차순(특이도) 정렬해 저장하고, 후보가 정확히 1개인 항목은 프런트에서 드롭다운 기본 선택. 큐 목록을 1단계 폴더별 그룹 헤더로 묶고 \"이 그룹 전체를 [선택 업무]로 반영\" 버튼 + \"추천 일괄 반영\"(단일 후보 항목 전건) 버튼을 bulk 엔드포인트에 연결.\n3) 대시보드 \"분류 대기 N건\" 카드에서 설정 탭 큐로 바로가기 + '참고서고 127건은 설계상 태깅 제외' 안내 문구(빈 confidence 오해 방지).\n\n## (d) 마이그레이션 — 재적용만으로 개선되는가: YES\n- 코드 수정(a) 배포 후 기존 확정 체계 그대로 POST /api/knowledge/taxonomy/apply 1회 재실행이 곧 마이그레이션: 오프라인 시뮬레이션으로 high 3→294·큐 296→5 확인. DB 스키마 변경·재확정 불필요. apply는 멱등(결정론 판정 + run_id 기반 큐 교체 + locked 문서 보존).\n- 노이즈 영역 9~12개는 재적용 후 '문서 0건 허브'로 잔존(기능 무해). 정리는 선택적 2단계: 수정된 proposal은 노이즈를 재생성하지 않으므로 마법사 재확정 → _write_hubs(1265-1268행)가 stale 허브 삭제, _revalidate_locked_docs가 사라진 slug의 locked 문서를 큐로 환원(현재 노이즈 slug locked 문서 0건이라 무손실). 대시보드에 \"문서 0건 업무 N개 — 마법사에서 정리 권장\" 힌트 추가.",
+  "files_to_change": [
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/taxonomy_rules.py",
+      "change": "match_work_area() 폴더 매칭에 3단 타이브레이크(세그먼트 깊이 → folder_owner_slug 일치 소유자 → 최소 folders 특이도) 추가, 신규 헬퍼 folder_owner_slug() 추가. candidates를 특이도 순 정렬해 반환."
+    },
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/work_taxonomy.py",
+      "change": "analyze_source(): vocab-cross를 파일명 매칭·비승격 폴더 한정으로 제한, DUTY_STOPWORDS 상수 추가·duty 시드 필터. confirm_taxonomy(): 폴더 중복 claim 소유자 정리(비소유 영역은 keywords 강등), folders=[]∧keywords=[] 영역에 keywords=[name] 부여, 정리 로그. resolve_queue_items() 일괄 처리(허브 재작성 1회) 신설 및 resolve_queue_item 코어 분리."
+    },
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/app.py",
+      "change": "POST /api/knowledge/taxonomy/queue/bulk-resolve 엔드포인트 신설(TaxonomyQueueBulkResolveRequest 모델 포함, InvalidTagError→400 매핑)."
+    },
+    {
+      "path": "apps/desktop/src/screens/KnowledgeScreen.tsx",
+      "change": "adoptProposal(): confidence low·source vocab 후보 기본 excluded 처리 + '자동 제외' pill. 분류 대기 큐: 1단계 폴더 그룹핑, 단일 후보 기본 선택, 그룹 일괄 반영·추천 일괄 반영 버튼(bulk API). 대시보드 카드에 참고서고 제외 안내·0건 허브 정리 힌트."
+    },
+    {
+      "path": "apps/desktop/src/api.ts",
+      "change": "bulkResolveTaxonomyQueue() 클라이언트 함수와 요청/응답 타입 추가."
+    },
+    {
+      "path": "services/sidecar/tests/test_work_taxonomy.py",
+      "change": "타이브레이크 단위테스트(중복 claim 폴더→소유자 high, 개명 영역→최소 folders 폴백, 진짜 모호→conflict 유지), vocab-cross 필터 테스트(승격 폴더 제외·파일명 한정·불용어), confirm 폴더 소유자 정리·keywords 자동 부여 테스트, bulk resolve 테스트."
+    },
+    {
+      "path": "services/sidecar/tests/test_incremental_tagging.py",
+      "change": "색인 증분 태깅 경로가 동일 타이브레이크로 high를 주는 회귀 테스트(중복 claim taxonomy에서 신규 파일 색인 시 high)."
+    },
+    {
+      "path": "apps/desktop/src/knowledge-taxonomy.test.tsx",
+      "change": "저확신 후보 기본 제외 렌더링, 큐 그룹 일괄 반영 흐름 컴포넌트 테스트."
+    }
+  ],
+  "verification_criteria": [
+    "[실DB 재적용] 수정 배포 후 source d08bd745-266c-4d85-8fd8-2a5bf5eda3c8에 apply 1회 실행 시(2026-07-14 스냅샷: active 426, 참고서고 127 기준): SELECT COUNT(*) FROM knowledge_wiki_docs WHERE status!='missing' AND tag_confidence='high' 값이 294 이상 (기준선 3, 개선율 98배)",
+    "[비율 기준] high / (active-빈confidence) ≥ 0.95 — 스냅샷 기준 294/299 = 98.3% (파일 증감 대비 비율 판정)",
+    "[큐 축소] SELECT COUNT(*) FROM knowledge_tag_queue WHERE status='pending' ≤ 5 (기준선 296) AND quality_json의 conflicts ≤ 2 (기준선 293)",
+    "[참고서고 불변] tag_confidence='' 문서 수 = 127 정확히 유지(전건 is_reference_shelf_path=True), work_area_slug=''",
+    "[기존 high 회귀 없음] 기존 high 3건(□주요□ 청년창업 관련 2건→청년창업-관련, □주요□정부경평 피드백 1건→정부경평-피드백) 슬러그·confidence 불변",
+    "[멱등성] apply 2회 연속 실행 시 (high, medium, low, '' 4개 집계값)과 pending 큐 수가 두 실행 간 완전 동일",
+    "[노이즈 차단] 수정된 GET /api/knowledge/taxonomy/proposal?source_id=d08bd745… 응답에서 work_areas에 {AI,도입,확산,전략,수립,직원,데이터,기반,과제,총괄} 이름의 후보 0건, source='vocab-cross' 후보 0건, 폴더 승격 후보 13개 유지(±실폴더 변동)",
+    "[단위테스트] node scripts/portable-run.mjs python -m pytest services/sidecar/tests/test_work_taxonomy.py services/sidecar/tests/test_incremental_tagging.py 전건 PASS",
+    "[프런트테스트] apps/desktop에서 knowledge-taxonomy.test.tsx 포함 vitest 전건 PASS"
+  ],
+  "e2e_scenarios": [
+    {
+      "id": "E01-NEG-refshelf",
+      "scenario": "[네거티브 컨트롤·수정 전에도 PASS] 참고서고 제외 유지 검증. 픽스처 폴더(임시 워크스페이스, .txt 파일)에 '■참고■규정/복무규정.txt', '■참고■규정/여비규정.txt', '□기타□기타자료/기타 메모.txt' 포함하여 스캔→색인→체계 확정(임의 1개 영역)→apply 실행",
+      "expected": "SELECT COUNT(*) FROM knowledge_wiki_docs WHERE relative_path LIKE '■참고■%' OR relative_path LIKE '□기타□%' AND (tag_confidence='' AND work_area_slug='') 결과 = 3 (전건 빈 confidence, 큐 미적재). knowledge_tag_queue에 이 3건의 wiki_doc_id 0건"
+    },
+    {
+      "id": "E02-NEG-unique-owner-high",
+      "scenario": "[네거티브 컨트롤·수정 전에도 PASS] 단독 claim 폴더 high 배정. 실DB(운영 스냅샷)에서 '□주요□ 청년창업 관련' 폴더 문서 2건 조회",
+      "expected": "SELECT COUNT(*) FROM knowledge_wiki_docs WHERE relative_path LIKE '□주요□ 청년창업 관련/%' AND tag_confidence='high' AND work_area_slug='청년창업-관련' = 2 — 수정 전·후 동일"
+    },
+    {
+      "id": "E03-NEG-idempotent",
+      "scenario": "[네거티브 컨트롤·수정 전에도 PASS] apply 멱등성. 동일 소스에 POST /api/knowledge/taxonomy/apply를 연속 2회 실행(파일 변동 없음), 각 실행 후 집계 스냅샷 채집",
+      "expected": "1회차와 2회차의 (high, medium, low, '' 집계 4값 + SELECT COUNT(*) FROM knowledge_tag_queue WHERE status='pending')가 완전 동일. 큐에 run_id 중복 pending 잔존 0건: SELECT COUNT(DISTINCT run_id) FROM knowledge_tag_queue WHERE status='pending' AND source_id=? ≤ 1"
+    },
+    {
+      "id": "E04-owner-tiebreak-basic",
+      "scenario": "[수정 후] 중복 claim 폴더의 소유자 high 배정. 픽스처: '□주요□2026년도 사업계획/2026년도 사업계획서 작성지침.txt' 등 3건 + '□주요□AI융합 상징프로젝트/AI융합 상징프로젝트 추진계획.txt' 등 2건 색인 후, work_areas=[{name:'사업계획',folders:['□주요□2026년도 사업계획']},{name:'AI융합 상징프로젝트',folders:['□주요□AI융합 상징프로젝트']},{name:'AI',folders:['□주요□2026년도 사업계획','□주요□AI융합 상징프로젝트']},{name:'기반',folders:['□주요□2026년도 사업계획','□주요□AI융합 상징프로젝트']}]로 확정(노이즈 중복 claim 재현)→apply",
+      "expected": "사업계획 폴더 3건 전건 work_area_slug='사업계획'·tag_confidence='high', AI융합 폴더 2건 전건 work_area_slug='ai융합-상징프로젝트'·'high'. work_area_slug IN ('ai','기반') 문서 0건. pending 큐 0건"
+    },
+    {
+      "id": "E05-marker-variant",
+      "scenario": "[수정 후] 마커문자 변형 ■주요■ 폴더 매칭. 픽스처: '■주요■데이터 혁신/데이터 혁신 회의자료.txt' 색인, 영역 {name:'데이터 혁신',folders:['■주요■데이터 혁신']} + 중복 claim {name:'데이터',folders:['■주요■데이터 혁신', '받은파일']} 확정→apply",
+      "expected": "해당 문서 work_area_slug='데이터-혁신', tag_confidence='high' (■마커도 normalize_folder_name이 스트립하여 소유자 판정 성공)"
+    },
+    {
+      "id": "E06-deep-path",
+      "scenario": "[수정 후] 깊은 하위폴더(3단) 문서 배정. 픽스처: '□주요□성과평가/제출/증빙/실적 증빙자료.txt' 색인, 영역 {name:'성과평가',folders:['□주요□성과평가']} + {name:'평가',folders:['□주요□성과평가','□주요□2026년도 사업계획']} 확정→apply",
+      "expected": "해당 문서 work_area_slug='성과평가', tag_confidence='high' (1단계 세그먼트 소유자 승리, 깊이와 무관하게 결정적)"
+    },
+    {
+      "id": "E07-crossfolder-legit",
+      "scenario": "[수정 후] 정당한 교차폴더(관행 폴더) 후보는 살아남는지. 픽스처: '받은파일/예산/2027 예산요구서.txt', '받은파일/예산 심의결과 통보.txt', '백업/예산요구서 백업.txt' (파일명에 '예산' 3건, 비승격 폴더 2곳) + 승격 폴더들 포함 → 인터뷰 duty='AI 도입·확산 전략 수립, 직원 AI 교육, 데이터 기반 업무혁신 과제 총괄' 저장 → GET /api/knowledge/taxonomy/proposal",
+      "expected": "응답 work_areas에 name='예산'·source='vocab-cross'·folders=['받은파일','백업'] 후보 존재(정당한 교차 후보 보존). 반면 {AI,도입,확산,전략,수립,직원,데이터,기반,과제,총괄} 이름 후보 0건, folders가 승격 폴더만으로 구성된 cross 후보 0건"
+    },
+    {
+      "id": "E08-noise-blocked-realdb",
+      "scenario": "[수정 후] 실DB 소스로 위저드 재실행(proposal 재생성). GET /api/knowledge/taxonomy/proposal?source_id=d08bd745-266c-4d85-8fd8-2a5bf5eda3c8 (인터뷰 duty 기존값 유지)",
+      "expected": "work_areas 후보 중 이름이 {AI,도입,확산,전략,수립,직원,데이터,기반,과제,평가,조직,보안} 중 하나이면서 source='vocab-cross'인 항목 0건. 폴더 승격 후보 13개(실폴더 13개와 1:1). folders=[] 후보는 존재해도 confidence='low'·source='vocab'로 표시('예산' 루트 2건 폴백 — 위저드에서 기본 제외 처리 대상)"
+    },
+    {
+      "id": "E09-migration-reapply",
+      "scenario": "[수정 후·마이그레이션 본검증] 실DB 기존 확정 체계(25개, 노이즈 포함) 그대로 재확정 없이 POST /api/knowledge/taxonomy/apply 1회 실행",
+      "expected": "high ≥ 294 (비율 ≥ 0.95×(active−'')), low ≤ 5, tag_confidence='' = 127 불변, quality_json conflicts ≤ 2, pending 큐 ≤ 5. 노이즈 slug(ai,도입,전략,수립,직원,데이터,기반,과제,예산) 배정 문서: SELECT COUNT(*) WHERE work_area_slug IN (...) = 0"
+    },
+    {
+      "id": "E10-folder-per-area-census",
+      "scenario": "[수정 후] 실DB 재적용 후 폴더별 배정 정합 전수 검사: 13개 실폴더 각각에 대해 폴더 내 문서의 work_area_slug 분포 조회",
+      "expected": "'□주요□2026년도 사업계획'→사업계획 118건, '□주요□AI_혁신아이디어 구현'→ai-혁신아이디어-구현 41건, '□주요□AI활용 내재화 및 문화조성'→ai활용-내재화-및-문화조성 31건, '□주요□2025년도 성과평가'→성과평가 24건, '□주요□AI융합 상징프로젝트'→ai융합-상징프로젝트 20건, '□주요□처장회의 발표'→처장회의-발표 18건, '□주요□AX전략 및 로드맵 수립'→ax전략-및-로드맵-수립 14건, '□주요□데이터 혁신'→데이터-혁신 12건, '□주요□미래성장 리서치'→미래성장-리서치 7건, 코레일 2폴더 각 3건, 청년창업 2건, 정부경평 1건 — 전건 tag_confidence='high' (폴더당 단일 slug, 타 slug 혼입 0건)"
+    },
+    {
+      "id": "E11-root-ambiguous-queue",
+      "scenario": "[수정 후] 진짜 모호 문서만 큐 잔류. 실DB 재적용 후 루트 직속 5건('붙임. 2026년도 사업계획 및 예산편성(안).hwp', '붙임.(요약본)2026년도 사업계획 및 예산편성(안).hwp', '26년 관리감독자 온라인교육 수료증(박봉훈).pdf', '식대정리.xlsx', '★★ 260323 (최종_수정) 공사-계열사 대표이사 상견례 계획(안)_제출.hwp') 상태 조회",
+      "expected": "5건 전건 tag_confidence='low'·work_area_slug='' 이며 knowledge_tag_queue pending에 존재. 그중 '예산편성' 2건은 reason='conflict'이고 candidates_json의 work_areas가 사업계획·예산 2개, 나머지 3건은 reason='no_signal'"
+    },
+    {
+      "id": "E12-bulk-resolve",
+      "scenario": "[수정 후] auto-triage 일괄 반영. E11 상태에서 POST /api/knowledge/taxonomy/queue/bulk-resolve {items:[{id:붙임1, work_area_slug:'사업계획'},{id:붙임2, work_area_slug:'사업계획'}]} 호출",
+      "expected": "응답 200, 두 문서 work_area_slug='사업계획'·tag_confidence='high'·tag_locked=1, pending 큐 5→3. 존재하지 않는 slug로 재호출 시 400(InvalidTagError). 허브 파일 work-areas/사업계획.md의 doc_count 갱신 1회"
+    },
+    {
+      "id": "E13-locked-preserved",
+      "scenario": "[네거티브 컨트롤 성격·수정 전에도 PASS] 사용자 확정(locked) 보존. 큐 항목 1건을 resolve(임의 유효 slug)로 확정한 뒤 apply 재실행",
+      "expected": "해당 문서 tag_locked=1·확정 slug·tag_confidence='high' 그대로 유지(재판정 제외), 큐에 재적재 0건, family_id/family_role만 재평가 반영"
+    },
+    {
+      "id": "E14-nfd-path",
+      "scenario": "[수정 후·함수 레벨] NFC/NFD 경로 견고성. 오프라인 파이썬으로 taxonomy_rules.match_work_area(실DB taxonomy_json, relative_path=unicodedata.normalize('NFD','□주요□데이터 혁신/2026 데이터 표준화 보고.hwp'))를 호출(NFD 분해형 입력)",
+      "expected": "반환값 == ('데이터-혁신', 'high', [], 'folder') — NFD 입력에도 nfc() 정규화+소유자 타이브레이크로 동일 판정(결정적 튜플 비교)"
+    },
+    {
+      "id": "E15-wizard-default-exclusion",
+      "scenario": "[수정 후·UI] 위저드 저확신 후보 기본 제외. vitest 컴포넌트 테스트: adoptProposal에 {name:'예산', source:'vocab', confidence:'low', folders:[]} 포함 proposal 주입 후 렌더",
+      "expected": "해당 카드 excluded=true(class 'is-excluded')·'자동 제외' pill 표시, includedAreas 카운트에서 제외. '포함' 버튼 클릭 시 includedAreas에 편입(opt-in 동작). 확정 payload에 기본 상태로는 미포함"
+    }
+  ],
+  "risks": [
+    "영역 개명 시 소유자 판정 실패: 사용자가 위저드에서 폴더 파생 영역 이름을 바꾸면 folder_owner_slug != area.slug가 되어 1차 타이브레이크가 빗나감 — 2차(최소 folders 특이도) 폴백으로 대부분 흡수되지만, 특이도까지 동률이면 conflict/low로 큐 잔류(의도된 안전 동작). 장기적으로는 confirm 시 folder→area 소유 매핑을 taxonomy_json에 명시 저장하는 후속 개선 여지",
+    "confirm 시 폴더 중복 claim 자동 정리(비소유 영역에서 folders 제거→keywords 강등)는 사용자가 의도적으로 한 폴더를 두 업무에 걸친 경우를 바꿔놓음 — 정리 내역을 확정 응답·SCHEMA.md에 표시해 투명화 필요",
+    "vocab-cross를 '비승격 폴더+파일명 한정'으로 좁히면 승격 폴더 안에 섞인 타업무 문서(예: 사업계획 폴더 속 감사 문서)는 cross 후보로 못 잡음 — 해당 문서는 키워드 medium 또는 큐로 가며, F-07 원설계 의도(관행 폴더 구제)에는 부합",
+    "bulk-resolve는 다수 문서에 tag_locked=1을 일괄 설정 — 이후 자동 재판정에서 영구 제외되므로 오확정 시 되돌릴 unlock UI가 현재 없음(후속 백로그 필요)",
+    "기존 확정 체계 재적용만으로는 노이즈 영역 9~12개가 '문서 0건 허브'로 잔존(위키 목록 노이즈) — 기능 무해하나 정리는 마법사 재확정 필요, 재확정 시 _revalidate_locked_docs가 노이즈 slug locked 문서를 큐로 환원(현재 0건이라 무손실이지만 E13과 함께 회귀 확인 필요)",
+    "test_work_taxonomy.py·test_incremental_tagging.py의 기존 픽스처가 구 vocab-cross 동작(경로 전체 매칭)을 전제하면 테스트 수정 동반 — 판정 계약(§5.1 apply=색인 동일 판정)이 깨지지 않게 두 경로 테스트를 같은 taxonomy 픽스처로 묶을 것",
+    "E2E 실DB 시나리오(E08~E12)는 운영 워크스페이스 DB를 API 경유로 변경(apply·resolve)함 — 실행 전 gongmu.db 백업 필사, 직접 SQL 변경은 계속 금지. 파일 증감 시 절대치(294/127/5)가 흔들리므로 비율 기준(≥0.95)을 병행 판정",
+    "keywords 자동 부여('예산'→keywords=['예산'])로 키워드 medium 매칭이 늘어 파일명에 해당 단어를 포함한 문서가 keyword conflict로 큐에 더 잡힐 수 있음 — 실DB 기준 루트 2건뿐이라 영향 미미하나 대형 폴더에서는 관찰 필요"
+  ]
+}

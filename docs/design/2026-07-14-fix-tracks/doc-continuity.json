@@ -1,0 +1,102 @@
+{
+  "root_cause": "대화→문서작성 연속성 단절의 근본 원인은 3중 결함의 연쇄이며, 전부 코드·실서버로 확인됨.\n\n[1] 위키 근거 검색 쿼리가 사용자 지시문 원문 — services/sidecar/src/gongmu_sidecar/app.py:1849 `retrieval = self.wiki.retrieve(query=text, session_id=session_id, limit=4)`. \"방금 내용을 1페이지 보고서로 작성해줘\"가 그대로 검색어가 된다. knowledge_wiki.py의 `_query_terms`(knowledge_wiki.py:139-168)로 실제 추출한 FTS term은 [\"내용을\",\"페이지\",\"보고서로\",\"보고서\"] — 콘텐츠 term이 0개이고 전부 메타어다. QUERY_STOPWORDS(knowledge_wiki.py:104-109)에 \"내용\"·\"작성해줘\"는 있으나 조사 변형 \"내용을\"과 \"보고서/보고서로/페이지\"는 없어 필터를 통과한다. 이 term으로 FTS AND→OR 사다리(knowledge_wiki.py:2780-2811)를 태우면 실서버 재현 결과 유일 최상위 히트가 \"AX포털 개선계획\"(score 12.1969) — L-01 실패와 정확히 일치. (재현: POST /api/knowledge/retrieve, 2026-07-14 실측)\n\n[2] organize 프롬프트의 폴백 규칙이 무관 근거를 '주제'로 승격 — document_authoring.py:398 \"작성 지시가 짧거나 모호하면 첨부된 참고자료 자체를 주제로 삼아 내용을 구성한다\"(참고자료 우선, 업무대화 기록은 그 다음: :399). app.py:1855에서 무관 위키 발췌가 \"[지식폴더 근거: AX포털 개선계획]\"로 reference_texts에 주입되고, 경량모델(gemma-4-E2B)이 이 규칙을 따라 참고자료를 주제로 삼음 → structure.title \"AX포털 개선 계획 요약 보고\"가 app.py:1888-1892에서 문서 제목으로 채택.\n\n[3] F-06 무근거 정직 가드 무력화 — app.py:1862-1870의 가드는 `if not reference_texts:`로만 발동한다. 무관 위키 히트가 reference_texts를 비어있지 않게 만들어 가드가 꺼지고, 응답의 \"지식폴더 근거:\" 라인(app.py:1960-1965)에도 무관 문서가 인용됨.\n\n핵심 방증: 세션 transcript는 organize에 전달되고 있었고(app.py:1830-1838 → document_authoring.py:609-621), DB 확인 결과 롤링 요약(context_summary_text)조차 정확히 \"공공기관 안전관리등급 기준\" 주제였다(세션 ceb162bc-be82, work_sessions 테이블 실측). 즉 올바른 주제 컨텍스트가 존재했는데 검색 쿼리·주제 도출에 전혀 사용되지 않은 것이 본질이다. 또한 사용자 메시지는 스킬 실행 전에 이미 DB에 저장되므로(app.py:2061 → 2146) transcript 마지막 user 메시지는 지시문 자체다.",
+  "fix_design": "원칙: 지능은 빌드타임에(결정적 규칙), 경량모델에는 명시적 지시만. LLM 추가 호출 없음.\n\n── A. app.py에 결정적 헬퍼 2개 신설 (_run_document_create_skill 인근) ──\n\nA-1. `_references_session_context(text: str) -> bool`\n공백 제거 후 마커 매칭: (\"방금\",\"위내용\",\"위의내용\",\"지금까지\",\"이대화\",\"이세션\",\"앞서\",\"아까\",\"같은내용\",\"말한내용\",\"논의한내용\",\"답변내용\",\"대화내용\"). 하나라도 포함되면 True.\n\nA-2. `_derive_document_topic(session_id: str, text: str) -> tuple[str, str]` → (topic_query, topic_sentence)\n- 모듈 상수 `_DOC_META_STOPWORDS = {\"보고서\",\"보고서로\",\"문서\",\"문서로\",\"페이지\",\"시행문\",\"공문\",\"이메일\",\"메일\",\"방금\",\"내용\",\"내용을\",\"요약\",\"작성\",\"정리\",\"뭐야\",\"뭐지\",\"무엇\",\"알려줘\",\"만들어줘\",\"작성해줘\",\"뽑아줘\",\"그대로\",\"해줘\"}` (지식검색 전역 QUERY_STOPWORDS는 건드리지 않음 — 스킬 로컬).\n- `from .knowledge_wiki import _query_terms` 재사용. `_content_terms(s) = [t for t in _query_terms(s) if t not in _DOC_META_STOPWORDS]`.\n- 절차:\n  (1) 지시문이 컨텍스트 참조(`_references_session_context(text)`)이거나 `_content_terms(text)`가 빈 경우 → 세션 user 메시지를 created_at 역순으로 순회하되, `_looks_like_document_create_request(msg)`가 True인 메시지(현재 지시문 포함 — 스킬 실행 전 이미 저장됨, F-17 복합 지시도 자동 제외)와 `_content_terms(msg)`가 빈 메시지는 건너뜀. 첫 번째 실질 메시지를 topic_sentence로, `\" \".join(_content_terms(topic_sentence)[:8])`을 topic_query로 반환. (예: \"공공기관 안전관리등급 기준이 뭐야?\" → topic_query \"공공기관 안전관리등급 기준이 기준\" 계열 — 조사제거 변형 포함, 실측상 이 정제 쿼리는 '공공기관 안전관리등급제 운영에 관한 지침'을 top-1으로 회수함, score 13.2071)\n  (2) 지시문 자체에 콘텐츠 term이 있고 컨텍스트 참조가 아니면 → topic_query = 지시문 콘텐츠 term join, topic_sentence = \"\" (명시 주제 우선 — 직전 대화보다 지시문이 이김).\n  (3) 둘 다 실패(1턴 세션 + 순수 메타 지시) → (\"\", \"\") 반환.\n\n── B. _run_document_create_skill 수정 (app.py:1845-1870 구간) ──\n\nB-1. 위키 retrieve 쿼리 교체: `topic_query, topic_sentence = self._derive_document_topic(session_id, text)`; topic_query가 비면 위키 retrieve 자체를 건너뜀(무관 문서 주입 원천 차단). 비지 않으면 `self.wiki.retrieve(query=topic_query, ...)`.\n\nB-2. 주제-근거 일치 게이트(결정적): gate_terms = `_content_terms(topic_query)` 중 길이≥3 term (없으면 ≥2 폴백). retrieve 각 item에 대해 `nfc(title+\" \"+body).lower()`에 gate_term이 1개 이상 포함될 때만 reference_texts·wiki_citations에 추가. 전부 탈락하면 wiki_citations=[] → (연결파일도 없으면) 기존 F-06 가드가 자연 발동.\n\nB-3. 지시문 강화(경량모델용 명시 주입): topic_sentence가 있으면\n`instruction = f\"{text}\\n\\n[문서 주제 — 직전 대화에서 도출] {topic_sentence[:200]}\\n반드시 이 주제로 작성한다. 참고자료가 이 주제와 무관하면 사용하지 않는다.\"`\nF-06 블록(app.py:1864-1870)은 기존대로 reference_texts 빈 경우 위 instruction 뒤에 이어 붙임(상호 배타 아님).\n\nB-4. 응답 텍스트: 게이트 통과 citations만 \"지식폴더 근거:\"에 나열(현행 루프 구조 유지로 자동 충족). 전부 탈락+컨텍스트 참조 지시인 경우 문구를 \"없음 (직전 대화 주제와 일치하는 근거 없음 — 근거 미확인 서술 방지 규칙 적용)\"으로 명시.\n\n── C. document_authoring.py ORGANIZE_SYSTEM_PROMPT 실패 방어 규칙 개정 (:397-400) ──\n우선순위 재배열(기존 규칙은 유지하되 앞에 2줄 추가):\n- \"[문서 주제] 블록이 있으면 반드시 그 주제로 작성한다. 참고자료가 주제와 무관하면 무시한다.\"\n- \"작성 지시가 '방금/위 내용' 등 대화를 가리키면 업무대화 기록에서 주제를 찾는다.\"\n- (기존) \"작성 지시가 짧거나 모호하면 …\" → \"…참고자료 자체를 주제로 삼아…\" 문장은 \"업무대화 기록이 없을 때\"로 조건 한정.\n※ 이 프롬프트는 문서작성 UI 경로(run_authoring_stages)와 공유되므로 추가 방식(additive)으로만 수정.\n\n── D. F-06 상호작용 계약(직전 턴 '근거 없음'일 때 문서작성 동작 정의) ──\n1) 문서작성 턴은 주제어 기반으로 재검색한다 — 직전 질의 턴과 검색어 형태가 달라 더 나은 근거를 찾을 수 있으며 이는 허용·권장(실측: 턴1 쿼리 '…기준이 뭐야?'는 공공기관현황·코레일유통만 회수, 정제 주제 쿼리는 안전관리등급제 지침을 회수).\n2) 주제 일치 근거 발견 시 → 인용하고 본문에 반영.\n3) 근거 전무 시 → F-06 지시 블록 적용, 응답 근거 라인 \"없음\", 본문에 '자료 확인' 단정 서술 금지.\n4) 어떤 경우에도 주제 게이트를 통과하지 못한 문서를 인용·서술 근거로 쓰지 않는다. 제목·본문은 항상 직전 대화 주제여야 한다.\n\n── E. 테스트 ──\nservices/sidecar/tests에 topic 도출·게이트 단위테스트 추가(가짜 LLM, DB 픽스처): (a) L-01 시퀀스 → topic_query에 \"안전관리등급\" 포함·메타어 배제, (b) 무관 히트(AX포털) 게이트 탈락, (c) doc-create 이력 메시지 건너뛰기, (d) 명시 주제 지시문 우선.",
+  "files_to_change": [
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/app.py",
+      "change": "_run_document_create_skill(1794-1967) 수정: (1) :1849 retrieve 쿼리를 raw text에서 _derive_document_topic 산출 topic_query로 교체, topic_query 빈 경우 위키 검색 생략 (2) retrieve 결과에 주제-근거 일치 게이트 적용 후 통과분만 reference_texts/wiki_citations 주입 (3) topic_sentence 존재 시 instruction에 '[문서 주제 — 직전 대화에서 도출]' 블록 주입 (4) 근거 전탈락+컨텍스트 참조 시 응답 근거 라인 문구 명시. 신규 헬퍼: _references_session_context, _derive_document_topic, _DOC_META_STOPWORDS 상수. knowledge_wiki의 _query_terms import 추가."
+    },
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/document_authoring.py",
+      "change": "ORGANIZE_SYSTEM_PROMPT(390-401) 실패 방어 규칙 개정: '[문서 주제] 블록 최우선' 규칙과 '대화 참조 지시는 업무대화 기록에서 주제 도출' 규칙을 추가하고, 기존 '참고자료 자체를 주제로' 폴백을 '업무대화 기록이 없을 때'로 조건 한정. UI 경로와 공유되므로 additive 수정."
+    },
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/knowledge_wiki.py",
+      "change": "(선택·무동작변경) _query_terms를 app.py에서 import해 재사용 — 공개 별칭 query_terms 추가 또는 현행 언더스코어 import 유지. QUERY_STOPWORDS 전역 셋은 지식검색 회귀 위험 때문에 절대 수정하지 않음."
+    },
+    {
+      "path": "services/sidecar/tests/test_work_session_turn.py",
+      "change": "단위테스트 추가(또는 신규 test_document_topic_derivation.py): L-01 메시지 시퀀스 topic 도출, 무관 위키 히트 게이트 탈락, doc-create 이력 메시지 스킵, 명시 주제 지시 우선, F-17 복합 지시 경로 비회귀."
+    }
+  ],
+  "verification_criteria": [
+    "[단위·결정적] L-01 메시지 시퀀스(user='공공기관 안전관리등급 기준이 뭐야?' → user='방금 내용을 1페이지 보고서로 작성해줘')로 _derive_document_topic 호출 시 topic_query에 '안전관리등급' 포함 AND '보고서'·'페이지'·'방금'·'내용' 미포함. PASS=문자열 검사 4건 전부 충족",
+    "[단위·결정적] 게이트 테스트: topic_query='공공기관 안전관리등급 기준', 가짜 retrieve 히트 title='AX포털 개선계획'(본문에 주제어 무) → wiki_citations에 미포함(len==0). PASS=탈락 확인",
+    "[실서버·결정적] POST http://127.0.0.1:8765/api/knowledge/retrieve {\"query\":\"공공기관 안전관리등급 기준\",\"limit\":4} → items[0].title에 '안전관리등급' 포함 (2026-07-14 실측 기준값: '공공기관 안전관리등급제 운영에 관한 지침(2022.8.31. 개정)', score 13.2071)",
+    "[E2E 정량] 아래 12개 시나리오 중 PASS ≥ 11/12, 단 E2E-01(L-01 재현)은 반드시 PASS, 네거티브 컨트롤 E2E-07·E2E-08은 수정 전/후 모두 PASS",
+    "[오염 0건] E2E-01~06, 09~12의 어시스턴트 응답 text 및 산출 markdown 파일에서 문자열 'AX포털' 출현 횟수 == 0",
+    "[회귀] cd services/sidecar && python -m pytest tests -q 전건 green — 특히 test_work_session_turn*.py, test_document_authoring*.py, test_knowledge_search.py(QUERY_STOPWORDS 전역 무수정 증명) 무실패"
+  ],
+  "e2e_scenarios": [
+    {
+      "id": "E2E-01",
+      "scenario": "L-01 원판 재현(2턴). POST /api/work-sessions {\"title\":\"E2E-01\"} → id. T1: POST /api/work-sessions/{id}/turn {\"text\":\"공공기관 안전관리등급 기준이 뭐야?\"}. T2: {\"text\":\"방금 내용을 1페이지 보고서로 작성해줘\"}",
+      "expected": "T2 응답 text에 '- 형식: onePageReport' 포함. '- 제목:' 라인 또는 results[0].markdown_path 파일 본문에 '안전관리' 포함. 응답 text+markdown 전체에서 'AX포털' 0회. '- 지식폴더 근거:' 라인이 '없음'을 포함하거나, 나열된 각 문서 제목이 {안전관리, 공공기관, 코레일유통} 중 1개 이상 포함(직전 턴 인용과 겹침 허용)"
+    },
+    {
+      "id": "E2E-02",
+      "scenario": "근거 풍부 주제 + '위 내용' 변형(2턴). T1: \"안전보건경영시스템 내부심사 절차가 뭐야?\" T2: \"위 내용을 1페이지 보고서로 정리해줘\"",
+      "expected": "T2 '- 제목:' 라인 또는 markdown 본문에 '내부심사' 포함. '- 지식폴더 근거:' 라인에 '내부심사' 또는 '안전보건' 포함 근거 ≥1건(기대 top: '13. KR-SHP-13 내부심사' — 실측 score 11.9452). 'AX포털' 0회"
+    },
+    {
+      "id": "E2E-03",
+      "scenario": "3턴 + '지금까지 논의한 내용' 변형. T1: \"AI업무추진계획 주요 과제 알려줘\" T2: \"위험성평가 절차도 알려줘\" T3: \"지금까지 논의한 내용을 문서로 만들어줘\"",
+      "expected": "T3 제목 라인 또는 markdown에 '위험성평가' 또는 '추진계획' 중 1개 이상 포함(최근 실질 user 주제 우선이므로 '위험성평가' 기대). 근거 라인이 '없음'이거나 각 제목에 {위험성평가, KR-SH, 추진계획} 중 1개 포함. 'AX포털' 0회"
+    },
+    {
+      "id": "E2E-04",
+      "scenario": "'이 대화 내용' 변형(2턴). T1: \"코레일유통 중장기 경영전략 요약해줘\" T2: \"이 대화 내용을 1페이지 보고서로 뽑아줘\"",
+      "expected": "T2 제목 라인 또는 markdown에 '코레일유통' 포함. 근거 라인이 '없음'이거나 '코레일유통' 포함(실측: '코레일유통' 문서 score 7.8297 top). 'AX포털' 0회"
+    },
+    {
+      "id": "E2E-05",
+      "scenario": "근거 빈약 주제(2턴). T1: \"우리 기관 점심시간 단축 운영 방안 검토해줘\" T2: \"방금 내용을 1페이지 보고서로 작성해줘\"",
+      "expected": "T2 제목 라인 또는 markdown에 '점심시간' 포함. 근거 라인에 '없음' 포함(주제어 길이≥3 게이트 term '점심시간'이 후보 문서(실측 유일 후보 'KR-SHG-16 VDT 작업안전 지침')에 없어 전탈락해야 함). markdown에 '자료를 확인한 결과' 0회. 'AX포털' 0회"
+    },
+    {
+      "id": "E2E-06",
+      "scenario": "완전 무근거 주제 + F-06 계약(2턴). T1: \"화성 우주기지 도킹 절차 알려줘\" T2: \"방금 내용을 보고서로 작성해줘\"",
+      "expected": "T2 근거 라인에 '없음' 포함. 제목 라인 또는 markdown에 '우주' 또는 '도킹' 포함. markdown에 '자료를 확인한 결과'·'검토 결과 파악' 0회(F-06 지시 블록 발동 증거). 'AX포털' 0회"
+    },
+    {
+      "id": "E2E-07",
+      "scenario": "[네거티브 컨트롤 — 수정 전에도 통과] 단일 턴 명시 주제: \"안전보건경영시스템 내부심사 절차를 1페이지 보고서로 작성해줘\" (컨텍스트 참조 표현 없음)",
+      "expected": "응답에 '- 형식: onePageReport' 포함, '- 제목:' 라인 또는 markdown에 '내부심사' 포함, 'HWPX 문서를 생성했습니다' 포함. 이 기준은 수정 전 코드에서도 PASS여야 함(지시문 자체에 주제어가 있어 현행 경로도 정상)"
+    },
+    {
+      "id": "E2E-08",
+      "scenario": "[네거티브 컨트롤 — 수정 전에도 통과] F-17 복합 인텐트 단일 턴: \"내일 오후 3시 AI혁신 착수보고 회의 일정 등록하고, 그 회의 안내 이메일 작성해줘\"",
+      "expected": "응답 text에 '## 일정 등록'과 '## 문서작성' 섹션 모두 존재, context_summary.skill_results에 schedule_id와 content_base_id 각각 존재, 이메일 markdown에 '회의' 포함 및 ('15:00' 또는 '오후 3') 포함. 수정 전에도 PASS여야 함(F-17 기존 동작 회귀 방지)"
+    },
+    {
+      "id": "E2E-09",
+      "scenario": "시행문 변형 + '방금 답변'(2턴). T1: \"위험성평가 절차 알려줘\" T2: \"방금 답변 내용 그대로 시행문으로 만들어줘\"",
+      "expected": "T2 응답에 '- 형식: officialMemo' 포함. 제목 라인 또는 markdown에 '위험성평가' 포함. 근거 라인이 '없음'이거나 각 제목에 '위험성평가' 또는 'KR-SH' 포함(실측 top: '4. KR-SHP-04 위험성평가(251028)', score 10.7556). 'AX포털' 0회"
+    },
+    {
+      "id": "E2E-10",
+      "scenario": "이메일 변형 + '아까 말한'(2턴). T1: \"탄소중립 실천 캠페인 추진 방안 알려줘\" T2: \"아까 말한 내용 요약해서 이메일로 작성해줘\"",
+      "expected": "T2 응답에 '- 형식: email' 포함. markdown에 '탄소중립' 포함. 근거 라인이 '없음'이거나 각 제목에 {사업계획, 코레일유통} 중 1개 포함(게이트 term '탄소중립' 매칭 문서만 — 실측 후보 '붙임. 2026년도 사업계획 및 예산편성(안)' score 9.5009는 본문 '탄소중립' 포함 시에만 통과). 'AX포털' 0회"
+    },
+    {
+      "id": "E2E-11",
+      "scenario": "세션 중간 명시 주제 우선(2턴, 컨텍스트 마커 없음). T1: \"코레일유통 경영전략 알려줘\" T2: \"안전보건경영시스템 목표관리에 대해 1페이지 보고서 작성해줘\"",
+      "expected": "T2 제목 라인 또는 markdown에 '안전보건' 또는 '목표' 포함, 제목 라인에 '코레일유통' 미포함(지시문에 주제가 명시되면 직전 대화 주제보다 지시문 주제 우선 규칙 검증). 'AX포털' 0회"
+    },
+    {
+      "id": "E2E-12",
+      "scenario": "문서요청 이력 건너뛰기(3턴). T1: \"AI업무추진계획 주요 과제 알려줘\" T2: \"방금 내용을 1페이지 보고서로 작성해줘\" T3: \"같은 내용으로 이메일도 작성해줘\"",
+      "expected": "T3 응답에 '- 형식: email' 포함. T3 markdown에 'AI' 또는 '추진계획' 포함(주제 도출이 doc-create 지시문인 T2를 건너뛰고 T1에 도달해야 함). T3 제목·근거 라인·markdown에 'AX포털' 0회"
+    }
+  ],
+  "risks": [
+    "ORGANIZE_SYSTEM_PROMPT는 문서작성 UI 경로(/authoring, run_authoring_stages)와 공유됨 — 프롬프트 수정은 additive로만 하고 test_document_authoring*.py 전건 통과로 회귀 확인 필요",
+    "주제-근거 게이트의 동의어 한계: 제목·발췌에 주제어가 문자 그대로 없으면 정당한 근거도 탈락해 '근거 없음' 빈도가 늘 수 있음(정직성 우선 제품 원칙상 허용이나 E2E-02·09처럼 근거가 남아야 하는 케이스로 감시)",
+    "게이트 term이 2자 일반어(운영·방안 등)뿐인 주제는 오통과 가능 — 길이≥3 term 우선 규칙 필수(E2E-05가 검증). 반대로 ≥3 term이 전무한 주제는 ≥2 폴백으로 완화",
+    "현재 user 메시지가 스킬 실행 전에 이미 저장되므로(app.py:2061→2146) topic 도출에서 개수 기반 제외는 금물 — _looks_like_document_create_request 필터로 제외해야 F-17 인텐트플랜 경로(app.py:1479, text 변형됨)까지 안전",
+    "QUERY_STOPWORDS(knowledge_wiki.py:104)에 '보고서'·'페이지'를 추가하면 지식검색 기능 전역이 바뀜('사업계획 보고서 찾아줘' 류 검색 회귀) — 메타어 목록은 반드시 문서작성 스킬 로컬 상수로 유지",
+    "스트리밍 경로(run_work_session_turn_stream, app.py:2430)도 동일 스킬을 호출하므로 수정은 공통 적용되지만, 데스크톱 실사용은 stream 경로라 E2E 최소 1개는 /turn/stream으로도 스모크 확인 권장",
+    "gemma-4-E2B가 [문서 주제] 블록에도 불구하고 잔여 참고자료로 제목을 지을 가능성 — 결정적 게이트가 1차 방어이고 프롬프트는 2차. E2E 제목 판정을 '제목 OR 본문' 키워드로 잡아 LLM 문구 변동성 흡수",
+    "다주제 세션에서 '최근 실질 user 메시지 우선' 휴리스틱은 '첫 번째 질문 내용으로 써줘' 같은 과거 주제 지정을 지원하지 못함 — 본 백로그 범위 밖, 알려진 한계로 문서화"
+  ]
+}

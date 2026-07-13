@@ -1,0 +1,106 @@
+{
+  "root_cause": "[1차 원인 — help.guide 선점] services/sidecar/src/gongmu_sidecar/app.py:1406-1407 — `_try_run_work_session_skill`이 멀티인텐트 플랜(app.py:1408 `_plan_work_session_intents`)보다 먼저 `_looks_like_feature_usage_request`를 평가하고, 매치되면 즉시 `_run_feature_usage_guide`(actions=[\"help.guide\"], app.py:1546)로 반환한다. 그 술어(app.py:1505-1517)는 `usage_markers = [\"사용법\",\"어떻게\",\"안내\",\"설명\",\"도움말\",\"가이드\",\"help\",\"guide\",\"how to\"]`(app.py:1508)와 `feature_markers = [\"업무대화\",\"일정\",\"문서작성\",\"지식폴더\",\"실행기록\",\"환경설정\"]`(app.py:1509-1516)의 단순 부분문자열 AND 조건이다. G5 문장 \"…회의 일정을 잡고, 그 일정 내용으로 회의 **안내** 이메일도 작성해줘\"에는 \"안내\"(usage)와 \"일정\"(feature)이 동시에 포함되어 도움말로 오분류된다. 실제 모듈 임포트로 재현 확인: `AppServices._looks_like_feature_usage_request(G5문장) == True`. LLM 미호출 결정적 분기이므로 지연 9ms, provider=\"gongmu-skill\", model=\"help.guide\"라는 증상과 정확히 일치.\n\n[2차 원인 — 활용형 미포함으로 F-17 플랜 자체가 불발] app.py:1554 — `_looks_like_schedule_create_request`의 동사 목록 `[\"등록\",\"추가\",\"생성\",\"만들\",\"잡아\",\"예약\"]`에 \"잡아\"만 있고 활용형 \"잡고\"가 없다. G5 문장의 \"일정을 **잡고**\"는 매치 실패 → action_marker=False → False 반환. 따라서 `_plan_work_session_intents`(app.py:1428-1438)는 [\"documents.generate\"] 1개만 계획 → `len(planned_intents) > 1`(app.py:1409) 불충족 → F-17 멀티인텐트 경로(app.py:1440 `_run_work_session_intent_plan`) 미발동. 즉 1차 원인(help 선점)을 제거해도 이메일만 생성되고 일정은 등록되지 않는다. 실측: \"안내\" 제거 변형에서도 sched_create=False, 라우팅=document.create 단독.\n\n[3차 원인 — 날짜 변형·제목 추출 한계] app.py:1722-1742 — `_parse_schedule_request`는 절대날짜(YYYY년 M월 D일, YYYY-M-D/YYYY.M.D)와 오늘/내일만 지원, \"다음주 화요일\" 같은 상대 요일은 파싱 불가(괄호 병기 날짜가 없으면 schedule.create가 계획조차 안 됨). 또한 제목 추출(app.py:1760-1780)은 복합문에서 뒷절을 못 잘라 \"다음주 화요일( ) 에 AI 업무 추진 팀 회의 일정을 잡고, 그 내용으로…\" 같은 쓰레기 제목을 만든다(1772행 동사 정규식에도 잡고/조사(을·를) 미대응, 1777행 `\\b`는 한글 사이에서 무력).\n\n[F-17 발동 조건 정리] 멀티인텐트는 (a) help 술어 불일치 AND (b) schedule.delete 또는 (schedule.create 술어 + `_parse_schedule_request` 성공) 또는 schedule.list 중 1개 AND (c) documents.generate 술어 일치, 즉 planned ≥ 2일 때만 발동(app.py:1409). G5 문장은 (a)에서 이미 탈락하고, (b)도 \"잡고\" 때문에 탈락하는 이중 실패.\n\n[스킬 라우팅 우선순위 표 — `_try_run_work_session_turn`→`_try_run_work_session_skill`(비스트림 app.py:2146, 스트림 app.py:2430 공용)]\n1) 도움말 `_looks_like_feature_usage_request` (1406) → help.guide, 즉시 종료\n2) 멀티인텐트 플랜 planned≥2 (1408-1415) → intent.plan: schedule.*→documents.generate 고정 순서 실행, F-17로 등록 일정의 제목·일시를 문서 지시에 주입(1466-1478)\n3) 일정 삭제 (1416) → schedule.delete\n4) 일정 등록 (1418) → schedule.create (파싱 실패 시 아래로 폴스루)\n5) 일정 조회 (1422) → schedule.list\n6) 문서작성 (1424) → document.create (HWPX 파이프라인, LLM 사용)\n7) None 반환 → 일반 LLM 대화 경로(2195+): 지식폴더 근거(`_build_knowledge_context`) 주입 후 generate_session_reply. ※ \"knowledge.search\" 액션 문자열(2180)은 레거시로 현재 어떤 스킬도 방출하지 않음 — 지식질의는 스킬이 아니라 7번 LLM 경로에서 처리됨.",
+  "fix_design": "모든 수정은 services/sidecar/src/gongmu_sidecar/app.py의 함수 단위. 결정적 규칙 우선, LLM 폴백은 마지막(P1). 제안 로직 전체를 실제 모듈에 대해 14개 문장으로 사전 검증 완료(아래 E2E 기대값이 그 실측 결과).\n\n[P0-1] `_looks_like_feature_usage_request` (app.py:1505-1517) 재작성 — 강한 사용법 마커 + 구체지시 오버라이드:\n```python\n@staticmethod\ndef _looks_like_feature_usage_request(text: str) -> bool:\n    lowered = text.lower()\n    strong_usage = [\"사용법\", \"사용 방법\", \"사용방법\", \"도움말\", \"가이드\", \"튜토리얼\", \"help\", \"how to\"]\n    has_usage = any(m in lowered for m in strong_usage) or re.search(r\"어떻게\\s*(해|하|써|쓰|사용|되)\", text) is not None\n    if not has_usage:\n        return False\n    feature_markers = [\"업무대화\", \"일정\", \"문서작성\", \"지식폴더\", \"실행기록\", \"환경설정\"]  # 기존 유지\n    if not any(m in text or m in lowered for m in feature_markers):\n        return False\n    # 날짜·시각이 실제 파싱되는 문장은 사용법 질문이 아니라 실행 지시다\n    if AppServices._parse_schedule_request(text) is not None:\n        return False\n    return True\n```\n핵심: \"안내\"·\"설명\"을 usage 마커에서 제거(공공기관 상용구 \"안내 이메일/안내문/안내 공문\"과 충돌), \"어떻게\"는 단독 부분문자열 대신 `어떻게\\s*(해|하|써|쓰|사용|되)` 정규식으로 한정, 날짜+시각 파싱 성공 시 도움말 배제. 요구 (b) 충족: \"일정 기능 사용법 알려줘\"(사용법+일정+날짜없음)와 \"문서작성 어떻게 해?\"(어떻게 해+문서작성)는 여전히 help.guide. 기존 테스트 test_work_session_turn.py:226(\"업무대화랑 문서작성 사용법 안내해줄래?\" — \"사용법\" 포함)도 통과 확인.\n\n[P0-2] `_looks_like_schedule_create_request` (app.py:1551-1569) — 동사 활용형 보강:\naction_marker를 `any(token in text for token in [\"등록\",\"추가\",\"생성\",\"만들\",\"예약\",\"넣어\"]) or re.search(r\"(일정|약속|회의|미팅|스케줄)[^\\n,.]{0,8}잡\", text) is not None or any(영어 토큰...)` 으로 교체. \"잡\" 단독 대신 일정 명사 근접(8자 이내) 조건으로 오탐 억제. \"일정을 잡고/잡아줘/잡자\" 모두 매치.\n\n[P0-3] `_parse_schedule_request` (app.py:1721-1785) 확장 — 3가지:\n(i) 상대 요일: 절대날짜·오늘/내일 실패 시 `(다다음\\s*주|다음\\s*주|이번\\s*주|차주|내주)?\\s*([월화수목금토일])요일` + 기존 시각 정규식 매치되면 KST 기준 `이번주 월요일 + offset_weeks*7 + 요일오프셋`으로 날짜 산출(다음주/차주/내주=+1주, 다다음주=+2주).\n(ii) 제목용 절 분리: 제목 추출 전에 문장을 `[.,]`와 연결어(그리고/하고/한 뒤/이어서)로 절 분해하고, 시각 정규식+일정동사가 함께 있는 절만 제목 원료로 사용(순서역전 문장 대응). 날짜·시각 파싱은 기존대로 전체 문장에서 수행.\n(iii) 스크럽 정규식 보강: 1772행을 `r\"(업무일정|일정|스케줄|schedule|calendar)?[을를도]?\\s*(등록|추가|생성|만들어?\\s*줘?|잡[아고자]?\\s*줘?|예약해?\\s*줘?|add|create|register|book).*\"`로 교체(조사 을/를/도 + 잡고/잡자), 요일 표현 `(다다음\\s*주|다음\\s*주|이번\\s*주|차주|내주)?\\s*[월화수목금토일]요일`과 빈 괄호 `\\(\\s*\\)` 제거 스텝 추가. 실측: G5 원문 제목이 \"AI 업무 추진 팀 회의\", 시작 2026-07-21T15:00:00+09:00으로 정확히 산출됨.\n\n[P0-4] `_plan_work_session_intents`·`_try_run_work_session_skill` 순서는 유지(도움말 술어가 정밀해졌으므로 재배치 불필요). F-17 주입 로직(app.py:1452-1481)은 무변경 — planned가 [schedule.create, documents.generate]로 복원되면 그대로 동작.\n\n[P1-1] 지식질의+일정 복합 대응 — `_plan_work_session_intents`에 knowledge.answer 인텐트 추가: 일정 절을 제외한 잔여 절에 질문 마커(`뭐|무엇|뭔지|어떤|기준|현황|왜|알려`)가 있고 문서작성 마커가 없으면 \"knowledge.answer\"를 plan 말미에 추가. `_run_work_session_intent_plan`에서 knowledge.answer는 `_build_knowledge_context(session_id, query=잔여절)` + generate_session_reply 1회로 \"## 질의 응답\" 섹션 생성(액션 \"knowledge.answer\", 결과에 citation_count 포함).\n\n[P1-2] LLM 플랜 폴백(요구 c) — `_try_run_work_session_skill`에서 결정적 plan이 0~1개인데 복합 신호(연결어 `하고|그리고|한 뒤|이어서|,` AND 도메인 명사 {일정,회의,이메일,메일,보고서,문서,공문,시행문} 중 2종 이상)가 있으면, gemma에 \"다음 enum 배열만 JSON으로 출력: [schedule.create, schedule.list, schedule.delete, documents.generate, knowledge.answer], 최대 3개\" 프롬프트로 1회 호출. 검증: json.loads 성공 + 전 원소 enum 포함 + schedule.create는 `_parse_schedule_request` 성공 시만 유지. 유효 plan ≥2일 때만 `_run_work_session_intent_plan` 실행, 그 외(파싱 실패·타임아웃 포함)는 조용히 기존 결정적 체인으로 폴스루하고 `work_session.intent_plan.llm_fallback` 액션 로그만 남긴다. 경량모델(gemma-4-E2B)의 JSON 불안정성은 엄격 검증+무해 폴백으로 흡수 — 도움말·삭제 같은 파괴적 경로는 폴백이 절대 생성하지 못하게 enum에서 통제.\n\n실행 순서(수정 후): ①help(정밀화) ②결정적 plan≥2 → intent.plan ③(P1) LLM 플랜 폴백 ④단일 스킬 체인(삭제→등록→조회→문서) ⑤LLM 일반대화. 스트림 경로(app.py:2430)는 동일 함수 공유라 자동 반영.",
+  "files_to_change": [
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/app.py",
+      "change": "P0: _looks_like_feature_usage_request(1505-1517) 강한마커+파싱오버라이드 재작성, _looks_like_schedule_create_request(1551-1569) 잡- 활용형 정규식, _parse_schedule_request(1721-1785) 상대요일 파싱·절분리 제목추출·스크럽 정규식 보강. P1: _plan_work_session_intents(1428-1438)에 knowledge.answer 추가, _run_work_session_intent_plan(1440-1503)에 knowledge.answer 실행 분기, _try_run_work_session_skill(1395-1426)에 LLM 플랜 폴백 훅"
+    },
+    {
+      "path": "services/sidecar/tests/test_work_session_turn.py",
+      "change": "신규 테스트 추가: (1) G5 원문 멀티인텐트(schedule.create+document.create, 일정 row·HWPX 생성 검증), (2) 순서역전 문장, (3) 상대요일(다음주 X요일) 일정 파싱, (4) '안내 이메일' 포함 문장이 help.guide로 가지 않음, (5) 기존 226행 help.guide 테스트·169행 intent.plan 테스트 무회귀 확인(수정 불필요, 실행만)"
+    }
+  ],
+  "verification_criteria": [
+    "[V1] 술어 단위 배터리: 아래 E2E 14문장을 AppServices 술어에 직접 투입했을 때 라우팅 결과가 기대 라우트와 14/14 일치 (이번 조사에서 제안 로직 프로토타입으로 이미 14/14 확인 — 회귀 없이 재현되어야 함)",
+    "[V2] G5 원문 턴(비스트림 POST /api/work-sessions/{id}/turn): 응답 201, context_summary.skill_actions[0]=='intent.plan' AND 'schedule.create' in skill_actions AND 'document.create' in skill_actions, assistant_message.provider=='gongmu-skill'",
+    "[V3] G5 원문 실행 후 GET /api/schedules 응답에 starts_at=='2026-07-21T15:00:00+09:00' AND ends_at=='2026-07-21T16:00:00+09:00' AND '회의' in title 인 항목이 정확히 1건 존재",
+    "[V4] G5 원문 skill_results 중 artifact_path 키를 가진 항목 1건 존재, os.path.exists(artifact_path)==True AND 파일 크기>0, format=='email'",
+    "[V5] 네거티브 컨트롤 2건('일정 기능 사용법 알려줘', '문서작성 어떻게 해?'): 수정 전/후 모두 skill_actions==['help.guide'], assistant_message.text에 'Gongmu 기능 사용법입니다' 포함, latency_ms<1000, LLM 미호출(pytest에서 generate_session_reply를 AssertionError 스텁으로 몽키패치해 검증 — 기존 test_work_session_turn.py:226 패턴)",
+    "[V6] 기존 회귀: pytest services/sidecar/tests/test_work_session_turn.py 전체 PASS(특히 169행 intent.plan 테스트, 226행 help.guide 테스트, 546/572/597행 schedule 테스트)",
+    "[V7] E2E 12개 복합/단일 시나리오(아래) 전건 PASS + 네거티브 2건 수정 전 기준으로도 PASS",
+    "[V8] 단일 스킬 무회귀: '이번 주 일정 확인해줘'→['schedule.list'], 일정 삭제 문장→['schedule.delete'] 유지 (E2E-13/14)"
+  ],
+  "e2e_scenarios": [
+    {
+      "id": "E2E-01",
+      "scenario": "[G5 원문 재현: 일정+이메일] 새 세션 생성(POST /api/work-sessions {\"title\":\"E2E-01\"}) 후 POST /api/work-sessions/{id}/turn {\"text\":\"다음주 화요일(2026년 7월 21일) 오후 3시에 AI 업무 추진 팀 회의 일정을 잡고, 그 일정 내용으로 회의 안내 이메일도 작성해줘\"} (문서생성 단계는 로컬 LLM 호출 — 수십초 허용)",
+      "expected": "①skill_actions[0]=='intent.plan', 'schedule.create'와 'document.create' 모두 포함 ②GET /api/schedules에 starts_at=='2026-07-21T15:00:00+09:00'이고 title에 '회의' 포함 항목 1건 신규 ③skill_results의 artifact_path 파일 존재(size>0), format=='email' ④model 필드에 'help.guide' 미포함. 판정 후 생성 일정 DELETE /api/schedules/{id}로 정리"
+    },
+    {
+      "id": "E2E-02",
+      "scenario": "[등록+1p보고서 — 수정 전에도 통과하는 네거티브 컨트롤(현행 intent.plan 경로 보존 확인)] turn {\"text\":\"2026년 7월 24일 오전 10시에 데이터 개방 실무 협의 일정을 등록하고, 협의 안건을 정리한 1페이지 보고서도 만들어줘\"}",
+      "expected": "수정 전/후 동일: skill_actions에 'intent.plan','schedule.create','document.create' 포함, schedules에 starts_at=='2026-07-24T10:00:00+09:00' 항목 존재, artifact_path 존재하며 format=='onePageReport', 수정 후에는 title=='데이터 개방 실무 협의'로 정제"
+    },
+    {
+      "id": "E2E-03",
+      "scenario": "[순서역전: 문서 먼저 언급] turn {\"text\":\"회의 안내 이메일을 작성해줘. 그리고 2026년 7월 22일 오후 2시에 국장 보고 일정도 잡아줘\"}",
+      "expected": "skill_actions에 'schedule.create'와 'document.create' 모두 포함(플랜 고정순서상 일정 먼저 실행), schedules에 starts_at=='2026-07-22T14:00:00+09:00' AND title에 '국장 보고' 포함 항목 존재, 이메일 artifact 존재. help.guide 미출현('안내' 포함 문장이므로 1차 원인 회귀 감시 케이스)"
+    },
+    {
+      "id": "E2E-04",
+      "scenario": "[상대날짜 '내일'+분 단위+메일] turn {\"text\":\"내일 오전 9시 30분에 주간 업무 점검 회의 일정 추가하고 참석 안내 메일 초안도 써줘. 메일은 작성만 하고 보내지는 마\"} — 기대 날짜는 실행 시점에 KST로 (오늘+1일) 계산",
+      "expected": "skill_actions에 'schedule.create','document.create' 포함, schedules에 starts_at==(내일)T09:30:00+09:00 AND title에 '주간 업무 점검 회의' 포함 항목 존재, email artifact 존재"
+    },
+    {
+      "id": "E2E-05",
+      "scenario": "[상대 요일(괄호 날짜 없음)+공문] turn {\"text\":\"다음주 금요일 오후 4시에 예산 조정 협의 일정을 잡고, 그 내용을 공문으로 작성해줘\"} — 기대 날짜는 실행 시점 KST 기준 (이번주 월요일+7일+4일)T16:00",
+      "expected": "skill_actions에 'schedule.create','document.create' 포함, schedules에 계산된 다음주 금요일 16:00 KST 항목(title에 '예산 조정 협의' 포함) 존재, artifact format=='officialMemo'. (P0-3(i) 상대요일 파서 검증 케이스 — 현행은 document.create 단독으로 FAIL)"
+    },
+    {
+      "id": "E2E-06",
+      "scenario": "[점 표기 날짜+시행문] turn {\"text\":\"2026.7.28 오후 1시 감사 대응 준비 회의 일정 등록하고 관련 시행문도 생성해줘\"}",
+      "expected": "skill_actions에 'schedule.create','document.create' 포함, schedules에 starts_at=='2026-07-28T13:00:00+09:00' 항목 존재, artifact format=='officialMemo' (시행문 매핑은 _document_format_from_text app.py:2012 확인)"
+    },
+    {
+      "id": "E2E-07",
+      "scenario": "[지식질의+일정 복합] turn {\"text\":\"출장비 지급 기준이 뭔지 알려주고, 내일 오전 10시에 출장비 정산 회의 일정도 등록해줘\"} — 지식폴더에 출장비 문서가 색인된 프로필에서 실행",
+      "expected": "최소 PASS(P0): skill_actions에 'schedule.create' 포함하고 'help.guide' 미포함, schedules에 (내일)T10:00 KST AND title에 '출장비 정산 회의' 포함 항목 존재. 완전 PASS(P1 구현 시): skill_actions에 'knowledge.answer'도 포함되고 assistant 텍스트에 '## 질의 응답' 섹션 존재"
+    },
+    {
+      "id": "E2E-08",
+      "scenario": "[단일 일정만 — 문서 오발동 감시] turn {\"text\":\"2026년 7월 30일 오후 5시에 반기 실적 점검 회의 일정 잡아줘\"} 실행 전후 GET /api/schedules 항목 수 기록",
+      "expected": "skill_actions==['schedule.create'] 정확히 1개(intent.plan/document.create 미포함), schedules 항목 수 +1, 신규 항목 starts_at=='2026-07-30T17:00:00+09:00', skill_results에 artifact_path 키 없음. 이 일정은 E2E-14 삭제 케이스의 사전 데이터로 재사용"
+    },
+    {
+      "id": "E2E-09",
+      "scenario": "[단일 문서만 — 일정 오발동 감시] turn {\"text\":\"AI 도입 추진 현황을 정리한 1페이지 보고서 작성해줘\"} 실행 전후 schedules 항목 수 기록",
+      "expected": "skill_actions==['document.create'] (schedule.* 미포함), schedules 항목 수 변화 0, artifact_path 파일 존재하며 format=='onePageReport'"
+    },
+    {
+      "id": "E2E-10",
+      "scenario": "[잡고+보고서 — 수정 전에도 통과하는 네거티브 컨트롤('만들' 동사로 현행 create 술어 충족)] turn {\"text\":\"7월 23일 15시에 정보화 협의체 회의 일정을 잡고 회의 개요 보고서를 만들어줘\"}",
+      "expected": "수정 전/후 동일: skill_actions에 'intent.plan','schedule.create','document.create' 포함, schedules에 starts_at=='2026-07-23T15:00:00+09:00' 항목 존재, 보고서 artifact 존재. 수정 후 title=='정보화 협의체 회의'"
+    },
+    {
+      "id": "E2E-11",
+      "scenario": "[순수 도움말 1 — 네거티브 컨트롤, 수정 전/후 모두 통과 필수] turn {\"text\":\"일정 기능 사용법 알려줘\"} — pytest 실행 시 generate_session_reply를 AssertionError 스텁으로 몽키패치해 LLM 미호출까지 검증",
+      "expected": "skill_actions==['help.guide'], assistant_message.text에 'Gongmu 기능 사용법입니다' 포함, schedules 항목 수 변화 0, artifact 미생성, latency_ms<1000"
+    },
+    {
+      "id": "E2E-12",
+      "scenario": "[순수 도움말 2 — 네거티브 컨트롤, 수정 전/후 모두 통과 필수] turn {\"text\":\"문서작성 어떻게 해?\"}",
+      "expected": "skill_actions==['help.guide'], 문서 artifact 미생성(document.create 미포함), assistant_message.provider=='gongmu-skill', model=='help.guide'"
+    },
+    {
+      "id": "E2E-13",
+      "scenario": "[일정 조회 무회귀 — 수정 전에도 통과] turn {\"text\":\"이번 주 일정 확인해줘\"}",
+      "expected": "skill_actions==['schedule.list'], assistant 텍스트가 '등록된 일정입니다. (이번 주)'로 시작, help.guide/schedule.create 미출현"
+    },
+    {
+      "id": "E2E-14",
+      "scenario": "[일정 삭제 무회귀 — 수정 전에도 통과] E2E-08이 만든 '반기 실적 점검 회의' 일정이 있는 상태에서 turn {\"text\":\"반기 실적 점검 회의 일정 삭제해줘\"}",
+      "expected": "skill_actions==['schedule.delete'], skill_results[0].deleted==true, GET /api/schedules에서 해당 title 항목 소멸(항목 수 -1)"
+    }
+  ],
+  "risks": [
+    "'안내'·'설명'을 도움말 마커에서 제거하면 '지식폴더 안내해줘' 같은 일부 진성 도움말 요청이 help.guide 대신 일반 LLM 대화로 흘러감 — LLM이 어차피 답하므로 기능 손실은 아니나 응답 지연 증가(즉답→수초). 필요시 '안내해줘/안내해 줘' 문미 한정 패턴으로 부분 복원 가능",
+    "새 정규식 r'(일정|약속|회의|미팅|스케줄)[^\\n,.]{0,8}잡'은 '일정이 안 잡혀요' 같은 하소연을 create로 오탐할 수 있음 — 단 _parse_schedule_request(날짜+시각 필수)가 2차 게이트라 실제 등록까지 가진 않고 폴스루됨",
+    "상대 요일 파싱은 실행 시점 KST now() 의존 — E2E 판정 스크립트가 기대 날짜를 하드코딩하면 주가 바뀔 때 깨짐(런타임 계산 필수). '이번주 화요일'이 이미 지난 요일인 경우 과거 일정이 등록되는 정책 미정(설계는 이번주 월요일 기준 단순 계산) — 과거면 +7일 보정 여부를 구현 시 결정하고 테스트에 명시할 것",
+    "멀티인텐트 플랜은 문장 순서와 무관하게 일정→문서 고정 순서 실행(F-17 주입 위해 의도적) — '이메일 먼저' 뉘앙스와 다르나 결과물은 동일. 또한 일정 등록 성공 후 문서 생성이 실패하면 일정만 남는 부분 성공 상태가 됨(현행 intent.plan도 동일, 섹션별 결과 표시로 완화)",
+    "P1 LLM 플랜 폴백은 gemma-4-E2B의 JSON 출력 불안정 위험 — 엄격 검증(enum 화이트리스트+parse 게이트) 실패 시 무해 폴스루로 설계했으나, 폴백 호출 자체가 턴 지연을 수초 늘림. 복합 신호 휴리스틱을 좁게 유지하고 로그(work_session.intent_plan.llm_fallback)로 발동률 모니터링 필요",
+    "_looks_like_feature_usage_request가 staticmethod에서 _parse_schedule_request를 참조하므로 클래스명 직접 참조(AppServices._parse_schedule_request) 또는 인스턴스 메서드 전환 필요 — 호출부 2곳(1406, 플랜) 시그니처 일관성 주의",
+    "문서생성 스킬(_run_document_create_skill)은 실LLM authoring 파이프라인이라 E2E 복합 케이스 1건당 수십초 소요 — 전체 배터리는 pytest 몽키패치(authoring_aware_reply 스텁, 기존 test_work_session_turn.py 패턴)로 1차 검증하고 실LLM 스모크는 E2E-01·05 2건만 권장",
+    "기존 테스트 test_work_session_turn.py:226의 문장('사용법 안내해줄래?')은 '사용법' 강마커로 계속 help.guide — 통과 확인했으나, 술어 수정 시 이 테스트를 반드시 회귀 스위트에 포함할 것"
+  ]
+}
