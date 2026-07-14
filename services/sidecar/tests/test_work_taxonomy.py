@@ -9,12 +9,17 @@ from __future__ import annotations
 import json
 import os
 import time
+import unicodedata
 from pathlib import Path
 
+import pytest
+
 from gongmu_sidecar.app import create_app
+from gongmu_sidecar.taxonomy_rules import match_work_area
 from gongmu_sidecar.work_taxonomy import (
     DEFAULT_DOC_ROLE_KEYS,
     DOC_ROLES,
+    InvalidTagError,
     match_doc_role,
     normalize_family_key,
     normalize_folder_name,
@@ -802,3 +807,446 @@ def test_apply_skips_reingest_for_already_indexed_source(tmp_path: Path) -> None
     )
     assert applied_log["outputs"]["indexed_before_apply"] is False
     assert "summary" not in applied_log["outputs"]
+
+
+# --------------------------------------------------------------------------
+# WI-2 (2026-07-14 hub-assignment) — 폴더 중복 claim 3단 타이브레이크
+# 결함: match_work_area가 폴더 매칭 2개 이상이면 무조건 conflict/low로 추락해
+# 노이즈 영역이 실폴더를 중복 claim하면 폴더 전체가 low가 됐다(high 3/414).
+# --------------------------------------------------------------------------
+
+
+def _dup_claim_taxonomy() -> dict:
+    """실DB 노이즈 상태 재현: 'AI'/'기반'이 소유 폴더 2개를 전부 중복 claim."""
+    return {
+        "work_areas": [
+            {
+                "name": "사업계획",
+                "slug": "사업계획",
+                "folders": ["□주요□2026년도 사업계획"],
+                "keywords": [],
+            },
+            {
+                "name": "AI융합 상징프로젝트",
+                "slug": "ai융합-상징프로젝트",
+                "folders": ["□주요□AI융합 상징프로젝트"],
+                "keywords": [],
+            },
+            {
+                "name": "AI",
+                "slug": "ai",
+                "folders": ["□주요□2026년도 사업계획", "□주요□AI융합 상징프로젝트"],
+                "keywords": ["AI"],
+            },
+            {
+                "name": "기반",
+                "slug": "기반",
+                "folders": ["□주요□2026년도 사업계획", "□주요□AI융합 상징프로젝트"],
+                "keywords": ["기반"],
+            },
+        ]
+    }
+
+
+def test_match_work_area_owner_tiebreak_on_duplicate_claims() -> None:
+    """E04(함수 레벨): 중복 claim 폴더는 소유자(폴더명 파생 slug 일치) 영역이 high."""
+    from gongmu_sidecar.taxonomy_rules import folder_owner_slug
+
+    assert folder_owner_slug("□주요□2026년도 사업계획") == "사업계획"
+    assert folder_owner_slug("□주요□AI융합 상징프로젝트") == "ai융합-상징프로젝트"
+
+    taxonomy = _dup_claim_taxonomy()
+    assert match_work_area(
+        taxonomy, relative_path="□주요□2026년도 사업계획/2026년도 사업계획서 작성지침.txt"
+    ) == ("사업계획", "high", [], "folder")
+    assert match_work_area(
+        taxonomy, relative_path="□주요□AI융합 상징프로젝트/AI융합 상징프로젝트 추진계획.txt"
+    ) == ("ai융합-상징프로젝트", "high", [], "folder")
+
+
+def test_match_work_area_marker_variant_and_nfd_path() -> None:
+    """E05+E14(함수 레벨): ■주요■ 마커 변형과 NFD 분해 경로에도 소유자 판정이 성립."""
+    taxonomy = {
+        "work_areas": [
+            {
+                "name": "데이터 혁신",
+                "slug": "데이터-혁신",
+                "folders": ["■주요■데이터 혁신"],
+                "keywords": [],
+            },
+            {
+                "name": "데이터",
+                "slug": "데이터",
+                "folders": ["■주요■데이터 혁신", "받은파일"],
+                "keywords": ["데이터"],
+            },
+        ]
+    }
+    assert match_work_area(
+        taxonomy, relative_path="■주요■데이터 혁신/데이터 혁신 회의자료.txt"
+    ) == ("데이터-혁신", "high", [], "folder")
+    # NFD 분해형 입력도 nfc 정규화 후 같은 판정(결정적 튜플 비교) — E14.
+    nfd_path = unicodedata.normalize("NFD", "■주요■데이터 혁신/2026 데이터 표준화 보고.hwp")
+    assert match_work_area(taxonomy, relative_path=nfd_path) == (
+        "데이터-혁신",
+        "high",
+        [],
+        "folder",
+    )
+
+
+def test_match_work_area_deep_subfolder_owner_wins() -> None:
+    """E06(함수 레벨): 3단 하위 경로 문서도 1단계 세그먼트 소유자가 결정적으로 high."""
+    taxonomy = {
+        "work_areas": [
+            {
+                "name": "성과평가",
+                "slug": "성과평가",
+                "folders": ["□주요□성과평가"],
+                "keywords": [],
+            },
+            {
+                "name": "평가",
+                "slug": "평가",
+                "folders": ["□주요□성과평가", "□주요□2026년도 사업계획"],
+                "keywords": ["평가"],
+            },
+        ]
+    }
+    assert match_work_area(
+        taxonomy, relative_path="□주요□성과평가/제출/증빙/실적 증빙자료.txt"
+    ) == ("성과평가", "high", [], "folder")
+
+
+def test_match_work_area_specificity_fallback_and_true_conflict() -> None:
+    """타이브레이크 ③(개명 영역→최소 folders 특이도)과 ④(진짜 모호→conflict 유지)."""
+    # 영역 개명으로 소유자 판정이 빗나가도, 최소 folders claim이 유일하면 그 영역.
+    renamed = {
+        "work_areas": [
+            {
+                "name": "경영평가 대응",
+                "slug": "경영평가-대응",
+                "folders": ["□주요□정부경평 피드백"],
+                "keywords": [],
+            },
+            {
+                "name": "평가",
+                "slug": "평가",
+                "folders": ["□주요□정부경평 피드백", "□주요□성과평가"],
+                "keywords": [],
+            },
+        ]
+    }
+    assert match_work_area(
+        renamed, relative_path="□주요□정부경평 피드백/경평 지적사항 조치계획.txt"
+    ) == ("경영평가-대응", "high", [], "folder")
+
+    # 소유자 부재 + 특이도 동률 = 진짜 모호 — 현행대로 conflict/low 큐 유지.
+    ambiguous = {
+        "work_areas": [
+            {"name": "영역B", "slug": "영역b", "folders": ["공유폴더"], "keywords": []},
+            {"name": "영역A", "slug": "영역a", "folders": ["공유폴더"], "keywords": []},
+        ]
+    }
+    slug, confidence, candidates, reason = match_work_area(
+        ambiguous, relative_path="공유폴더/모호한 문서.txt"
+    )
+    assert (slug, confidence, reason) == (None, "low", "conflict")
+    # candidates는 특이도(folders 길이 오름차순, 동률은 slug순) 정렬로 반환된다.
+    assert [item["work_area_slug"] for item in candidates] == ["영역a", "영역b"]
+    assert all(item["signal"] == "folder" for item in candidates)
+
+
+def _make_dup_claim_source(tmp_path: Path) -> Path:
+    source = tmp_path / "dupclaim"
+    plan = source / "□주요□2026년도 사업계획"
+    plan.mkdir(parents=True)
+    (plan / "2026년도 사업계획서 작성지침.txt").write_text("작성지침입니다.", encoding="utf-8")
+    (plan / "2026년도 사업계획 초안.txt").write_text("초안입니다.", encoding="utf-8")
+    (plan / "부서 의견조회 결과.txt").write_text("의견조회 결과입니다.", encoding="utf-8")
+    ai = source / "□주요□AI융합 상징프로젝트"
+    ai.mkdir()
+    (ai / "AI융합 상징프로젝트 추진계획.txt").write_text("추진계획입니다.", encoding="utf-8")
+    (ai / "AI융합 착수보고.txt").write_text("착수보고입니다.", encoding="utf-8")
+    return source
+
+
+def test_apply_assigns_owner_high_under_duplicate_claims(tmp_path: Path) -> None:
+    """E04(픽스처 E2E): 노이즈 중복 claim 확정 후 apply — 폴더 전건 소유자 high."""
+    source = _make_dup_claim_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source, label="중복claim")
+    confirmed = client.post(
+        "/api/knowledge/taxonomy",
+        json={
+            "source_id": source_id,
+            "work_areas": [
+                {"name": "사업계획", "folders": ["□주요□2026년도 사업계획"]},
+                {"name": "AI융합 상징프로젝트", "folders": ["□주요□AI융합 상징프로젝트"]},
+                {
+                    "name": "AI",
+                    "folders": ["□주요□2026년도 사업계획", "□주요□AI융합 상징프로젝트"],
+                },
+                {
+                    "name": "기반",
+                    "folders": ["□주요□2026년도 사업계획", "□주요□AI융합 상징프로젝트"],
+                },
+            ],
+            "doc_roles_enabled": [],
+            "family_policy": "latest_representative",
+        },
+    )
+    assert confirmed.status_code == 201
+    applied = client.post("/api/knowledge/taxonomy/apply", json={"source_id": source_id})
+    assert applied.status_code == 201
+    assert applied.json()["work_job"]["status"] == "succeeded"
+
+    db = client.app.state.services.db
+    docs = db.fetch_all(
+        "SELECT * FROM knowledge_wiki_docs WHERE source_id = ?", (source_id,)
+    )
+    plan_docs = [d for d in docs if d["relative_path"].startswith("□주요□2026년도 사업계획/")]
+    assert len(plan_docs) == 3
+    assert all(d["work_area_slug"] == "사업계획" for d in plan_docs)
+    assert all(d["tag_confidence"] == "high" for d in plan_docs)
+    ai_docs = [d for d in docs if d["relative_path"].startswith("□주요□AI융합 상징프로젝트/")]
+    assert len(ai_docs) == 2
+    assert all(d["work_area_slug"] == "ai융합-상징프로젝트" for d in ai_docs)
+    assert all(d["tag_confidence"] == "high" for d in ai_docs)
+    # 노이즈 slug 배정 문서 0건, pending 큐 0건.
+    assert all(d["work_area_slug"] not in {"ai", "기반"} for d in docs)
+    assert client.get("/api/knowledge/taxonomy/queue").json()["items"] == []
+
+
+# ------------------------------------- WI-2 노이즈 업무영역 생성 차단 (vocab-cross)
+
+
+def _make_noise_source(tmp_path: Path) -> Path:
+    """승격(□주요□=high) 폴더에 duty 단어조각이 파일명으로 반복 + 관행 폴더에 예산 문서."""
+    source = tmp_path / "noisy"
+    files = [
+        ("□주요□2026년도 사업계획", "2026년도 사업계획서 작성지침.txt"),
+        ("□주요□2026년도 사업계획", "2026년도 사업계획 초안.txt"),
+        ("□주요□AI융합 상징프로젝트", "AI융합 상징프로젝트 추진계획.txt"),
+        ("□주요□AI융합 상징프로젝트", "AI 도입 전략 수립 초안.txt"),
+        ("□주요□AI활용 내재화 및 문화조성", "직원 AI 교육 계획.txt"),
+        ("□주요□AI활용 내재화 및 문화조성", "데이터 기반 업무혁신 과제 총괄.txt"),
+        ("□주요□데이터 혁신", "데이터 표준화 보고.txt"),
+        # 정당한 교차 후보: 비승격 관행 폴더 2곳 + 파일명 '예산' 3건 (E07).
+        ("받은파일/예산", "2027 예산요구서.txt"),
+        ("받은파일", "예산 심의결과 통보.txt"),
+        ("백업", "예산요구서 백업.txt"),
+    ]
+    for folder, filename in files:
+        path = source / folder / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"{filename} 내용입니다.", encoding="utf-8")
+    return source
+
+
+def test_proposal_blocks_noise_candidates_but_keeps_legit_cross(tmp_path: Path) -> None:
+    """E07: duty 단어조각·승격폴더 부풀림 후보는 소멸, 관행 폴더 교차 후보는 생존."""
+    source = _make_noise_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source, label="노이즈폴더")
+    assert (
+        client.post(
+            "/api/knowledge/taxonomy/interview",
+            json={
+                "org_type": "공공기관",
+                "department": "AI혁신처",
+                "duty": "AI 도입·확산 전략 수립, 직원 AI 교육, 데이터 기반 업무혁신 과제 총괄",
+                "purpose": "보고 생산성",
+            },
+        ).status_code
+        == 200
+    )
+
+    proposal = client.get(
+        "/api/knowledge/taxonomy/proposal", params={"source_id": source_id}
+    ).json()
+    work_areas = proposal["work_areas"]
+
+    # 노이즈 후보 0건: duty 단어조각·불용어에서 파생된 이름이 존재하면 안 된다.
+    noise_names = {"AI", "도입", "확산", "전략", "수립", "직원", "데이터", "기반", "과제", "총괄", "교육"}
+    assert all(area["name"] not in noise_names for area in work_areas)
+    # 승격 폴더만으로 구성된 vocab-cross 후보 0건 — 유일한 cross 후보는 '예산'.
+    cross = [area for area in work_areas if area["source"] == "vocab-cross"]
+    assert [area["name"] for area in cross] == ["예산"]
+    budget = cross[0]
+    assert set(budget["folders"]) == {"받은파일", "백업"}
+    assert budget["keywords"] == ["예산"]
+    assert budget["doc_count"] == 3
+    # 폴더 승격 후보는 유지된다(실폴더와 1:1).
+    folder_names = {area["name"] for area in work_areas if area["source"] == "folder"}
+    assert {"사업계획", "AI융합 상징프로젝트", "AI활용 내재화 및 문화조성", "데이터 혁신"} <= folder_names
+
+
+# ------------------------------- WI-2 confirm 정리 (중복 claim·빈 keywords 부여)
+
+
+def test_confirm_normalizes_duplicate_claims_and_grants_keywords(tmp_path: Path) -> None:
+    """confirm: 중복 claim 폴더는 소유자만 유지(비소유 keywords 강등), 빈 영역 keywords 부여."""
+    source = _make_work_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source)
+
+    response = client.post(
+        "/api/knowledge/taxonomy",
+        json={
+            "source_id": source_id,
+            "work_areas": [
+                {"name": "예산", "folders": ["□주요□예산"], "keywords": ["예산"]},
+                {"name": "성과평가", "folders": ["□주요□성과평가"], "keywords": []},
+                # 노이즈: 소유 폴더 2개를 중복 claim.
+                {"name": "AI", "folders": ["□주요□예산", "□주요□성과평가"], "keywords": []},
+                # 폴더·키워드 모두 빈 영역 — 매칭 불능 상태로 남으면 안 된다.
+                {"name": "총무", "folders": [], "keywords": []},
+            ],
+            "doc_roles_enabled": [],
+            "family_policy": "latest_representative",
+        },
+    )
+    assert response.status_code == 201
+    areas = {area["slug"]: area for area in response.json()["taxonomy"]["work_areas"]}
+
+    assert areas["예산"]["folders"] == ["□주요□예산"]
+    assert areas["성과평가"]["folders"] == ["□주요□성과평가"]
+    # 비소유 영역은 folders에서 제거되고 이름이 keywords로 강등된다.
+    assert areas["ai"]["folders"] == []
+    assert "AI" in areas["ai"]["keywords"]
+    # folders=[]·keywords=[] 영역은 keywords=[name] 자동 부여.
+    assert areas["총무"]["keywords"] == ["총무"]
+
+    # 정리 내역이 db.log에 남는다.
+    logs = client.app.state.services.db.list_logs(limit=100)
+    normalized = next(
+        log for log in logs if log["action"] == "knowledge.taxonomy.confirm.normalized"
+    )
+    assert normalized["outputs"]["duplicate_folder_claims"]
+    assert "총무" in normalized["outputs"]["keyword_granted"]
+
+    # 정리된 체계로 apply하면 중복 claim 폴더 문서가 소유자 high로 배정된다.
+    applied = client.post("/api/knowledge/taxonomy/apply", json={"source_id": source_id})
+    assert applied.status_code == 201
+    db = client.app.state.services.db
+    regulation = db.fetch_one(
+        "SELECT * FROM knowledge_wiki_docs WHERE source_id = ? AND relative_path = ?",
+        (source_id, "□주요□예산/예산집행지침.md"),
+    )
+    assert regulation["work_area_slug"] == "예산"
+    assert regulation["tag_confidence"] == "high"
+
+
+# ------------------------------------------- WI-2 resolve_queue_items 일괄 해소
+
+
+def test_resolve_queue_items_bulk_lock_and_single_hub_rewrite(tmp_path: Path) -> None:
+    """일괄 해소: 단건과 동일 계약(tag_locked=1·유령 slug 400) + 허브 재작성 1회."""
+    source = _make_work_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source)
+    _confirm_taxonomy(client, source_id)
+    client.post("/api/knowledge/taxonomy/apply", json={"source_id": source_id})
+    manager = client.app.state.services.taxonomy
+    db = client.app.state.services.db
+
+    queue = manager.list_queue(source_id=source_id)
+    assert len(queue) == 2
+    memo_item = next(item for item in queue if item["title"] == "메모")
+    chart_item = next(item for item in queue if item["title"] == "업무분장표")
+
+    # 유령 slug가 섞이면 선검증에서 InvalidTagError — 아무것도 변경되지 않는다.
+    with pytest.raises(InvalidTagError):
+        manager.resolve_queue_items(
+            [
+                {"id": memo_item["id"], "work_area_slug": "예산"},
+                {"id": chart_item["id"], "work_area_slug": "유령업무"},
+            ]
+        )
+    assert len(manager.list_queue(source_id=source_id)) == 2
+    untouched = db.fetch_one(
+        "SELECT * FROM knowledge_wiki_docs WHERE id = ?", (memo_item["wiki_doc_id"],)
+    )
+    assert int(untouched["tag_locked"] or 0) == 0
+
+    # 허브 재작성은 배치당 1회만 수행된다.
+    calls = {"count": 0}
+    original_write_hubs = manager._write_hubs
+
+    def counting_write_hubs(*args, **kwargs):
+        calls["count"] += 1
+        return original_write_hubs(*args, **kwargs)
+
+    manager._write_hubs = counting_write_hubs
+    try:
+        result = manager.resolve_queue_items(
+            [
+                {"id": memo_item["id"], "work_area_slug": "예산", "doc_role": "reference"},
+                {"id": chart_item["id"], "work_area_slug": "성과평가"},
+            ]
+        )
+    finally:
+        del manager._write_hubs
+    assert calls["count"] == 1
+    assert result["resolved_count"] == 2
+    assert all(item["status"] == "resolved" for item in result["items"])
+
+    memo_doc = db.fetch_one(
+        "SELECT * FROM knowledge_wiki_docs WHERE id = ?", (memo_item["wiki_doc_id"],)
+    )
+    assert memo_doc["work_area_slug"] == "예산"
+    assert memo_doc["doc_role"] == "reference"
+    assert memo_doc["tag_confidence"] == "high"
+    assert memo_doc["tag_locked"] == 1
+    chart_doc = db.fetch_one(
+        "SELECT * FROM knowledge_wiki_docs WHERE id = ?", (chart_item["wiki_doc_id"],)
+    )
+    assert chart_doc["work_area_slug"] == "성과평가"
+    assert chart_doc["tag_locked"] == 1
+    assert manager.list_queue(source_id=source_id) == []
+
+    # 해소 결과가 허브에 1회 재작성으로 반영된다.
+    hub_text = (tmp_path / "knowledge-wiki" / "work-areas" / "예산.md").read_text(
+        encoding="utf-8"
+    )
+    assert "메모" in hub_text
+
+    # E13: 일괄 확정(locked) 문서는 apply 재실행에서도 보존된다(재판정·큐 재적재 제외).
+    applied = client.post("/api/knowledge/taxonomy/apply", json={"source_id": source_id})
+    assert applied.status_code == 201
+    report = applied.json()["work_job"]["result"]
+    assert report["locked_count"] == 2
+    memo_after = db.fetch_one(
+        "SELECT * FROM knowledge_wiki_docs WHERE id = ?", (memo_item["wiki_doc_id"],)
+    )
+    assert memo_after["tag_locked"] == 1
+    assert memo_after["work_area_slug"] == "예산"
+    assert memo_after["tag_confidence"] == "high"
+    assert manager.list_queue(source_id=source_id) == []
+
+
+def test_bulk_resolve_endpoint_contract(tmp_path: Path) -> None:
+    """WI-2: POST /api/knowledge/taxonomy/queue/bulk-resolve — 200 계약 + 유령 slug 400."""
+    source = _make_work_source(tmp_path)
+    client = _client(tmp_path)
+    source_id = _register_scan_ingest(client, source)
+    _confirm_taxonomy(client, source_id)
+    client.post("/api/knowledge/taxonomy/apply", json={"source_id": source_id})
+
+    queue = client.get(f"/api/knowledge/taxonomy/queue?source_id={source_id}").json()["items"]
+    assert len(queue) == 2
+
+    response = client.post(
+        "/api/knowledge/taxonomy/queue/bulk-resolve",
+        json={"items": [{"id": queue[0]["id"], "work_area_slug": "예산"}]},
+    )
+    assert response.status_code == 200
+    assert response.json()["resolved_count"] == 1
+    assert len(client.get(f"/api/knowledge/taxonomy/queue?source_id={source_id}").json()["items"]) == 1
+
+    ghost = client.post(
+        "/api/knowledge/taxonomy/queue/bulk-resolve",
+        json={"items": [{"id": queue[1]["id"], "work_area_slug": "유령업무"}]},
+    )
+    assert ghost.status_code == 400

@@ -34,6 +34,7 @@ from .taxonomy_rules import (  # noqa: F401 - 하위 호환 재노출
     FILENAME_SIGNALS,
     family_id_for,
     folder_importance,
+    folder_owner_slug,
     is_reference_shelf,
     is_reference_shelf_path,
     match_doc_role,
@@ -75,6 +76,14 @@ VOCAB_CROSS_MIN_FOLDERS = 2
 LLM_SAMPLE_FILES_PER_AREA = 8
 
 _DUTY_TOKEN_SPLIT = re.compile(r"[·/,\s]+")
+
+# WI-2(hub-assignment): 인터뷰 duty 문장에서 흔한 행정 접미어·조사류 단어조각 —
+# 업무 시드로 쓰면 '도입'·'기반' 같은 노이즈 영역을 양산하므로 duty 시드에서만
+# 걸러낸다. WORK_VOCAB 정식 어휘('교육' 등)에는 적용하지 않는다.
+DUTY_STOPWORDS: set[str] = {
+    "총괄", "관련", "업무", "담당", "지원", "운영", "추진", "확산", "수립",
+    "도입", "기반", "과제", "직원", "교육", "및",
+}
 
 
 def duty_seed_tokens(duty: str) -> list[str]:
@@ -238,6 +247,9 @@ class WorkTaxonomyManager:
         work_areas: list[dict[str, Any]] = []
         reference_shelves: list[dict[str, Any]] = []
         area_by_slug: dict[str, dict[str, Any]] = {}
+        # WI-2: 확신 high로 승격된 폴더 → 소유 영역 slug. vocab-cross 집계에서
+        # "이미 확실한 업무폴더 소속" 파일을 다른 후보로 이중 계상하지 않기 위한 지도.
+        promoted_high_folder_owner: dict[str, str] = {}
         for folder, members in sorted(folder_files.items()):
             if is_reference_shelf(folder):
                 reference_shelves.append({"folder": folder, "doc_count": len(members)})
@@ -257,6 +269,8 @@ class WorkTaxonomyManager:
             confidence = (
                 "high" if (folder_importance(folder) == "major" or vocab_confirmed) else "medium"
             )
+            if confidence == "high":
+                promoted_high_folder_owner[folder] = slug
             add_samples(slug, members)
             existing_area = area_by_slug.get(slug)
             if existing_area is not None:
@@ -277,35 +291,48 @@ class WorkTaxonomyManager:
             area_by_slug[slug] = area
             work_areas.append(area)
 
-        # F-07/F-07a 폴더 교차 업무 후보: WORK_VOCAB + 인터뷰 duty 토큰을 전체
-        # relative_path(폴더명+파일명)에 매칭해, 관행 폴더(받은파일/백업/인수인계…)
-        # 여러 곳에 흩어진 동일 업무를 하나의 후보로 엮는다 — 1단계 폴더 미러링 해소.
+        # F-07/F-07a 폴더 교차 업무 후보: WORK_VOCAB + 인터뷰 duty 토큰이 여러
+        # 1단계 폴더의 파일명에 반복되면, 관행 폴더(받은파일/백업/인수인계…)에
+        # 흩어진 동일 업무를 하나의 후보로 엮는다 — 1단계 폴더 미러링 해소.
+        # WI-2(hub-assignment) 필터 3종:
+        #  ① 매칭을 relative_path 전체가 아닌 파일명에만 적용(폴더명 substring
+        #     부풀림 차단 — "AI"가 '□주요□AI활용…' 폴더 전 파일에 걸리던 결함).
+        #  ② 확신 high로 승격된 폴더 소속 파일은 집계 제외 — 설계 의도(관행 폴더
+        #     구제)대로 비승격 폴더+루트만 집계한다. 단 term이 그 폴더의 소유
+        #     영역 자신이면(같은 slug 병합 신호) 포함을 허용한다.
+        #  ③ duty 시드에 DUTY_STOPWORDS 적용(WORK_VOCAB 정식 어휘는 미적용).
         seed_terms: list[str] = list(WORK_VOCAB)
         for token in duty_seed_tokens(duty):
-            if token not in seed_terms:
-                seed_terms.append(token)
+            if token in DUTY_STOPWORDS or token in seed_terms:
+                continue
+            seed_terms.append(token)
         taggable_files = [
             file_record
             for file_record in files
             if not is_reference_shelf_path(nfc(str(file_record.get("relative_path") or "")))
         ]
         for term in seed_terms:
+            slug = work_area_slug(term)
             matched_files: list[dict[str, Any]] = []
             matched_folders: set[str] = set()
             for file_record in taggable_files:
                 rel = nfc(str(file_record.get("relative_path") or ""))
-                if term not in rel:
+                if term not in Path(rel).name:
                     continue
-                matched_files.append(file_record)
                 parts = rel.split("/")
                 if len(parts) > 1:
+                    owner_slug = promoted_high_folder_owner.get(parts[0])
+                    if owner_slug is not None and owner_slug != slug:
+                        continue
+                    matched_files.append(file_record)
                     matched_folders.add(parts[0])
+                else:
+                    matched_files.append(file_record)
             if (
                 len(matched_files) < VOCAB_CROSS_MIN_FILES
                 or len(matched_folders) < VOCAB_CROSS_MIN_FOLDERS
             ):
                 continue
-            slug = work_area_slug(term)
             add_samples(slug, matched_files)
             existing_area = area_by_slug.get(slug)
             if existing_area is not None:
@@ -573,6 +600,55 @@ class WorkTaxonomyManager:
             areas.append(area)
         if not areas:
             raise ValueError("work_areas is required to confirm a taxonomy")
+
+        # WI-2(hub-assignment): 확정 데이터 차원의 구조적 차단 — 폴더 중복 claim 정리.
+        # 한 폴더가 여러 영역 folders에 있으면 소유자(폴더명 파생 slug 일치) 영역에만
+        # 남기고, 비소유 영역에서는 folders에서 제거 + 그 영역 이름을 keywords로 강등
+        # (폴더 직매핑 자격 상실, 키워드 매칭으로만 참여). 소유자가 claim 영역 중에
+        # 없으면(영역 개명 등) 건드리지 않고 매칭 시점 타이브레이크에 맡긴다.
+        folder_claims: dict[str, list[dict[str, Any]]] = {}
+        for area in areas:
+            for folder in area["folders"]:
+                folder_claims.setdefault(folder, []).append(area)
+        duplicate_claim_notes: list[dict[str, Any]] = []
+        for folder, claimers in folder_claims.items():
+            if len(claimers) < 2:
+                continue
+            owner = folder_owner_slug(folder)
+            if not any(str(area["slug"]) == owner for area in claimers):
+                continue
+            for area in claimers:
+                if str(area["slug"]) == owner:
+                    continue
+                area["folders"] = [item for item in area["folders"] if item != folder]
+                if area["name"] not in area["keywords"]:
+                    area["keywords"].append(area["name"])
+                duplicate_claim_notes.append(
+                    {"folder": folder, "kept": owner, "demoted": area["slug"]}
+                )
+        # WI-2: folders도 keywords도 없는 영역은 keywords=[name] 자동 부여 —
+        # '예산' 같은 키워드 전용 영역이 매칭 불능 상태로 남지 않게 명시화한다.
+        keyword_granted: list[str] = []
+        for area in areas:
+            if not area["folders"] and not area["keywords"]:
+                area["keywords"] = [area["name"]]
+                keyword_granted.append(area["slug"])
+        if duplicate_claim_notes or keyword_granted:
+            self.db.log(
+                feature="knowledge",
+                action="knowledge.taxonomy.confirm.normalized",
+                status="success",
+                inputs={"source_id": source_id},
+                outputs={
+                    "message": (
+                        "분류체계 확정 정리: 폴더 중복 claim "
+                        f"{len(duplicate_claim_notes)}건 소유자 정리 · 키워드 자동 부여 "
+                        f"{len(keyword_granted)}건"
+                    ),
+                    "duplicate_folder_claims": duplicate_claim_notes,
+                    "keyword_granted": keyword_granted,
+                },
+            )
 
         enabled = [key for key in (doc_roles_enabled or []) if key in DOC_ROLE_BY_KEY and not DOC_ROLE_BY_KEY[key]["shadow"]]
         if not enabled:
@@ -1414,9 +1490,14 @@ class WorkTaxonomyManager:
             items.append({**row, "candidates": candidates})
         return items
 
-    def resolve_queue_item(
+    def _validate_queue_resolution(
         self, item_id: str, *, work_area_slug: str = "", doc_role: str = ""
     ) -> dict[str, Any]:
+        """해소 선검증 — 존재(KeyError)·pending(ValueError)·유효 태그(InvalidTagError).
+
+        단건·일괄이 공유한다. 일괄은 변경 전에 전건을 이 함수로 선검증해
+        '일부만 반영된 배치'를 만들지 않는다 (WI-2).
+        """
         row = self.db.fetch_one("SELECT * FROM knowledge_tag_queue WHERE id = ?", (item_id,))
         if row is None:
             raise KeyError(item_id)
@@ -1439,6 +1520,17 @@ class WorkTaxonomyManager:
             }
             if work_area_slug not in valid_slugs:
                 raise InvalidTagError(f"unknown work_area_slug: {work_area_slug}")
+        return row
+
+    def _resolve_queue_item_core(
+        self, item_id: str, *, work_area_slug: str = "", doc_role: str = ""
+    ) -> dict[str, Any]:
+        """단건 해소 코어 — 문서·카드·큐만 갱신하고 허브 재작성/인덱스 재빌드는
+        하지 않는다 (WI-2: resolve_queue_item과 resolve_queue_items가 공유,
+        허브/인덱스 갱신 시점은 호출자가 결정)."""
+        row = self._validate_queue_resolution(
+            item_id, work_area_slug=work_area_slug, doc_role=doc_role
+        )
         doc = self.db.fetch_one(
             "SELECT * FROM knowledge_wiki_docs WHERE id = ?", (row["wiki_doc_id"],)
         )
@@ -1478,18 +1570,6 @@ class WorkTaxonomyManager:
             """,
             ("resolved", work_area_slug or None, doc_role or None, timestamp, item_id),
         )
-        # 허브/인덱스 최신화 (확정 체계가 있는 소스만)
-        source_id = str(row.get("source_id") or "")
-        tax_row = self.db.fetch_one(
-            "SELECT * FROM knowledge_taxonomy WHERE source_id = ?", (source_id,)
-        )
-        if tax_row is not None:
-            try:
-                taxonomy = json.loads(tax_row.get("taxonomy_json") or "{}")
-                self._write_hubs(source_id, taxonomy)
-                self.wiki.rebuild_index()
-            except (OSError, json.JSONDecodeError):
-                pass
         resolved = self.db.fetch_one("SELECT * FROM knowledge_tag_queue WHERE id = ?", (item_id,))
         self.db.log(
             feature="knowledge",
@@ -1499,6 +1579,77 @@ class WorkTaxonomyManager:
             outputs={},
         )
         return resolved or row
+
+    def _refresh_hubs_and_index(self, source_id: str) -> None:
+        """허브 전량 재작성 + 인덱스 재빌드 — 확정 체계가 있는 소스만."""
+        if not source_id:
+            return
+        tax_row = self.db.fetch_one(
+            "SELECT * FROM knowledge_taxonomy WHERE source_id = ?", (source_id,)
+        )
+        if tax_row is None:
+            return
+        try:
+            taxonomy = json.loads(tax_row.get("taxonomy_json") or "{}")
+            self._write_hubs(source_id, taxonomy)
+            self.wiki.rebuild_index()
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    def resolve_queue_item(
+        self, item_id: str, *, work_area_slug: str = "", doc_role: str = ""
+    ) -> dict[str, Any]:
+        resolved = self._resolve_queue_item_core(
+            item_id, work_area_slug=work_area_slug, doc_role=doc_role
+        )
+        # 허브/인덱스 최신화 (확정 체계가 있는 소스만)
+        self._refresh_hubs_and_index(str(resolved.get("source_id") or ""))
+        return resolved
+
+    def resolve_queue_items(self, items: list[dict[str, Any]]) -> dict[str, Any]:
+        """분류 대기 큐 일괄 해소 (WI-2 auto-triage bulk-resolve).
+
+        단건 resolve와 동일 계약을 유지한다 — tag_locked=1 잠금, 유령 slug/역할은
+        InvalidTagError(API 400), 미존재 항목 KeyError(404), 비pending ValueError(409).
+        차이는 성능뿐: 허브 전량 재작성·인덱스 재빌드를 항목마다가 아니라 배치당
+        소스별 1회만 수행한다. 항목은 {id, work_area_slug?, doc_role?} 형태이며,
+        변경 전에 전건을 선검증해 하나라도 무효면 아무것도 바꾸지 않는다.
+
+        returns {"resolved_count": N, "items": [해소된 큐 행…]}.
+        """
+        normalized: list[tuple[str, str, str]] = []
+        seen_ids: set[str] = set()
+        for raw in items or []:
+            entry = raw or {}
+            item_id = str(entry.get("id") or "").strip()
+            if not item_id:
+                raise KeyError("queue item id is required")
+            if item_id in seen_ids:
+                raise ValueError(f"duplicate queue item id: {item_id}")
+            seen_ids.add(item_id)
+            normalized.append(
+                (
+                    item_id,
+                    str(entry.get("work_area_slug") or "").strip(),
+                    str(entry.get("doc_role") or "").strip(),
+                )
+            )
+        # 전건 선검증 — 부분 반영 배치 방지.
+        for item_id, area_slug, role in normalized:
+            self._validate_queue_resolution(item_id, work_area_slug=area_slug, doc_role=role)
+        resolved_items: list[dict[str, Any]] = []
+        source_ids: list[str] = []
+        for item_id, area_slug, role in normalized:
+            resolved = self._resolve_queue_item_core(
+                item_id, work_area_slug=area_slug, doc_role=role
+            )
+            resolved_items.append(resolved)
+            sid = str(resolved.get("source_id") or "")
+            if sid and sid not in source_ids:
+                source_ids.append(sid)
+        for sid in source_ids:
+            self._refresh_hubs_and_index(sid)
+        return {"resolved_count": len(resolved_items), "items": resolved_items}
 
     def quality(self, *, source_id: str | None = None) -> dict[str, Any]:
         if source_id:

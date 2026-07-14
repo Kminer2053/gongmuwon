@@ -2530,6 +2530,34 @@ export async function resolveTaxonomyQueueItem(
   );
 }
 
+/**
+ * 2026-07-14 hub-assignment (b): 일괄 반영 요청 항목 한 건.
+ * 단건 resolve와 동일 계약으로 확정(tag_locked)되며, doc_role은 선택이다.
+ */
+export type TaxonomyQueueBulkResolveItemInput = {
+  id: string;
+  work_area_slug: string;
+  doc_role?: string;
+};
+
+/**
+ * POST /api/knowledge/taxonomy/queue/bulk-resolve 응답 — 서버는 항목별 처리 후
+ * 허브 재작성을 1회만 수행한다. 프런트는 200이면 성공으로 간주하고 목록에서 제거하므로
+ * 본문 필드에는 표시 이상으로 의존하지 않는다(전환기 서버 호환).
+ */
+export type TaxonomyQueueBulkResolveResult = {
+  items?: TaxonomyQueueItem[];
+  resolved_count?: number;
+};
+
+/** hub-assignment (b): 분류 대기 큐 일괄 반영 — 그룹 전체/추천(단일 후보) 전건을 한 요청으로 확정한다. */
+export async function bulkResolveTaxonomyQueue(items: TaxonomyQueueBulkResolveItemInput[]) {
+  return requestJson<TaxonomyQueueBulkResolveResult>("/api/knowledge/taxonomy/queue/bulk-resolve", {
+    method: "POST",
+    body: JSON.stringify({ items }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // 주제 어휘집 팩(Topic Vocabulary Pack) — 규격서 2026-07-12 §5(기관팩)·§6(후보 큐)
 // ---------------------------------------------------------------------------

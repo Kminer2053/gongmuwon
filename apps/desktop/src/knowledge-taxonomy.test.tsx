@@ -2,6 +2,14 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// WI-2 (b): bulk-resolve는 api 모듈 함수 차원에서 mock해 호출 인자를 검증한다.
+// 나머지 api 함수는 실제 구현 그대로 두고(부분 mock) fetch 스텁으로 응답한다.
+const bulkResolveTaxonomyQueueMock = vi.hoisted(() => vi.fn());
+vi.mock("./api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./api")>();
+  return { ...actual, bulkResolveTaxonomyQueue: bulkResolveTaxonomyQueueMock };
+});
+
 vi.mock("./runtime", () => ({
   loadDesktopRuntimeStatus: vi.fn(async () => ({
     available: true,
@@ -120,6 +128,8 @@ describe("work-aware taxonomy wizard, queue, and wiki hubs (T-01)", () => {
     proposalPayload = TAXONOMY_PROPOSAL;
     scanRequests = 0;
     releaseScan = null;
+    bulkResolveTaxonomyQueueMock.mockReset();
+    bulkResolveTaxonomyQueueMock.mockResolvedValue({ items: [] });
 
     vi.stubGlobal(
       "fetch",
@@ -461,10 +471,10 @@ describe("work-aware taxonomy wizard, queue, and wiki hubs (T-01)", () => {
     await user.clear(nameInputs[0]);
     await user.type(nameInputs[0], "예산 관리");
 
-    // 확신도 낮은 후보(감사) 제외
+    // hub-assignment (c)-4: 확신도 낮은 vocab 후보(감사)는 채택 시점에 기본 제외된다.
     const auditCard = (screen.getByDisplayValue("감사").closest("article")) as HTMLElement;
-    await user.click(within(auditCard).getByRole("button", { name: "제외" }));
     expect(auditCard.className).toContain("is-excluded");
+    expect(within(auditCard).getByTestId("taxonomy-auto-excluded-pill")).toBeInTheDocument();
 
     // 문서유형 8종 체크리스트: 기본 전체 on
     const roleFieldset = screen.getByText("정리할 문서 유형 (기본 전체 사용)").closest("fieldset") as HTMLElement;
@@ -672,4 +682,235 @@ describe("work-aware taxonomy wizard, queue, and wiki hubs (T-01)", () => {
     );
     expect(screen.getByRole("button", { name: "지금 적용" })).toBeEnabled();
   }, 20000);
+
+  // -------------------------------------------------------------------------
+  // WI-2 (hub-assignment): 저확신 후보 기본 제외 + 분류 대기 큐 일괄 반영
+  // -------------------------------------------------------------------------
+
+  it("auto-excludes low/vocab candidates by default with an opt-in include button (E15)", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await openSettingsTab(user);
+    const entry = await screen.findByTestId("knowledge-taxonomy-entry");
+    const wizardButton = within(entry).getByRole("button", { name: "분류체계 설정" });
+    await waitFor(() => expect(wizardButton).toBeEnabled());
+    await user.click(wizardButton);
+
+    await screen.findByTestId("taxonomy-wizard");
+    await user.click(screen.getByRole("button", { name: "다음" }));
+    await screen.findByTestId("taxonomy-review-step");
+
+    // 기본 제외: is-excluded + '자동 제외' pill, includedAreas 카운트(업무 후보)에서 빠진다.
+    const auditCard = (screen.getByDisplayValue("감사").closest("article")) as HTMLElement;
+    expect(auditCard.className).toContain("is-excluded");
+    expect(within(auditCard).getByTestId("taxonomy-auto-excluded-pill")).toHaveTextContent(
+      "자동 제외 — 근거 약함",
+    );
+    expect(screen.getByText("업무 후보 2개")).toBeInTheDocument();
+
+    // opt-in: [포함] 클릭으로 카운트에 편입되고 pill이 사라진다.
+    await user.click(within(auditCard).getByRole("button", { name: "포함" }));
+    expect(auditCard.className).not.toContain("is-excluded");
+    expect(within(auditCard).queryByTestId("taxonomy-auto-excluded-pill")).not.toBeInTheDocument();
+    expect(screen.getByText("업무 후보 3개")).toBeInTheDocument();
+
+    // 기본(제외) 상태로 되돌려 확정하면 payload에 미포함.
+    await user.click(within(auditCard).getByRole("button", { name: "제외" }));
+    await user.click(screen.getByRole("button", { name: "이 체계로 확정" }));
+    await screen.findByTestId("taxonomy-apply-step");
+    expect(lastConfirmBody).toEqual({
+      source_id: "source-1",
+      work_areas: [
+        { name: "예산", folders: ["01. 예산"], keywords: [] },
+        { name: "행사", folders: ["02. 행사"], keywords: [] },
+      ],
+      doc_roles_enabled: ["regulation", "manual", "plan", "report", "meeting", "official", "form", "reference"],
+      family_policy: "latest_representative",
+    });
+  }, 20000);
+
+  it("groups queue items by first-level folder and pre-selects the single candidate (WI-2)", async () => {
+    taxonomyConfigured = true;
+    qualityItems = [
+      { source_id: "source-1", conflicts: 1, duplicates: 0, unclear_latest: 0, queue_count: 2, generated_at: "2026-07-14T00:20:00+09:00" },
+    ];
+    queueItems = [
+      {
+        id: "queue-1",
+        source_id: "source-1",
+        wiki_doc_id: "wd-1",
+        doc_slug: "budget-attachment",
+        title: "붙임 예산편성안",
+        source_path: "C:/Docs/업무자료/01. 예산/붙임 예산편성안.hwp",
+        reason: "conflict",
+        status: "pending",
+        candidates: {
+          work_areas: [{ work_area_slug: "예산-관리", name: "예산 관리", signal: "folder" }],
+          doc_roles: [],
+        },
+        created_at: "2026-07-14T00:21:00+09:00",
+      },
+      {
+        id: "queue-2",
+        source_id: "source-1",
+        wiki_doc_id: "wd-2",
+        doc_slug: "greeting-plan",
+        title: "상견례 계획",
+        source_path: "C:/Docs/업무자료/상견례 계획.hwp",
+        reason: "no_signal",
+        status: "pending",
+        candidates: {
+          work_areas: [
+            { work_area_slug: "예산-관리", name: "예산 관리", signal: "keyword" },
+            { work_area_slug: "행사", name: "행사", signal: "keyword" },
+          ],
+          doc_roles: [],
+        },
+        created_at: "2026-07-14T00:22:00+09:00",
+      },
+    ];
+
+    const user = userEvent.setup();
+    render(<App />);
+    await openSettingsTab(user);
+
+    const queueCard = await screen.findByTestId("knowledge-taxonomy-queue");
+    await user.click(within(queueCard).getByRole("button", { name: "분류 대기 2건" }));
+
+    // ① 1단계 폴더별 그룹 헤더: "01. 예산" 그룹 + 루트 직속 그룹.
+    const groups = await screen.findAllByTestId("taxonomy-queue-group");
+    expect(groups).toHaveLength(2);
+    expect(within(groups[0]).getByTestId("taxonomy-queue-group-header")).toHaveTextContent("01. 예산");
+    expect(within(groups[1]).getByTestId("taxonomy-queue-group-header")).toHaveTextContent("루트 직속");
+
+    // ② 후보가 정확히 1개인 항목은 업무 드롭다운이 기본 선택되어 있다.
+    expect(screen.getByLabelText("붙임 예산편성안 업무 선택")).toHaveValue("예산-관리");
+    // 후보가 2개인 항목은 기본 선택 없음(직접 골라야 한다).
+    expect(screen.getByLabelText("상견례 계획 업무 선택")).toHaveValue("");
+  }, 15000);
+
+  it("bulk-resolves every single-candidate item via the recommended button (WI-2)", async () => {
+    taxonomyConfigured = true;
+    qualityItems = [
+      { source_id: "source-1", conflicts: 2, duplicates: 0, unclear_latest: 0, queue_count: 3, generated_at: "2026-07-14T00:20:00+09:00" },
+    ];
+    queueItems = [
+      {
+        id: "queue-1",
+        source_id: "source-1",
+        title: "붙임 예산편성안",
+        source_path: "C:/Docs/업무자료/01. 예산/붙임 예산편성안.hwp",
+        reason: "conflict",
+        status: "pending",
+        candidates: {
+          work_areas: [{ work_area_slug: "예산-관리", name: "예산 관리", signal: "folder" }],
+          doc_roles: [],
+        },
+      },
+      {
+        id: "queue-2",
+        source_id: "source-1",
+        title: "행사 안내문",
+        source_path: "C:/Docs/업무자료/02. 행사/행사 안내문.hwp",
+        reason: "conflict",
+        status: "pending",
+        candidates: {
+          work_areas: [{ work_area_slug: "행사", name: "행사", signal: "folder" }],
+          doc_roles: [],
+        },
+      },
+      {
+        id: "queue-3",
+        source_id: "source-1",
+        title: "상견례 계획",
+        source_path: "C:/Docs/업무자료/상견례 계획.hwp",
+        reason: "no_signal",
+        status: "pending",
+        candidates: {
+          work_areas: [
+            { work_area_slug: "예산-관리", name: "예산 관리", signal: "keyword" },
+            { work_area_slug: "행사", name: "행사", signal: "keyword" },
+          ],
+          doc_roles: [],
+        },
+      },
+    ];
+
+    const user = userEvent.setup();
+    render(<App />);
+    await openSettingsTab(user);
+
+    const queueCard = await screen.findByTestId("knowledge-taxonomy-queue");
+    await user.click(within(queueCard).getByRole("button", { name: "분류 대기 3건" }));
+    await screen.findAllByTestId("taxonomy-queue-item");
+
+    // 추천 일괄 반영 — 단일 후보 항목 전건(2건)만 그 후보 업무로 확정된다.
+    await user.click(screen.getByRole("button", { name: "추천 일괄 반영 (2건)" }));
+
+    await waitFor(() =>
+      expect(bulkResolveTaxonomyQueueMock).toHaveBeenCalledWith([
+        { id: "queue-1", work_area_slug: "예산-관리" },
+        { id: "queue-2", work_area_slug: "행사" },
+      ]),
+    );
+    expect(bulkResolveTaxonomyQueueMock).toHaveBeenCalledTimes(1);
+
+    // 반영된 항목은 목록에서 제거되고 다중 후보 항목만 남는다.
+    await waitFor(() => expect(screen.getAllByTestId("taxonomy-queue-item")).toHaveLength(1));
+    expect(await screen.findByText(/추천 업무로 2건을 일괄 반영했습니다/)).toBeInTheDocument();
+  }, 15000);
+
+  it("applies one work area to a whole folder group from the group header (WI-2)", async () => {
+    taxonomyConfigured = true;
+    qualityItems = [
+      { source_id: "source-1", conflicts: 0, duplicates: 0, unclear_latest: 0, queue_count: 2, generated_at: "2026-07-14T00:20:00+09:00" },
+    ];
+    queueItems = [
+      {
+        id: "queue-1",
+        source_id: "source-1",
+        title: "행사 계획(안)",
+        source_path: "C:/Docs/업무자료/02. 행사/행사 계획(안).hwp",
+        reason: "no_signal",
+        status: "pending",
+        candidates: { work_areas: [], doc_roles: [] },
+      },
+      {
+        id: "queue-2",
+        source_id: "source-1",
+        title: "행사 결과보고",
+        source_path: "C:/Docs/업무자료/02. 행사/행사 결과보고.hwp",
+        reason: "no_signal",
+        status: "pending",
+        candidates: { work_areas: [], doc_roles: [] },
+      },
+    ];
+
+    const user = userEvent.setup();
+    render(<App />);
+    await openSettingsTab(user);
+
+    const queueCard = await screen.findByTestId("knowledge-taxonomy-queue");
+    await user.click(within(queueCard).getByRole("button", { name: "분류 대기 2건" }));
+
+    const group = await screen.findByTestId("taxonomy-queue-group");
+    const groupButton = within(group).getByRole("button", { name: "이 그룹 전체를 [선택 업무]로 반영" });
+    // 그룹 업무를 고르기 전에는 비활성.
+    expect(groupButton).toBeDisabled();
+
+    await user.selectOptions(within(group).getByLabelText("02. 행사 그룹 업무 선택"), "행사");
+    await user.click(groupButton);
+
+    await waitFor(() =>
+      expect(bulkResolveTaxonomyQueueMock).toHaveBeenCalledWith([
+        { id: "queue-1", work_area_slug: "행사" },
+        { id: "queue-2", work_area_slug: "행사" },
+      ]),
+    );
+
+    // 그룹 전체가 해소되어 빈 상태 안내가 뜬다.
+    await waitFor(() => expect(screen.queryByTestId("taxonomy-queue-item")).not.toBeInTheDocument());
+    expect(await screen.findByText(/02\. 행사 그룹 2건을 '행사' 업무로 반영했습니다/)).toBeInTheDocument();
+  }, 15000);
 });

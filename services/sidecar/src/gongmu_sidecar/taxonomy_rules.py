@@ -150,6 +150,21 @@ def normalize_folder_name(name: str) -> str:
     return value
 
 
+def folder_owner_slug(folder: str) -> str:
+    """폴더명에서 파생되는 '소유자' 업무영역 slug (WI-2 hub-assignment).
+
+    analyze_source의 1단계 폴더 승격과 같은 규칙(normalize_folder_name →
+    work_area_slug)으로 폴더의 주인 영역 slug를 계산한다 — 중복 claim 타이브레이크와
+    confirm 시 폴더 소유자 정리가 재사용한다. 정규화 결과가 비면(연도만 있는 폴더 등)
+    승격 규칙과 동일하게 폴더명 자체로 slug를 만들고, 빈 입력은 빈 문자열을 돌려준다
+    (work_area_slug의 무작위 폴백으로 비결정 판정이 새는 것을 차단).
+    """
+    value = nfc(str(folder or "")).strip()
+    if not value:
+        return ""
+    return work_area_slug(normalize_folder_name(value) or value)
+
+
 def version_signals(stem: str) -> dict[str, Any]:
     value = nfc(str(stem or ""))
     version_hits = [int(match) for match in FILENAME_SIGNALS["version"].findall(value)]
@@ -243,31 +258,76 @@ def match_work_area(
 ) -> tuple[str | None, str, list[dict[str, Any]], str]:
     """확정 taxonomy 기반 업무영역 판정 — returns (slug, confidence, candidates, reason).
 
-    apply 배치(work_taxonomy)와 색인 내 증분 태깅(knowledge_wiki)이 공유하는
+    apply 배치(work_taxonomy)·색인 내 증분 태깅(knowledge_wiki)·rebind가 공유하는
     단일 구현. 폴더 직매핑=high, 이름/키워드 단독=medium, 충돌·무신호=low.
+
+    WI-2(2026-07-14 hub-assignment): 폴더 매칭이 2개 이상이어도 무조건 conflict로
+    떨어뜨리지 않고 3단 결정론 타이브레이크를 거친다 —
+      ① 더 깊은(파일에 가까운) 세그먼트를 매칭한 영역 우선
+      ② 소유자 우선: folder_owner_slug(매칭 폴더) == area.slug 인 영역이 유일하면 high
+      ③ folders 배열이 가장 짧은(가장 특이적 claim) 영역이 유일하면 그 영역
+      ④ 그래도 복수면 현행대로 conflict/low (진짜 모호한 문서만 큐로).
+    candidates는 특이도(folders 길이 오름차순, 동률은 slug순) 정렬로 반환한다.
     """
     areas = taxonomy.get("work_areas") or []
     rel = nfc(str(relative_path or ""))
     segments = rel.split("/")[:-1]
-    normalized_segments = {normalize_folder_name(segment) for segment in segments}
+    normalized_segments = [normalize_folder_name(segment) for segment in segments]
     filename = Path(rel or str(source_path or "")).stem
     haystack = nfc(f"{filename} {title or ''}")
 
-    folder_matches: list[dict[str, Any]] = []
-    for area in areas:
-        for folder in area.get("folders") or []:
-            normalized_folder = normalize_folder_name(folder)
-            if folder in segments or (normalized_folder and normalized_folder in normalized_segments):
-                folder_matches.append(area)
-                break
-    if len(folder_matches) == 1:
-        return folder_matches[0]["slug"], "high", [], "folder"
-    if len(folder_matches) > 1:
-        candidates = [
-            {"work_area_slug": area["slug"], "name": area["name"], "signal": "folder"}
-            for area in folder_matches
+    def _sorted_candidates(matched: list[dict[str, Any]], signal: str) -> list[dict[str, Any]]:
+        ordered = sorted(
+            matched,
+            key=lambda area: (len(area.get("folders") or []), str(area.get("slug") or "")),
+        )
+        return [
+            {"work_area_slug": area["slug"], "name": area["name"], "signal": signal}
+            for area in ordered
         ]
-        return None, "low", candidates, "conflict"
+
+    # (area, 매칭 폴더, 세그먼트 깊이) — 영역당 가장 깊은 매칭 1건만 수집.
+    folder_matches: list[tuple[dict[str, Any], str, int]] = []
+    for area in areas:
+        best: tuple[str, int] | None = None
+        for folder in area.get("folders") or []:
+            folder_value = nfc(str(folder or ""))
+            normalized_folder = normalize_folder_name(folder_value)
+            for depth, segment in enumerate(segments):
+                if folder_value == segment or (
+                    normalized_folder and normalized_folder == normalized_segments[depth]
+                ):
+                    if best is None or depth > best[1]:
+                        best = (folder_value, depth)
+        if best is not None:
+            folder_matches.append((area, best[0], best[1]))
+
+    if len(folder_matches) == 1:
+        return folder_matches[0][0]["slug"], "high", [], "folder"
+    if len(folder_matches) > 1:
+        # ① 더 깊은 세그먼트(파일에 가까운 폴더)를 매칭한 영역 우선.
+        max_depth = max(depth for _, _, depth in folder_matches)
+        tied = [entry for entry in folder_matches if entry[2] == max_depth]
+        if len(tied) == 1:
+            return tied[0][0]["slug"], "high", [], "folder"
+        # ② 소유자 우선: 매칭 폴더의 파생 slug와 영역 slug가 일치하면 그 폴더의 주인.
+        owners = [
+            entry for entry in tied
+            if folder_owner_slug(entry[1]) == str(entry[0].get("slug") or "")
+        ]
+        if len(owners) == 1:
+            return owners[0][0]["slug"], "high", [], "folder"
+        # ③ 소유자 판별 실패(영역 개명 등) — 최소 folders(가장 특이적 claim)가 유일하면 채택.
+        narrowed = owners or tied
+        min_claims = min(len(entry[0].get("folders") or []) for entry in narrowed)
+        specific = [
+            entry for entry in narrowed
+            if len(entry[0].get("folders") or []) == min_claims
+        ]
+        if len(specific) == 1:
+            return specific[0][0]["slug"], "high", [], "folder"
+        # ④ 진짜 모호 — 현행대로 conflict/low, 전체 매칭 영역을 후보로 노출.
+        return None, "low", _sorted_candidates([entry[0] for entry in folder_matches], "folder"), "conflict"
 
     keyword_matches: list[dict[str, Any]] = []
     for area in areas:
@@ -277,9 +337,5 @@ def match_work_area(
     if len(keyword_matches) == 1:
         return keyword_matches[0]["slug"], "medium", [], "keyword"
     if len(keyword_matches) > 1:
-        candidates = [
-            {"work_area_slug": area["slug"], "name": area["name"], "signal": "keyword"}
-            for area in keyword_matches
-        ]
-        return None, "low", candidates, "conflict"
+        return None, "low", _sorted_candidates(keyword_matches, "keyword"), "conflict"
     return None, "low", [], "no_signal"

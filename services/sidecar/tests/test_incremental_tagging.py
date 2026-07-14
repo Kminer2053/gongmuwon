@@ -149,6 +149,45 @@ def test_new_file_in_confirmed_folder_is_auto_tagged_at_ingest(tmp_path: Path) -
     assert "신규예산지침" in hub_text
 
 
+def test_new_file_high_under_legacy_duplicate_claim_taxonomy(tmp_path: Path) -> None:
+    """WI-2 회귀: 중복 claim(노이즈) taxonomy에서도 색인 증분 태깅이 소유자 high를 준다.
+
+    수정 전 확정된 레거시 체계(노이즈 영역이 소유 폴더를 중복 claim — confirm 정리를
+    거치지 않은 상태)를 taxonomy_json 직접 주입으로 재현한다. apply 재실행 없이
+    신규 파일 색인만으로도 3단 타이브레이크(소유자 우선)가 동일하게 적용되어야
+    한다(§5.1 apply=색인 동일 판정 계약).
+    """
+    client = _client(tmp_path)
+    source_id = _setup(client, tmp_path)
+    db = client.app.state.services.db
+
+    row = db.fetch_one("SELECT * FROM knowledge_taxonomy WHERE source_id = ?", (source_id,))
+    taxonomy = json.loads(row["taxonomy_json"])
+    taxonomy["work_areas"].append(
+        {
+            "name": "AI",
+            "slug": "ai",
+            "folders": ["□주요□예산", "□주요□성과평가"],
+            "keywords": ["AI"],
+        }
+    )
+    db.execute(
+        "UPDATE knowledge_taxonomy SET taxonomy_json = ? WHERE id = ?",
+        (json.dumps(taxonomy, ensure_ascii=False), row["id"]),
+    )
+
+    source = tmp_path / "workfolder"
+    _write_aged(source / "□주요□예산" / "신규예산지침.md", "# 신규예산지침\n\n새 예산 집행 기준입니다.")
+    _scan(client, source_id)
+    _ingest(client, source_id)
+
+    doc = _docs_by_rel(db, source_id)["□주요□예산/신규예산지침.md"]
+    assert doc["tag_confidence"] == "high", "중복 claim 폴더도 소유자 타이브레이크로 high"
+    assert doc["work_area_slug"] == "예산"
+    queue = client.get("/api/knowledge/taxonomy/queue").json()["items"]
+    assert all(item["wiki_doc_id"] != doc["id"] for item in queue)
+
+
 def test_new_low_signal_file_enqueued_and_reference_shelf_excluded(tmp_path: Path) -> None:
     client = _client(tmp_path)
     source_id = _setup(client, tmp_path)

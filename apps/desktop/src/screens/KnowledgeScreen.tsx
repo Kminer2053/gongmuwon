@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   applyTaxonomy,
   askKnowledge,
+  bulkResolveTaxonomyQueue,
   cancelKnowledgeIngestionJob,
   confirmTaxonomy,
   fetchTaxonomyInterview,
@@ -906,6 +907,46 @@ function taxonomyQueueReasonLabel(reason: string): string {
   return reason;
 }
 
+/**
+ * 2026-07-14 hub-assignment (c)-4: 근거가 약한 후보 판정 — 저확신(low)이거나
+ * 어휘집 폴백(vocab, folders 없이 단어 매칭만) 출신. 초안 채택 시 기본 제외하고
+ * 카드의 "자동 제외 — 근거 약함" pill 근거로 쓴다(포함 버튼으로 opt-in).
+ */
+function isWeakTaxonomyCandidate(confidence: string | null, origin: string): boolean {
+  return confidence === "low" || origin === "vocab";
+}
+
+/**
+ * hub-assignment (b): 큐 항목이 속한 1단계 폴더 라벨 — 큐 목록 그룹 헤더 묶음 기준.
+ * 소스 root_path 기준 상대경로의 첫 세그먼트를 쓰고, 루트 직속 파일은 별도 그룹으로 묶는다.
+ */
+function taxonomyQueueGroupLabel(item: TaxonomyQueueItem, sources: KnowledgeSourceItem[]): string {
+  const normalized = item.source_path.replace(/\\/g, "/");
+  const root = sources
+    .find((source) => source.id === item.source_id)
+    ?.root_path.replace(/\\/g, "/")
+    .replace(/\/+$/, "");
+  if (root && normalized.toLowerCase().startsWith(`${root.toLowerCase()}/`)) {
+    const segments = normalized.slice(root.length + 1).split("/").filter(Boolean);
+    return segments.length > 1 ? segments[0] : "루트 직속";
+  }
+  // 소스 미매칭(경로 이동 등) 폴백 — 파일 바로 위 폴더명으로 묶는다.
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 2] : "루트 직속";
+}
+
+/** hub-assignment (b): 후보가 정확히 1개인 항목은 그 후보를 업무 드롭다운 기본 선택값으로 쓴다. */
+function taxonomyQueueDefaultSelection(item: TaxonomyQueueItem): {
+  work_area_slug: string;
+  doc_role: string;
+} {
+  const candidateAreas = item.candidates?.work_areas ?? [];
+  return {
+    work_area_slug: candidateAreas.length === 1 ? candidateAreas[0].work_area_slug : "",
+    doc_role: "",
+  };
+}
+
 type TaxonomyToastPush = (tone: "info" | "error", message: string) => void;
 
 /** 마법사 단계 2에서 편집하는 업무 후보 한 줄(초안 항목 + 사용자 편집 상태). */
@@ -1042,7 +1083,8 @@ function TaxonomyWizard({
         docCount: area.doc_count,
         confidence: area.confidence,
         origin: area.source,
-        excluded: false,
+        // hub-assignment (c)-4: 저확신·vocab 후보는 기본 제외 — 포함 버튼으로 opt-in.
+        excluded: isWeakTaxonomyCandidate(area.confidence, area.source),
         checked: false,
       })),
     );
@@ -1444,6 +1486,12 @@ function TaxonomyWizard({
                         {taxonomyConfidenceLabel(area.confidence)}
                       </span>
                     ) : null}
+                    {/* hub-assignment (c)-4: 기본 제외된 저확신·vocab 후보 표시 — 포함 버튼으로 되살릴 수 있다. */}
+                    {area.excluded && isWeakTaxonomyCandidate(area.confidence, area.origin) ? (
+                      <span className="pill pill--warning" data-testid="taxonomy-auto-excluded-pill">
+                        자동 제외 — 근거 약함
+                      </span>
+                    ) : null}
                     {area.origin === "manual" ? <span className="pill pill--soft">직접 추가</span> : null}
                   </div>
                 </article>
@@ -1615,13 +1663,15 @@ type TaxonomyQueueSectionProps = {
   /** 마법사에서 적용을 시작하면 증가 — 큐/품질을 다시 조회한다. */
   refreshKey: number;
   pushToast: TaxonomyToastPush;
+  /** hub-assignment (b): 1단계 폴더 그룹핑에 쓰는 등록 지식폴더 목록(root_path 기준 상대경로 계산). */
+  sources: KnowledgeSourceItem[];
 };
 
 /**
  * T-01 분류 대기 큐 카드 — 설정 탭(위키 구성 설정)에서 확신도 낮은 문서를 직접 확정한다.
  * 확정된 분류체계가 없으면(구버전 서버 포함) 아무것도 렌더하지 않는다.
  */
-function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionProps) {
+function TaxonomyQueueSection({ refreshKey, pushToast, sources }: TaxonomyQueueSectionProps) {
   const [quality, setQuality] = useState<TaxonomyQualityResult | null>(null);
   const [status, setStatus] = useState<TaxonomyStatusResult | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -1629,6 +1679,9 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
   const [queueLoading, setQueueLoading] = useState(false);
   const [selections, setSelections] = useState<Record<string, { work_area_slug: string; doc_role: string }>>({});
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  // hub-assignment (b): 그룹 헤더의 "이 그룹 전체를 [선택 업무]로 반영"용 그룹별 업무 선택.
+  const [groupSelections, setGroupSelections] = useState<Record<string, string>>({});
+  const [bulkResolving, setBulkResolving] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -1697,6 +1750,19 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
     { conflicts: 0, duplicates: 0, unclearLatest: 0, queueCount: 0 },
   );
   const pendingCount = queueItems !== null ? queueItems.length : totals.queueCount;
+  // hub-assignment (b): 후보가 정확히 1개인 항목 — "추천 일괄 반영" 대상.
+  const recommendedEntries = (queueItems ?? []).flatMap((item) => {
+    const candidateAreas = item.candidates?.work_areas ?? [];
+    return candidateAreas.length === 1
+      ? [{ item, work_area_slug: candidateAreas[0].work_area_slug }]
+      : [];
+  });
+  // hub-assignment (b): 1단계 폴더별 그룹 — Map은 삽입 순서를 유지하므로 서버 정렬을 존중한다.
+  const queueGroups = new Map<string, TaxonomyQueueItem[]>();
+  for (const item of queueItems ?? []) {
+    const label = taxonomyQueueGroupLabel(item, sources);
+    queueGroups.set(label, [...(queueGroups.get(label) ?? []), item]);
+  }
 
   function areaOptionsFor(sourceId: string): ConfirmedTaxonomyArea[] {
     const items = status?.items ?? [];
@@ -1704,31 +1770,42 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
     return matched?.taxonomy?.work_areas ?? [];
   }
 
-  function updateSelection(itemId: string, patch: Partial<{ work_area_slug: string; doc_role: string }>) {
+  function updateSelection(item: TaxonomyQueueItem, patch: Partial<{ work_area_slug: string; doc_role: string }>) {
     setSelections((current) => {
-      const existing = current[itemId] ?? { work_area_slug: "", doc_role: "" };
-      return { ...current, [itemId]: { ...existing, ...patch } };
+      // 단일 후보 기본 선택(hub-assignment (b))을 시드로 써서 부분 변경이 기본값을 지우지 않게 한다.
+      const existing = current[item.id] ?? taxonomyQueueDefaultSelection(item);
+      return { ...current, [item.id]: { ...existing, ...patch } };
     });
   }
 
+  /** 해소된 항목 수만큼 소스별 분류 대기 수를 줄인다(단건·일괄 공용). */
+  function decrementQueueCounts(resolvedItems: TaxonomyQueueItem[]) {
+    const countsBySource = new Map<string, number>();
+    for (const item of resolvedItems) {
+      countsBySource.set(item.source_id, (countsBySource.get(item.source_id) ?? 0) + 1);
+    }
+    setQuality((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((qualityItem) => {
+              const resolvedCount = countsBySource.get(qualityItem.source_id) ?? 0;
+              return resolvedCount > 0
+                ? { ...qualityItem, queue_count: Math.max(0, qualityItem.queue_count - resolvedCount) }
+                : qualityItem;
+            }),
+          }
+        : current,
+    );
+  }
+
   async function resolveItem(item: TaxonomyQueueItem) {
-    const selection = selections[item.id] ?? { work_area_slug: "", doc_role: "" };
+    const selection = selections[item.id] ?? taxonomyQueueDefaultSelection(item);
     setResolvingId(item.id);
     try {
       await resolveTaxonomyQueueItem(item.id, selection);
       setQueueItems((current) => (current ?? []).filter((queued) => queued.id !== item.id));
-      setQuality((current) =>
-        current
-          ? {
-              ...current,
-              items: current.items.map((qualityItem) =>
-                qualityItem.source_id === item.source_id
-                  ? { ...qualityItem, queue_count: Math.max(0, qualityItem.queue_count - 1) }
-                  : qualityItem,
-              ),
-            }
-          : current,
-      );
+      decrementQueueCounts([item]);
       pushToast("info", `${item.title || "문서"} 분류를 반영했습니다.`);
     } catch (resolveError) {
       pushToast(
@@ -1737,6 +1814,40 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
       );
     } finally {
       setResolvingId(null);
+    }
+  }
+
+  /**
+   * hub-assignment (b): 그룹 전체/추천(단일 후보) 전건을 bulk-resolve 한 요청으로 확정한다.
+   * 성공 시 해당 항목을 목록에서 제거하고 분류 대기 수를 함께 줄인다.
+   */
+  async function resolveBulk(
+    entries: Array<{ item: TaxonomyQueueItem; work_area_slug: string; doc_role?: string }>,
+    successMessage: string,
+  ) {
+    if (entries.length === 0) {
+      return;
+    }
+    setBulkResolving(true);
+    try {
+      await bulkResolveTaxonomyQueue(
+        entries.map(({ item, work_area_slug, doc_role }) => ({
+          id: item.id,
+          work_area_slug,
+          ...(doc_role ? { doc_role } : {}),
+        })),
+      );
+      const resolvedIds = new Set(entries.map(({ item }) => item.id));
+      setQueueItems((current) => (current ?? []).filter((queued) => !resolvedIds.has(queued.id)));
+      decrementQueueCounts(entries.map(({ item }) => item));
+      pushToast("info", successMessage);
+    } catch (bulkError) {
+      pushToast(
+        "error",
+        bulkError instanceof Error ? bulkError.message : "분류 일괄 반영에 실패했습니다.",
+      );
+    } finally {
+      setBulkResolving(false);
     }
   }
 
@@ -1765,10 +1876,88 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
             body="자동 분류에서 확신도가 낮았던 문서만 여기에 모입니다."
           />
         ) : (
-          <div className="item-list item-list--compact">
-            {(queueItems ?? []).map((item) => {
+          <div className="stack-form">
+            {/* hub-assignment (b): 단일 후보 항목 전건을 그 후보 업무로 한 번에 확정한다. */}
+            <div className="knowledge-index-status-row" data-testid="taxonomy-queue-bulk-toolbar">
+              <button
+                type="button"
+                onClick={() =>
+                  void resolveBulk(
+                    recommendedEntries,
+                    `추천 업무로 ${recommendedEntries.length}건을 일괄 반영했습니다.`,
+                  )
+                }
+                disabled={bulkResolving || recommendedEntries.length === 0}
+                title={
+                  recommendedEntries.length === 0
+                    ? "후보가 1개뿐인 문서가 없습니다."
+                    : "후보가 1개뿐인 문서 전건을 그 후보 업무로 한 번에 확정합니다."
+                }
+              >
+                추천 일괄 반영 ({recommendedEntries.length}건)
+              </button>
+              <span className="subtle-text">후보가 1개뿐인 문서는 업무가 미리 선택되어 있습니다.</span>
+            </div>
+            {Array.from(queueGroups.entries()).map(([groupLabel, groupItems]) => {
+              const groupSlug = groupSelections[groupLabel] ?? "";
+              const groupAreaOptions = areaOptionsFor(groupItems[0].source_id);
+              const groupAreaName = groupAreaOptions.find((area) => area.slug === groupSlug)?.name;
+              return (
+                <div key={groupLabel} data-testid="taxonomy-queue-group">
+                  {/* hub-assignment (b): 1단계 폴더 그룹 헤더 — 그룹 전체 일괄 반영 */}
+                  <div className="knowledge-index-status-row" data-testid="taxonomy-queue-group-header">
+                    <span className="pill pill--soft">{cleanFolderLabel(groupLabel)}</span>
+                    <span className="subtle-text">{groupItems.length}건</span>
+                    <label>
+                      그룹 업무
+                      <select
+                        aria-label={`${groupLabel} 그룹 업무 선택`}
+                        value={groupSlug}
+                        onChange={(event) =>
+                          setGroupSelections((current) => ({
+                            ...current,
+                            [groupLabel]: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">선택 안 함</option>
+                        {groupAreaOptions.map((area) => (
+                          <option key={area.slug} value={area.slug}>
+                            {area.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() =>
+                        void resolveBulk(
+                          groupItems.map((item) => {
+                            const docRole = (selections[item.id] ?? taxonomyQueueDefaultSelection(item)).doc_role;
+                            return {
+                              item,
+                              work_area_slug: groupSlug,
+                              ...(docRole ? { doc_role: docRole } : {}),
+                            };
+                          }),
+                          `${cleanFolderLabel(groupLabel)} 그룹 ${groupItems.length}건을 '${groupAreaName ?? groupSlug}' 업무로 반영했습니다.`,
+                        )
+                      }
+                      disabled={bulkResolving || !groupSlug}
+                      title={
+                        groupSlug
+                          ? "이 그룹의 분류 대기 문서 전건을 선택한 업무로 확정합니다."
+                          : "그룹 업무를 먼저 선택해 주세요."
+                      }
+                    >
+                      이 그룹 전체를 [선택 업무]로 반영
+                    </button>
+                  </div>
+                  <div className="item-list item-list--compact">
+            {groupItems.map((item) => {
               const areaOptions = areaOptionsFor(item.source_id);
-              const selection = selections[item.id] ?? { work_area_slug: "", doc_role: "" };
+              const selection = selections[item.id] ?? taxonomyQueueDefaultSelection(item);
               const candidateAreas = item.candidates?.work_areas ?? [];
               return (
                 <article key={item.id} className="list-card list-card--compact" data-testid="taxonomy-queue-item">
@@ -1787,7 +1976,7 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
                           key={candidate.work_area_slug}
                           type="button"
                           className="knowledge-query-history__chip"
-                          onClick={() => updateSelection(item.id, { work_area_slug: candidate.work_area_slug })}
+                          onClick={() => updateSelection(item, { work_area_slug: candidate.work_area_slug })}
                           title="이 후보 업무로 선택합니다."
                         >
                           {candidate.name}
@@ -1801,7 +1990,7 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
                       <select
                         aria-label={`${item.title} 업무 선택`}
                         value={selection.work_area_slug}
-                        onChange={(event) => updateSelection(item.id, { work_area_slug: event.target.value })}
+                        onChange={(event) => updateSelection(item, { work_area_slug: event.target.value })}
                       >
                         <option value="">선택 안 함</option>
                         {areaOptions.map((area) => (
@@ -1816,7 +2005,7 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
                       <select
                         aria-label={`${item.title} 유형 선택`}
                         value={selection.doc_role}
-                        onChange={(event) => updateSelection(item.id, { doc_role: event.target.value })}
+                        onChange={(event) => updateSelection(item, { doc_role: event.target.value })}
                       >
                         <option value="">선택 안 함</option>
                         {TAXONOMY_DOC_ROLES.map((role) => (
@@ -1840,6 +2029,10 @@ function TaxonomyQueueSection({ refreshKey, pushToast }: TaxonomyQueueSectionPro
                     </button>
                   </div>
                 </article>
+              );
+            })}
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -3268,6 +3461,9 @@ export function KnowledgeScreen() {
     const taxonomyConfigured = dashboardTaxonomy?.configured ?? false;
     const taxonomyWorkAreaCount = dashboardTaxonomy?.items?.[0]?.taxonomy?.work_areas?.length ?? 0;
     const taxonomyConfirmedAt = dashboardTaxonomy?.items?.[0]?.confirmed_at ?? null;
+    // hub-assignment (d): 재적용 후 잔존할 수 있는 '문서 0건 허브' 수 — 마법사 재확정 정리 권장 힌트 근거.
+    // 위키 트리 미로딩 상태에서는 0이 되어 힌트가 숨는다(조건부 표시).
+    const zeroDocWorkAreaCount = wikiWorkAreas.filter((area) => area.doc_count === 0).length;
     // P1+P3: 대시보드 색인 카드의 "미반영 변경 N건" 한 줄 — [변경 확인] 실행분과
     // 앱 시작 diff(§9, store 공용 상태) 중 가장 최근 결과를 재사용한다(폴링 아님).
     const knowledgeDiffEntries = Object.values(knowledgeDiffBySource);
@@ -3408,10 +3604,30 @@ export function KnowledgeScreen() {
                     : "분류체계 마법사로 업무 단위 위키 구성 기준을 만들 수 있습니다."}
                 </p>
                 {taxonomyConfigured ? (
-                  <p data-testid="knowledge-status-taxonomy-queue">
-                    분류 대기 {taxonomyQueueTotal}건
-                    {untaggedCheck ? ` · 무태그 ${untaggedCheck.count}건` : ""}
-                  </p>
+                  <>
+                    <p data-testid="knowledge-status-taxonomy-queue">
+                      분류 대기 {taxonomyQueueTotal}건
+                      {untaggedCheck ? ` · 무태그 ${untaggedCheck.count}건` : ""}{" "}
+                      {/* hub-assignment (b): 설정 탭의 분류 대기 큐로 바로가기 */}
+                      <button
+                        type="button"
+                        className="knowledge-query-history__chip"
+                        onClick={() => goToSettingsGroup(KNOWLEDGE_SETTINGS_ANCHORS.taxonomy)}
+                        title="설정 탭의 분류 대기 큐로 바로 이동합니다."
+                      >
+                        큐 열기
+                      </button>
+                    </p>
+                    {/* hub-assignment: 참고서고 문서의 빈 confidence는 결함이 아니라 설계 — 오해 방지 안내 */}
+                    <p className="subtle-text" data-testid="knowledge-status-taxonomy-refshelf-note">
+                      참고서고(■참고■) 문서는 설계상 태깅 제외되어 집계에 포함되지 않습니다.
+                    </p>
+                    {zeroDocWorkAreaCount > 0 ? (
+                      <p className="subtle-text" data-testid="knowledge-status-taxonomy-zerodoc-hint">
+                        문서 0건 업무 {zeroDocWorkAreaCount}개 — 마법사에서 정리를 권장합니다.
+                      </p>
+                    ) : null}
+                  </>
                 ) : null}
                 {driftDetected ? (
                   <button
@@ -3895,7 +4111,11 @@ export function KnowledgeScreen() {
                 onChanged={() => setVocabRefreshKey((value) => value + 1)}
               />
             </SectionCard>
-            <TaxonomyQueueSection refreshKey={taxonomyRefreshKey} pushToast={pushToast} />
+            <TaxonomyQueueSection
+              refreshKey={taxonomyRefreshKey}
+              pushToast={pushToast}
+              sources={snapshot.knowledgeSources}
+            />
             {/* 어휘집 규격 §6: 주제 어휘 후보 — pending 후보 승인/병합/거절 */}
             <VocabCandidateSection refreshKey={vocabRefreshKey} pushToast={pushToast} />
             </div>
