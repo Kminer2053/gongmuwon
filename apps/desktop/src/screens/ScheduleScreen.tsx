@@ -153,7 +153,11 @@ export function buildTimegridDay(day: Date, schedules: ScheduleItem[]) {
     const visibleStart = Math.max(start.getTime(), windowStart.getTime());
     const visibleEnd = Math.min(end.getTime(), windowEnd.getTime());
     if (visibleEnd <= visibleStart) {
-      band.push({ schedule, label: `${formatClock(start)} ${schedule.title}` });
+      // 표시창 밖 일정은 '시작 시각이 속한 날'의 band에만 1회 표시.
+      // 자정 이후 꼬리만 걸친 날(전일 시작)은 표시하지 않는다.
+      if (start.getTime() >= dayStart.getTime()) {
+        band.push({ schedule, label: `${formatClock(start)} ${schedule.title}` });
+      }
       continue;
     }
     timed.push({
