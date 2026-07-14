@@ -172,7 +172,14 @@ def _strip_josa_suffix(term: str) -> str:
 # 적용하지 않는다: 그쪽은 단일 키 출력이라 additive가 아니고, '나' 같은 접미는
 # "코로나"→"코로" 오절단으로 병합 키를 오염시킬 수 있다. 질의 경로는 원형을 유지한 채
 # 변형을 '추가'만 하므로(additive) 오절단이 있어도 recall만 늘고 오답으로 확정되지 않는다.
-_JOSA_QUERY_EXTRA_SUFFIXES = ("에는", "에", "나")
+_JOSA_QUERY_EXTRA_SUFFIXES = (
+    "에는", "에", "나",
+    # 3호 보강: '-하다'류 동사 활용 어미 — 질의 '구분해서/실시해/포함돼'가 본문
+    # '구분하여/실시한다/포함된다'와 부분문자열 불일치하던 갭(배터리 B-02 0/3).
+    # additive 변형 전용이라 오절단이 있어도 recall만 늘고 확정 오답이 되지 않는다.
+    "하려면", "합니다", "했는지", "해야", "해서", "하여", "한다", "했다", "해줘", "해",
+    "됩니다", "된다", "돼요", "돼",
+)
 # 최장 접미 우선 매칭(동길이는 사전순) — set 미사용으로 결정성 보장.
 _JOSA_QUERY_SUFFIXES = tuple(
     sorted(_JOSA_SUFFIXES + _JOSA_QUERY_EXTRA_SUFFIXES, key=lambda s: (-len(s), s))
@@ -2974,6 +2981,7 @@ class KnowledgeWikiManager:
                 rep_terms,
                 str(doc.get("norm_title") or ""),
                 fallback=entry["fts_snippet"],
+                definitional_query=self._is_definitional_query(normalized),
             )
             items.append(self._search_item(doc, snippet, score))
         if not items and not rep_terms:
@@ -3145,6 +3153,15 @@ class KnowledgeWikiManager:
         end = min(len(body), position + len(needle) + radius)
         return ("…" if start > 0 else "") + body[start:end].strip() + ("…" if end < len(body) else "")
 
+    @staticmethod
+    def _is_definitional_query(query: str) -> bool:
+        """정의·의미를 묻는 질의인지 결정적으로 판별 (3호 발췌 앵커 게이트).
+
+        비정의형 질의("어떤 종류로 구분해서 실시해?")에서 정의 조문 앵커가
+        커버리지 높은 정답 문장을 밀어내던 회귀(3호 배터리 B-02 0/3)의 봉합.
+        """
+        return re.search(r"뜻|정의|의미|무엇|무슨|뭐|이란\s|란\s*\?", query) is not None
+
     def _excerpt_snippet(
         self,
         body: str,
@@ -3155,6 +3172,7 @@ class KnowledgeWikiManager:
         radius: int = 150,
         max_windows: int = 2,
         fallback: str | None = None,
+        definitional_query: bool = False,
     ) -> str:
         """매치 텀 주변 ±radius 윈도우 최대 max_windows개를 '…'로 이어붙인 발췌 (3호 C).
 
@@ -3199,14 +3217,18 @@ class KnowledgeWikiManager:
                     windows.append(window)
                 start = position + 1
 
-        def _window_priority(window: tuple[int, int]) -> tuple[int, int, int, int, int]:
+        def _window_priority(window: tuple[int, int]) -> tuple[int, int, int, int, int, int]:
             text = body[window[0] : window[1]]
             distinct = sum(1 for t in body_only if t in text)
             body_occurrences = sum(text.count(t) for t in body_only)
             occurrences = sum(text.count(t) for t in present)
+            anchor = definitional.get(window, 0)
+            # 정의형 질의에서만 앵커 최우선 — 비정의형에서는 커버리지가 이기고
+            # 앵커는 동률 타이브레이크로만 쓴다 (B-02 회귀 방지, B-01/B-05 유지).
             return (
-                definitional.get(window, 0),
+                anchor if definitional_query else 0,
                 distinct,
+                anchor,
                 body_occurrences,
                 occurrences,
                 -window[0],
@@ -3310,7 +3332,10 @@ class KnowledgeWikiManager:
         if not any(term in lowered for term in terms):
             return None
         title = nfc(str(hit.get("title") or "")).lower()
-        excerpt = self._excerpt_snippet(lowered, terms, title, display=body)
+        excerpt = self._excerpt_snippet(
+            lowered, terms, title, display=body,
+            definitional_query=self._is_definitional_query(nfc(query)),
+        )
         excerpt = re.sub(r"\s+", " ", excerpt).strip()
         return excerpt[:SNIPPET_MAX_CHARS] or None
 
