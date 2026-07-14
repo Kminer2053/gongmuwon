@@ -77,7 +77,7 @@ export function buildManifest() {
     product: {
       name: "Gongmu",
       identifier: "kr.gongmu.workspace",
-      version: "0.1.4",
+      version: "0.1.5",
     },
     scripts: {
       verify_all: "npm run verify:all",

@@ -1172,3 +1172,24 @@ def test_turn_keeps_citations_for_cited_answer(tmp_path: Path, monkeypatch) -> N
     assert payload["assistant_message"]["status"] == "completed"
     assert payload["context_summary"]["graphrag_used"] is True
     assert len(payload["assistant_message"]["citations"]) >= 1
+
+
+def test_multi_intent_email_draft_verb_sseojwo(tmp_path: Path, monkeypatch) -> None:
+    """'메일 초안도 써줘' — G5 2호 배터리 E2E-04 실측 FAIL 원인('써줘' 동사 부재) 회귀."""
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", authoring_aware_reply)
+
+    client = _client(tmp_path)
+    session_id = client.post("/api/work-sessions", json={"title": "E2E-04"}).json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "내일 오전 9시 30분에 주간 업무 점검 회의 일정 추가하고 참석 안내 메일 초안도 써줘"},
+    )
+
+    assert response.status_code == 201
+    actions = response.json()["context_summary"]["skill_actions"]
+    assert "schedule.create" in actions
+    assert "document.create" in actions
+
+    schedules = client.get("/api/schedules").json()["items"]
+    assert any("주간 업무 점검" in s["title"] and "T09:30" in s["starts_at"] for s in schedules)
