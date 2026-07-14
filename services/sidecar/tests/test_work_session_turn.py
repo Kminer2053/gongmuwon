@@ -969,3 +969,206 @@ def test_llm_connection_test_returns_failure_result(tmp_path: Path, monkeypatch)
     logs = client.get("/api/execution-logs")
     actions = [entry["action"] for entry in logs.json()["items"]]
     assert "settings.llm.test.failed" in actions
+
+
+# ── 2026-07-14 WI-1: 멀티인텐트 라우팅 수정 회귀 (수용 G5 L-02 FAIL 원인 3중) ──
+
+
+def test_multi_intent_g5_original_creates_schedule_and_email(tmp_path: Path, monkeypatch) -> None:
+    """G5 원문: help.guide 선점('안내'+'일정')과 '잡고' 미매치로 완전 미작동했던 문장."""
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", authoring_aware_reply)
+
+    client = _client(tmp_path)
+    session_id = client.post("/api/work-sessions", json={"title": "G5 재현"}).json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={
+            "text": (
+                "다음주 화요일(2026년 7월 21일) 오후 3시에 AI 업무 추진 팀 회의 일정을 잡고, "
+                "그 일정 내용으로 회의 안내 이메일도 작성해줘"
+            )
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    actions = payload["context_summary"]["skill_actions"]
+    assert actions[0] == "intent.plan"
+    assert "schedule.create" in actions
+    assert "document.create" in actions
+    assert "help.guide" not in actions
+
+    schedules = client.get("/api/schedules").json()["items"]
+    matched = [s for s in schedules if "회의" in s["title"]]
+    assert len(matched) == 1
+    assert matched[0]["starts_at"] == "2026-07-21T15:00:00+09:00"
+    assert matched[0]["ends_at"] == "2026-07-21T16:00:00+09:00"
+
+
+def test_multi_intent_reversed_order_document_first(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", authoring_aware_reply)
+
+    client = _client(tmp_path)
+    session_id = client.post("/api/work-sessions", json={"title": "역순"}).json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "회의 안내 이메일을 작성해줘. 그리고 2026년 7월 22일 오후 2시에 국장 보고 일정도 잡아줘"},
+    )
+
+    assert response.status_code == 201
+    actions = response.json()["context_summary"]["skill_actions"]
+    assert "schedule.create" in actions and "document.create" in actions
+
+    schedules = client.get("/api/schedules").json()["items"]
+    assert any(s["starts_at"] == "2026-07-22T14:00:00+09:00" and s["title"] == "국장 보고" for s in schedules)
+
+
+def test_schedule_parse_supports_relative_weekday() -> None:
+    from datetime import datetime, timedelta, timezone
+
+    from gongmu_sidecar.app import AppServices
+
+    parsed = AppServices._parse_schedule_request("다음주 금요일 오후 4시에 예산 조정 협의 일정을 잡아줘")
+    assert parsed is not None
+    today = datetime.now(timezone(timedelta(hours=9)))
+    expected = (today - timedelta(days=today.weekday())) + timedelta(days=4, weeks=1)
+    assert parsed["starts_at"].startswith(f"{expected.year:04d}-{expected.month:02d}-{expected.day:02d}T16:00")
+    assert parsed["title"] == "예산 조정 협의"
+
+
+def test_notice_email_phrase_does_not_route_to_help_guide(tmp_path: Path, monkeypatch) -> None:
+    """'안내 이메일' 상용구가 도움말로 오분류되지 않아야 한다 (수정 전 FAIL 재현 케이스)."""
+    from gongmu_sidecar.app import AppServices
+
+    assert AppServices._looks_like_feature_usage_request(
+        "다음주 화요일(2026년 7월 21일) 오후 3시에 AI 업무 추진 팀 회의 일정을 잡고, 그 일정 내용으로 회의 안내 이메일도 작성해줘"
+    ) is False
+    # 순수 도움말은 유지 (네거티브 컨트롤)
+    assert AppServices._looks_like_feature_usage_request("일정 기능 사용법 알려줘") is True
+    assert AppServices._looks_like_feature_usage_request("문서작성 어떻게 해?") is True
+
+
+def test_plan_adds_knowledge_answer_for_question_clause(tmp_path: Path, monkeypatch) -> None:
+    """P1-1: 일정 지시와 묶인 지식 질의 절은 knowledge.answer 인텐트로 함께 계획된다."""
+    monkeypatch.setattr(
+        "gongmu_sidecar.app.generate_session_reply",
+        lambda settings, messages, **kwargs: LLMGenerationResult(
+            text="출장여비는 교통비, 일비, 숙박비, 식비로 구성됩니다.", provider="ollama", model="gemma4:e2b"
+        ),
+    )
+
+    client = _client(tmp_path)
+    session_id = client.post("/api/work-sessions", json={"title": "지식+일정"}).json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "출장비 지급 기준이 뭔지 알려주고, 내일 오전 10시에 출장비 정산 회의 일정도 등록해줘"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    actions = payload["context_summary"]["skill_actions"]
+    assert actions[0] == "intent.plan"
+    assert "schedule.create" in actions
+    assert "knowledge.answer" in actions
+    assert "## 질의 응답" in payload["assistant_message"]["text"]
+    assert "교통비" in payload["assistant_message"]["text"]
+
+    schedules = client.get("/api/schedules").json()["items"]
+    assert any("출장비 정산 회의" in s["title"] for s in schedules)
+
+
+def test_single_intents_do_not_regress(tmp_path: Path, monkeypatch) -> None:
+    """단일 일정 등록/조회는 intent.plan 없이 기존 단일 스킬 체인을 유지한다."""
+    monkeypatch.setattr(
+        "gongmu_sidecar.app.generate_session_reply",
+        lambda settings, messages, **kwargs: LLMGenerationResult(text="ok", provider="ollama", model="gemma4:e2b"),
+    )
+
+    client = _client(tmp_path)
+    session_id = client.post("/api/work-sessions", json={"title": "단일"}).json()["id"]
+
+    created = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "2026년 7월 30일 오후 5시에 반기 실적 점검 회의 일정 잡아줘"},
+    )
+    assert created.json()["context_summary"]["skill_actions"] == ["schedule.create"]
+
+    listed = client.post(f"/api/work-sessions/{session_id}/turn", json={"text": "이번 주 일정 확인해줘"})
+    assert listed.json()["context_summary"]["skill_actions"] == ["schedule.list"]
+
+
+def _ingest_knowledge_fixture(client, tmp_path: Path) -> None:
+    """WI-4 turn 억제 테스트용 지식폴더 픽스처 — 예산편성 문서를 색인해 근거 주입을 발생시킨다."""
+    source = tmp_path / "knowledge-source"
+    source.mkdir()
+    (source / "plan.md").write_text(
+        "# 사업계획\n\n## 추진배경\n\n지역 예산편성 사업의 추진배경과 세부계획입니다.",
+        encoding="utf-8",
+    )
+    created = client.post("/api/knowledge/sources", json={"label": "업무자료", "root_path": str(source)})
+    assert created.status_code == 201
+    source_id = created.json()["id"]
+    assert client.post(f"/api/knowledge/sources/{source_id}/scan").status_code == 200
+    assert (
+        client.post("/api/knowledge/ingest", json={"source_id": source_id, "run_now": True}).status_code
+        == 201
+    )
+
+
+def test_turn_suppresses_citations_for_no_evidence_answer(tmp_path: Path, monkeypatch) -> None:
+    """WI-4 E2E-A6-CHAT: 근거 주입은 발생했지만 LLM이 무근거를 선언하면 출처 칩 데이터를 비운다."""
+
+    def fake_generate_reply(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text="요청하신 회식 규정 정보는 지식폴더에서 찾을 수 없습니다.",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+
+    client = _client(tmp_path)
+    _ingest_knowledge_fixture(client, tmp_path)
+    session_id = client.post("/api/work-sessions", json={"title": "무근거 억제"}).json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "예산편성 추진배경 설명해줘"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assistant_message"]["status"] == "completed"
+    assert payload["context_summary"]["graphrag_used"] is True, "근거 주입 자체는 발생해야 한다"
+    assert payload["assistant_message"]["citations"] == [], "무근거 답변에는 출처 칩 데이터가 없어야 한다"
+
+
+def test_turn_keeps_citations_for_cited_answer(tmp_path: Path, monkeypatch) -> None:
+    """WI-4 E2E-A7-CHAT-REG: 실출처 인용 답변은 citations를 유지한다(억제 미발동 회귀 방지)."""
+
+    def fake_generate_reply(settings, messages, **kwargs):
+        return LLMGenerationResult(
+            text="예산편성은 상반기에 확정됩니다. (출처: 사업계획)",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply", fake_generate_reply)
+
+    client = _client(tmp_path)
+    _ingest_knowledge_fixture(client, tmp_path)
+    session_id = client.post("/api/work-sessions", json={"title": "유근거 유지"}).json()["id"]
+
+    response = client.post(
+        f"/api/work-sessions/{session_id}/turn",
+        json={"text": "예산편성 추진배경 설명해줘"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["assistant_message"]["status"] == "completed"
+    assert payload["context_summary"]["graphrag_used"] is True
+    assert len(payload["assistant_message"]["citations"]) >= 1

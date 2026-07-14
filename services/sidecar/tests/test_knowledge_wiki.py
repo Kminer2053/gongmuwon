@@ -174,6 +174,64 @@ def test_ask_synthesizes_with_llm_and_falls_back_on_failure(tmp_path: Path) -> N
     assert fallback["citations"]
 
 
+def test_ask_suppresses_citations_for_no_evidence_llm_answer(tmp_path: Path) -> None:
+    """WI-4(2026-07-14): LLM이 무근거를 선언하면 검색 히트가 있어도 citations를 비운다.
+
+    실측(QA W-03, DB 4d84b9f3): "...확인할 수 없습니다. (출처: 없음)" 답변에
+    무관 citations 1963B가 그대로 붙었다 — 수정 전 FAIL 재현 케이스.
+    """
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    _register_scan_ingest(client, source)
+    wiki = client.app.state.services.wiki
+
+    def fake_llm(messages):
+        return "요청하신 회식 규정 정보는 지식폴더에서 찾을 수 없습니다."
+
+    result = wiki.ask(query="예산편성 어떻게 되나", llm=fake_llm)
+
+    assert result["answer_mode"] == "llm"
+    assert result["citations"] == []
+    assert result["no_evidence"] is True
+    # retrieval_summary는 QA 스크립트 호환을 위해 억제와 무관하게 불변
+    assert result["retrieval_summary"]["hit_count"] >= 1
+
+
+def test_ask_suppresses_citations_for_no_source_mark_only_answer(tmp_path: Path) -> None:
+    """WI-4: "(출처: 없음)"만 있고 실출처 인용이 하나도 없는 답변도 억제한다."""
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    _register_scan_ingest(client, source)
+    wiki = client.app.state.services.wiki
+
+    def fake_llm(messages):
+        return "회식 규정은 부서 자율 운영입니다. (출처: 없음)"
+
+    result = wiki.ask(query="예산편성 어떻게 되나", llm=fake_llm)
+
+    assert result["answer_mode"] == "llm"
+    assert result["citations"] == []
+    assert result["no_evidence"] is True
+
+
+def test_ask_keeps_citations_for_answer_with_real_source_mark(tmp_path: Path) -> None:
+    """WI-4 네거티브 컨트롤: 실출처 인용 답변은 citations를 유지한다(억제 미발동)."""
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    _register_scan_ingest(client, source)
+    wiki = client.app.state.services.wiki
+
+    def fake_llm(messages):
+        return "예산편성은 사업계획 문서에 따라 상반기에 확정됩니다. (출처: 사업계획)"
+
+    result = wiki.ask(query="예산편성 어떻게 되나", llm=fake_llm)
+
+    assert result["answer_mode"] == "llm"
+    assert result["citations"]
+    assert result["citations"][0]["source_path"]
+    assert result["no_evidence"] is False
+
+
 def test_is_excluded_allows_source_root_under_dotted_ancestor(tmp_path: Path) -> None:
     # 회귀: 지식폴더 루트가 점(.) 디렉터리 아래에 있어도 스캔되어야 한다.
     dotted_root = tmp_path / ".hidden-worktree" / "workspace" / "knowledge-data"

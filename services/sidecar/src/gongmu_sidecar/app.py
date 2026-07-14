@@ -37,7 +37,12 @@ from .job_runner import JobRunner
 from .jobs import JobManager
 from .kordoc_bridge import kordoc_status
 from .knowledge import KnowledgeManager
-from .knowledge_wiki import KnowledgeWikiManager
+from .knowledge_wiki import (
+    KnowledgeWikiManager,
+    _query_terms as wiki_query_terms,
+    is_no_evidence_answer,
+)
+from .taxonomy_rules import nfc
 from .local_file_search import (
     compact_filename_text,
     scan_local_files_for_index,
@@ -191,6 +196,18 @@ class TaxonomyApplyRequest(BaseModel):
 class TaxonomyQueueResolveRequest(BaseModel):
     work_area_slug: str = ""
     doc_role: str = ""
+
+
+class TaxonomyQueueBulkResolveItem(BaseModel):
+    """분류 대기 큐 일괄 반영 항목 (WI-2 auto-triage)."""
+
+    id: str
+    work_area_slug: str = ""
+    doc_role: str = ""
+
+
+class TaxonomyQueueBulkResolveRequest(BaseModel):
+    items: list[TaxonomyQueueBulkResolveItem]
 
 
 class VocabPackImportRequest(BaseModel):
@@ -1406,6 +1423,11 @@ class AppServices:
         if self._looks_like_feature_usage_request(normalized):
             return self._run_feature_usage_guide(normalized)
         planned_intents = self._plan_work_session_intents(normalized)
+        if len(planned_intents) <= 1:
+            # P1-2: 결정적 규칙이 복합 신호를 놓친 경우에만 LLM 플랜 폴백.
+            llm_intents = self._plan_intents_with_llm_fallback(normalized)
+            if len(llm_intents) > 1:
+                planned_intents = llm_intents
         if len(planned_intents) > 1:
             return self._run_work_session_intent_plan(
                 session_id=session_id,
@@ -1435,7 +1457,30 @@ class AppServices:
             planned.append("schedule.list")
         if self._looks_like_document_create_request(text):
             planned.append("documents.generate")
+        # P1-1: 일정 실행 지시와 묶인 지식 질의 절("…기준이 뭔지 알려주고, …일정도
+        # 등록해줘")은 함께 처리한다. 조회 단독(schedule.list)은 질의 자체가 일정
+        # 조회이므로 제외.
+        if planned and "documents.generate" not in planned and planned != ["schedule.list"]:
+            if self._extract_knowledge_query(text):
+                planned.append("knowledge.answer")
         return planned
+
+    @staticmethod
+    def _extract_knowledge_query(text: str) -> str:
+        """일정 절을 제외한 잔여 절에서 지식 질의 절을 찾는다. 없으면 빈 문자열."""
+        time_pattern = r"(?:오전|오후|아침|저녁|밤)?\s*\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}\s*분?)?)"
+        clauses = re.split(r"[.,]|그리고|하고|한\s*뒤|이어서", text)
+        for clause in clauses:
+            stripped = clause.strip()
+            if not stripped:
+                continue
+            if re.search(time_pattern, stripped) and re.search(r"등록|추가|생성|만들|예약|넣어|잡", stripped):
+                continue  # 일정 절
+            if "일정" in stripped:
+                continue  # 일정 자체에 대한 절은 지식 질의가 아니다
+            if re.search(r"뭐|무엇|뭔지|어떤|기준|현황|왜|알려", stripped):
+                return stripped
+        return ""
 
     def _run_work_session_intent_plan(
         self,
@@ -1463,6 +1508,8 @@ class AppServices:
                             created_schedule = item
             elif intent == "schedule.list":
                 skill_result = self._run_schedule_list_skill(text)
+            elif intent == "knowledge.answer":
+                skill_result = self._run_knowledge_answer_skill(session_id=session_id, text=text)
             elif intent == "documents.generate":
                 document_text = text
                 if created_schedule is not None:
@@ -1491,6 +1538,7 @@ class AppServices:
                 "schedule.create": "일정 등록",
                 "schedule.list": "일정 조회",
                 "documents.generate": "문서작성",
+                "knowledge.answer": "질의 응답",
             }.get(intent, intent)
             sections.extend(["", f"## {label}", str(skill_result.get("text") or "").strip()])
 
@@ -1504,8 +1552,16 @@ class AppServices:
 
     @staticmethod
     def _looks_like_feature_usage_request(text: str) -> bool:
+        # 강한 사용법 마커만 인정한다. '안내'·'설명'은 공공기관 상용구
+        # ("회의 안내 이메일", "안내문 작성")와 충돌해 복합 실행 지시를
+        # 도움말로 선점 오분류시켰다(2026-07-13 수용 G5 L-02 FAIL 원인 1).
         lowered = text.lower()
-        usage_markers = ["사용법", "어떻게", "안내", "설명", "도움말", "가이드", "help", "guide", "how to"]
+        strong_usage = ["사용법", "사용 방법", "사용방법", "도움말", "가이드", "튜토리얼", "help", "how to"]
+        has_usage = any(marker in lowered for marker in strong_usage) or re.search(
+            r"어떻게\s*(해|하|써|쓰|사용|되)", text
+        ) is not None
+        if not has_usage:
+            return False
         feature_markers = [
             "업무대화",
             "일정",
@@ -1514,7 +1570,12 @@ class AppServices:
             "실행기록",
             "환경설정",
         ]
-        return any(marker in lowered for marker in usage_markers) and any(marker in text or marker in lowered for marker in feature_markers)
+        if not any(marker in text or marker in lowered for marker in feature_markers):
+            return False
+        # 날짜·시각이 실제로 파싱되는 문장은 사용법 질문이 아니라 실행 지시다.
+        if AppServices._parse_schedule_request(text) is not None:
+            return False
+        return True
 
     @staticmethod
     def _run_feature_usage_guide(query: str) -> dict[str, Any]:
@@ -1548,11 +1609,92 @@ class AppServices:
             "text": "\n".join(lines),
         }
 
+    def _run_knowledge_answer_skill(self, *, session_id: str, text: str) -> dict[str, Any] | None:
+        """복합 지시 속 지식 질의 절을 지식폴더 근거로 답한다 (P1-1)."""
+        query = self._extract_knowledge_query(text) or text
+        prompt_block, citations = self._build_knowledge_context(session_id=session_id, query=query)
+        system_text = (
+            "당신은 공공기관 업무 비서입니다. 사용자의 질문에 간결한 한국어로 답하세요. "
+            "근거가 있으면 각 내용 뒤에 (출처: 문서 제목) 형식으로 인용하고, 근거가 없으면 모른다고 답하세요."
+        )
+        if prompt_block:
+            system_text = f"{system_text}\n\n{prompt_block}"
+        answer = self._wiki_llm_generate(
+            [
+                {"role": "system", "text": system_text},
+                {"role": "user", "text": query},
+            ]
+        )
+        if not answer or not str(answer).strip():
+            return None
+        return {
+            "actions": ["knowledge.answer"],
+            "results": [{"query": query, "citation_count": len(citations)}],
+            "text": str(answer).strip(),
+        }
+
+    _INTENT_ENUM = ("schedule.create", "schedule.list", "schedule.delete", "documents.generate", "knowledge.answer")
+
+    def _plan_intents_with_llm_fallback(self, text: str) -> list[str]:
+        """결정적 플랜이 0~1개인데 복합 신호가 뚜렷할 때만 LLM에 플랜을 1회 묻는다 (P1-2).
+
+        복합 신호를 '일정계 명사 AND 문서계 명사 동시 존재'로 좁혀 단일 의도
+        문장에서의 불필요한 LLM 호출(지연)을 막는다. 파싱 실패·enum 위반은
+        전부 빈 리스트로 폴스루 — 파괴적 경로는 enum 화이트리스트가 통제한다.
+        """
+        if not re.search(r"하고|그리고|한\s*뒤|이어서|,", text):
+            return []
+        schedule_nouns = any(noun in text for noun in ("일정", "회의", "미팅", "약속"))
+        document_nouns = any(noun in text for noun in ("이메일", "메일", "보고서", "문서", "공문", "시행문"))
+        if not (schedule_nouns and document_nouns):
+            return []
+        raw = self._wiki_llm_generate(
+            [
+                {
+                    "role": "system",
+                    "text": (
+                        "다음 사용자 요청을 실행할 작업 배열을 JSON으로만 출력하세요. "
+                        '허용 값: ["schedule.create", "schedule.list", "schedule.delete", '
+                        '"documents.generate", "knowledge.answer"]. 최대 3개. 다른 텍스트 금지. '
+                        '예: ["schedule.create", "documents.generate"]'
+                    ),
+                },
+                {"role": "user", "text": text},
+            ]
+        )
+        cleaned = re.sub(r"^```(?:json)?|```$", "", str(raw or "").strip(), flags=re.MULTILINE).strip()
+        try:
+            candidate = json.loads(cleaned)
+        except (json.JSONDecodeError, TypeError):
+            candidate = None
+        parsed: list[str] = []
+        if isinstance(candidate, list):
+            for item in candidate[:3]:
+                name = str(item).strip()
+                if name not in self._INTENT_ENUM or name in parsed:
+                    continue
+                if name == "schedule.create" and self._parse_schedule_request(text) is None:
+                    continue
+                parsed.append(name)
+        adopted = parsed if len(parsed) > 1 else []
+        self.db.log(
+            feature="chat",
+            action="work_session.intent_plan.llm_fallback",
+            status="success",
+            inputs={"text": text[:200]},
+            outputs={"planned": parsed, "adopted": bool(adopted), "raw": str(raw or "")[:200]},
+        )
+        return adopted
+
     @staticmethod
     def _looks_like_schedule_create_request(text: str) -> bool:
         lowered = text.lower()
-        action_marker = any(token in text for token in ["등록", "추가", "생성", "만들", "잡아", "예약"]) or any(
-            token in lowered for token in ["add", "create", "register", "book", "schedule"]
+        # "잡고/잡자" 등 활용형은 일정 명사 근접(8자 이내) 조건으로 매치해
+        # 오탐("일정이 안 잡혀요")을 억제한다(2026-07-13 G5 L-02 원인 2).
+        action_marker = (
+            any(token in text for token in ["등록", "추가", "생성", "만들", "예약", "넣어"])
+            or re.search(r"(일정|약속|회의|미팅|스케줄)[^\n,.]{0,8}잡", text) is not None
+            or any(token in lowered for token in ["add", "create", "register", "book", "schedule"])
         )
         has_schedule_marker = (
             "일정" in text
@@ -1739,7 +1881,19 @@ class AppServices:
         elif "오늘" in text:
             year, month, day = today.year, today.month, today.day
         else:
-            return None
+            # 상대 요일: "다음주 화요일", "이번 주 금요일", "차주 월요일" 등.
+            # 이번주 월요일 기준 단순 계산(과거 요일 보정 없음 — 계획서 §4 정책).
+            weekday_match = re.search(
+                r"(다다음\s*주|다음\s*주|이번\s*주|차주|내주)?\s*([월화수목금토일])요일", text
+            )
+            if weekday_match is None:
+                return None
+            week_word = (weekday_match.group(1) or "").replace(" ", "")
+            offset_weeks = 2 if week_word == "다다음주" else (1 if week_word in {"다음주", "차주", "내주"} else 0)
+            weekday_index = "월화수목금토일".index(weekday_match.group(2))
+            monday = today - timedelta(days=today.weekday())
+            target = monday + timedelta(days=weekday_index, weeks=offset_weeks)
+            year, month, day = target.year, target.month, target.day
 
         time_match = re.search(
             r"(?P<ampm>오전|오후|아침|저녁|밤)?\s*(?P<hour>\d{1,2})(?::(?P<minute_colon>\d{2})|\s*시(?:\s*(?P<minute_text>\d{1,2})\s*분?)?)",
@@ -1757,19 +1911,30 @@ class AppServices:
             hour = 0
         starts_at = datetime(year, month, day, hour, minute, tzinfo=timezone(timedelta(hours=9)))
         ends_at = starts_at + timedelta(hours=1)
-        raw_title = text
+        # 복합문은 일정 절(시각+일정동사가 함께 있는 절)만 제목 원료로 쓴다.
+        # 전체 문장을 쓰면 뒷절("…이메일도 작성해줘")이 제목을 오염시킨다(G5 L-02 원인 3).
+        time_pattern = r"(?:오전|오후|아침|저녁|밤)?\s*\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}\s*분?)?)"
+        clauses = re.split(r"[.,]|그리고|하고|한\s*뒤|이어서", text)
+        schedule_clauses = [
+            clause
+            for clause in clauses
+            if re.search(time_pattern, clause) and re.search(r"등록|추가|생성|만들|예약|넣어|잡", clause)
+        ]
+        raw_title = schedule_clauses[0] if schedule_clauses else text
         raw_title = re.sub(
             r"(?P<date>\d{4}[-.]\d{1,2}[-.]\d{1,2})|(?:(?P<year>\d{4})년\s*)?(?P<month>\d{1,2})월\s*(?P<day>\d{1,2})일|오늘|내일",
             " ",
             raw_title,
         )
+        raw_title = re.sub(r"(다다음\s*주|다음\s*주|이번\s*주|차주|내주)?\s*[월화수목금토일]요일", " ", raw_title)
+        raw_title = re.sub(r"\(\s*\)", " ", raw_title)
         raw_title = re.sub(
             r"(오전|오후|아침|저녁|밤)?\s*\d{1,2}(?::\d{2}|\s*시(?:\s*\d{1,2}\s*분?)?)",
             " ",
             raw_title,
         )
         raw_title = re.sub(
-            r"(업무일정|일정|스케줄|schedule|calendar)?\s*(등록|추가|생성|만들어?줘?|잡아줘?|예약해줘?|add|create|register|book).*",
+            r"(업무일정|일정|스케줄|schedule|calendar)?[을를도]?\s*(등록|추가|생성|만들어?\s*줘?|잡[아고자]?\s*줘?|예약해?\s*줘?|넣어\s*줘?|add|create|register|book).*",
             "",
             raw_title,
             flags=re.IGNORECASE,
@@ -1790,6 +1955,60 @@ class AppServices:
         query = query.replace("일정", "").strip()
         query = re.sub(r"\b(schedule|calendar)\b", "", query, flags=re.IGNORECASE).strip()
         return query
+
+    # WI-3(2026-07-14): 문서작성 스킬 전용 메타어 — 지식검색 전역 QUERY_STOPWORDS와
+    # 별개로 유지한다('보고서 찾아줘' 류 검색 회귀 방지, 트랙 doc-continuity risks 5).
+    _DOC_META_STOPWORDS = {
+        "보고서", "보고서로", "문서", "문서로", "페이지", "시행문", "공문", "이메일", "메일",
+        "방금", "내용", "내용을", "요약", "작성", "정리", "뭐야", "뭐지", "무엇", "알려줘",
+        "만들어줘", "작성해줘", "뽑아줘", "그대로", "해줘",
+    }
+
+    @staticmethod
+    def _references_session_context(text: str) -> bool:
+        """지시문이 직전 대화를 가리키는지('방금 내용을…') 결정적으로 판별한다."""
+        compact = re.sub(r"\s+", "", text)
+        markers = (
+            "방금", "위내용", "위의내용", "지금까지", "이대화", "이세션", "앞서", "아까",
+            "같은내용", "말한내용", "논의한내용", "답변내용", "대화내용",
+        )
+        return any(marker in compact for marker in markers)
+
+    @classmethod
+    def _doc_content_terms(cls, sentence: str) -> list[str]:
+        return [term for term in wiki_query_terms(sentence) if term not in cls._DOC_META_STOPWORDS]
+
+    def _derive_document_topic(self, *, session_id: str, text: str) -> tuple[str, str]:
+        """문서 주제를 도출한다 → (topic_query, topic_sentence).
+
+        지시문 원문을 위키 검색어로 쓰면 메타어("보고서/페이지/방금")만 남아 무관
+        문서가 주제로 승격된다(1호 스코어카드 L-01: 'AX포털' 사고). 지시문에 명시
+        주제가 있으면 그것을, 컨텍스트 참조("방금 내용")면 최근 실질 user 메시지를
+        주제로 삼는다. LLM 미사용 — 전부 결정적.
+        """
+        own_terms = self._doc_content_terms(text)
+        if own_terms and not self._references_session_context(text):
+            return " ".join(own_terms[:8]), ""
+        rows = self.db.fetch_all(
+            "SELECT text FROM work_session_messages WHERE session_id = ? AND role = 'user' "
+            "ORDER BY created_at DESC",
+            (session_id,),
+        )
+        for row in rows:
+            message = str(row["text"] or "").strip()
+            if not message:
+                continue
+            # 문서작성 지시 이력(현재 지시문 포함 — 스킬 실행 전 이미 저장됨)은
+            # 주제가 아니다. F-17 인텐트플랜 변형 지시문도 자동 제외된다.
+            if self._looks_like_document_create_request(message):
+                continue
+            terms = self._doc_content_terms(message)
+            if not terms:
+                continue
+            return " ".join(terms[:8]), message
+        if own_terms:
+            return " ".join(own_terms[:8]), ""
+        return "", ""
 
     def _run_document_create_skill(
         self,
@@ -1844,20 +2063,31 @@ class AppServices:
 
         # F-05: 지식폴더(위키) 근거를 문서작성에 주입한다 — 세션 연결파일만으로는
         # 실제 보유 문서와 모순되는 '허위 보고서'가 생성됐다(2026-07-11 E2E).
+        # WI-3(2026-07-14): 검색 쿼리는 지시문 원문이 아니라 도출한 주제어를 쓰고,
+        # 주제-근거 일치 게이트를 통과한 문서만 인용한다(L-01 'AX포털' 사고 재발 방지).
+        topic_query, topic_sentence = self._derive_document_topic(session_id=session_id, text=text)
         wiki_citations: list[dict[str, Any]] = []
-        try:
-            retrieval = self.wiki.retrieve(query=text, session_id=session_id, limit=4)
-            for item in retrieval.get("items", []):
-                body = str(item.get("text") or item.get("snippet") or "").strip()
-                if not body:
-                    continue
-                title = str(item.get("title") or "").strip() or "지식 문서"
-                reference_texts.append(f"[지식폴더 근거: {title}]\n{body}")
-                wiki_citations.append(
-                    {"title": title, "file_path": str(item.get("file_path") or "")}
-                )
-        except Exception:  # noqa: BLE001 - 위키 검색 실패가 문서작성을 막지 않게
-            pass
+        if topic_query:
+            gate_source = [nfc(term).lower() for term in self._doc_content_terms(topic_query)]
+            gate_terms = [term for term in gate_source if len(term) >= 3] or [
+                term for term in gate_source if len(term) >= 2
+            ]
+            try:
+                retrieval = self.wiki.retrieve(query=topic_query, session_id=session_id, limit=4)
+                for item in retrieval.get("items", []):
+                    body = str(item.get("text") or item.get("snippet") or "").strip()
+                    if not body:
+                        continue
+                    title = str(item.get("title") or "").strip() or "지식 문서"
+                    haystack = nfc(f"{title} {body}").lower()
+                    if gate_terms and not any(term in haystack for term in gate_terms):
+                        continue  # 주제와 무관한 히트는 인용·서술 근거로 쓰지 않는다
+                    reference_texts.append(f"[지식폴더 근거: {title}]\n{body}")
+                    wiki_citations.append(
+                        {"title": title, "file_path": str(item.get("file_path") or "")}
+                    )
+            except Exception:  # noqa: BLE001 - 위키 검색 실패가 문서작성을 막지 않게
+                pass
 
         # F-06: 근거가 하나도 없으면 '자료를 확인했다'류 단정 서술을 금지한다(정직성).
         instruction = text
@@ -1867,6 +2097,12 @@ class AppServices:
                 "[중요] 참고자료가 제공되지 않았다. '자료를 확인한 결과', '검토 결과 파악했다' 등 "
                 "근거를 확인한 듯한 표현을 쓰지 말고, 일반 초안임을 전제로 작성하라. "
                 "지시에 없는 수치·사실을 창작하지 마라."
+            )
+        # WI-3: 직전 대화에서 주제를 도출한 경우 경량모델에 명시적으로 못박는다.
+        if topic_sentence:
+            instruction = (
+                f"{instruction}\n\n[문서 주제 — 직전 대화에서 도출] {topic_sentence[:200]}\n"
+                "반드시 이 주제로 작성한다. 참고자료가 이 주제와 무관하면 사용하지 않는다."
             )
 
         self.jobs.update_progress(work_job["id"], progress_percent=35, stage="AI 문서 구조 생성")
@@ -1961,7 +2197,11 @@ class AppServices:
                     "- 지식폴더 근거: "
                     + ", ".join(cite["title"] for cite in wiki_citations[:4])
                     if wiki_citations
-                    else "- 지식폴더 근거: 없음 (근거 미확인 서술 방지 규칙 적용)"
+                    else (
+                        "- 지식폴더 근거: 없음 (직전 대화 주제와 일치하는 근거 없음 — 근거 미확인 서술 방지 규칙 적용)"
+                        if topic_sentence
+                        else "- 지식폴더 근거: 없음 (근거 미확인 서술 방지 규칙 적용)"
+                    )
                 )
             ),
         }
@@ -2245,14 +2485,17 @@ class AppServices:
                 reasoning_effort=payload.reasoning_effort,
             )
             duration_ms = int((perf_counter() - turn_started) * 1000)
+            final_text = self._prepare_assistant_output_text(result.text)
             assistant_message = self.update_work_session_message(
                 assistant_message["id"],
-                text=self._prepare_assistant_output_text(result.text),
+                text=final_text,
                 status="completed",
                 provider=result.provider,
                 model=result.model,
                 latency_ms=duration_ms,
-                citations=knowledge_citations,
+                # WI-4: 무근거 선언 답변에는 출처 칩을 붙이지 않는다
+                # (빈 리스트 → citations_json NULL → 칩 미표시).
+                citations=[] if is_no_evidence_answer(final_text) else knowledge_citations,
             )
             work_job_result = self.jobs.complete_job(
                 work_job["id"],
@@ -2619,7 +2862,8 @@ class AppServices:
                 provider=result.provider,
                 model=result.model,
                 latency_ms=duration_ms,
-                citations=knowledge_citations,
+                # WI-4: 무근거 선언 답변에는 출처 칩을 붙이지 않는다(비스트리밍 turn과 동일 가드).
+                citations=[] if is_no_evidence_answer(final_text) else knowledge_citations,
             )
             context_summary["provider"] = assistant_message.get("provider")
             context_summary["model"] = assistant_message.get("model")
@@ -4050,6 +4294,28 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="taxonomy queue item not found") from exc
         except InvalidTagError as exc:
             # §5.2: 확정 taxonomy에 없는 slug/역할 — 유령 태그 차단 (400)
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    @app.post("/api/knowledge/taxonomy/queue/bulk-resolve")
+    def bulk_resolve_taxonomy_queue(payload: TaxonomyQueueBulkResolveRequest) -> dict[str, Any]:
+        """분류 대기 큐 일괄 반영 (WI-2). 전건 선검증 후 반영 — 부분 반영 배치 방지,
+        허브 재작성·인덱스 재빌드는 소스당 1회만 수행한다."""
+        try:
+            return services.taxonomy.resolve_queue_items(
+                [
+                    {
+                        "id": item.id,
+                        "work_area_slug": item.work_area_slug,
+                        "doc_role": item.doc_role,
+                    }
+                    for item in payload.items
+                ]
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="taxonomy queue item not found") from exc
+        except InvalidTagError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc

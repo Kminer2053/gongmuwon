@@ -99,6 +99,36 @@ def _tokenize(text: str) -> list[str]:
     return TOKEN_RE.findall(nfc(text).lower())
 
 
+# 무근거 답변 판정(결정적) — 실측 표현 기반(2026-07-13 QA W-03, DB 4d84b9f3/96dc296e).
+# WI-4: LLM이 무근거를 선언한 답변에 무관 citations가 붙는 문제의 억제 게이트.
+# 머리 200자 윈도우 근거: 실측 사례 모두 첫 문장에서 무근거 선언(96dc296e는 선언 직후
+# 무관 출처를 나열하므로 '실출처 존재 시 유지' 단독 규칙으로는 억제 실패 → 머리 매치 우선).
+NO_EVIDENCE_HEAD_CHARS = 200
+NO_EVIDENCE_PATTERNS = [
+    re.compile(r"찾(?:을 수 없|지 못했?|을 수가 없)"),
+    re.compile(r"(?:알|확인할|확인이|답변드릴|파악할) 수 없"),
+    re.compile(r"모(?:르겠|릅니다)"),
+    re.compile(r"존재하지 않"),
+    re.compile(r"(?:나와|포함되어|담겨|들어) ?있지 않"),
+    re.compile(r"(?:근거|정보|내용|자료|문서|규정)(?:가|이|는|은|를|도)?\s*없(?:습니다|음|었)"),
+]
+NO_SOURCE_MARK_RE = re.compile(r"\(\s*(?:출처|근거)\s*:?\s*없음\s*\)")
+# 주의: 트랙 스니펫의 `\s*(?!없음)`은 `\s*` 백트래킹으로 "(출처: 없음)"도 실출처로
+# 오인한다(공백을 되돌려주면 룩어헤드가 " 없음"을 보게 됨) — 콜론 뒤 잔여 전체가
+# '없음'뿐인지 검사하는 룩어헤드로 교정(트랙 의도 보존: "(출처: 없음)"만 있으면 억제).
+REAL_SOURCE_MARK_RE = re.compile(r"\(\s*출처\s*:(?!\s*없음\s*\))[^)]{2,}\)")
+
+
+def is_no_evidence_answer(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", nfc(str(text or ""))).strip()
+    if not normalized:
+        return False
+    if NO_SOURCE_MARK_RE.search(normalized) and not REAL_SOURCE_MARK_RE.search(normalized):
+        return True  # "(출처: 없음)"만 있고 실출처 인용이 하나도 없음
+    head = normalized[:NO_EVIDENCE_HEAD_CHARS]
+    return any(p.search(head) for p in NO_EVIDENCE_PATTERNS)
+
+
 # 질의에서 걸러낼 명령/일반어(콘텐츠 아님). 이런 term이 OR로 섞이면 "문서" 하나만 겹친
 # 무관 문서가 상위로 떠 오근거로 주입된다 (2026-07-08 리뷰: 문서검색 오류).
 QUERY_STOPWORDS = {
@@ -3063,11 +3093,28 @@ class KnowledgeWikiManager:
             if generated and str(generated).strip():
                 answer = str(generated).strip()
                 answer_mode = "llm"
+        # WI-4(2026-07-14): 무근거 선언 LLM 답변에 무관 citations가 붙는 문제(QA W-03) —
+        # 억제한다. extractive 모드는 문서 나열 자체가 목적이므로 억제하지 않는다.
+        # retrieval_summary는 QA 스크립트 호환을 위해 불변.
+        suppressed = bool(items) and answer_mode == "llm" and is_no_evidence_answer(answer)
+        if suppressed:
+            citations = []
+            self.db.log(
+                feature="knowledge",
+                action="knowledge.ask.citations_suppressed",
+                status="success",
+                inputs={"query": query, "session_id": session_id},
+                outputs={
+                    "suppressed_citation_count": len(items),
+                    "answer_head": answer[:NO_EVIDENCE_HEAD_CHARS],
+                },
+            )
         return {
             "query": query,
             "answer": answer,
             "answer_mode": answer_mode,
             "citations": citations,
+            "no_evidence": suppressed,
             "items": items,
             "retrieval_summary": retrieval["retrieval_summary"],
         }

@@ -3,6 +3,8 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -12,7 +14,15 @@ from .settings import SidecarSettings
 
 
 class LLMGenerationError(RuntimeError):
-    pass
+    """LLM 호출 실패.
+
+    WI-4(2026-07-14): HTTP 상태 코드를 status_code로 구조화 — 오류 '문자열'에서
+    "404"/"400"을 검색하던 폴백 판정(메시지 포맷 변경에 취약)을 대체한다.
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @dataclass
@@ -100,22 +110,107 @@ def _resolve_base_url(settings: SidecarSettings, provider: str) -> str:
     )
 
 
-def _post_json(url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
+# WI-4(2026-07-14): retryable 5xx 1회 재시도 정책 — 실측 featherless 504
+# (execution_logs 8c178c2e, 본문 "retryable":true,"retry_after":120)가 재시도 없이
+# 사용자 실패로 노출됐다. 상수는 GONGMU_LLM_RETRY_* 환경변수로 오버라이드 가능
+# (설정 파일 스키마 변경 없음 — 기존 GONGMU_LLM_TIMEOUT_SECONDS 패턴 준용).
+RETRYABLE_STATUS_CODES = {502, 503, 504}
+RETRY_MAX_ATTEMPTS = 2            # 원 호출 1 + 재시도 1
+RETRY_BACKOFF_DEFAULT_SECONDS = 3.0
+RETRY_BACKOFF_CAP_SECONDS = 5.0   # retry_after 120s여도 캡
+RETRY_ELAPSED_CAP_SECONDS = 90.0  # 1차 시도가 이보다 오래 걸렸으면 재시도 포기(턴 예산 보호)
+_RETRY_AFTER_RE = re.compile(r'"retry_after"\s*:\s*(\d+)')
+
+
+def _backoff_seconds(detail: str, headers: Any) -> float:
+    """재시도 대기시간: Retry-After 헤더 → 본문 "retry_after":N → 기본 3초. 항상 5초 캡."""
+    default_backoff = float(
+        os.getenv("GONGMU_LLM_RETRY_BACKOFF_SECONDS", str(RETRY_BACKOFF_DEFAULT_SECONDS))
+    )
+    cap = float(os.getenv("GONGMU_LLM_RETRY_BACKOFF_CAP_SECONDS", str(RETRY_BACKOFF_CAP_SECONDS)))
+    candidate: float | None = None
+    header_value = None
+    if headers is not None:
+        getter = getattr(headers, "get", None)
+        if callable(getter):
+            header_value = getter("Retry-After")
+    if header_value is not None:
+        try:
+            candidate = float(str(header_value).strip())
+        except ValueError:
+            candidate = None
+    if candidate is None:
+        match = _RETRY_AFTER_RE.search(detail or "")
+        if match:
+            candidate = float(match.group(1))
+    if candidate is None:
+        candidate = default_backoff
+    return max(0.0, min(candidate, cap))
+
+
+def _urlopen_with_retry(req: request.Request, timeout: int, *, provider: str):
+    """retryable 5xx(502/503/504)에 한해 1회 재시도하는 urlopen.
+
+    - 재시도는 HTTPError만 대상: 첫 바이트 수신 전 실패이므로 중복 부작용이 없다.
+    - URLError는 무재시도: 로컬 서버 다운/네트워크 단절은 즉시 안내가 낫다.
+      ollama(또는 127.0.0.1:11434)면 한국어 서버 다운 안내로 교체한다.
+    - 주의(트랙 risks): HTTPError.read()는 1회만 읽힌다 — 시도마다 '그 시도의'
+      예외 객체 본문을 한 번만 읽어 backoff 파싱과 최종 메시지에 재사용한다.
+    """
+    max_attempts = max(1, int(os.getenv("GONGMU_LLM_RETRY_MAX_ATTEMPTS", str(RETRY_MAX_ATTEMPTS))))
+    elapsed_cap = float(
+        os.getenv("GONGMU_LLM_RETRY_ELAPSED_CAP_SECONDS", str(RETRY_ELAPSED_CAP_SECONDS))
+    )
+    started = time.monotonic()
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return request.urlopen(req, timeout=timeout)
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            code = int(exc.code)
+            if code not in RETRYABLE_STATUS_CODES:
+                # 비재시도 코드(400/401/404/429 등): 기존 포맷 유지 —
+                # openai responses→chat 폴백의 문자열 검사(하위 폴백)와 호환.
+                raise LLMGenerationError(
+                    f"LLM request failed ({code}): {detail}", status_code=code
+                ) from exc
+            if attempt < max_attempts and (time.monotonic() - started) < elapsed_cap:
+                time.sleep(_backoff_seconds(detail, exc.headers))
+                continue
+            guidance = (
+                "1회 재시도 후에도 실패해 잠시 후 다시 시도해 주세요."
+                if attempt > 1
+                else "잠시 후 다시 시도해 주세요."
+            )
+            raise LLMGenerationError(
+                f"LLM request failed ({code}): 외부 LLM 서비스가 일시적으로 응답하지 못했습니다. "
+                f"{guidance}\n상세: {detail[:500]}",
+                status_code=code,
+            ) from exc
+        except error.URLError as exc:
+            if provider == "ollama" or "127.0.0.1:11434" in str(req.full_url):
+                raise LLMGenerationError(
+                    "로컬 Ollama 서버에 연결할 수 없습니다. Ollama가 실행 중인지 확인해 주세요."
+                ) from exc
+            raise LLMGenerationError(
+                f"LLM server unreachable: {exc.reason} 네트워크 연결을 확인해 주세요."
+            ) from exc
+
+
+def _post_json(
+    url: str, headers: dict[str, str], payload: dict[str, Any], *, provider: str
+) -> dict[str, Any]:
     req = request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
         headers=headers,
         method="POST",
     )
-    try:
-        timeout = int(os.getenv("GONGMU_LLM_TIMEOUT_SECONDS", "180"))
-        with request.urlopen(req, timeout=timeout) as response:
-            body = response.read().decode("utf-8")
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise LLMGenerationError(f"LLM request failed ({exc.code}): {detail}") from exc
-    except error.URLError as exc:
-        raise LLMGenerationError(f"LLM server unreachable: {exc.reason}") from exc
+    timeout = int(os.getenv("GONGMU_LLM_TIMEOUT_SECONDS", "180"))
+    with _urlopen_with_retry(req, timeout, provider=provider) as response:
+        body = response.read().decode("utf-8")
 
     try:
         data = json.loads(body)
@@ -131,6 +226,8 @@ def _post_json_stream_lines(
     url: str,
     headers: dict[str, str],
     payload: dict[str, Any],
+    *,
+    provider: str,
 ):
     req = request.Request(
         url,
@@ -138,16 +235,21 @@ def _post_json_stream_lines(
         headers=headers,
         method="POST",
     )
+    timeout = int(os.getenv("GONGMU_LLM_TIMEOUT_SECONDS", "180"))
+    # WI-4: 스트리밍 재시도는 첫 바이트 수신 전(urlopen 시점) HTTPError만 —
+    # 델타가 이미 방출된 중도 실패는 재시도하지 않는다(중복 출력 방지).
+    response = _urlopen_with_retry(req, timeout, provider=provider)
     try:
-        timeout = int(os.getenv("GONGMU_LLM_TIMEOUT_SECONDS", "180"))
-        with request.urlopen(req, timeout=timeout) as response:
+        with response:
             for raw_line in response:
                 line = raw_line.decode("utf-8", errors="replace").strip()
                 if line:
                     yield line
     except error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise LLMGenerationError(f"LLM request failed ({exc.code}): {detail}") from exc
+        raise LLMGenerationError(
+            f"LLM request failed ({exc.code}): {detail}", status_code=int(exc.code)
+        ) from exc
     except error.URLError as exc:
         raise LLMGenerationError(f"LLM server unreachable: {exc.reason}") from exc
 
@@ -506,12 +608,19 @@ def _generate_openai_family_reply(
                 f"{base_url}/responses",
                 headers,
                 responses_request,
+                provider=provider,
             )
             response_text = _extract_response_text(responses_payload)
             if response_text:
                 return LLMGenerationResult(text=response_text, provider=provider, model=model)
         except LLMGenerationError as responses_error:
-            if "404" not in str(responses_error) and "400" not in str(responses_error):
+            # WI-4: status_code 우선 + 기존 문자열 검사 폴백(이중화) —
+            # 메시지 포맷이 바뀌어도 responses→chat 폴백 계약이 깨지지 않게 한다.
+            status_code = getattr(responses_error, "status_code", None)
+            if status_code is not None:
+                if status_code not in {400, 404}:
+                    raise
+            elif "404" not in str(responses_error) and "400" not in str(responses_error):
                 raise
 
     chat_payload = _post_json(
@@ -524,6 +633,7 @@ def _generate_openai_family_reply(
                 for message in normalized_messages
             ],
         },
+        provider=provider,
     )
     chat_text = _extract_chat_completion_text(chat_payload)
     if not chat_text:
@@ -571,7 +681,9 @@ def _generate_openai_family_reply_streaming(
         payload["reasoning_effort"] = reasoning_effort
 
     chunks: list[str] = []
-    for line in _post_json_stream_lines(f"{base_url}/chat/completions", headers, payload):
+    for line in _post_json_stream_lines(
+        f"{base_url}/chat/completions", headers, payload, provider=provider
+    ):
         if line.startswith(":"):
             continue
         if not line.startswith("data:"):
@@ -647,7 +759,7 @@ def _generate_ollama_reply(
         "stream": False,
         "think": reasoning_effort in {"medium", "high"},
     }
-    response_payload = _post_json(f"{base_url}/api/chat", headers, payload)
+    response_payload = _post_json(f"{base_url}/api/chat", headers, payload, provider="ollama")
     response_text = _extract_ollama_text(response_payload)
     if response_text:
         return LLMGenerationResult(text=response_text, provider="ollama", model=model)
@@ -661,7 +773,9 @@ def _generate_ollama_reply(
     images = _ollama_last_user_images(normalized_messages)
     if images:
         generate_payload["images"] = images
-    generate_response = _post_json(f"{base_url}/api/generate", headers, generate_payload)
+    generate_response = _post_json(
+        f"{base_url}/api/generate", headers, generate_payload, provider="ollama"
+    )
     generate_text = _extract_ollama_text(generate_response)
     if not generate_text:
         raise LLMGenerationError("Ollama server returned no assistant text.")
@@ -686,7 +800,7 @@ def _generate_ollama_reply_streaming(
     }
 
     chunks: list[str] = []
-    for line in _post_json_stream_lines(f"{base_url}/api/chat", headers, payload):
+    for line in _post_json_stream_lines(f"{base_url}/api/chat", headers, payload, provider="ollama"):
         try:
             event_payload = json.loads(line)
         except json.JSONDecodeError:
@@ -715,7 +829,9 @@ def _generate_ollama_reply_streaming(
         generate_payload["images"] = images
 
     chunks = []
-    for line in _post_json_stream_lines(f"{base_url}/api/generate", headers, generate_payload):
+    for line in _post_json_stream_lines(
+        f"{base_url}/api/generate", headers, generate_payload, provider="ollama"
+    ):
         try:
             event_payload = json.loads(line)
         except json.JSONDecodeError:
@@ -767,6 +883,7 @@ def _generate_anthropic_reply(
             "anthropic-version": ANTHROPIC_VERSION,
         },
         payload,
+        provider="anthropic",
     )
     response_text = _extract_anthropic_text(response_payload)
     if not response_text:
@@ -806,6 +923,7 @@ def _generate_gemini_reply(
             "x-goog-api-key": api_key,
         },
         payload,
+        provider="gemini",
     )
     response_text = _extract_gemini_text(response_payload)
     if not response_text:
