@@ -216,7 +216,7 @@ def test_query_terms_additive_josa_variants() -> None:
 
 
 def test_search_snippet_respects_max_chars(tmp_path: Path) -> None:
-    """발췌 확장 후에도 snippet 상한(SNIPPET_MAX_CHARS=500)은 유지된다."""
+    """발췌 확장 후에도 snippet 상한(SNIPPET_MAX_CHARS=1000)은 유지된다."""
     source = tmp_path / "source"
     source.mkdir()
     filler = "출장여비 지급 원칙과 정산 절차를 상세히 설명하는 문장이다. " * 60
@@ -227,4 +227,4 @@ def test_search_snippet_respects_max_chars(tmp_path: Path) -> None:
     payload = client.get("/api/knowledge/search", params={"query": "출장여비에는 어떤 항목이 포함돼?"}).json()
 
     assert payload["items"]
-    assert len(payload["items"][0]["snippet"]) <= 500
+    assert len(payload["items"][0]["snippet"]) <= 1000

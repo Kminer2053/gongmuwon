@@ -1291,8 +1291,8 @@ class AppServices:
             chunk = item.get("chunk") if isinstance(item.get("chunk"), dict) else {}
             text = str(item.get("text") or item.get("snippet") or chunk.get("text") or "").strip()
             text = self._redact_sensitive_text(text)
-            if len(text) > 500:
-                text = f"{text[:500]}..."
+            if len(text) > 1000:  # 발췌 상한과 정합 (knowledge_wiki.SNIPPET_MAX_CHARS)
+                text = f"{text[:1000]}..."
             lines.append(f"{index}. {title}")
             if file_path:
                 lines.append(f"   원본: {file_path}")
