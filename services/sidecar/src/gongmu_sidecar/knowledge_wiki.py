@@ -79,7 +79,15 @@ MISSING_BANNER_PREFIX = "> ⚠ 원본이 삭제되었거나 이동됨"
 USER_NOTES_MARKER = "<!-- gongmu:user-notes -->"
 DEFAULT_USER_NOTES_BLOCK = USER_NOTES_MARKER + "\n## 내 메모\n"
 CARD_AUTOGEN_COMMENT = "<!-- 이 문서는 자동 생성됩니다. '## 내 메모' 아래만 직접 편집하세요 -->"
+# 3호: 발췌는 매치 텀 주변 ±150자 윈도우 최대 2개(~600자 원문)를 이어붙인 뒤 이 상한으로
+# 자른다 — 상한 상향(512 등) 대신 유지: 첫 윈도우는 온전히 살고 둘째 윈도우 꼬리만 잘리며,
+# ask() LLM 근거·UI 표시 길이 계약(≤500)을 그대로 보존한다.
 SNIPPET_MAX_CHARS = 500
+# 3호 하이브리드 재랭킹: FTS AND ∪ FTS OR ∪ LIKE 후보 합집합 상한 — 전량 스캔 방지
+# (_like_search의 LIMIT 300 후보 패턴 준용, 스코어링은 최대 60건).
+CANDIDATE_POOL_MAX = 60
+# 발췌 윈도우의 정의 조문 앵커 판별용 여는 인용부호 (3호 C — _excerpt_snippet 참조)
+_OPENING_QUOTES = "\"“「『‘'"
 OVERVIEW_MAX_CHARS = 300
 KEYWORD_COUNT = 10
 STRUCTURE_PREVIEW_DEFAULT_SECTIONS = 60
@@ -136,6 +144,10 @@ QUERY_STOPWORDS = {
     "만들어줘", "만들어", "작성", "작성해줘", "해줘", "요약", "요약해줘", "부탁",
     "지식폴더", "지식폴더에서", "폴더", "문서", "자료", "파일", "내용", "검색",
     "에서", "대해", "대해서", "좀",
+    # 3호: 의문 관형사 — 콘텐츠가 아닌데 온갖 문서 본문에 실려("어떤 경우에도" 등)
+    # 통합 점수에서 무관 장문 문서를 밀어올린다(실DB B-04: '어떤'+'항목' 2.0이
+    # 정답 '출장여비' 1.0을 눌렀다). 기존 항목 삭제 없이 추가만.
+    "어떤", "무슨",
 }
 # 콘텐츠 term 끝에 붙은 접미 일반어를 떼어 recall을 높인다 ("로컬동행관련"→"로컬동행").
 _SUFFIX_STOPWORDS = ("관련해서", "관련", "에대한", "에관한", "내용", "자료", "문서")
@@ -155,6 +167,29 @@ def _strip_josa_suffix(term: str) -> str:
     return term
 
 
+# 3호 검색랭킹: 질의 변형 전용 확장 조사 — 실측 오염("출장여비에는"→"출장여비" 미생성,
+# 2026-07-14 2호 스코어카드 B-01/B-04) 봉합. normalize_topic_key(주제 병합 키)에는
+# 적용하지 않는다: 그쪽은 단일 키 출력이라 additive가 아니고, '나' 같은 접미는
+# "코로나"→"코로" 오절단으로 병합 키를 오염시킬 수 있다. 질의 경로는 원형을 유지한 채
+# 변형을 '추가'만 하므로(additive) 오절단이 있어도 recall만 늘고 오답으로 확정되지 않는다.
+_JOSA_QUERY_EXTRA_SUFFIXES = ("에는", "에", "나")
+# 최장 접미 우선 매칭(동길이는 사전순) — set 미사용으로 결정성 보장.
+_JOSA_QUERY_SUFFIXES = tuple(
+    sorted(_JOSA_SUFFIXES + _JOSA_QUERY_EXTRA_SUFFIXES, key=lambda s: (-len(s), s))
+)
+
+
+def _josa_query_variants(term: str) -> list[str]:
+    """조사 접미 제거 변형 전부(최장 접미 우선, 결과 2자 미만은 버림) — additive 전용."""
+    variants: list[str] = []
+    for suffix in _JOSA_QUERY_SUFFIXES:
+        if term.endswith(suffix) and len(term) - len(suffix) >= 2:
+            candidate = term[: -len(suffix)]
+            if candidate not in variants:
+                variants.append(candidate)
+    return variants
+
+
 def _split_ascii_hangul(token: str) -> list[str]:
     return re.findall(r"[a-z0-9]+|[가-힣]+", token)
 
@@ -166,13 +201,19 @@ def _strip_suffix_stopword(term: str) -> str:
     return term
 
 
-def _query_terms(query: str) -> list[str]:
-    """검색 질의를 콘텐츠 term으로 정규화한다(결정적, LLM 미개입): 불용어/명령어 제거 +
-    한글↔ASCII 경계 분리 + 접미 일반어 제거 후보 추가."""
-    result: list[str] = []
+def _query_term_groups(query: str) -> list[dict[str, Any]]:
+    """질의를 토큰(원형)별 콘텐츠 term 그룹으로 정규화한다(결정적, LLM 미개입).
+
+    각 그룹: {"original": 원형 part, "terms": 채택 term 전부(원형 포함, 순서 보존),
+    "variants": 접미 일반어/조사 스트립 변형만}. search()가 '조사-스트립 변형 우선'
+    FTS 텀과 그룹별 최단형 대표 텀을 만들 수 있도록 구조를 남긴다(3호).
+    _query_terms는 이 그룹의 평탄화 — 기존 소비자(app._doc_content_terms,
+    색인 게이트) 관점에서 변형은 '추가'만 된다(additive, 원형 유지).
+    """
+    groups: list[dict[str, Any]] = []
     seen: set[str] = set()
 
-    def _add(term: str) -> None:
+    def _accept(term: str) -> bool:
         if (
             len(term) >= 2
             and term not in STOPWORDS
@@ -180,22 +221,56 @@ def _query_terms(query: str) -> list[str]:
             and term not in seen
         ):
             seen.add(term)
-            result.append(term)
+            return True
+        return False
 
     for token in _tokenize(query):
         if token in STOPWORDS or token in QUERY_STOPWORDS:
             continue
         for part in _split_ascii_hangul(token):
-            _add(part)
+            terms: list[str] = []
+            variants: list[str] = []
+            if _accept(part):
+                terms.append(part)
             stripped = _strip_suffix_stopword(part)
-            if stripped != part:
-                _add(stripped)
-            # F-01: 조사/어미 제거 변형 추가 ("안전관리등급제에서"→"안전관리등급제")
+            if stripped != part and _accept(stripped):
+                terms.append(stripped)
+                variants.append(stripped)
+            # F-01/3호: 조사·어미 제거 변형 추가 ("출장여비에는"→"출장여비", 원형 유지)
             for base in (part, stripped):
-                dejosa = _strip_josa_suffix(base)
-                if dejosa != base:
-                    _add(dejosa)
+                for dejosa in _josa_query_variants(base):
+                    if _accept(dejosa):
+                        terms.append(dejosa)
+                        variants.append(dejosa)
+            if terms:
+                groups.append({"original": part, "terms": terms, "variants": variants})
+    return groups
+
+
+def _query_terms(query: str) -> list[str]:
+    """검색 질의를 콘텐츠 term으로 정규화한다(결정적, LLM 미개입): 불용어/명령어 제거 +
+    한글↔ASCII 경계 분리 + 접미 일반어/조사 스트립 변형 추가(원형 유지)."""
+    result: list[str] = []
+    for group in _query_term_groups(query):
+        result.extend(group["terms"])
     return result
+
+
+def _shortest_group_terms(groups: list[dict[str, Any]]) -> list[str]:
+    """그룹별 최단형 대표 텀 — 통합 점수·발췌 매칭 기준(3호).
+
+    변형은 전부 원형의 접두 부분문자열이므로, 최단형 포함 여부가 가장 관대한
+    매칭이다("출장여비에는" 그룹 → "출장여비"). 중복은 접는다.
+    """
+    reps: list[str] = []
+    for group in groups:
+        terms = group["terms"]
+        if not terms:
+            continue
+        rep = min(terms, key=len)  # 동길이면 앞선 항목 — 결정적
+        if rep not in reps:
+            reps.append(rep)
+    return reps
 
 
 def _strip_front_matter(body: str) -> str:
@@ -2799,52 +2874,116 @@ class KnowledgeWikiManager:
     # ---------------------------------------------------------------- search
 
     def search(self, query: str, limit: int = 8) -> dict[str, Any]:
+        """하이브리드 재랭킹 검색 (3호, 2호 스코어카드 B-01/B-04 근본원인 봉합).
+
+        기존 사다리(FTS 1건이라도 히트 → 종료)는 조사 오염 텀("출장여비에",
+        "규정에서")이 무관 문서를 FTS로 1건만 회수해도 제목가중 LIKE가 실행되지
+        않아 정답을 놓쳤다. 후보를 FTS AND ∪ FTS OR ∪ LIKE 합집합으로 모으고
+        결정적 통합 점수(제목 2.0 + 본문 1.0, 그룹 최단형 대표 텀 기준 + FTS 0.5)로
+        재랭킹한다. mode 계약: FTS가 후보에 기여했으면 "fts5", 아니면 "like".
+        """
         normalized = nfc(query).strip()
         safe_limit = max(1, min(limit, 50))
         if not normalized:
             return {"query": query, "items": [], "mode": "empty"}
-        items: list[dict[str, Any]] = []
-        mode = "like"
-        all_terms = _query_terms(normalized)
-        fts_terms = self._fts_terms(normalized, all_terms)
+        groups = _query_term_groups(normalized)
+        rep_terms = _shortest_group_terms(groups)
+        fts_terms = self._fts_terms_grouped(normalized, groups)
+        fetch_cap = min(safe_limit * 4, CANDIDATE_POOL_MAX)
+
+        fts_rows: list[dict[str, Any]] = []
         if getattr(self.db, "fts5_available", False) and fts_terms:
-            # F-01: 다수 term이면 AND 결합(정밀)을 먼저 시도하고, 0건일 때 OR(재현)로
-            # 내려간다 — "공공안전지수 산출" 같은 질의에서 흔한 term(공공기관 등)이
-            # OR로 무관 문서를 밀어올리는 문제를 막는다.
+            # F-01: AND(정밀)와 OR(재현)를 모두 후보로 수집한다 — 정밀 매치는
+            # bm25 tiebreak로 앞서고, OR 소음은 통합 점수가 눌러준다.
             quoted = ['"' + term.replace('"', '""') + '"' for term in fts_terms[:8]]
             exprs = ([" AND ".join(quoted)] if len(quoted) >= 2 else []) + [" OR ".join(quoted)]
             for match_expr in exprs:
                 try:
-                    rows = self.db.fetch_all(
-                        """
-                        SELECT doc_id,
-                               snippet(knowledge_fts, 2, '', '', '…', 24) AS body_snippet,
-                               bm25(knowledge_fts) AS rank
-                        FROM knowledge_fts
-                        WHERE knowledge_fts MATCH ?
-                        ORDER BY rank
-                        LIMIT ?
-                        """,
-                        (match_expr, safe_limit),
+                    fts_rows.extend(
+                        self.db.fetch_all(
+                            """
+                            SELECT doc_id,
+                                   snippet(knowledge_fts, 2, '', '', '…', 24) AS body_snippet,
+                                   bm25(knowledge_fts) AS rank
+                            FROM knowledge_fts
+                            WHERE knowledge_fts MATCH ?
+                            ORDER BY rank
+                            LIMIT ?
+                            """,
+                            (match_expr, fetch_cap),
+                        )
                     )
                 except Exception:  # noqa: BLE001 - 질의 구문 오류 시 다음 전략/LIKE 폴백
-                    rows = []
-                for row in rows:
-                    doc = self.db.fetch_one(
-                        "SELECT * FROM knowledge_wiki_docs WHERE id = ?", (row["doc_id"],)
-                    )
-                    if doc is None or str(doc.get("status") or "active") == "missing":
-                        continue  # §5.5: FTS 행은 삭제되지만 이중 방어
-                    items.append(self._search_item(doc, row.get("body_snippet"), -float(row["rank"] or 0.0)))
-                if items:
-                    mode = "fts5"
-                    break
-        if not items:
-            # F-04: 2자 행정명사(예산·집행·기준 등)는 trigram FTS로 매칭 불가 —
-            # 정규화 term 기반 LIKE 폴백으로 회수한다(문장 전체 needle 방식 대체).
-            items = self._like_search(normalized, safe_limit, terms=all_terms)
-            if mode != "fts5":
-                mode = "like"
+                    continue
+
+        # 후보 병합 — 제목가중 LIKE 상위(2자 명사 회수 담당)를 먼저 채워 FTS 소음이
+        # 상한(60)을 선점하지 못하게 한다. dict 순서 = 삽입 순서(결정적).
+        candidates: dict[str, dict[str, Any]] = {}
+        for row in self._like_candidate_rows(rep_terms, fetch_cap):
+            if len(candidates) >= CANDIDATE_POOL_MAX:
+                break
+            candidates[str(row["id"])] = {
+                "doc": row, "fts": False, "bm25": None, "fts_snippet": None,
+            }
+        fts_contributed = False
+        for row in fts_rows:
+            doc_id = str(row["doc_id"])
+            entry = candidates.get(doc_id)
+            if entry is None:
+                if len(candidates) >= CANDIDATE_POOL_MAX:
+                    continue
+                doc = self.db.fetch_one(
+                    "SELECT * FROM knowledge_wiki_docs WHERE id = ?", (doc_id,)
+                )
+                if doc is None or str(doc.get("status") or "active") == "missing":
+                    continue  # §5.5: FTS 행은 삭제되지만 이중 방어
+                entry = {"doc": doc, "fts": False, "bm25": None, "fts_snippet": None}
+                candidates[doc_id] = entry
+            fts_contributed = True
+            entry["fts"] = True
+            rank = -float(row.get("rank") or 0.0)
+            if entry["bm25"] is None or rank > entry["bm25"]:
+                entry["bm25"] = rank
+            if not entry["fts_snippet"]:
+                entry["fts_snippet"] = str(row.get("body_snippet") or "")
+
+        # 통합 점수(결정적, LLM 무관). 동점 tiebreak: bm25(있으면) → updated_at.
+        compact_query = re.sub(r"\s+", "", normalized.lower())
+        scored: list[tuple[float, float, str, dict[str, Any], dict[str, Any]]] = []
+        for entry in candidates.values():
+            doc = entry["doc"]
+            norm_title = str(doc.get("norm_title") or "")
+            norm_body = str(doc.get("norm_body") or "")
+            title_reps = [term for term in rep_terms if term in norm_title]
+            title_hits = len(title_reps)
+            title_hits += self._reverse_title_hits(norm_title, compact_query, title_reps)
+            score = 2.0 * title_hits
+            score += 1.0 * sum(1 for term in rep_terms if term in norm_body)
+            if entry["fts"]:
+                score += 0.5  # 카드(요약/키워드) 매치만 있는 문서도 후보로 남긴다
+            if score <= 0:
+                continue
+            tiebreak = entry["bm25"] if entry["bm25"] is not None else float("-inf")
+            scored.append((score, tiebreak, str(doc.get("updated_at") or ""), doc, entry))
+        scored.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+
+        items: list[dict[str, Any]] = []
+        for score, _tiebreak, _updated, doc, entry in scored[:safe_limit]:
+            snippet = self._excerpt_snippet(
+                str(doc.get("norm_body") or ""),
+                rep_terms,
+                str(doc.get("norm_title") or ""),
+                fallback=entry["fts_snippet"],
+            )
+            items.append(self._search_item(doc, snippet, score))
+        if not items and not rep_terms:
+            # 콘텐츠 term이 없는 질의 — 기존 문장 전체 needle LIKE 폴백 유지
+            return {
+                "query": query,
+                "items": self._like_search(normalized, safe_limit, terms=[]),
+                "mode": "like",
+            }
+        mode = "fts5" if fts_contributed and items else "like"
         return {"query": query, "items": items[:safe_limit], "mode": mode}
 
     def _fts_terms(self, normalized_query: str, all_terms: list[str] | None = None) -> list[str]:
@@ -2864,12 +3003,91 @@ class KnowledgeWikiManager:
                 terms = [compact]
         return terms
 
+    def _fts_terms_grouped(self, normalized_query: str, groups: list[dict[str, Any]]) -> list[str]:
+        """FTS 텀 — 조사-스트립 변형 우선(≥3자), 원형은 스트립 변형이 없을 때만 (3호 B).
+
+        "출장여비에는" 같은 조사 오염 텀을 trigram FTS에 그대로 넣으면 원문
+        ("출장여비는")과 불일치해 정답 문서를 놓친다 — 변형이 있으면 원형은 버린다.
+        변형이 전부 3자 미만(예: "절차를"→"절차")이면 그룹 전체를 FTS에서 제외하고
+        LIKE 후보·통합 점수가 회수를 맡는다.
+        """
+        terms: list[str] = []
+        for group in groups:
+            long_variants = [v for v in group["variants"] if len(v) >= 3]
+            if long_variants:
+                pick = min(long_variants, key=len)  # 가장 많이 스트립된 변형
+            elif group["variants"]:
+                continue  # 변형이 있으나 전부 2자 — 원형(조사 오염)도 넣지 않는다
+            else:
+                pick = next((t for t in group["terms"] if len(t) >= 3), None)
+            if pick and pick not in terms:
+                terms.append(pick)
+        if not terms:
+            # 콘텐츠 term이 하나도 없으면 기존 compact 단일 토큰 폴백을 따른다.
+            terms = self._fts_terms(normalized_query, [])
+        return terms
+
+    @staticmethod
+    def _reverse_title_hits(norm_title: str, compact_query: str, title_reps: list[str]) -> int:
+        """역방향 제목 매치 (3호 B 보강) — 질의 원문에 포함된 제목 토큰 수.
+
+        질의 텀 추출이 활용어미를 못 벗기는 경우("구매하려면"→'구매' 미생성, 스테밍은
+        범위 외) 제목 토큰('구매')을 질의 압축문에서 역으로 찾아 제목가중을 준다.
+        이미 rep 매치로 집계된 개념(rep⊂토큰 또는 토큰⊂rep)은 이중 집계하지 않는다.
+        """
+        if not norm_title or not compact_query:
+            return 0
+        hits = 0
+        seen: set[str] = set()
+        for token in _tokenize(norm_title):
+            if (
+                len(token) < 2
+                or token in STOPWORDS
+                or token in QUERY_STOPWORDS
+                or token in seen
+            ):
+                continue
+            seen.add(token)
+            if token not in compact_query:
+                continue
+            if any(rep in token or token in rep for rep in title_reps):
+                continue  # 동일 개념 이중 집계 방지
+            hits += 1
+        return hits
+
     def _fts_match_expression(self, normalized_query: str) -> str | None:
         # (호환 유지) OR 결합 표현식 — search()는 AND→OR 사다리를 직접 구성한다.
         terms = self._fts_terms(normalized_query)
         if not terms:
             return None
         return " OR ".join('"' + term.replace('"', '""') + '"' for term in terms[:8])
+
+    def _like_candidate_rows(self, terms: list[str], cap: int) -> list[dict[str, Any]]:
+        """제목가중 LIKE 후보 행 (3호 B) — _like_search와 동일 점수(제목 2.0/본문 1.0)로
+        상위 cap 행만 돌려준다. 후보 스캔은 LIMIT 300 패턴 준용."""
+        needles = [t for t in terms if len(t) >= 2][:8]
+        if not needles:
+            return []
+        conds = " OR ".join("(norm_title LIKE ? OR norm_body LIKE ?)" for _ in needles)
+        params: list[Any] = []
+        for term in needles:
+            params.extend([f"%{term}%", f"%{term}%"])
+        rows = self.db.fetch_all(
+            f"SELECT * FROM knowledge_wiki_docs WHERE status != 'missing' AND ({conds}) LIMIT 300",
+            tuple(params),
+        )
+        scored: list[tuple[float, str, dict[str, Any]]] = []
+        for row in rows:
+            norm_title = str(row.get("norm_title") or "")
+            norm_body = str(row.get("norm_body") or "")
+            score = sum(2.0 for t in needles if t in norm_title) + sum(
+                1.0 for t in needles if t in norm_body
+            )
+            if score <= 0:
+                continue
+            scored.append((score, str(row.get("updated_at") or ""), row))
+        scored.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        return [row for _score, _updated, row in scored[:cap]]
 
     def _like_search(
         self, normalized_query: str, limit: int, terms: list[str] | None = None
@@ -2926,6 +3144,89 @@ class KnowledgeWikiManager:
         start = max(0, position - radius)
         end = min(len(body), position + len(needle) + radius)
         return ("…" if start > 0 else "") + body[start:end].strip() + ("…" if end < len(body) else "")
+
+    def _excerpt_snippet(
+        self,
+        body: str,
+        terms: list[str],
+        title: str,
+        *,
+        display: str | None = None,
+        radius: int = 150,
+        max_windows: int = 2,
+        fallback: str | None = None,
+    ) -> str:
+        """매치 텀 주변 ±radius 윈도우 최대 max_windows개를 '…'로 이어붙인 발췌 (3호 C).
+
+        FTS snippet 24토큰으로는 랭킹이 맞아도 정답 조문이 ask LLM에 전달되지 않던
+        문제(B-05 "확인할 수 없음")의 봉합. 윈도우 후보 = 각 텀의 앞쪽 등장 위치
+        (텀당 최대 8곳). 우선순위 (정의 인용부호 앵커, 제목에 없는 텀 종류 수,
+        본문전용 텀 등장 수, 전체 텀 등장 수, 앞선 위치): 제목 매치 텀(예: '인사',
+        '규정')은 문서 선택 근거일 뿐이므로 본문에서만 답을 주는 텀(예: '전보' 정의
+        조문) 주변을 먼저 보여준다. 둘째 윈도우는 첫 윈도우와 겹치지 않는 차순위.
+        결정적이며 LLM 미개입.
+
+        display: body와 길이가 같은 표시용 원문(예: 원대소문자 보존본). 길이가
+        다르면(이론상 lower() 확장 등) 안전하게 body 기준으로 발췌한다.
+        """
+        shown = display if display is not None and len(display) == len(body) else body
+        if not body:
+            return (fallback or "").strip()
+        present = [t for t in terms if t and t in body]
+        if not present:
+            return (fallback or shown[: radius * 2]).strip()
+        body_only = [t for t in present if t not in title]
+        windows: list[tuple[int, int]] = []
+        definitional: dict[tuple[int, int], int] = {}
+        for term in present:
+            start = 0
+            for _ in range(8):
+                position = body.find(term, start)
+                if position < 0:
+                    break
+                window = (
+                    max(0, position - radius),
+                    min(len(body), position + len(term) + radius),
+                )
+                # 정의 조문 앵커: 여는 인용부호 바로 뒤의 텀("“전보”라 함은",
+                # "“안전관리등급 심사”…란")은 그 용어의 정의 지점일 확률이 높다 —
+                # 실측(B-01·B-05)에서 커버리지·밀도 기준만으로는 정의 조문과
+                # 일반 언급 밀집 구역을 구분할 수 없어 도입한 결정적 신호.
+                flag = 1 if position > 0 and body[position - 1] in _OPENING_QUOTES else 0
+                if definitional.get(window, 0) < flag:
+                    definitional[window] = flag
+                if window not in windows:
+                    windows.append(window)
+                start = position + 1
+
+        def _window_priority(window: tuple[int, int]) -> tuple[int, int, int, int, int]:
+            text = body[window[0] : window[1]]
+            distinct = sum(1 for t in body_only if t in text)
+            body_occurrences = sum(text.count(t) for t in body_only)
+            occurrences = sum(text.count(t) for t in present)
+            return (
+                definitional.get(window, 0),
+                distinct,
+                body_occurrences,
+                occurrences,
+                -window[0],
+            )
+
+        windows.sort(key=_window_priority, reverse=True)
+        chosen: list[tuple[int, int]] = []
+        for window in windows:
+            if len(chosen) >= max_windows:
+                break
+            if any(window[0] < end and start < window[1] for start, end in chosen):
+                continue  # 기선택 윈도우와 겹침 — 차순위로
+            chosen.append(window)
+        chosen.sort()
+        return " ".join(
+            ("…" if start > 0 else "")
+            + shown[start:end].strip()
+            + ("…" if end < len(body) else "")
+            for start, end in chosen
+        )
 
     def _search_item(self, doc: dict[str, Any], snippet: Any, score: float) -> dict[str, Any]:
         return {
@@ -3001,15 +3302,17 @@ class KnowledgeWikiManager:
             return None
         body = _strip_front_matter(body)
         lowered = body.lower()
-        terms = [term for term in _tokenize(query) if len(term) >= 2]
-        for term in terms:
-            position = lowered.find(term)
-            if position >= 0:
-                start = max(0, position - 150)
-                end = min(len(body), position + 350)
-                excerpt = re.sub(r"\s+", " ", body[start:end]).strip()
-                return excerpt[:SNIPPET_MAX_CHARS]
-        return None
+        # 3호 C: 조사-스트립 최단형 대표 텀 + 다중 윈도우 발췌 — 원문 표기(대소문자)는
+        # display로 보존한다. 대표 텀이 없으면 기존 원시 토큰 폴백을 유지한다.
+        terms = _shortest_group_terms(_query_term_groups(query)) or [
+            term for term in _tokenize(query) if len(term) >= 2
+        ]
+        if not any(term in lowered for term in terms):
+            return None
+        title = nfc(str(hit.get("title") or "")).lower()
+        excerpt = self._excerpt_snippet(lowered, terms, title, display=body)
+        excerpt = re.sub(r"\s+", " ", excerpt).strip()
+        return excerpt[:SNIPPET_MAX_CHARS] or None
 
     def _session_linked_paths(self, session_id: str | None) -> set[str]:
         if not session_id:
