@@ -21,14 +21,137 @@
   gap: 0.75rem;
 }
 
-/* T3(4호): 상세검색(구 근거 답변) — 키워드 검색과 분리된 별도 섹션 */
+/* P1(4호 후속): 키워드(좌)·상세검색(우) 좌우 2단. 검색영역 높이를 줄여
+   아래 위키 목차/내용이 스크롤 없이 바로 보이게 한다. */
+.knowledge-search-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .knowledge-search-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 각 검색 칼럼은 가벼운 카드로 구분 */
+.knowledge-search-col {
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+/* P2: 상세검색 — 2단 칼럼이 되어 상단 구분선 불필요 */
 .knowledge-detail-search {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  padding-top: 0.85rem;
-  margin-top: 0.2rem;
-  border-top: 1px solid var(--line-soft);
+}
+
+/* P2: 키워드 라이브 포커스 안내 문구 */
+.knowledge-search-form__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+/* P2: 키워드 입력 시 위키 목차에서 매칭 노드를 강조한다. */
+.wiki-tree__item--focused {
+  background: var(--accent-green-soft, rgba(31, 107, 85, 0.14));
+  outline: 2px solid var(--accent-green-outline, rgba(31, 107, 85, 0.55));
+  outline-offset: -1px;
+  border-radius: 8px;
+}
+
+/* P3: '답변 반영' 배지 — 그린 액센트 pill */
+.pill--accent {
+  background: var(--accent-green-soft, rgba(31, 107, 85, 0.14));
+  color: var(--accent-green-strong, #1f6b55);
+  border: 1px solid var(--accent-green-outline, rgba(31, 107, 85, 0.5));
+}
+
+/* P3: 출처 헤더(제목 + 요약) */
+.knowledge-citation-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.knowledge-citation-head .subheading {
+  margin: 0;
+}
+
+/* P3: 출처 카드 — 답변 반영 카드는 좌측 그린 스트라이프로 눈에 띄게 */
+.knowledge-citation-card__head {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.knowledge-citation-card__titleline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.knowledge-citation-card__titleline h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.knowledge-citation-card__rank {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgba(17, 18, 20, 0.06);
+  color: var(--text-subtle, #55605a);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.knowledge-citation-card__path {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-subtle, #55605a);
+  word-break: break-all;
+}
+
+.knowledge-citation-card--reflected {
+  border-left: 3px solid var(--accent-green-outline, rgba(31, 107, 85, 0.6));
+}
+
+.knowledge-citation-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.15rem;
+}
+
+/* P3: 품질 티어 배지 색상 */
+.knowledge-quality-pill--high {
+  background: rgba(31, 107, 85, 0.14);
+  color: #1f6b55;
+}
+
+.knowledge-quality-pill--mid {
+  background: rgba(180, 133, 20, 0.16);
+  color: #8a6410;
+}
+
+.knowledge-quality-pill--low {
+  background: rgba(120, 120, 128, 0.16);
+  color: #5b5b62;
 }
 
 /* T3(4호): 키워드 = 위키 바로가기 카드 그룹 */

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   applyTaxonomy,
   askKnowledge,
@@ -62,6 +62,13 @@ import {
   type WikiTreeTopicItem,
   type WorkJobItem,
 } from "../api";
+import {
+  cleanCitationSnippet,
+  countReflected,
+  orderCitationsForDisplay,
+  qualityTier,
+  type OrderedCitation,
+} from "../knowledgeCitations";
 import { copyTextToClipboard, openExternalTarget, pickDirectory } from "../runtime";
 import {
   describeExcerptForDisplay,
@@ -192,6 +199,67 @@ function computeWikiShortcuts(query: string, tree: WikiTreeResult | null): WikiS
     }
   }
   return shortcuts;
+}
+
+/**
+ * P2(4호 후속, 2026-07): 키워드를 입력하는 즉시 위키트리에서 가장 잘 맞는
+ * 업무/주제/업무기록 노드로 포커스를 옮기기 위한 '정규화 키'를 고른다.
+ * 트리 항목 버튼에 부여한 data-wiki-key(=normalizeTopicKey(title))와 매칭되며,
+ * 점수: 완전일치(4) > 접두(3) > 부분포함(2) > 역포함(1). 동점이면 더 짧은(정확한)
+ * 제목을 우선한다. LLM 무관 결정적 매칭.
+ */
+function findWikiFocusKey(query: string, tree: WikiTreeResult | null): string | null {
+  if (!tree) {
+    return null;
+  }
+  const qKey = normalizeTopicKey(query);
+  if (qKey.length < 2) {
+    return null;
+  }
+  const candidates: string[] = [];
+  const pushTitle = (title: string, docCount?: number) => {
+    if (typeof docCount === "number" && docCount <= 0) {
+      return; // 문서 0건 노드는 포커스 대상에서 제외
+    }
+    const key = normalizeTopicKey(title);
+    if (key.length >= 2) {
+      candidates.push(key);
+    }
+  };
+  for (const area of tree.work_areas ?? []) {
+    pushTitle(area.title, area.doc_count);
+  }
+  for (const topic of tree.topics ?? []) {
+    pushTitle(topic.title, topic.doc_count);
+  }
+  for (const work of tree.works ?? []) {
+    pushTitle(work.title);
+  }
+  let best: { key: string; score: number } | null = null;
+  for (const key of candidates) {
+    let score = 0;
+    if (key === qKey) {
+      score = 4;
+    } else if (key.startsWith(qKey)) {
+      score = 3;
+    } else if (key.includes(qKey)) {
+      score = 2;
+    } else if (qKey.includes(key)) {
+      score = 1;
+    }
+    if (score === 0) {
+      continue;
+    }
+    if (!best || score > best.score || (score === best.score && key.length < best.key.length)) {
+      best = { key, score };
+    }
+  }
+  return best?.key ?? null;
+}
+
+/** P2: 위키트리 항목 버튼 className — 라이브 키워드 포커스 대상이면 하이라이트 클래스를 붙인다. */
+function wikiItemClass(title: string, focusedKey: string | null): string {
+  return `wiki-tree__item${normalizeTopicKey(title) === focusedKey ? " wiki-tree__item--focused" : ""}`;
 }
 
 /**
@@ -2764,6 +2832,61 @@ export function KnowledgeScreen() {
   // 검색·위키 통합: 위키 탭 우측 뷰어가 위키 페이지를 보여줄지, 검색 결과를 보여줄지.
   const [wikiViewerMode, setWikiViewerMode] = useState<"wiki" | "search">("wiki");
 
+  // P2(2026-07): 키워드 검색은 버튼 없이 라이브. 입력하면 위키트리에서 가장 잘 맞는
+  // 노드로 포커스(스크롤+하이라이트)를 옮긴다. focusedWikiKey는 data-wiki-key와 매칭.
+  const [focusedWikiKey, setFocusedWikiKey] = useState<string | null>(null);
+  const wikiTreeRef = useRef<HTMLElement | null>(null);
+
+  // 디바운스(200ms): 입력이 멈춘 뒤 매칭 노드 키를 계산한다(연속 타이핑 중 과도한 스크롤 방지).
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      setFocusedWikiKey(findWikiFocusKey(knowledgeQuery, knowledgeWikiTree));
+    }, 200);
+    return () => window.clearTimeout(handle);
+  }, [knowledgeQuery, knowledgeWikiTree]);
+
+  // 포커스 키가 정해지면 트리에서 해당 버튼을 찾아 상위 <details>를 펼치고 화면 안으로 스크롤한다.
+  useEffect(() => {
+    if (!focusedWikiKey) {
+      return;
+    }
+    const nav = wikiTreeRef.current;
+    if (!nav) {
+      return;
+    }
+    const target = nav.querySelector<HTMLElement>(
+      `[data-wiki-key="${CSS.escape(focusedWikiKey)}"]`,
+    );
+    if (!target) {
+      return;
+    }
+    let ancestor = target.parentElement;
+    while (ancestor && ancestor !== nav) {
+      if (ancestor instanceof HTMLDetailsElement) {
+        ancestor.open = true;
+      }
+      ancestor = ancestor.parentElement;
+    }
+    // jsdom(테스트 환경)에는 scrollIntoView가 없어 가드한다.
+    if (typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [focusedWikiKey, knowledgeWikiTree]);
+
+  // P3(2026-07): 상세검색 출처를 (답변 반영, 품질) 우선순위로 정렬한다. 스트리밍 중에는
+  // citations가 비어 있어 []이며, done 최종본이 들어오면 정렬·반영 판정이 반영된다.
+  const orderedCitations = useMemo<OrderedCitation[]>(
+    () =>
+      knowledgeAskResult
+        ? orderCitationsForDisplay(knowledgeAskResult.citations, knowledgeAskResult.answer)
+        : [],
+    [knowledgeAskResult],
+  );
+  const reflectedCitationCount = useMemo(
+    () => countReflected(orderedCitations),
+    [orderedCitations],
+  );
+
   // 위키 이동 히스토리(2026-07-12 UX): 각주·연관주제 링크로 들어가도 '← 이전'으로
   // 직전 페이지에 돌아갈 수 있게 relative_path 스택을 유지한다(최대 20).
   // '← 이전'으로 여는 이동은 push하지 않아(fromHistory) 무한루프를 막는다.
@@ -3117,25 +3240,6 @@ export function KnowledgeScreen() {
     );
   }
 
-  async function runKnowledgeSearchQuery(query: string) {
-    setKnowledgePanel("wiki");
-    setWikiViewerMode("search");
-    setKnowledgeInspectorLoading(true);
-    setError(null);
-    try {
-      const result = await searchKnowledge(query);
-      setKnowledgeSearchResult(result);
-      // T3: 키워드가 위키 업무/주제 이름과 맞으면 바로가기 카드를 만든다(결과와 같은 수명).
-      setSearchShortcuts(computeWikiShortcuts(query, knowledgeWikiTree));
-      // F-14: 결과 영역은 항상 최신 질의 1건 — 이전 상세검색 답변은 함께 비운다.
-      setKnowledgeAskResult(null);
-    } catch (searchError) {
-      setError(searchError instanceof Error ? searchError.message : "지식 검색을 실행하지 못했습니다.");
-    } finally {
-      setKnowledgeInspectorLoading(false);
-    }
-  }
-
   async function runKnowledgeAskQuery(query: string) {
     setKnowledgePanel("wiki");
     setWikiViewerMode("search");
@@ -3179,28 +3283,20 @@ export function KnowledgeScreen() {
     }
   }
 
-  // T3: 키워드 검색 전용(토글 폐지). 상단 검색 바·최근 질의 칩이 이 경로로 수렴한다.
-  async function submitKnowledgeQuery(queryOverride?: string) {
-    const query = (queryOverride ?? knowledgeQuery).trim();
-    if (!query) {
-      return;
-    }
-    recordKnowledgeQueryHistory(query);
-    await runKnowledgeSearchQuery(query);
-  }
-
-  // T3: 상세검색(구 근거 답변) 전용 — 자체 입력창 값으로 LLM 근거 답변을 실행한다.
+  // P2(2026-07): 상세검색(LLM 근거 답변) 실행 — 최근 질의로 기록해 재실행할 수 있게 한다.
+  // (키워드 검색은 버튼 없는 라이브 위키 목차 포커스로 바뀌어 별도 실행 경로가 없다.)
   async function submitDetailSearch() {
     const query = detailSearchQuery.trim();
     if (!query) {
       return;
     }
+    recordKnowledgeQueryHistory(query);
     await runKnowledgeAskQuery(query);
   }
 
   function rerunKnowledgeQueryFromHistory(query: string) {
-    setKnowledgeQuery(query);
-    void submitKnowledgeQuery(query);
+    setDetailSearchQuery(query);
+    void runKnowledgeAskQuery(query);
   }
 
   async function openKnowledgeDocumentStructure(documentId: string) {
@@ -3489,10 +3585,11 @@ export function KnowledgeScreen() {
     pushToast("info", "업무대화 입력창에 이 문서 이름을 채워 두었습니다.");
   }
 
-  /** J-09: 위키 문서 헤더의 "관련 검색" — 위키 탭 검색 바로 문서 제목 키워드 검색을 즉시 실행한다. */
+  /** J-09: 위키 문서 헤더의 "관련 검색" — 키워드 바에 제목을 채운다. 키워드는 라이브라
+      setKnowledgeQuery만으로 아래 위키 목차에서 매칭 노드로 포커스가 이동한다(P2). */
   function searchRelatedToWikiPage(title: string) {
     setKnowledgeQuery(title);
-    void submitKnowledgeQuery(title);
+    setWikiViewerMode("wiki");
   }
 
   async function copyWikiSourcePath(sourcePath: string) {
@@ -4921,82 +5018,70 @@ export function KnowledgeScreen() {
 
         {activePanel === "wiki" ? (
           <SectionCard eyebrow="지식위키" title="지식 검색과 위키" testId="knowledge-wiki">
-            {/* T3(4호): 키워드 검색(바로가기) — 실행하면 우측 뷰어가 검색 결과로 전환된다. */}
+            {/* P1/P2(4호 후속, 2026-07): 키워드(좌)·상세검색(우) 좌우 2단. 키워드는 버튼 없이
+                라이브 — 입력 즉시 아래 위키 목차에서 매칭 노드로 포커스가 이동한다. 상세검색은
+                LLM 근거 답변이라 명시적 실행 버튼을 유지한다. */}
             <div className="knowledge-wiki-search" data-testid="knowledge-wiki-search">
-              <form
-                className="knowledge-search-form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submitKnowledgeQuery();
-                }}
-              >
-                <label>
-                  지식 검색
-                  <input
-                    value={knowledgeQuery}
-                    onChange={(event) => setKnowledgeQuery(event.target.value)}
-                    placeholder="예: 예산"
-                  />
-                </label>
-                <div className="inline-actions">
-                  <button
-                    type="submit"
-                    className="button-with-icon"
-                    disabled={knowledgeInspectorLoading || !knowledgeQuery.trim()}
-                    title={
-                      knowledgeInspectorLoading
-                        ? "이전 질의를 처리하는 중입니다."
-                        : !knowledgeQuery.trim()
-                          ? "검색어를 먼저 입력해 주세요."
-                          : "키워드로 관련 업무·주제와 문서를 찾습니다."
-                    }
+              <div className="knowledge-search-columns">
+                <form
+                  className="knowledge-search-form knowledge-search-col"
+                  onSubmit={(event) => event.preventDefault()}
+                >
+                  <label>
+                    지식 검색
+                    <input
+                      value={knowledgeQuery}
+                      onChange={(event) => setKnowledgeQuery(event.target.value)}
+                      placeholder="예: 예산 — 입력하면 목차에서 바로 찾습니다"
+                    />
+                  </label>
+                  <p
+                    className="knowledge-search-form__hint subtle-text"
+                    data-testid="knowledge-keyword-hint"
                   >
-                    <AssetIcon src="/icons/action/search-inverse.svg" />
-                    키워드 검색 실행
-                  </button>
-                  {knowledgeSearchResult?.mode && knowledgeSearchResult.mode !== "empty" ? (
-                    <span className="pill pill--soft" data-testid="knowledge-search-mode">
-                      {knowledgeSearchResult.mode === "fts5" ? "정확 일치(트라이그램)" : "부분 일치"}
-                    </span>
-                  ) : null}
-                </div>
-              </form>
+                    {knowledgeQuery.trim().length >= 2
+                      ? focusedWikiKey
+                        ? "아래 위키 목차에서 해당 항목으로 이동했습니다."
+                        : "일치하는 목차 항목이 없습니다. 상세검색을 이용해 보세요."
+                      : "키워드를 입력하면 버튼 없이 위키 목차의 해당 위치로 이동합니다."}
+                  </p>
+                </form>
 
-              {/* T3(4호): 상세검색(구 근거 답변) — 토글 대신 별도 섹션. 기능은 현행 유지. */}
-              <form
-                className="knowledge-detail-search"
-                data-testid="knowledge-detail-search"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void submitDetailSearch();
-                }}
-              >
-                <label>
-                  상세검색 질문
-                  <input
-                    value={detailSearchQuery}
-                    onChange={(event) => setDetailSearchQuery(event.target.value)}
-                    placeholder="예: 출장여비에는 어떤 항목이 포함돼?"
-                  />
-                </label>
-                <div className="inline-actions">
-                  <button
-                    type="submit"
-                    className="button-secondary button-with-icon"
-                    disabled={knowledgeInspectorLoading || !detailSearchQuery.trim()}
-                    title={
-                      knowledgeInspectorLoading
-                        ? "이전 질의를 처리하는 중입니다."
-                        : !detailSearchQuery.trim()
-                          ? "질문을 먼저 입력해 주세요."
-                          : "AI가 색인된 문서에서 근거를 찾아 출처와 함께 답합니다."
-                    }
-                  >
-                    <AssetIcon src="/icons/action/sparkle-inverse.svg" />
-                    상세검색 실행
-                  </button>
-                </div>
-              </form>
+                <form
+                  className="knowledge-detail-search knowledge-search-col"
+                  data-testid="knowledge-detail-search"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void submitDetailSearch();
+                  }}
+                >
+                  <label>
+                    상세검색 질문
+                    <input
+                      value={detailSearchQuery}
+                      onChange={(event) => setDetailSearchQuery(event.target.value)}
+                      placeholder="예: 출장여비에는 어떤 항목이 포함돼?"
+                    />
+                  </label>
+                  <div className="inline-actions">
+                    <button
+                      type="submit"
+                      className="button-secondary button-with-icon"
+                      disabled={knowledgeInspectorLoading || !detailSearchQuery.trim()}
+                      title={
+                        knowledgeInspectorLoading
+                          ? "이전 질의를 처리하는 중입니다."
+                          : !detailSearchQuery.trim()
+                            ? "질문을 먼저 입력해 주세요."
+                            : "AI가 색인된 문서에서 근거를 찾아 출처와 함께 답합니다."
+                      }
+                    >
+                      <AssetIcon src="/icons/action/sparkle-inverse.svg" />
+                      상세검색 실행
+                    </button>
+                  </div>
+                </form>
+              </div>
 
               {knowledgeQueryHistory.length > 0 ? (
                 <div className="knowledge-query-history" data-testid="knowledge-query-history">
@@ -5018,7 +5103,7 @@ export function KnowledgeScreen() {
             </div>
 
             <div className="wiki-browser" data-testid="knowledge-wiki-browser">
-              <nav className="wiki-tree" aria-label="위키 목차">
+              <nav className="wiki-tree" aria-label="위키 목차" ref={wikiTreeRef}>
                 {hasWikiTree && knowledgeWikiTree ? (
                   <>
                     {/* T-01: 확정 분류체계 적용 후 생성되는 업무 허브 — 트리 최상단 */}
@@ -5030,7 +5115,8 @@ export function KnowledgeScreen() {
                             <li key={area.slug}>
                               <button
                                 type="button"
-                                className="wiki-tree__item"
+                                className={wikiItemClass(area.title, focusedWikiKey)}
+                                data-wiki-key={normalizeTopicKey(area.title)}
                                 onClick={() => void openKnowledgeWikiTarget(area.path)}
                               >
                                 <span>{area.title}</span>
@@ -5054,7 +5140,8 @@ export function KnowledgeScreen() {
                                 <li key={topic.slug}>
                                   <button
                                     type="button"
-                                    className="wiki-tree__item"
+                                    className={wikiItemClass(topic.title, focusedWikiKey)}
+                                    data-wiki-key={normalizeTopicKey(topic.title)}
                                     onClick={() => void openKnowledgeWikiTarget(topic.path)}
                                   >
                                     <span>{topic.title}</span>
@@ -5108,7 +5195,8 @@ export function KnowledgeScreen() {
                             <li key={work.slug}>
                               <button
                                 type="button"
-                                className="wiki-tree__item"
+                                className={wikiItemClass(work.title, focusedWikiKey)}
+                                data-wiki-key={normalizeTopicKey(work.title)}
                                 onClick={() => void openKnowledgeWikiTarget(work.path)}
                               >
                                 <span>{work.title}</span>
@@ -5460,18 +5548,52 @@ export function KnowledgeScreen() {
                       업무대화로 이어가기
                     </button>
                   </div>
-                  <h3 className="subheading">출처 문서</h3>
-                  {knowledgeAskResult.citations.length > 0 ? (
+                  {/* P3(2026-07): 출처는 (답변 반영, 품질)순 정렬 — 반영된 근거를 위로 올리고
+                      배지로 표시한다. 발췌는 cleanCitationSnippet으로 가독성 정리 후 파싱한다. */}
+                  <div className="knowledge-citation-head">
+                    <h3 className="subheading">출처 문서</h3>
+                    {orderedCitations.length > 0 ? (
+                      <span className="subtle-text" data-testid="knowledge-citation-summary">
+                        {orderedCitations.length}개 · 답변 반영 {reflectedCitationCount}개 · 품질순
+                      </span>
+                    ) : null}
+                  </div>
+                  {orderedCitations.length > 0 ? (
                     <div className="item-list">
-                      {knowledgeAskResult.citations.map((citation, index) => {
+                      {orderedCitations.map(({ citation, reflected, rank }) => {
                         const citationPath = citation.source_path ?? citation.file_path;
                         const citationTitle = displayTitleForFile(citation.title, citationPath);
+                        const qualityPercent =
+                          typeof citation.quality_score === "number"
+                            ? Math.round(citation.quality_score * 100)
+                            : null;
                         return (
-                        <article key={`${citation.doc_id ?? citation.file_path}-${index}`} className="list-card">
+                        <article
+                          key={`${citation.doc_id ?? citation.file_path}-${rank}`}
+                          className={`list-card knowledge-citation-card${reflected ? " knowledge-citation-card--reflected" : ""}`}
+                          data-testid="knowledge-citation-card"
+                          data-reflected={reflected ? "true" : "false"}
+                        >
                           <div className="list-card__main list-card__main--static">
-                            <div>
-                              <h3>{citationTitle}</h3>
-                              <p>원본: {relativePath(citationPath)}</p>
+                            <div className="knowledge-citation-card__head">
+                              <div className="knowledge-citation-card__titleline">
+                                <span className="knowledge-citation-card__rank" aria-hidden="true">
+                                  {rank + 1}
+                                </span>
+                                <h3>{citationTitle}</h3>
+                                {reflected ? (
+                                  <span
+                                    className="pill pill--accent"
+                                    data-testid="knowledge-citation-reflected"
+                                    title="답변 본문에 이 출처의 내용이 반영된 것으로 확인됩니다."
+                                  >
+                                    답변 반영
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="knowledge-citation-card__path">
+                                원본: {relativePath(citationPath)}
+                              </p>
                             </div>
                             <button
                               type="button"
@@ -5483,10 +5605,14 @@ export function KnowledgeScreen() {
                               <AssetIcon src="/icons/action/folder-open.svg" />
                             </button>
                           </div>
-                          <ParsedExcerpt text={citation.snippet} label="발췌" />
-                          <div className="document-preview__meta">
-                            {typeof citation.quality_score === "number" ? (
-                              <span>품질 {Math.round(citation.quality_score * 100)}%</span>
+                          <ParsedExcerpt text={cleanCitationSnippet(citation.snippet)} label="발췌" />
+                          <div className="knowledge-citation-card__meta">
+                            {qualityPercent !== null ? (
+                              <span
+                                className={`pill knowledge-quality-pill knowledge-quality-pill--${qualityTier(citation.quality_score ?? 0)}`}
+                              >
+                                품질 {qualityPercent}%
+                              </span>
                             ) : null}
                             {(citation.quality_warnings ?? []).length > 0 ? (
                               <span className="pill pill--warning">
