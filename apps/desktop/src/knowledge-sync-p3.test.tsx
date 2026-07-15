@@ -24,6 +24,7 @@ vi.mock("./runtime", () => ({
   launchAnythingQuery: vi.fn(async () => undefined),
   openExternalTarget: vi.fn(async () => undefined),
   copyTextToClipboard: vi.fn(async () => undefined),
+  setDesktopZoom: vi.fn(async (scale: number) => scale),
 }));
 
 import { App } from "./app";
@@ -292,6 +293,7 @@ describe("knowledge incremental sync P3 (verify / drift badge / startup diff)", 
     render(<App />);
 
     await openKnowledgeSettingsTab(user);
+    await user.click(screen.getByTestId("knowledge-settings-nav-maintenance")); // T5: 무결성 점검은 유지관리 서브섹션
     const verifyGroup = await screen.findByTestId("knowledge-verify-group");
     // 아직 검증 이력이 없으면 결과 카드는 비어 있다.
     expect(screen.queryByTestId("knowledge-verify-result")).not.toBeInTheDocument();

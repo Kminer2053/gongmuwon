@@ -24,6 +24,7 @@ vi.mock("./runtime", () => ({
   launchAnythingQuery: vi.fn(async () => undefined),
   openExternalTarget: vi.fn(async () => undefined),
   copyTextToClipboard: vi.fn(async () => undefined),
+  setDesktopZoom: vi.fn(async (scale: number) => scale),
 }));
 
 import { App } from "./app";
@@ -39,6 +40,15 @@ const jsonResponse = (payload: unknown, status = 200) =>
 async function openSettingsTab(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
   await user.click(screen.getByRole("tab", { name: "설정" }));
+}
+
+// T5(4호): 설정 탭 3분할 서브내비 — 분류·어휘/유지관리 항목은 해당 서브섹션을 먼저 선택해야 렌더된다.
+async function openSettingsSection(
+  user: ReturnType<typeof userEvent.setup>,
+  section: "folders" | "taxonomy" | "maintenance",
+) {
+  await openSettingsTab(user);
+  await user.click(screen.getByTestId(`knowledge-settings-nav-${section}`));
 }
 
 async function registerSource(user: ReturnType<typeof userEvent.setup>, label: string) {
@@ -1102,13 +1112,24 @@ describe("knowledge source folders", () => {
     expect(screen.queryByRole("tab", { name: "색인 처리" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("지식 검색")).not.toBeInTheDocument();
 
-    // 설정 탭: ①지식폴더 지정 ②위키 구성 설정 ③색인 설정·실행 (진단·상세 데이터 그룹은 제거)
+    // T5(4호): 설정 탭 3분할 서브내비 — role=tab 이 아니라 seg-control(role=group)이므로 탭 3개 불변
     await user.click(screen.getByRole("tab", { name: "설정" }));
+    expect(screen.getAllByRole("tab")).toHaveLength(3); // 서브내비가 tab 시맨틱을 오염시키지 않는다
+    expect(screen.getByTestId("knowledge-settings-nav-folders")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-settings-nav-taxonomy")).toBeInTheDocument();
+    expect(screen.getByTestId("knowledge-settings-nav-maintenance")).toBeInTheDocument();
+
+    // 기본 서브섹션(폴더·색인): 지식폴더 지정 + 색인 설정·실행 표시, 위키 구성 설정은 숨김
     expect(screen.getByText("지식폴더 지정")).toBeInTheDocument();
     expect(screen.getByText("지식 소스 등록 설정")).toBeInTheDocument();
-    expect(screen.getByText("위키 구성 설정")).toBeInTheDocument();
     expect(screen.getByText("색인 설정·실행")).toBeInTheDocument();
-    expect(screen.queryByText("진단·상세 데이터")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-taxonomy-entry")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-verify-group")).not.toBeInTheDocument();
+
+    // 분류·어휘 서브섹션으로 전환하면 위키 구성 설정이 보인다
+    await user.click(screen.getByTestId("knowledge-settings-nav-taxonomy"));
+    expect(screen.getByText("위키 구성 설정")).toBeInTheDocument();
+    expect(screen.queryByText("지식폴더 지정")).not.toBeInTheDocument();
 
     // 위키 탭: 상단 검색 바 + 2컬럼 브라우저
     await user.click(screen.getByRole("tab", { name: "위키" }));
@@ -1116,6 +1137,38 @@ describe("knowledge source folders", () => {
     expect(screen.getByLabelText("지식 검색")).toBeInTheDocument();
     expect(await screen.findByTestId("knowledge-wiki-browser")).toBeInTheDocument();
     expect(screen.queryByText("지식 소스 등록 설정")).not.toBeInTheDocument();
+  });
+
+  it("T5: each setting section shows 무엇/언제/결과 help and never triggers work on nav switch", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await openSettingsTab(user);
+
+    // 폴더·색인 서브섹션: 소스·색인·진행 상태 설명 3요소
+    for (const id of ["settings-help-sources", "settings-help-indexing", "settings-help-progress"]) {
+      const help = screen.getByTestId(id);
+      expect(help).toHaveTextContent("무엇:");
+      expect(help).toHaveTextContent("언제:");
+      expect(help).toHaveTextContent("결과:");
+    }
+
+    // 네거티브: 서브내비를 순회 클릭해도 role=tab 은 3개 불변, POST/PUT/DELETE 0건
+    const mutatingBefore = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([, init]) => init && init.method && init.method !== "GET",
+    ).length;
+    await user.click(screen.getByTestId("knowledge-settings-nav-taxonomy"));
+    expect(screen.getByTestId("settings-help-taxonomy")).toHaveTextContent("결과:");
+    expect(screen.getByTestId("settings-help-vocab-pack")).toHaveTextContent("무엇:");
+    await user.click(screen.getByTestId("knowledge-settings-nav-maintenance"));
+    expect(screen.getByTestId("settings-help-enrich")).toHaveTextContent("언제:");
+    expect(screen.getByTestId("settings-help-verify")).toHaveTextContent("결과:");
+    await user.click(screen.getByTestId("knowledge-settings-nav-folders"));
+
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    const mutatingAfter = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.filter(
+      ([, init]) => init && init.method && init.method !== "GET",
+    ).length;
+    expect(mutatingAfter).toBe(mutatingBefore); // 섹션 전환은 조회성 GET만 허용
   });
 
   it("shows full log dump and visual ingestion progress status", async () => {
@@ -1144,7 +1197,7 @@ describe("knowledge source folders", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await openSettingsTab(user);
+    await openSettingsSection(user, "maintenance"); // T5: LLM 요약 보강은 유지관리 서브섹션
     const enrichButton = await screen.findByRole("button", { name: "LLM 요약 보강 시작" });
     await waitFor(() => expect(enrichButton).toBeEnabled());
     await user.click(enrichButton);
@@ -1347,7 +1400,7 @@ describe("knowledge source folders", () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await openSettingsTab(user);
+    await openSettingsSection(user, "taxonomy"); // T5: 위키 구성 설정은 분류·어휘 서브섹션
 
     const entry = await screen.findByTestId("knowledge-taxonomy-entry");
     expect(entry).toHaveTextContent("위키 구성 설정");

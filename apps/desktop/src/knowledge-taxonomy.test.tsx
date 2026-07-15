@@ -32,6 +32,7 @@ vi.mock("./runtime", () => ({
   launchAnythingQuery: vi.fn(async () => undefined),
   openExternalTarget: vi.fn(async () => undefined),
   copyTextToClipboard: vi.fn(async () => undefined),
+  setDesktopZoom: vi.fn(async (scale: number) => scale),
 }));
 
 import { App } from "./app";
@@ -425,7 +426,27 @@ describe("work-aware taxonomy wizard, queue, and wiki hubs (T-01)", () => {
   async function openSettingsTab(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
     await user.click(screen.getByRole("tab", { name: "설정" }));
+    // T5(4호): 분류체계 마법사·큐는 '② 분류·어휘' 서브섹션에 있다.
+    await user.click(screen.getByTestId("knowledge-settings-nav-taxonomy"));
   }
+
+  it("T5: keeps the wizard modal mounted across settings sub-section switches", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await openSettingsTab(user); // 분류·어휘 서브섹션
+    const entry = await screen.findByTestId("knowledge-taxonomy-entry");
+    const wizardButton = within(entry).getByRole("button", { name: "분류체계 설정" });
+    await waitFor(() => expect(wizardButton).toBeEnabled());
+    await user.click(wizardButton);
+    expect(await screen.findByTestId("taxonomy-wizard")).toBeInTheDocument();
+
+    // 서브섹션을 전환해도 마법사 모달은 유지된다(마운트가 서브섹션 조건 밖).
+    await user.click(screen.getByTestId("knowledge-settings-nav-folders"));
+    expect(screen.getByTestId("taxonomy-wizard")).toBeInTheDocument();
+    await user.click(screen.getByTestId("knowledge-settings-nav-maintenance"));
+    expect(screen.getByTestId("taxonomy-wizard")).toBeInTheDocument();
+  });
 
   it("runs the 3-step wizard: interview save → proposal review/edit → confirm payload → apply", async () => {
     const user = userEvent.setup();

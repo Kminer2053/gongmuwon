@@ -119,6 +119,61 @@ const KNOWLEDGE_SETTINGS_ANCHORS = {
   verify: "knowledge-settings-verify",
 } as const;
 
+/**
+ * T5(4호): 설정 탭 내부 3분할 서브내비. 화면이 세로로 길어 '지금 무엇을 하는 화면인지'가
+ * 안 보인다는 피드백을 해소한다. 상위 탭(role=tab)과 혼동을 막기 위해 seg-control(role=group)로
+ * 구현한다 — role=tab 은 상단 3탭 전용.
+ */
+type KnowledgeSettingsSection = "folders" | "taxonomy" | "maintenance";
+
+const KNOWLEDGE_SETTINGS_SECTIONS: ReadonlyArray<{
+  key: KnowledgeSettingsSection;
+  label: string;
+  hint: string;
+}> = [
+  { key: "folders", label: "① 폴더·색인", hint: "폴더 등록 → 스캔 → 색인" },
+  { key: "taxonomy", label: "② 분류·어휘", hint: "업무 분류체계와 용어" },
+  { key: "maintenance", label: "③ 유지관리", hint: "요약 보강 · 무결성 점검" },
+];
+
+/** 대시보드 [설정으로] 딥링크 앵커 → 착지할 서브섹션. */
+const ANCHOR_TO_SETTINGS_SECTION: Record<string, KnowledgeSettingsSection> = {
+  [KNOWLEDGE_SETTINGS_ANCHORS.sources]: "folders",
+  [KNOWLEDGE_SETTINGS_ANCHORS.indexing]: "folders",
+  [KNOWLEDGE_SETTINGS_ANCHORS.taxonomy]: "taxonomy",
+  [KNOWLEDGE_SETTINGS_ANCHORS.enrich]: "maintenance",
+  [KNOWLEDGE_SETTINGS_ANCHORS.verify]: "maintenance",
+};
+
+/**
+ * T5(4호): 각 설정 항목에 '무엇을/언제/결과가 어디에' 3요소를 붙여 비개발자 눈높이 설명을 제공한다.
+ */
+function SettingHelp({
+  what,
+  when,
+  where,
+  testId,
+}: {
+  what: string;
+  when: string;
+  where: string;
+  testId?: string;
+}) {
+  return (
+    <div className="knowledge-setting-help" data-testid={testId}>
+      <p>
+        <strong>무엇:</strong> {what}
+      </p>
+      <p>
+        <strong>언제:</strong> {when}
+      </p>
+      <p>
+        <strong>결과:</strong> {where}
+      </p>
+    </div>
+  );
+}
+
 /** diff 견적의 변경 합계(추가+수정+이동+삭제). 0이면 "색인이 최신" 분기. */
 function diffChangedTotal(result: KnowledgeSourceDiffResult): number {
   return result.added + result.modified + result.moved + result.deleted;
@@ -2620,6 +2675,9 @@ export function KnowledgeScreen() {
   const [taxonomyWizardOpen, setTaxonomyWizardOpen] = useState(false);
   const [taxonomyRefreshKey, setTaxonomyRefreshKey] = useState(0);
 
+  // T5(4호): 설정 탭 3분할 서브내비 상태(화면 로컬). store에 올리지 않아 외부 파일 영향 없음.
+  const [settingsSection, setSettingsSection] = useState<KnowledgeSettingsSection>("folders");
+
   // 어휘집 규격 §5·§6: 팩 임포트/제거 시 증가 — 팩 블록·후보 섹션이 요약을 다시 조회한다.
   const [vocabRefreshKey, setVocabRefreshKey] = useState(0);
 
@@ -2726,10 +2784,12 @@ export function KnowledgeScreen() {
     })();
   }, [pendingVerifyJobId, snapshot.workJobs]);
 
-  /** 대시보드 [설정으로] — 설정 탭으로 이동한 뒤 해당 그룹 카드로 스크롤한다. */
+  /** 대시보드 [설정으로] — 설정 탭으로 이동한 뒤 해당 서브섹션·그룹 카드로 스크롤한다. */
   function goToSettingsGroup(anchorId?: string) {
     setKnowledgePanel("indexing");
     setKnowledgeExtractionView(false);
+    // T5(4호): 앵커가 속한 서브섹션을 먼저 선택해야 해당 그룹이 렌더된다.
+    setSettingsSection(anchorId ? (ANCHOR_TO_SETTINGS_SECTION[anchorId] ?? "folders") : "folders");
     if (!anchorId) {
       return;
     }
@@ -3094,6 +3154,7 @@ export function KnowledgeScreen() {
   function openTaxonomyWizardFromDrift() {
     setKnowledgePanel("indexing");
     setKnowledgeExtractionView(false);
+    setSettingsSection("taxonomy"); // T5: 드리프트 배지는 분류·어휘 서브섹션에 착지
     setTaxonomyWizardOpen(true);
   }
 
@@ -3932,12 +3993,38 @@ export function KnowledgeScreen() {
               <div className="hint-box hint-box--warning">{knowledgeIngestionLockMessage}</div>
             ) : null}
 
+            {/* T5(4호): 설정 탭 3분할 서브내비 — role=tab 금지(상단 3탭 전용), seg-control(role=group) */}
+            <div
+              className="seg-control knowledge-settings-nav"
+              role="group"
+              aria-label="설정 구획 선택"
+              data-testid="knowledge-settings-nav"
+            >
+              {KNOWLEDGE_SETTINGS_SECTIONS.map((section) => (
+                <button
+                  key={section.key}
+                  type="button"
+                  className={`seg-control__option ${settingsSection === section.key ? "is-active" : ""}`}
+                  aria-pressed={settingsSection === section.key}
+                  data-testid={`knowledge-settings-nav-${section.key}`}
+                  onClick={() => setSettingsSection(section.key)}
+                  title={section.hint}
+                >
+                  {section.label}
+                </button>
+              ))}
+            </div>
+
             {/* 설정 ① 지식폴더 지정 — 폴더 등록/변경/스캔 */}
+            {settingsSection === "folders" ? (
             <div id={KNOWLEDGE_SETTINGS_ANCHORS.sources} className="knowledge-settings-group">
-            <SectionCard eyebrow="설정 ①" title="지식폴더 지정">
-              <div className="helper-copy">
-                <p>지식폴더로 쓸 업무 폴더를 등록하고, 스캔으로 파일 목록과 본문 원본을 갱신합니다.</p>
-              </div>
+            <SectionCard eyebrow="폴더" title="지식폴더 지정">
+              <SettingHelp
+                testId="settings-help-sources"
+                what="내 컴퓨터의 업무 폴더를 이 앱이 읽을 '지식폴더'로 등록합니다."
+                when="처음 설치했을 때 한 번, 새 업무 폴더가 생겼을 때."
+                where="아래 '등록 폴더' 카드에 폴더와 파일 수가 표시됩니다."
+              />
               <details className="knowledge-detail-section">
                 <summary>지식 소스 등록 설정</summary>
                 <div className="helper-copy">
@@ -4057,16 +4144,18 @@ export function KnowledgeScreen() {
               </div>
             </SectionCard>
             </div>
+            ) : null}
 
             {/* 설정 ② 위키 구성 설정 — 분류체계 마법사 + SCHEMA.md + 분류 대기 큐 (T-01) */}
+            {settingsSection === "taxonomy" ? (
             <div id={KNOWLEDGE_SETTINGS_ANCHORS.taxonomy} className="knowledge-settings-group">
-            <SectionCard eyebrow="설정 ②" title="위키 구성 설정" testId="knowledge-taxonomy-entry">
-              <div className="helper-copy">
-                <p>
-                  4문항 인터뷰와 폴더 구조 분석으로 업무 분류체계를 만들고, 확정하면 문서가 업무 단위 허브로 자동
-                  정리됩니다. 확정 기준은 SCHEMA.md에 기록됩니다.
-                </p>
-              </div>
+            <SectionCard eyebrow="분류체계" title="위키 구성 설정" testId="knowledge-taxonomy-entry">
+              <SettingHelp
+                testId="settings-help-taxonomy"
+                what="4문항 인터뷰와 폴더 구조 분석으로 '업무 분류체계'(위키 목차 뼈대)를 만듭니다."
+                when="지식폴더 등록 직후 한 번, 부서·업무가 바뀌었을 때 다시."
+                where="위키 탭 목차가 업무 단위로 정리되고, 기준이 SCHEMA.md 문서에 기록됩니다."
+              />
               <div className="inline-actions">
                 <button
                   type="button"
@@ -4104,6 +4193,12 @@ export function KnowledgeScreen() {
                 </div>
               ) : null}
               {/* 어휘집 규격 §5: 기관 어휘집 팩 — 현재 적용 팩 정보 / 임포트 / 제거 */}
+              <SettingHelp
+                testId="settings-help-vocab-pack"
+                what="기관 공식 용어·동의어 목록을 넣어 검색·분류가 우리 기관 말로 통하게 합니다."
+                when="기관에서 배포한 어휘집 파일을 받았을 때."
+                where="다음 색인·분류부터 적용되고, 현재 적용 중인 팩이 이 카드에 표시됩니다."
+              />
               <VocabPackBlock
                 variant="full"
                 pushToast={pushToast}
@@ -4111,21 +4206,39 @@ export function KnowledgeScreen() {
                 onChanged={() => setVocabRefreshKey((value) => value + 1)}
               />
             </SectionCard>
+            {/* 분류 대기 큐(자체 SectionCard) — 설명은 카드 위에 얹는다 */}
+            <SettingHelp
+              testId="settings-help-queue"
+              what="어느 업무인지 확신이 낮았던 문서를 사람이 직접 지정합니다."
+              when="분류체계 적용 후 '분류 대기 N건'이 남았을 때."
+              where="지정한 문서가 해당 업무 허브(위키 목차)로 이동합니다."
+            />
             <TaxonomyQueueSection
               refreshKey={taxonomyRefreshKey}
               pushToast={pushToast}
               sources={snapshot.knowledgeSources}
             />
             {/* 어휘집 규격 §6: 주제 어휘 후보 — pending 후보 승인/병합/거절 */}
+            <SettingHelp
+              testId="settings-help-vocab-candidates"
+              what="문서에서 자동으로 찾아낸 새 용어 후보를 검토해 승인하거나 거절합니다."
+              when="대시보드에 '주제 후보 검토 N건' 배지가 보일 때."
+              where="승인한 용어는 어휘집에 추가되어 다음 색인부터 검색·분류에 쓰입니다."
+            />
             <VocabCandidateSection refreshKey={vocabRefreshKey} pushToast={pushToast} />
             </div>
+            ) : null}
 
-            {/* 설정 ③ 색인 설정·실행 — 색인 시작/강제 재색인/LLM 요약 보강/진행 상태/색인 상세 로그 */}
+            {/* 설정 ③ 색인 설정·실행 — 색인 시작/강제 재색인/진행 상태/색인 상세 로그 (folders 섹션) */}
+            {settingsSection === "folders" ? (
             <div id={KNOWLEDGE_SETTINGS_ANCHORS.indexing} className="knowledge-settings-group">
-            <SectionCard eyebrow="설정 ③" title="색인 설정·실행">
-              <div className="helper-copy">
-                <p>색인은 스캔된 문서를 검색용 인덱스와 위키 문서 카드로 만듭니다. 강제 재색인은 전체 문서를 처음부터 다시 처리합니다.</p>
-              </div>
+            <SectionCard eyebrow="색인 실행" title="색인 설정·실행">
+              <SettingHelp
+                testId="settings-help-indexing"
+                what="스캔한 문서를 검색과 위키에서 쓸 수 있게 정리(색인)합니다."
+                when="스캔 후, 또는 대시보드에 '미반영 변경'이 보일 때."
+                where="위키 탭의 문서 목차와 검색 결과에 반영됩니다. 진행률은 아래 '진행 상태'에서 확인합니다."
+              />
               {snapshot.knowledgeSources.length === 0 ? (
                 <EmptyState
                   title="색인할 지식폴더가 없습니다."
@@ -4269,143 +4382,18 @@ export function KnowledgeScreen() {
                 </div>
               )}
 
-              {/* LLM 요약 보강 — 색인 품질 보강 실행 */}
-              <div id={KNOWLEDGE_SETTINGS_ANCHORS.enrich} className="knowledge-settings-subgroup">
-                <div className="document-preview__meta">
-                  <span className="pill">LLM 요약 보강</span>
-                  <span className="subtle-text">
-                    색인된 위키 문서 카드의 요약을 LLM으로 다시 작성해 검색과 근거 답변 품질을 높입니다.
-                  </span>
-                </div>
-                <div className="inline-actions">
-                  <button
-                    type="button"
-                    className="button-with-icon"
-                    onClick={() => void startKnowledgeEnrichJob()}
-                    disabled={knowledgeEnrichStarting || llmEnrichmentConfigured === false}
-                    title={enrichDisabledReason ?? "위키 문서 카드 요약을 LLM으로 보강하는 작업을 시작합니다."}
-                  >
-                    <AssetIcon src="/icons/action/sparkle-inverse.svg" />
-                    LLM 요약 보강 시작
-                  </button>
-                </div>
-                {llmEnrichmentConfigured === false ? (
-                  <LlmSetupNotice
-                    message="LLM 요약 보강을 사용하려면 환경설정에서 모델 연결을 먼저 완료해 주세요."
-                    onOpenSettings={() => setActiveMenu("settings")}
-                  />
-                ) : null}
-              </div>
-
-              {/* 무결성 점검 — P3 §6: quick 기본, 심층(전량 재해시)은 접힘 보조 */}
-              <div
-                id={KNOWLEDGE_SETTINGS_ANCHORS.verify}
-                className="knowledge-settings-subgroup"
-                data-testid="knowledge-verify-group"
-              >
-                <div className="document-preview__meta">
-                  <span className="pill">무결성 점검</span>
-                  <span className="subtle-text">
-                    색인·지식카드·검색 인덱스의 불일치를 검사합니다. 안전한 항목(카드 재생성, 고아 파일
-                    정리)은 자동 수리하고, 파싱 비용이 드는 항목은 보고 후 안내를 따릅니다.
-                  </span>
-                </div>
-                <div className="inline-actions">
-                  <button
-                    type="button"
-                    className="button-with-icon"
-                    onClick={() => void startKnowledgeVerifyJob(false)}
-                    disabled={verifyActionDisabled}
-                    title={
-                      verifyDisabledReason ??
-                      "파일을 다시 읽지 않는 빠른 점검을 실행합니다. 진행은 작업 패널에서 확인합니다."
-                    }
-                  >
-                    <AssetIcon src="/icons/action/play-inverse.svg" />
-                    무결성 점검
-                  </button>
-                </div>
-                <details className="knowledge-detail-section">
-                  <summary>심층 점검 — 전체 파일 재확인</summary>
-                  <p className="subtle-text">
-                    모든 파일 내용을 다시 읽어(전량 재해시) 크기·수정일이 보존된 조용한 변경까지 찾아냅니다.
-                    파일이 많으면 수 분이 걸릴 수 있습니다.
-                  </p>
-                  <div className="inline-actions">
-                    <button
-                      type="button"
-                      className="button-secondary"
-                      onClick={() => void startKnowledgeVerifyJob(true)}
-                      disabled={verifyActionDisabled}
-                      title={verifyDisabledReason ?? "전체 파일을 다시 읽는 심층 점검을 실행합니다."}
-                    >
-                      심층 — 전체 파일 재확인
-                    </button>
-                  </div>
-                </details>
-                {pendingVerifyJobId ? (
-                  <p className="subtle-text" data-testid="knowledge-verify-running">
-                    무결성 점검이 진행 중입니다 — 진행률은 작업 패널에서 확인하세요.
-                  </p>
-                ) : null}
-                {knowledgeVerifyLatest ? (
-                  <div className="document-preview" data-testid="knowledge-verify-result">
-                    <div className="document-preview__meta">
-                      <span className="pill">최근 점검 결과</span>
-                      <span>{knowledgeVerifyLatest.mode === "deep" ? "심층 점검" : "빠른 점검"}</span>
-                      <span className="subtle-text">실행 {formatDateTime(knowledgeVerifyLatest.ran_at)}</span>
-                      {verifyAttentionCount > 0 ? (
-                        <span className="pill pill--warning">확인 필요 {verifyAttentionCount}건</span>
-                      ) : (
-                        <span className="pill pill--soft">이상 없음</span>
-                      )}
-                      {verifyHealedCount > 0 ? (
-                        <span className="pill pill--soft">자동 수리 {verifyHealedCount}건</span>
-                      ) : null}
-                      {(knowledgeVerifyLatest.disk_reclaimed_bytes ?? 0) > 0 ? (
-                        <span className="subtle-text">
-                          회수 공간 {formatRehashMegabytes(knowledgeVerifyLatest.disk_reclaimed_bytes ?? 0)}
-                        </span>
-                      ) : null}
-                    </div>
-                    {verifyIssueChecks.length === 0 ? (
-                      <p className="subtle-text">모든 검사 항목이 정상입니다.</p>
-                    ) : (
-                      <div className="item-list item-list--compact">
-                        {verifyIssueChecks.map((check) => {
-                          const remaining = verifyCheckRemaining(check);
-                          return (
-                            <article
-                              key={check.code}
-                              className="list-card list-card--compact"
-                              data-testid="knowledge-verify-check"
-                            >
-                              <div className="list-card__main list-card__main--static">
-                                <div>
-                                  <h3>{check.label_ko}</h3>
-                                  {remaining > 0 && check.action_hint ? <p>{check.action_hint}</p> : null}
-                                </div>
-                                <span className={remaining > 0 ? "pill pill--warning" : "pill pill--soft"}>
-                                  {remaining > 0
-                                    ? `확인 필요 ${remaining}건`
-                                    : `자동 수리 ${check.healed}건`}
-                                </span>
-                              </div>
-                            </article>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-
-              {/* 진행 상태 — 진행률, 소요시간, 색인 상세 로그 */}
+              {/* 진행 상태 — 진행률, 소요시간, 색인 상세 로그 (T5: 유지관리 항목은 ③ 유지관리로 이동) */}
               <div className="knowledge-settings-subgroup">
                 <div className="document-preview__meta">
                   <span className="pill">진행 상태</span>
                   <span className="subtle-text">색인 작업 진행률과 색인 상세 로그를 확인합니다.</span>
                 </div>
+                <SettingHelp
+                  testId="settings-help-progress"
+                  what="스캔·색인 작업의 진행률과 실패 기록을 보여줍니다."
+                  when="색인을 시작하면 자동으로 갱신됩니다."
+                  where="완료되면 '색인완료 파일 N개'가 늘고 위키 탭에 반영됩니다. 실패한 파일은 여기서 다시 색인할 수 있습니다."
+                />
               <div className="knowledge-index-status-row">
                 <button
                   type="button"
@@ -4618,6 +4606,157 @@ export function KnowledgeScreen() {
               </div>
             </SectionCard>
             </div>
+            ) : null}
+
+            {/* ③ 유지관리 — LLM 요약 보강 + 무결성 점검 (T5: 색인 SectionCard에서 분리) */}
+            {settingsSection === "maintenance" ? (
+            <div className="knowledge-settings-group">
+            <SectionCard eyebrow="유지관리" title="요약 보강·무결성 점검">
+              {/* LLM 요약 보강 — 색인 품질 보강 실행 */}
+              <div id={KNOWLEDGE_SETTINGS_ANCHORS.enrich} className="knowledge-settings-subgroup">
+                <SettingHelp
+                  testId="settings-help-enrich"
+                  what="색인된 문서 카드의 요약문을 AI가 다시 씁니다."
+                  when="색인 완료 후, 검색·근거 답변 품질을 높이고 싶을 때."
+                  where="위키 문서 카드의 요약이 좋아지고 '요약 보유 n/전체' 수치가 올라갑니다."
+                />
+                <div className="document-preview__meta">
+                  <span className="pill">LLM 요약 보강</span>
+                  <span className="subtle-text">
+                    색인된 위키 문서 카드의 요약을 LLM으로 다시 작성해 검색과 근거 답변 품질을 높입니다.
+                  </span>
+                </div>
+                <div className="inline-actions">
+                  <button
+                    type="button"
+                    className="button-with-icon"
+                    onClick={() => void startKnowledgeEnrichJob()}
+                    disabled={knowledgeEnrichStarting || llmEnrichmentConfigured === false}
+                    title={enrichDisabledReason ?? "위키 문서 카드 요약을 LLM으로 보강하는 작업을 시작합니다."}
+                  >
+                    <AssetIcon src="/icons/action/sparkle-inverse.svg" />
+                    LLM 요약 보강 시작
+                  </button>
+                </div>
+                {llmEnrichmentConfigured === false ? (
+                  <LlmSetupNotice
+                    message="LLM 요약 보강을 사용하려면 환경설정에서 모델 연결을 먼저 완료해 주세요."
+                    onOpenSettings={() => setActiveMenu("settings")}
+                  />
+                ) : null}
+              </div>
+
+              {/* 무결성 점검 — P3 §6: quick 기본, 심층(전량 재해시)은 접힘 보조 */}
+              <div
+                id={KNOWLEDGE_SETTINGS_ANCHORS.verify}
+                className="knowledge-settings-subgroup"
+                data-testid="knowledge-verify-group"
+              >
+                <SettingHelp
+                  testId="settings-help-verify"
+                  what="색인·문서 카드·검색 인덱스가 서로 어긋나지 않았는지 검사하고, 안전한 항목은 자동 수리합니다."
+                  when="한 달에 한 번쯤, 또는 검색 결과가 이상할 때."
+                  where="아래 '최근 점검 결과' 카드에 자동 수리·확인 필요 건수가 표시됩니다."
+                />
+                <div className="document-preview__meta">
+                  <span className="pill">무결성 점검</span>
+                  <span className="subtle-text">
+                    색인·지식카드·검색 인덱스의 불일치를 검사합니다. 안전한 항목(카드 재생성, 고아 파일
+                    정리)은 자동 수리하고, 파싱 비용이 드는 항목은 보고 후 안내를 따릅니다.
+                  </span>
+                </div>
+                <div className="inline-actions">
+                  <button
+                    type="button"
+                    className="button-with-icon"
+                    onClick={() => void startKnowledgeVerifyJob(false)}
+                    disabled={verifyActionDisabled}
+                    title={
+                      verifyDisabledReason ??
+                      "파일을 다시 읽지 않는 빠른 점검을 실행합니다. 진행은 작업 패널에서 확인합니다."
+                    }
+                  >
+                    <AssetIcon src="/icons/action/play-inverse.svg" />
+                    무결성 점검
+                  </button>
+                </div>
+                <details className="knowledge-detail-section">
+                  <summary>심층 점검 — 전체 파일 재확인</summary>
+                  <p className="subtle-text">
+                    모든 파일 내용을 다시 읽어(전량 재해시) 크기·수정일이 보존된 조용한 변경까지 찾아냅니다.
+                    파일이 많으면 수 분이 걸릴 수 있습니다.
+                  </p>
+                  <div className="inline-actions">
+                    <button
+                      type="button"
+                      className="button-secondary"
+                      onClick={() => void startKnowledgeVerifyJob(true)}
+                      disabled={verifyActionDisabled}
+                      title={verifyDisabledReason ?? "전체 파일을 다시 읽는 심층 점검을 실행합니다."}
+                    >
+                      심층 — 전체 파일 재확인
+                    </button>
+                  </div>
+                </details>
+                {pendingVerifyJobId ? (
+                  <p className="subtle-text" data-testid="knowledge-verify-running">
+                    무결성 점검이 진행 중입니다 — 진행률은 작업 패널에서 확인하세요.
+                  </p>
+                ) : null}
+                {knowledgeVerifyLatest ? (
+                  <div className="document-preview" data-testid="knowledge-verify-result">
+                    <div className="document-preview__meta">
+                      <span className="pill">최근 점검 결과</span>
+                      <span>{knowledgeVerifyLatest.mode === "deep" ? "심층 점검" : "빠른 점검"}</span>
+                      <span className="subtle-text">실행 {formatDateTime(knowledgeVerifyLatest.ran_at)}</span>
+                      {verifyAttentionCount > 0 ? (
+                        <span className="pill pill--warning">확인 필요 {verifyAttentionCount}건</span>
+                      ) : (
+                        <span className="pill pill--soft">이상 없음</span>
+                      )}
+                      {verifyHealedCount > 0 ? (
+                        <span className="pill pill--soft">자동 수리 {verifyHealedCount}건</span>
+                      ) : null}
+                      {(knowledgeVerifyLatest.disk_reclaimed_bytes ?? 0) > 0 ? (
+                        <span className="subtle-text">
+                          회수 공간 {formatRehashMegabytes(knowledgeVerifyLatest.disk_reclaimed_bytes ?? 0)}
+                        </span>
+                      ) : null}
+                    </div>
+                    {verifyIssueChecks.length === 0 ? (
+                      <p className="subtle-text">모든 검사 항목이 정상입니다.</p>
+                    ) : (
+                      <div className="item-list item-list--compact">
+                        {verifyIssueChecks.map((check) => {
+                          const remaining = verifyCheckRemaining(check);
+                          return (
+                            <article
+                              key={check.code}
+                              className="list-card list-card--compact"
+                              data-testid="knowledge-verify-check"
+                            >
+                              <div className="list-card__main list-card__main--static">
+                                <div>
+                                  <h3>{check.label_ko}</h3>
+                                  {remaining > 0 && check.action_hint ? <p>{check.action_hint}</p> : null}
+                                </div>
+                                <span className={remaining > 0 ? "pill pill--warning" : "pill pill--soft"}>
+                                  {remaining > 0
+                                    ? `확인 필요 ${remaining}건`
+                                    : `자동 수리 ${check.healed}건`}
+                                </span>
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </SectionCard>
+            </div>
+            ) : null}
 
             {taxonomyWizardOpen && primaryKnowledgeSource ? (
               <TaxonomyWizard

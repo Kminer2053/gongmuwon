@@ -24,6 +24,7 @@ vi.mock("./runtime", () => ({
   launchAnythingQuery: vi.fn(async () => undefined),
   openExternalTarget: vi.fn(async () => undefined),
   copyTextToClipboard: vi.fn(async () => undefined),
+  setDesktopZoom: vi.fn(async (scale: number) => scale),
 }));
 
 import { App } from "./app";
@@ -302,6 +303,8 @@ describe("topic vocabulary pack import and candidate queue (vocab spec §5·§6)
   async function openSettingsTab(user: ReturnType<typeof userEvent.setup>) {
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
     await user.click(screen.getByRole("tab", { name: "설정" }));
+    // T5(4호): 어휘집 팩·주제 후보는 '② 분류·어휘' 서브섹션에 있다.
+    await user.click(screen.getByTestId("knowledge-settings-nav-taxonomy"));
   }
 
   it("imports an institution pack from the settings tab, shows applied info, and removes it (§5)", async () => {
@@ -450,6 +453,7 @@ describe("topic vocabulary pack import and candidate queue (vocab spec §5·§6)
 
     // 분류체계 마법사 1단계 하단 — 어휘집 팩 축약 블록(경로 입력 + 불러오기 + 상태)
     await user.click(screen.getByRole("tab", { name: "설정" }));
+    await user.click(screen.getByTestId("knowledge-settings-nav-taxonomy")); // T5: 분류·어휘 서브섹션
     const entry = await screen.findByTestId("knowledge-taxonomy-entry");
     const wizardButton = within(entry).getByRole("button", { name: "분류체계 설정" });
     await waitFor(() => expect(wizardButton).toBeEnabled());

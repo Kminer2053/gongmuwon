@@ -410,6 +410,35 @@
   justify-content: flex-start;
 }
 
+/* T5(4호): 설정 탭 3분할 서브내비 (seg-control 상속 + 아래 여백) */
+.knowledge-settings-nav {
+  margin-bottom: 1rem;
+}
+
+/* T5(4호): 항목별 '무엇/언제/결과' 설명 박스 — 좌측 강조선 + subtle 톤 */
+.knowledge-setting-help {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-subtle, #55585f);
+  padding: 0.6rem 0.75rem;
+  margin: 0.1rem 0 0.35rem;
+  border-left: 3px solid var(--line-soft);
+  border-radius: 0 8px 8px 0;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.knowledge-setting-help p {
+  margin: 0;
+}
+
+.knowledge-setting-help strong {
+  color: var(--ink, #111214);
+  font-weight: 600;
+  margin-right: 0.15rem;
+}
+
 /* 위키 탭 상단 검색 바 — 세그먼트 + 질의 폼 + 히스토리 칩을 한 블록으로 */
 .knowledge-wiki-search {
   display: grid;
