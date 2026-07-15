@@ -1738,6 +1738,91 @@ export async function askKnowledge(
   });
 }
 
+export type KnowledgeAskStreamHandlers = {
+  onMeta?: (meta: { query: string; has_items: boolean }) => void;
+  onDelta?: (delta: { text: string }) => void;
+  onDone?: (result: KnowledgeAskResult) => void;
+  onError?: (error: { message: string }) => void;
+};
+
+// T-S1(스트리밍): 상세검색 토큰 스트림. meta → delta* → done. 델타는 원시 토큰(미리보기),
+// done의 answer/citations가 무근거 억제까지 반영된 권위 있는 최종본이다.
+export async function runKnowledgeAskStream(
+  query: string,
+  payload: { session_id?: string | null; limit?: number },
+  handlers: KnowledgeAskStreamHandlers = {},
+): Promise<KnowledgeAskResult> {
+  const response = await fetch(`${API_BASE_URL}/api/knowledge/ask/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query,
+      session_id: payload.session_id ?? null,
+      limit: payload.limit ?? 5,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  if (!response.body) {
+    throw new Error("상세검색 스트리밍 응답 본문이 비어 있습니다.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let doneResult: KnowledgeAskResult | null = null;
+
+  const dispatchBlock = (block: string) => {
+    const parsed = parseSseBlock(block);
+    if (!parsed) {
+      return;
+    }
+    if (parsed.event === "meta" && isRecord(parsed.data)) {
+      handlers.onMeta?.({
+        query: typeof parsed.data.query === "string" ? parsed.data.query : query,
+        has_items: Boolean(parsed.data.has_items),
+      });
+      return;
+    }
+    if (parsed.event === "delta" && isRecord(parsed.data)) {
+      const text = typeof parsed.data.text === "string" ? parsed.data.text : "";
+      if (text) {
+        handlers.onDelta?.({ text });
+      }
+      return;
+    }
+    if (parsed.event === "error") {
+      handlers.onError?.({ message: readStreamMessage(parsed.data) });
+      return;
+    }
+    if (parsed.event === "done" && isRecord(parsed.data)) {
+      doneResult = parsed.data as KnowledgeAskResult;
+      handlers.onDone?.(doneResult);
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() ?? "";
+    blocks.forEach(dispatchBlock);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    dispatchBlock(buffer);
+  }
+
+  if (!doneResult) {
+    throw new Error("상세검색 스트리밍 완료 이벤트를 받지 못했습니다.");
+  }
+  return doneResult;
+}
+
 export async function loadTools() {
   return requestJson<{ items: ToolManifestItem[] }>("/api/tools");
 }

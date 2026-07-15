@@ -3375,14 +3375,17 @@ class KnowledgeWikiManager:
 
     # ------------------------------------------------------------------- ask
 
-    def ask(
+    def ask_context(
         self,
         *,
         query: str,
         session_id: str | None = None,
         limit: int = 5,
-        llm: Callable[[list[dict[str, Any]]], str | None] | None = None,
     ) -> dict[str, Any]:
+        """ask 스트리밍·비스트리밍이 공유하는 검색·근거·프롬프트 준비.
+
+        반환: {items, citations, messages(LLM용, 근거 없으면 None), extractive_answer, retrieval_summary}.
+        """
         retrieval = self.retrieve(query=query, session_id=session_id, limit=limit)
         items = retrieval["items"]
         citations = [
@@ -3402,22 +3405,19 @@ class KnowledgeWikiManager:
             }
             for item in items
         ]
-        answer_mode = "extractive"
         if not items:
-            answer = "지식폴더에서 관련 근거를 찾지 못했습니다. 지식폴더 스캔/색인 상태를 확인해 주세요."
+            extractive_answer = "지식폴더에서 관련 근거를 찾지 못했습니다. 지식폴더 스캔/색인 상태를 확인해 주세요."
+            messages = None
         else:
             lines = [f"'{query}' 관련 지식폴더 근거입니다."]
+            evidence_lines = []
             for index, item in enumerate(items, start=1):
                 excerpt = re.sub(r"\s+", " ", str(item.get("text") or item.get("snippet") or "")).strip()
                 lines.append(f"{index}. {item['title']} — {excerpt[:300]}")
                 lines.append(f"   (원본: {item['file_path']})")
-            answer = "\n".join(lines)
-        if llm is not None and items:
-            evidence_lines = []
-            for index, item in enumerate(items, start=1):
-                excerpt = re.sub(r"\s+", " ", str(item.get("text") or item.get("snippet") or "")).strip()
                 evidence_lines.append(f"{index}. {item['title']} (원본: {item['file_path']})")
                 evidence_lines.append(f"   발췌: {excerpt[:SNIPPET_MAX_CHARS]}")
+            extractive_answer = "\n".join(lines)
             messages = [
                 {
                     "role": "system",
@@ -3430,16 +3430,29 @@ class KnowledgeWikiManager:
                 },
                 {"role": "user", "text": query},
             ]
-            try:
-                generated = llm(messages)
-            except Exception:  # noqa: BLE001 - LLM 실패 시 결정론 답변 유지
-                generated = None
-            if generated and str(generated).strip():
-                answer = str(generated).strip()
-                answer_mode = "llm"
+        return {
+            "items": items,
+            "citations": citations,
+            "messages": messages,
+            "extractive_answer": extractive_answer,
+            "retrieval_summary": retrieval["retrieval_summary"],
+        }
+
+    def resolve_ask_result(
+        self,
+        *,
+        query: str,
+        session_id: str | None,
+        context: dict[str, Any],
+        answer: str,
+        answer_mode: str,
+    ) -> dict[str, Any]:
+        """검색 컨텍스트 + 최종 답변 → ask 응답(무근거 인용 억제 판정 포함)."""
+        items = context["items"]
+        citations = context["citations"]
         # WI-4(2026-07-14): 무근거 선언 LLM 답변에 무관 citations가 붙는 문제(QA W-03) —
         # 억제한다. extractive 모드는 문서 나열 자체가 목적이므로 억제하지 않는다.
-        # retrieval_summary는 QA 스크립트 호환을 위해 불변.
+        # 스트리밍에서도 판정은 반드시 '완성된 전체 답변'에서 수행한다(토큰 중간 판정 금지).
         suppressed = bool(items) and answer_mode == "llm" and is_no_evidence_answer(answer)
         if suppressed:
             citations = []
@@ -3460,8 +3473,35 @@ class KnowledgeWikiManager:
             "citations": citations,
             "no_evidence": suppressed,
             "items": items,
-            "retrieval_summary": retrieval["retrieval_summary"],
+            "retrieval_summary": context["retrieval_summary"],
         }
+
+    def ask(
+        self,
+        *,
+        query: str,
+        session_id: str | None = None,
+        limit: int = 5,
+        llm: Callable[[list[dict[str, Any]]], str | None] | None = None,
+    ) -> dict[str, Any]:
+        context = self.ask_context(query=query, session_id=session_id, limit=limit)
+        answer = context["extractive_answer"]
+        answer_mode = "extractive"
+        if llm is not None and context["messages"] is not None:
+            try:
+                generated = llm(context["messages"])
+            except Exception:  # noqa: BLE001 - LLM 실패 시 결정론 답변 유지
+                generated = None
+            if generated and str(generated).strip():
+                answer = str(generated).strip()
+                answer_mode = "llm"
+        return self.resolve_ask_result(
+            query=query,
+            session_id=session_id,
+            context=context,
+            answer=answer,
+            answer_mode=answer_mode,
+        )
 
     # ---------------------------------------------------------------- enrich
 

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   applyTaxonomy,
   askKnowledge,
+  runKnowledgeAskStream,
   bulkResolveTaxonomyQueue,
   cancelKnowledgeIngestionJob,
   confirmTaxonomy,
@@ -44,6 +45,7 @@ import {
   type KnowledgeSourceScanResult,
   type KnowledgeVerifyCheckItem,
   type KnowledgeVerifyLatestResult,
+  type KnowledgeAskResult,
   type KnowledgeVocabCandidateDecisionPayload,
   type KnowledgeVocabCandidateItem,
   type KnowledgeVocabPackImportResult,
@@ -3139,13 +3141,38 @@ export function KnowledgeScreen() {
     setWikiViewerMode("search");
     setKnowledgeInspectorLoading(true);
     setError(null);
+    // F-14: 상세검색 실행 시 이전 키워드 검색 결과·바로가기를 비운다.
+    setKnowledgeSearchResult(null);
+    setSearchShortcuts([]);
+    // 스트리밍 자리표시자 — 델타가 채워질 답변(토큰이 나오는 대로 렌더)
+    let streamedText = "";
+    setKnowledgeAskResult({ query, answer: "", answer_mode: "llm", citations: [] });
     try {
-      const result = await askKnowledge(query, { session_id: selectedSessionId ?? null, limit: 5 });
+      let result: KnowledgeAskResult;
+      try {
+        result = await runKnowledgeAskStream(
+          query,
+          { session_id: selectedSessionId ?? null, limit: 5 },
+          {
+            onDelta: (delta) => {
+              streamedText += delta.text;
+              setKnowledgeAskResult((current) =>
+                current ? { ...current, answer: streamedText } : current,
+              );
+            },
+          },
+        );
+      } catch (streamError) {
+        // 구버전 서버(스트림 엔드포인트 404) → 비스트리밍 폴백
+        if (!(streamError instanceof Error) || !streamError.message.startsWith("404")) {
+          throw streamError;
+        }
+        result = await askKnowledge(query, { session_id: selectedSessionId ?? null, limit: 5 });
+      }
+      // done의 answer/citations가 무근거 억제까지 반영된 최종본 — 스트림 미리보기를 대체한다.
       setKnowledgeAskResult(result);
-      // F-14: 상세검색 실행 시 이전 키워드 검색 결과·바로가기를 비운다.
-      setKnowledgeSearchResult(null);
-      setSearchShortcuts([]);
     } catch (askError) {
+      setKnowledgeAskResult(null);
       setError(askError instanceof Error ? askError.message : "상세검색을 실행하지 못했습니다.");
     } finally {
       setKnowledgeInspectorLoading(false);

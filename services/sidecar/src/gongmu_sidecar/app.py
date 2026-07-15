@@ -8,7 +8,7 @@ from pathlib import Path
 from queue import Queue
 from threading import Thread
 from time import perf_counter
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
@@ -393,6 +393,88 @@ class AppServices:
         except LLMGenerationError:
             return None
         return self._prepare_assistant_output_text(result.text)
+
+    def _wiki_llm_generate_streaming(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        on_delta: Callable[[str], None],
+    ) -> str | None:
+        """지식위키 ask/근거답변용 토큰 스트리밍 LLM 호출.
+
+        on_delta 로 원시 토큰을 흘리고, 완료 시 정리된 최종 텍스트를 돌려준다(실패 시 None).
+        스크래치패드/추론 정리는 챗 경로와 동일하게 '최종본'에만 적용한다.
+        """
+        try:
+            result = generate_session_reply_streaming(self.settings, messages, on_delta=on_delta)
+        except LLMGenerationError:
+            return None
+        return self._prepare_assistant_output_text(result.text)
+
+    def run_knowledge_ask_stream(self, payload: "KnowledgeRetrieveRequest"):
+        """상세검색(/ask) 토큰 스트리밍 — meta → delta* → done SSE 이벤트를 yield 한다.
+
+        무근거 인용 억제 판정은 반드시 '완성된 전체 답변'에서 수행하므로(resolve_ask_result),
+        토큰은 미리 흐르고 마지막 done의 answer/citations가 권위 있는 최종본이다(챗 경로와 동일).
+        """
+        query = payload.query
+        session_id = payload.session_id
+        limit = payload.limit or 5
+        context = self.wiki.ask_context(query=query, session_id=session_id, limit=limit)
+        yield {
+            "event": "meta",
+            "data": {
+                "query": query,
+                "retrieval_summary": context["retrieval_summary"],
+                "has_items": bool(context["items"]),
+            },
+        }
+        answer = context["extractive_answer"]
+        answer_mode = "extractive"
+        if context["messages"] is None:
+            # 근거 없음 → 결정론 안내를 한 번에 흘린다(LLM 스트리밍 대상 아님)
+            yield {"event": "delta", "data": {"text": answer}}
+        else:
+            events: Queue[tuple[str, Any]] = Queue()
+
+            def run_llm() -> None:
+                try:
+                    result = generate_session_reply_streaming(
+                        self.settings,
+                        context["messages"],
+                        on_delta=lambda delta: events.put(("delta", delta)),
+                    )
+                    events.put(("done", result))
+                except LLMGenerationError as exc:
+                    events.put(("error", exc))
+
+            Thread(target=run_llm, daemon=True).start()
+            while True:
+                kind, value = events.get()
+                if kind == "delta":
+                    delta_text = self._redact_sensitive_text(str(value))
+                    if delta_text:
+                        yield {"event": "delta", "data": {"text": delta_text}}
+                    continue
+                if kind == "error":
+                    # LLM 실패 → extractive 폴백(이미 흘린 토큰은 done의 answer로 대체된다)
+                    answer = context["extractive_answer"]
+                    answer_mode = "extractive"
+                    break
+                # done
+                cleaned = self._prepare_assistant_output_text(value.text)
+                if cleaned and cleaned.strip():
+                    answer = cleaned.strip()
+                    answer_mode = "llm"
+                break
+        final = self.wiki.resolve_ask_result(
+            query=query,
+            session_id=session_id,
+            context=context,
+            answer=answer,
+            answer_mode=answer_mode,
+        )
+        yield {"event": "done", "data": final}
 
     def _serialize_attachment(self, record: dict[str, Any]) -> dict[str, Any]:
         return {
@@ -4039,6 +4121,20 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             session_id=payload.session_id,
             limit=payload.limit,
             llm=services._wiki_llm_generate,
+        )
+
+    @app.post("/api/knowledge/ask/stream")
+    def stream_ask_knowledge(payload: KnowledgeRetrieveRequest) -> StreamingResponse:
+        """상세검색 토큰 스트리밍(SSE). 프런트가 델타를 증분 렌더하고 done의 answer로 확정한다."""
+
+        def event_stream():
+            for event in services.run_knowledge_ask_stream(payload):
+                yield _sse_event(event["event"], event["data"])
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
     def parse_structured_document_response(payload: KnowledgeParseDocumentRequest) -> dict[str, Any]:

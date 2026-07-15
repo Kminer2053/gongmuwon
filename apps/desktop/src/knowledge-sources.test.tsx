@@ -461,35 +461,59 @@ describe("knowledge source folders", () => {
           });
         }
 
-        if (url.endsWith("/api/knowledge/ask") && method === "POST") {
-          return jsonResponse({
-            query: body.query,
-            session_id: body.session_id,
-            answer:
-              "'개인정보보호법'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 공공서비스 개선계획: 개인정보 처리 기준을 점검합니다.",
-            answer_mode: "llm",
-            citations: [
-              {
-                doc_id: "wiki-1",
-                document_id: "doc-1",
-                title: "공공서비스 개선계획",
-                source_path: "C:/Docs/업무자료/service.md",
-                file_path: "C:/Docs/업무자료/service.md",
-                snippet: "개인정보 처리 기준을 점검합니다.",
-                quality_score: 0.85,
-                quality_warnings: ["partial_extraction"],
-                card_path: "/tmp/gongmu-workspace/knowledge/wiki/docs/service.md",
-                evidence_type: "wiki",
-                relations: [],
-              },
-            ],
-            retrieval_summary: {
-              source_count: 1,
-              hit_count: 1,
-              low_quality_count: 0,
+        // 지연 생성: body가 없는 GET 요청이 이 줄에 닿아도 터지지 않도록 함수로 감싼다.
+        const buildAskPayload = () => ({
+          query: body.query,
+          session_id: body.session_id,
+          answer:
+            "'개인정보보호법'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 공공서비스 개선계획: 개인정보 처리 기준을 점검합니다.",
+          answer_mode: "llm",
+          citations: [
+            {
+              doc_id: "wiki-1",
+              document_id: "doc-1",
+              title: "공공서비스 개선계획",
+              source_path: "C:/Docs/업무자료/service.md",
+              file_path: "C:/Docs/업무자료/service.md",
+              snippet: "개인정보 처리 기준을 점검합니다.",
+              quality_score: 0.85,
+              quality_warnings: ["partial_extraction"],
+              card_path: "/tmp/gongmu-workspace/knowledge/wiki/docs/service.md",
+              evidence_type: "wiki",
+              relations: [],
             },
-            items: [],
-          });
+          ],
+          retrieval_summary: { source_count: 1, hit_count: 1, low_quality_count: 0 },
+          items: [],
+        });
+
+        if (url.endsWith("/api/knowledge/ask/stream") && method === "POST") {
+          const askPayload = buildAskPayload();
+          const encoder = new TextEncoder();
+          return Promise.resolve(
+            new Response(
+              new ReadableStream({
+                start(controller) {
+                  controller.enqueue(
+                    encoder.encode(
+                      [
+                        `event: meta\ndata: ${JSON.stringify({ query: body.query, has_items: true })}\n`,
+                        `event: delta\ndata: ${JSON.stringify({ text: "'개인정보보호법'에 대해 로컬 지식폴더에서 확인한 근거입니다.\n1. 공공서비스 개선계획: " })}\n`,
+                        `event: delta\ndata: ${JSON.stringify({ text: "개인정보 처리 기준을 점검합니다." })}\n`,
+                        `event: done\ndata: ${JSON.stringify(askPayload)}\n`,
+                      ].join("\n"),
+                    ),
+                  );
+                  controller.close();
+                },
+              }),
+              { status: 200, headers: { "Content-Type": "text/event-stream" } },
+            ),
+          );
+        }
+
+        if (url.endsWith("/api/knowledge/ask") && method === "POST") {
+          return jsonResponse(buildAskPayload());
         }
 
         if (url.includes("/api/knowledge/document-structure")) {
@@ -1292,9 +1316,16 @@ describe("knowledge source folders", () => {
     await user.click(within(detailSearch).getByRole("button", { name: "상세검색 실행" }));
 
     const askResult = await screen.findByTestId("knowledge-ask-result");
+    // S1: 상세검색은 스트리밍 엔드포인트를 우선 사용한다(비스트리밍 폴백 아님)
+    expect(
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(([requestUrl]) =>
+        String(requestUrl).endsWith("/api/knowledge/ask/stream"),
+      ),
+    ).toBe(true);
+    // 세션 자동 선택은 스냅샷 로드(비동기)에 달려 있어 스트리밍 done보다 늦을 수 있다 — findBy로 대기
+    expect(await within(askResult).findByText("세션 맥락: 민원 개선 작업")).toBeInTheDocument();
     expect(screen.getByTestId("knowledge-answer-mode")).toHaveTextContent("LLM 합성");
     expect(within(askResult).getAllByText(/개인정보 처리 기준을 점검합니다/).length).toBeGreaterThan(0);
-    expect(within(askResult).getByText("세션 맥락: 민원 개선 작업")).toBeInTheDocument();
     expect(within(askResult).getByText("출처 문서")).toBeInTheDocument();
     expect(within(askResult).getByText("공공서비스 개선계획")).toBeInTheDocument();
     expect(within(askResult).getByText(/원본:.*service\.md/)).toBeInTheDocument();

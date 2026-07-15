@@ -232,6 +232,83 @@ def test_ask_keeps_citations_for_answer_with_real_source_mark(tmp_path: Path) ->
     assert result["no_evidence"] is False
 
 
+def test_ask_stream_sends_deltas_before_done_with_citations(tmp_path: Path, monkeypatch) -> None:
+    """상세검색 토큰 스트리밍: meta → delta* → done, done에 최종 answer·citations."""
+
+    def fake_stream_reply(settings, messages, *, on_delta, **kwargs):
+        assert any("[지식폴더 근거]" in message["text"] for message in messages)
+        on_delta("예산편성은 ")
+        on_delta("사업계획에 따릅니다. (출처: 사업계획)")
+        return LLMGenerationResult(
+            text="예산편성은 사업계획에 따릅니다. (출처: 사업계획)",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply_streaming", fake_stream_reply)
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    _register_scan_ingest(client, source)
+
+    with client.stream(
+        "POST", "/api/knowledge/ask/stream", json={"query": "예산편성 어떻게 되나"}
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        body = "".join(response.iter_text())
+
+    assert body.index("event: meta") < body.index("event: delta") < body.index("event: done")
+    assert '"text":"예산편성은 "' in body
+    assert '"answer_mode":"llm"' in body
+    assert '"no_evidence":false' in body
+    assert "plan.md" in body  # done citations의 source_path
+
+
+def test_ask_stream_no_items_streams_extractive_without_llm(tmp_path: Path, monkeypatch) -> None:
+    """[네거티브] 근거가 없으면 LLM 스트리밍을 호출하지 않고 안내를 한 번에 흘린다."""
+    calls = {"n": 0}
+
+    def fake_stream_reply(settings, messages, *, on_delta, **kwargs):
+        calls["n"] += 1
+        return LLMGenerationResult(text="x", provider="ollama", model="m")
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply_streaming", fake_stream_reply)
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    _register_scan_ingest(client, source)
+
+    with client.stream(
+        "POST", "/api/knowledge/ask/stream", json={"query": "zzq존재하지않는우주주제999"}
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert calls["n"] == 0
+    assert "관련 근거를 찾지 못했습니다" in body
+    assert '"answer_mode":"extractive"' in body
+
+
+def test_ask_stream_suppresses_citations_for_no_evidence_answer(tmp_path: Path, monkeypatch) -> None:
+    """[네거티브] 스트리밍에서도 무근거 판정은 완성된 전체 답변에서 하고 citations를 비운다."""
+
+    def fake_stream_reply(settings, messages, *, on_delta, **kwargs):
+        text = "요청하신 정보는 지식폴더에서 찾을 수 없습니다."
+        on_delta(text)
+        return LLMGenerationResult(text=text, provider="ollama", model="m")
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply_streaming", fake_stream_reply)
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    _register_scan_ingest(client, source)
+
+    with client.stream(
+        "POST", "/api/knowledge/ask/stream", json={"query": "예산편성 어떻게 되나"}
+    ) as response:
+        body = "".join(response.iter_text())
+
+    assert '"no_evidence":true' in body
+    assert '"citations":[]' in body
+
+
 def test_is_excluded_allows_source_root_under_dotted_ancestor(tmp_path: Path) -> None:
     # 회귀: 지식폴더 루트가 점(.) 디렉터리 아래에 있어도 스캔되어야 한다.
     dotted_root = tmp_path / ".hidden-worktree" / "workspace" / "knowledge-data"
