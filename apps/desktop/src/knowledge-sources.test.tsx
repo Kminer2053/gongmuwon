@@ -1220,11 +1220,10 @@ describe("knowledge source folders", () => {
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
     await user.click(screen.getByRole("tab", { name: "위키" }));
 
-    // F-14: 검색 방법 세그먼트 (기본값 키워드 검색) — 위키 탭 상단 검색 바
+    // T3(4호): 토글 폐지 — 키워드 검색 바와 상세검색이 별도 섹션으로 동시에 존재한다.
     const searchBar = screen.getByTestId("knowledge-wiki-search");
-    const methodGroup = within(searchBar).getByTestId("knowledge-search-method");
-    expect(within(methodGroup).getByRole("button", { name: "키워드 검색" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(methodGroup).getByRole("button", { name: "근거 답변" })).toHaveAttribute("aria-pressed", "false");
+    expect(within(searchBar).queryByTestId("knowledge-search-method")).not.toBeInTheDocument();
+    expect(within(searchBar).getByTestId("knowledge-detail-search")).toBeInTheDocument();
 
     await user.type(screen.getByLabelText("지식 검색"), "개인정보보호법");
     await user.click(screen.getByRole("button", { name: "키워드 검색 실행" }));
@@ -1287,12 +1286,10 @@ describe("knowledge source folders", () => {
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
     await user.click(screen.getByRole("tab", { name: "위키" }));
 
-    const methodGroup = screen.getByTestId("knowledge-search-method");
-    await user.click(within(methodGroup).getByRole("button", { name: "근거 답변" }));
-    expect(within(methodGroup).getByRole("button", { name: "근거 답변" })).toHaveAttribute("aria-pressed", "true");
-
-    await user.type(screen.getByLabelText("지식 검색"), "개인정보보호법");
-    await user.click(screen.getByRole("button", { name: "근거 답변 생성" }));
+    // T3(4호): 상세검색은 자체 입력창+버튼을 가진 별도 섹션(토글 없음)
+    const detailSearch = screen.getByTestId("knowledge-detail-search");
+    await user.type(within(detailSearch).getByLabelText("상세검색 질문"), "개인정보보호법");
+    await user.click(within(detailSearch).getByRole("button", { name: "상세검색 실행" }));
 
     const askResult = await screen.findByTestId("knowledge-ask-result");
     expect(screen.getByTestId("knowledge-answer-mode")).toHaveTextContent("LLM 합성");
@@ -1318,35 +1315,67 @@ describe("knowledge source folders", () => {
     await user.click(screen.getByRole("button", { name: "업무대화로 이어가기" }));
     const composer = await screen.findByTestId("chat-composer-input");
     expect((composer as HTMLTextAreaElement).value).toContain("질문: 개인정보보호법");
-    expect((composer as HTMLTextAreaElement).value).toContain("지식폴더 근거 답변");
+    expect((composer as HTMLTextAreaElement).value).toContain("지식폴더 상세검색 답변");
   });
 
-  it("runs the selected method with Enter, resets the other result, and keeps query history", async () => {
+  it("T3: keyword and detail search run independently and reset the other result", async () => {
     const user = userEvent.setup();
     render(<App />);
 
     await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
     await user.click(screen.getByRole("tab", { name: "위키" }));
 
-    // Enter 실행 (키워드 검색)
+    // 키워드 검색: Enter 실행 → 검색 결과, 상세검색 답변은 없음
     await user.type(screen.getByLabelText("지식 검색"), "개인정보보호법{enter}");
     expect(await screen.findByTestId("knowledge-search-results")).toBeInTheDocument();
     expect(screen.queryByTestId("knowledge-ask-result")).not.toBeInTheDocument();
 
-    // 근거 답변 모드로 전환 후 Enter → 이전 키워드 결과 리셋
-    const methodGroup = screen.getByTestId("knowledge-search-method");
-    await user.click(within(methodGroup).getByRole("button", { name: "근거 답변" }));
-    await user.type(screen.getByLabelText("지식 검색"), "{enter}");
+    // 상세검색: 별도 입력창 Enter → 근거 답변, 이전 키워드 결과 리셋(F-14 최신 1건)
+    const detailSearch = screen.getByTestId("knowledge-detail-search");
+    await user.type(within(detailSearch).getByLabelText("상세검색 질문"), "개인정보보호법{enter}");
     expect(await screen.findByTestId("knowledge-ask-result")).toBeInTheDocument();
     expect(screen.queryByTestId("knowledge-search-results")).not.toBeInTheDocument();
 
-    // 질의 히스토리 칩 — 클릭 시 재실행 (키워드 모드로 되돌린 뒤)
+    // 질의 히스토리 칩(키워드 전용) — 클릭 시 키워드 검색 재실행, 상세검색 답변 리셋
     const history = screen.getByTestId("knowledge-query-history");
-    expect(within(history).getByRole("button", { name: "개인정보보호법" })).toBeInTheDocument();
-    await user.click(within(methodGroup).getByRole("button", { name: "키워드 검색" }));
     await user.click(within(history).getByRole("button", { name: "개인정보보호법" }));
     expect(await screen.findByTestId("knowledge-search-results")).toBeInTheDocument();
     expect(screen.queryByTestId("knowledge-ask-result")).not.toBeInTheDocument();
+  });
+
+  it("T3: keyword matching a wiki topic name shows a shortcut card that opens the wiki page", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+    await screen.findByTestId("knowledge-wiki-browser"); // 위키트리 로드 대기
+
+    await user.type(screen.getByLabelText("지식 검색"), "예산{enter}");
+
+    // 바로가기 카드: 트리의 '예산' 주제와 정규화 매칭
+    const shortcuts = await screen.findByTestId("knowledge-search-shortcuts");
+    const card = within(shortcuts).getByTestId("knowledge-search-shortcut");
+    expect(card).toHaveTextContent("주제");
+    expect(card).toHaveTextContent("예산");
+
+    // 클릭 시 기존 openKnowledgeWikiTarget 경로로 위키 페이지가 열리고 검색 결과는 사라진다
+    await user.click(card);
+    expect(await screen.findByTestId("knowledge-wiki-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-search-results")).not.toBeInTheDocument();
+  });
+
+  it("T3: a keyword matching no work/topic name shows no shortcut card (negative)", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+    await screen.findByTestId("knowledge-wiki-browser");
+
+    await user.type(screen.getByLabelText("지식 검색"), "존재하지않는주제어{enter}");
+    await screen.findByTestId("knowledge-search-view");
+    expect(screen.queryByTestId("knowledge-search-shortcuts")).not.toBeInTheDocument();
   });
 
   it("shows the empty-index guidance in the wiki tree and search view (J-07)", async () => {

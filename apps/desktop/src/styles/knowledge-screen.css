@@ -14,16 +14,46 @@
   margin-top: 0.6rem;
 }
 
-/* F-14: 검색 방법 세그먼트 — 콘텐츠 폭에 맞춰 컴팩트하게 */
-.knowledge-search-method {
-  max-width: 24rem;
-}
-
 /* F-14: 질의 입력 폼 */
 .knowledge-search-form {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+/* T3(4호): 상세검색(구 근거 답변) — 키워드 검색과 분리된 별도 섹션 */
+.knowledge-detail-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 0.85rem;
+  margin-top: 0.2rem;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* T3(4호): 키워드 = 위키 바로가기 카드 그룹 */
+.knowledge-search-shortcuts {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.knowledge-shortcut-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.knowledge-shortcut-card__title {
+  font-weight: 600;
+  color: var(--ink, #111214);
 }
 
 /* F-14: 질의 히스토리 칩 */

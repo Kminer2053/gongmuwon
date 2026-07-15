@@ -89,9 +89,65 @@ import { AssetIcon, EmptyState, LlmSetupNotice, SectionCard } from "../shared/pr
 import { useAppStore, type KnowledgeWorkspacePanel } from "../store";
 import "../styles/knowledge-screen.css";
 
-type KnowledgeSearchMode = "keyword" | "ask";
-
 const KNOWLEDGE_QUERY_HISTORY_LIMIT = 8;
+
+/**
+ * T3(4호): 키워드 = 위키 바로가기. 입력한 키워드가 위키로 정리된 '업무'/'주제' 이름과
+ * 맞으면 해당 위키 페이지로 바로 이동하는 카드를 만든다. 매칭은 서버 normalize_topic_key
+ * (knowledge_wiki.py)의 TS 포트로 결정적으로 수행한다(LLM 무관).
+ */
+const JOSA_SUFFIXES = [
+  "에서는", "에서도", "인가요", "입니까", "이란", "하나요",
+  "에서", "에게", "으로", "이고", "이며", "하나", "할까", "인가", "이나",
+  "은", "는", "이", "가", "을", "를", "과", "와", "의", "도", "만", "로", "란",
+];
+
+function stripJosaSuffix(term: string): string {
+  for (const suffix of JOSA_SUFFIXES) {
+    if (term.endsWith(suffix) && term.length - suffix.length >= 2) {
+      return term.slice(0, term.length - suffix.length);
+    }
+  }
+  return term;
+}
+
+function normalizeTopicKey(topic: string): string {
+  const text = topic.normalize("NFC").replace(/\s+/g, " ").trim().toLowerCase();
+  const collapsed = text.replace(/\s+/g, "");
+  return stripJosaSuffix(collapsed);
+}
+
+type WikiShortcut = { kind: "work" | "topic"; title: string; path: string; docCount: number };
+
+/** 키워드와 위키트리 업무/주제 이름을 정규화 매칭해 바로가기 카드를 만든다(문서 0건 항목 제외). */
+function computeWikiShortcuts(query: string, tree: WikiTreeResult | null): WikiShortcut[] {
+  if (!tree) {
+    return [];
+  }
+  const qKey = normalizeTopicKey(query);
+  if (qKey.length < 2) {
+    return [];
+  }
+  const matches = (title: string): boolean => {
+    const tKey = normalizeTopicKey(title);
+    if (tKey.length < 2) {
+      return false;
+    }
+    return tKey === qKey || tKey.includes(qKey) || qKey.includes(tKey);
+  };
+  const shortcuts: WikiShortcut[] = [];
+  for (const area of tree.work_areas ?? []) {
+    if (area.doc_count > 0 && matches(area.title)) {
+      shortcuts.push({ kind: "work", title: area.title, path: area.path, docCount: area.doc_count });
+    }
+  }
+  for (const topic of tree.topics ?? []) {
+    if (topic.doc_count > 0 && matches(topic.title)) {
+      shortcuts.push({ kind: "topic", title: topic.title, path: topic.path, docCount: topic.doc_count });
+    }
+  }
+  return shortcuts;
+}
 
 /**
  * 사용자 피드백(2026-07) 탭 3개 체계 — [대시보드] [위키] [설정].
@@ -2655,7 +2711,9 @@ export function KnowledgeScreen() {
 
   // F-14: 검색 단일 질의 모델 — 검색 방법 선택과 질의 히스토리는 화면 로컬 상태로 관리한다.
   // (메뉴 전환 시 화면이 언마운트되면서 히스토리가 초기화되는 것을 허용)
-  const [knowledgeSearchMode, setKnowledgeSearchMode] = useState<KnowledgeSearchMode>("keyword");
+  // T3(4호): 키워드 검색과 상세검색을 분리(토글 폐지). 각자 독립 입력·결과를 갖는다.
+  const [detailSearchQuery, setDetailSearchQuery] = useState("");
+  const [searchShortcuts, setSearchShortcuts] = useState<WikiShortcut[]>([]);
   const [knowledgeQueryHistory, setKnowledgeQueryHistory] = useState<string[]>([]);
 
   // 검색·위키 통합: 위키 탭 우측 뷰어가 위키 페이지를 보여줄지, 검색 결과를 보여줄지.
@@ -3022,7 +3080,9 @@ export function KnowledgeScreen() {
     try {
       const result = await searchKnowledge(query);
       setKnowledgeSearchResult(result);
-      // F-14: 결과 영역은 항상 최신 질의 1건 — 이전 근거 답변은 함께 비운다.
+      // T3: 키워드가 위키 업무/주제 이름과 맞으면 바로가기 카드를 만든다(결과와 같은 수명).
+      setSearchShortcuts(computeWikiShortcuts(query, knowledgeWikiTree));
+      // F-14: 결과 영역은 항상 최신 질의 1건 — 이전 상세검색 답변은 함께 비운다.
       setKnowledgeAskResult(null);
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : "지식 검색을 실행하지 못했습니다.");
@@ -3039,31 +3099,38 @@ export function KnowledgeScreen() {
     try {
       const result = await askKnowledge(query, { session_id: selectedSessionId ?? null, limit: 5 });
       setKnowledgeAskResult(result);
-      // F-14: 근거 답변 실행 시 이전 키워드 검색 결과를 비운다.
+      // F-14: 상세검색 실행 시 이전 키워드 검색 결과·바로가기를 비운다.
       setKnowledgeSearchResult(null);
+      setSearchShortcuts([]);
     } catch (askError) {
-      setError(askError instanceof Error ? askError.message : "근거 답변을 생성하지 못했습니다.");
+      setError(askError instanceof Error ? askError.message : "상세검색을 실행하지 못했습니다.");
     } finally {
       setKnowledgeInspectorLoading(false);
     }
   }
 
-  async function submitKnowledgeQuery(mode: KnowledgeSearchMode = knowledgeSearchMode, queryOverride?: string) {
+  // T3: 키워드 검색 전용(토글 폐지). 상단 검색 바·최근 질의 칩이 이 경로로 수렴한다.
+  async function submitKnowledgeQuery(queryOverride?: string) {
     const query = (queryOverride ?? knowledgeQuery).trim();
     if (!query) {
       return;
     }
     recordKnowledgeQueryHistory(query);
-    if (mode === "keyword") {
-      await runKnowledgeSearchQuery(query);
-    } else {
-      await runKnowledgeAskQuery(query);
+    await runKnowledgeSearchQuery(query);
+  }
+
+  // T3: 상세검색(구 근거 답변) 전용 — 자체 입력창 값으로 LLM 근거 답변을 실행한다.
+  async function submitDetailSearch() {
+    const query = detailSearchQuery.trim();
+    if (!query) {
+      return;
     }
+    await runKnowledgeAskQuery(query);
   }
 
   function rerunKnowledgeQueryFromHistory(query: string) {
     setKnowledgeQuery(query);
-    void submitKnowledgeQuery(knowledgeSearchMode, query);
+    void submitKnowledgeQuery(query);
   }
 
   async function openKnowledgeDocumentStructure(documentId: string) {
@@ -3310,10 +3377,10 @@ export function KnowledgeScreen() {
   async function copyKnowledgeAnswer(answer: string) {
     try {
       await copyTextToClipboard(answer);
-      pushToast("info", "근거 답변을 복사했습니다.");
+      pushToast("info", "상세검색 답변을 복사했습니다.");
     } catch (copyError) {
       console.warn("failed to copy knowledge answer", copyError);
-      pushToast("error", "근거 답변 복사에 실패했습니다.");
+      pushToast("error", "상세검색 답변 복사에 실패했습니다.");
     }
   }
 
@@ -3337,12 +3404,12 @@ export function KnowledgeScreen() {
     }
   }
 
-  /** J-08: 근거 답변을 업무대화 컴포저에 프리필하고 이동한다. */
+  /** J-08: 상세검색 답변을 업무대화 컴포저에 프리필하고 이동한다. */
   async function continueAnswerInChat(query: string, answer: string) {
     await ensureWorkSession();
-    setChatDraft(`지식폴더 근거 답변을 이어서 검토하고 싶습니다.\n질문: ${query}\n\n${answer}`);
+    setChatDraft(`지식폴더 상세검색 답변을 이어서 검토하고 싶습니다.\n질문: ${query}\n\n${answer}`);
     setActiveMenu("chat");
-    pushToast("info", "업무대화 입력창에 근거 답변을 채워 두었습니다.");
+    pushToast("info", "업무대화 입력창에 상세검색 답변을 채워 두었습니다.");
   }
 
   /** J-09: 위키 문서 헤더의 "이 문서로 질문하기" — 업무대화 컴포저에 문서 제목을 프리필하고 이동한다. */
@@ -3354,9 +3421,8 @@ export function KnowledgeScreen() {
 
   /** J-09: 위키 문서 헤더의 "관련 검색" — 위키 탭 검색 바로 문서 제목 키워드 검색을 즉시 실행한다. */
   function searchRelatedToWikiPage(title: string) {
-    setKnowledgeSearchMode("keyword");
     setKnowledgeQuery(title);
-    void submitKnowledgeQuery("keyword", title);
+    void submitKnowledgeQuery(title);
   }
 
   async function copyWikiSourcePath(sourcePath: string) {
@@ -4617,13 +4683,13 @@ export function KnowledgeScreen() {
                 <SettingHelp
                   testId="settings-help-enrich"
                   what="색인된 문서 카드의 요약문을 AI가 다시 씁니다."
-                  when="색인 완료 후, 검색·근거 답변 품질을 높이고 싶을 때."
+                  when="색인 완료 후, 검색·상세검색 품질을 높이고 싶을 때."
                   where="위키 문서 카드의 요약이 좋아지고 '요약 보유 n/전체' 수치가 올라갑니다."
                 />
                 <div className="document-preview__meta">
                   <span className="pill">LLM 요약 보강</span>
                   <span className="subtle-text">
-                    색인된 위키 문서 카드의 요약을 LLM으로 다시 작성해 검색과 근거 답변 품질을 높입니다.
+                    색인된 위키 문서 카드의 요약을 LLM으로 다시 작성해 검색과 상세검색 품질을 높입니다.
                   </span>
                 </div>
                 <div className="inline-actions">
@@ -4785,31 +4851,8 @@ export function KnowledgeScreen() {
 
         {activePanel === "wiki" ? (
           <SectionCard eyebrow="지식위키" title="지식 검색과 위키" testId="knowledge-wiki">
-            {/* 검색·위키 통합: 상단 검색 바 — 실행하면 우측 뷰어가 검색 결과로 전환된다. */}
+            {/* T3(4호): 키워드 검색(바로가기) — 실행하면 우측 뷰어가 검색 결과로 전환된다. */}
             <div className="knowledge-wiki-search" data-testid="knowledge-wiki-search">
-              <div
-                className="seg-control knowledge-search-method"
-                role="group"
-                aria-label="검색 방법 선택"
-                data-testid="knowledge-search-method"
-              >
-                <button
-                  type="button"
-                  className={`seg-control__option ${knowledgeSearchMode === "keyword" ? "is-active" : ""}`}
-                  aria-pressed={knowledgeSearchMode === "keyword"}
-                  onClick={() => setKnowledgeSearchMode("keyword")}
-                >
-                  키워드 검색
-                </button>
-                <button
-                  type="button"
-                  className={`seg-control__option ${knowledgeSearchMode === "ask" ? "is-active" : ""}`}
-                  aria-pressed={knowledgeSearchMode === "ask"}
-                  onClick={() => setKnowledgeSearchMode("ask")}
-                >
-                  근거 답변
-                </button>
-              </div>
               <form
                 className="knowledge-search-form"
                 onSubmit={(event) => {
@@ -4835,25 +4878,53 @@ export function KnowledgeScreen() {
                         ? "이전 질의를 처리하는 중입니다."
                         : !knowledgeQuery.trim()
                           ? "검색어를 먼저 입력해 주세요."
-                          : knowledgeSearchMode === "keyword"
-                            ? "선택한 방법으로 키워드 검색을 실행합니다."
-                            : "선택한 방법으로 근거 답변을 생성합니다."
+                          : "키워드로 관련 업무·주제와 문서를 찾습니다."
                     }
                   >
-                    <AssetIcon
-                      src={
-                        knowledgeSearchMode === "keyword"
-                          ? "/icons/action/search-inverse.svg"
-                          : "/icons/action/sparkle-inverse.svg"
-                      }
-                    />
-                    {knowledgeSearchMode === "keyword" ? "키워드 검색 실행" : "근거 답변 생성"}
+                    <AssetIcon src="/icons/action/search-inverse.svg" />
+                    키워드 검색 실행
                   </button>
                   {knowledgeSearchResult?.mode && knowledgeSearchResult.mode !== "empty" ? (
                     <span className="pill pill--soft" data-testid="knowledge-search-mode">
                       {knowledgeSearchResult.mode === "fts5" ? "정확 일치(트라이그램)" : "부분 일치"}
                     </span>
                   ) : null}
+                </div>
+              </form>
+
+              {/* T3(4호): 상세검색(구 근거 답변) — 토글 대신 별도 섹션. 기능은 현행 유지. */}
+              <form
+                className="knowledge-detail-search"
+                data-testid="knowledge-detail-search"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void submitDetailSearch();
+                }}
+              >
+                <label>
+                  상세검색 질문
+                  <input
+                    value={detailSearchQuery}
+                    onChange={(event) => setDetailSearchQuery(event.target.value)}
+                    placeholder="예: 출장여비에는 어떤 항목이 포함돼?"
+                  />
+                </label>
+                <div className="inline-actions">
+                  <button
+                    type="submit"
+                    className="button-secondary button-with-icon"
+                    disabled={knowledgeInspectorLoading || !detailSearchQuery.trim()}
+                    title={
+                      knowledgeInspectorLoading
+                        ? "이전 질의를 처리하는 중입니다."
+                        : !detailSearchQuery.trim()
+                          ? "질문을 먼저 입력해 주세요."
+                          : "AI가 색인된 문서에서 근거를 찾아 출처와 함께 답합니다."
+                    }
+                  >
+                    <AssetIcon src="/icons/action/sparkle-inverse.svg" />
+                    상세검색 실행
+                  </button>
                 </div>
               </form>
 
@@ -5098,9 +5169,38 @@ export function KnowledgeScreen() {
                       ) : (
                         <EmptyState
                           title="검색 결과가 여기에 표시됩니다."
-                          body="위 검색 바에서 검색 방법을 고르고 질의를 실행해 주세요."
+                          body="위 검색 바에 키워드를 입력하면 관련 업무·주제 바로가기와 문서가 표시됩니다."
                         />
                       )
+                    ) : null}
+
+                    {/* T3(4호): 키워드가 위키 업무/주제 이름과 맞으면 바로가기 카드로 먼저 안내 */}
+                    {searchShortcuts.length > 0 ? (
+                      <div className="knowledge-search-shortcuts" data-testid="knowledge-search-shortcuts">
+                        <div className="document-preview__meta">
+                          <span className="pill">바로가기</span>
+                          <span className="subtle-text">
+                            업무 {searchShortcuts.filter((shortcut) => shortcut.kind === "work").length} · 주제{" "}
+                            {searchShortcuts.filter((shortcut) => shortcut.kind === "topic").length}
+                          </span>
+                        </div>
+                        <div className="item-list item-list--compact">
+                          {searchShortcuts.map((shortcut) => (
+                            <button
+                              key={`${shortcut.kind}-${shortcut.path}`}
+                              type="button"
+                              className="list-card list-card--compact knowledge-shortcut-card"
+                              data-testid="knowledge-search-shortcut"
+                              onClick={() => void openKnowledgeWikiTarget(shortcut.path)}
+                              title={`${shortcut.title} 위키 페이지로 바로 이동합니다.`}
+                            >
+                              <span className="pill pill--soft">{shortcut.kind === "work" ? "업무" : "주제"}</span>
+                              <span className="knowledge-shortcut-card__title">{shortcut.title}</span>
+                              <span className="subtle-text">문서 {shortcut.docCount}개</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     ) : null}
 
                     {knowledgeSearchResult ? (
@@ -5217,7 +5317,7 @@ export function KnowledgeScreen() {
               {knowledgeAskResult ? (
                 <div className="document-preview" data-testid="knowledge-ask-result">
                   <div className="document-preview__meta">
-                    <span className="pill">근거 답변</span>
+                    <span className="pill">상세검색</span>
                     <span className="pill pill--soft" data-testid="knowledge-answer-mode">
                       {knowledgeAskResult.answer_mode === "llm" ? "LLM 합성" : "발췌 요약"}
                     </span>

@@ -214,7 +214,7 @@ export function FirstRunTutorial() {
   function renderKnowledgeStep() {
     return (
       <div className="tutorial-step-body">
-        <p>내 지식폴더에 업무 폴더를 등록하면 지식위키 색인과 근거 답변을 쓸 수 있습니다.</p>
+        <p>내 지식폴더에 업무 폴더를 등록하면 지식위키 색인과 상세검색을 쓸 수 있습니다.</p>
         <div className="tutorial-status" data-testid="tutorial-knowledge-status">
           {knowledgeSources.length > 0 ? (
             <p>

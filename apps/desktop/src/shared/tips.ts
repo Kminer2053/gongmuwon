@@ -150,7 +150,7 @@ export const APP_TIPS: readonly AppTip[] = [
   {
     id: "knowledge-grounded-answer",
     category: "knowledge",
-    text: "내 지식폴더 위키 탭의 근거 답변은 출처와 함께 답하고, 결과를 업무대화로 이어서 검토할 수 있습니다.",
+    text: "내 지식폴더 위키 탭의 상세검색은 출처와 함께 답하고, 결과를 업무대화로 이어서 검토할 수 있습니다.",
     menu: "knowledge",
   },
   {
