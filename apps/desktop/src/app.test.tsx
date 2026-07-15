@@ -394,7 +394,7 @@ describe("App shell", () => {
     expect(screen.queryByTestId("workspace-header-summary")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "화면 축소" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "화면 확대" })).toBeInTheDocument();
-    expect(screen.getByText("100%")).toBeInTheDocument();
+    expect(screen.getByText("90%")).toBeInTheDocument(); // T1(4호): 기본 배율 90%
   });
 
   it("keeps the six-menu navigation without removed features (D-05)", async () => {

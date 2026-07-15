@@ -273,6 +273,36 @@ function readStartupDiffEnabled(): boolean {
   }
 }
 
+// T1(4호): 화면 글자 크기 기본을 90%로. 사용자가 조정한 배율은 다음 실행에도 유지된다.
+export const ZOOM_SCALE_STORAGE_KEY = "gongmu.ui.zoomScale";
+export const DEFAULT_UI_ZOOM_SCALE = 0.9;
+// 저장/복원 clamp는 Rust set_desktop_zoom(0.8~1.5)·메뉴 프리셋(150%)과 동일 범위로 맞춘다.
+const MIN_ZOOM_SCALE = 0.8;
+const MAX_ZOOM_SCALE = 1.5;
+
+export function readStoredZoomScale(): number {
+  try {
+    const raw = window.localStorage.getItem(ZOOM_SCALE_STORAGE_KEY);
+    if (raw !== null) {
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed) && parsed >= MIN_ZOOM_SCALE && parsed <= MAX_ZOOM_SCALE) {
+        return parsed;
+      }
+    }
+  } catch {
+    // localStorage 접근 불가(웹뷰 프로필 손상 등) — 기본 배율로 폴백한다.
+  }
+  return DEFAULT_UI_ZOOM_SCALE;
+}
+
+function persistZoomScale(scale: number): void {
+  try {
+    window.localStorage.setItem(ZOOM_SCALE_STORAGE_KEY, String(scale));
+  } catch {
+    // 저장 실패는 무시한다 — 다음 실행에서 기본 배율로 동작할 뿐이다.
+  }
+}
+
 
 export function useAppStoreValue() {
   const [snapshot, setSnapshot] = useState<WorkspaceSnapshot>(EMPTY_SNAPSHOT);
@@ -308,7 +338,7 @@ export function useAppStoreValue() {
   const [chatModelOverride, setChatModelOverride] = useState("");
   const [chatImagePreviewOpen, setChatImagePreviewOpen] = useState<ChatAttachmentPreview | null>(null);
   const [toastItems, setToastItems] = useState<ToastItem[]>([]);
-  const [uiFontScale, setUiFontScale] = useState(1);
+  const [uiFontScale, setUiFontScale] = useState(() => readStoredZoomScale());
   const [sessionMessages, setSessionMessages] = useState<Record<string, WorkSessionMessageItem[]>>({});
   const [sessionContextSummaries, setSessionContextSummaries] = useState<Record<string, WorkSessionTurnContextSummary>>(
     {},
@@ -1316,7 +1346,9 @@ export function useAppStoreValue() {
     const handleBrowserZoomScale = (event: Event) => {
       const payload = (event as CustomEvent<number>).detail;
       if (typeof payload === "number") {
-        setUiFontScale(Number(payload.toFixed(2)));
+        const scale = Number(payload.toFixed(2));
+        setUiFontScale(scale);
+        persistZoomScale(scale);
       }
     };
 
@@ -1368,7 +1400,9 @@ export function useAppStoreValue() {
       void currentWebviewWindow
         .listen<number>("gongmu-zoom-scale", (event) => {
           if (!disposed && typeof event.payload === "number") {
-            setUiFontScale(Number(event.payload.toFixed(2)));
+            const scale = Number(event.payload.toFixed(2));
+            setUiFontScale(scale);
+            persistZoomScale(scale);
           }
         })
         .then((unlisten) => {
@@ -1408,6 +1442,18 @@ export function useAppStoreValue() {
         unlistenWindowZoom();
       }
     };
+  }, []);
+
+  // T1(4호): 부팅 시 저장 배율(없으면 기본 90%)로 네이티브 줌·CSS 변수를 정렬한다.
+  // uiFontScale 초기값이 이미 저장 배율이라 배지는 첫 렌더부터 정확하고, 여기서 네이티브
+  // 웹뷰 줌만 맞춘다(브라우저 모드는 no-op 반환이라 무해).
+  useEffect(() => {
+    const stored = readStoredZoomScale();
+    void setDesktopZoom(stored)
+      .then((actual) => adjustUiFontScale(actual))
+      .catch(() => adjustUiFontScale(stored));
+    // 최초 1회 부팅 동기화 — 의도적으로 deps 비움.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1903,7 +1949,9 @@ export function useAppStoreValue() {
   }
 
   function adjustUiFontScale(next: number) {
-    setUiFontScale(Math.min(1.4, Math.max(0.8, Number(next.toFixed(2)))));
+    const scale = Math.min(MAX_ZOOM_SCALE, Math.max(MIN_ZOOM_SCALE, Number(next.toFixed(2))));
+    setUiFontScale(scale);
+    persistZoomScale(scale);
   }
 
   async function handleUiZoom(delta: number) {

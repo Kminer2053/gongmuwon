@@ -29,10 +29,13 @@ struct ZoomState {
     scale: Mutex<f64>,
 }
 
+// T1(4호): 화면 글자 크기 기본을 90%로. 프런트가 저장 배율(없으면 90%)로 부팅 시 덮어쓴다.
+const DEFAULT_ZOOM_SCALE: f64 = 0.9;
+
 impl Default for ZoomState {
     fn default() -> Self {
         Self {
-            scale: Mutex::new(1.0),
+            scale: Mutex::new(DEFAULT_ZOOM_SCALE),
         }
     }
 }
@@ -40,6 +43,22 @@ impl Default for ZoomState {
 fn minimum_window_width_for_zoom(scale: f64) -> u32 {
     let base_width = 980.0;
     (base_width * scale).ceil() as u32
+}
+
+// 보기 메뉴의 줌 항목 → 목표 배율. 순수 함수로 분리해 단위 테스트로 검증한다.
+fn menu_zoom_target(menu_id: &str, current_scale: f64) -> f64 {
+    match menu_id {
+        "view-zoom-in" => (current_scale + 0.1).min(1.4),
+        "view-zoom-out" => (current_scale - 0.1).max(0.8),
+        "view-zoom-reset" => DEFAULT_ZOOM_SCALE,
+        "view-zoom-80" => 0.8,
+        "view-zoom-90" => 0.9,
+        "view-zoom-100" => 1.0,
+        "view-zoom-110" => 1.1,
+        "view-zoom-125" => 1.25,
+        "view-zoom-150" => 1.5,
+        _ => current_scale,
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -783,7 +802,7 @@ fn main() {
                 .separator()
                 .text("view-zoom-in", "확대")
                 .text("view-zoom-out", "축소")
-                .text("view-zoom-reset", "기본 크기")
+                .text("view-zoom-reset", "기본 크기 (90%)")
                 .separator()
                 .text("view-zoom-80", "80%")
                 .text("view-zoom-90", "90%")
@@ -838,18 +857,7 @@ fn main() {
                     };
 
                     let current_scale = *zoom_guard;
-                    let next_scale = match event.id().as_ref() {
-                        "view-zoom-in" => (current_scale + 0.1).min(1.4),
-                        "view-zoom-out" => (current_scale - 0.1).max(0.8),
-                        "view-zoom-reset" => 1.0,
-                        "view-zoom-80" => 0.8,
-                        "view-zoom-90" => 0.9,
-                        "view-zoom-100" => 1.0,
-                        "view-zoom-110" => 1.1,
-                        "view-zoom-125" => 1.25,
-                        "view-zoom-150" => 1.5,
-                        _ => current_scale,
-                    };
+                    let next_scale = menu_zoom_target(event.id().as_ref(), current_scale);
 
                     if let Some(webview_window) = &webview_window {
                         let is_zoom_in = next_scale > current_scale;
@@ -907,6 +915,29 @@ fn main() {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+
+    #[test]
+    fn zoom_state_default_is_ninety_percent() {
+        // T1(4호): 기본 배율 90%
+        let scale = *ZoomState::default().scale.lock().unwrap();
+        assert!((scale - 0.9).abs() < 1e-9);
+    }
+
+    #[test]
+    fn menu_zoom_reset_returns_ninety_percent() {
+        // '기본 크기'는 100%가 아니라 90%로 되돌린다
+        assert!((menu_zoom_target("view-zoom-reset", 1.3) - 0.9).abs() < 1e-9);
+        assert!((menu_zoom_target("view-zoom-90", 1.0) - 0.9).abs() < 1e-9);
+    }
+
+    #[test]
+    fn menu_zoom_in_out_respects_bounds() {
+        assert!((menu_zoom_target("view-zoom-in", 0.9) - 1.0).abs() < 1e-9);
+        assert!((menu_zoom_target("view-zoom-in", 1.4) - 1.4).abs() < 1e-9); // 상한 유지
+        assert!((menu_zoom_target("view-zoom-out", 0.8) - 0.8).abs() < 1e-9); // 하한 유지
+        assert!((menu_zoom_target("view-zoom-150", 0.9) - 1.5).abs() < 1e-9);
+        assert!((menu_zoom_target("unknown-id", 1.1) - 1.1).abs() < 1e-9); // 미지 id는 현재값 유지
+    }
 
     #[test]
     fn bundled_sidecar_resource_path_does_not_repeat_resources_prefix() {
