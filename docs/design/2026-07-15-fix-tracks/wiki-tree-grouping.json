@@ -1,0 +1,86 @@
+{
+  "key": "wiki-tree-grouping",
+  "current_behavior": "## 1) 데이터: vocab broader 구조 (전수 확인)\n- L1 공통팩 `services/sidecar/src/gongmu_sidecar/assets/topic_vocab_common.json`: 주제 65개, 그중 41개가 `broader` 보유, 루트(무broader) 24개. 댕글링 참조 0. L1 내부는 전부 1단(루트 직결) 계층. 루트 팬아웃: hr 7, safety 7, planning 5, finance 4, ai-adoption 4, it-system 3, audit 3, data-mgmt 2, 나머지 1.\n- L2 기관팩(실워크스페이스 `…\\runtime-workspace\\vocab\\institution-pack.json`, \"AI혁신처 기관 어휘집\" v1.0.0): 10개 전부 broader 보유. 이 중 2개는 비루트를 가리켜 **2단 체인 실존** (ai-internalization→ai-literacy→ai-adoption, ai-task-force→ai-strategy→ai-adoption) → 그룹핑 시 루트 해석(transitive) 필요.\n- L3 vocab_user_topics: 실DB 0행. 승인 경로는 broader=NULL 고정 (`topic_vocab.py:1010` `_approve_candidate`의 `\"broader\": None`).\n- `validate_pack`(topic_vocab.py:89)은 **broader를 전혀 검증하지 않음** — 댕글링/사이클 팩 임포트 가능.\n\n## 2) 실DB 집계 (읽기 전용 sqlite mode=ro, 실측)\n- `knowledge_wiki_docs.topics_json`(status≠missing) distinct 주제 = 68개. `topic_synthesis` 68행의 topic_label과 **완전 일치** (topic_key는 normalize_topic_key 결과).\n- 주제→vocab 매핑(= `normalize_topic_key`로 name+synonyms 키 인덱스 조회, `topic_vocab.py:321 key_index`와 동일 로직): **68/68 = 100% 매칭**. (어휘집 통제 태깅 `resolve_selection`이 vocab 외 주제를 topics_json에 넣지 않으므로 구조적으로 보장.)\n- broader 루트 해석 그룹핑 실측: **총 23그룹 — 2개 이상 묶이는 그룹 15개(주제 60/68 = 88.2%), 단독 그룹 8개(11.8%)**. 사용자 예시가 정확히 묶임: [안전관리] 8종(안전관리·안전점검·안전보건교육·위험성평가·산업안전보건법·안전사고 대응·안전보건경영시스템·재난·비상대응), [AI 도입·활용] 9종, [인사] 8종, [기획·계획] 5종, [정보시스템] 5종 등.\n\n## 3) API: broader 미탑재 (백엔드 확장 필요)\n- `knowledge_wiki.py:4939-4947` wiki_tree()의 topics_payload = `{slug, title, doc_count, path}`만, `sorted(topics.items())` 평면 가나다. 설치본 사이드카 GET /api/knowledge/wiki/tree 실측(426 docs)으로도 topic item keys = ['doc_count','path','slug','title'] 확인 — **broader/그룹 정보 없음**.\n- wiki_tree가 속한 KnowledgeWikiManager는 `topic_vocab` 프로퍼티(knowledge_wiki.py:470-475, 지연 생성)로 TopicVocabManager 접근 가능 — 그룹 계산 재료는 이미 손안에 있음.\n\n## 4) 프런트: 평면 렌더, 그룹 헤더 삽입 난이도 낮음\n- `apps/desktop/src/screens/KnowledgeScreen.tsx:4764-4784`: `주제 ({topics.length})` summary 아래 평면 `<ul>` 68행.\n- 폴더별 문서 섹션(4813-4817)이 이미 `details.wiki-tree__subgroup` 중첩 패턴 사용, CSS도 기성(`styles.css:3313-3328`) — 동일 패턴 재사용으로 헤더 삽입은 저비용.\n- 타입 `WikiTreeTopicItem`(api.ts:2164-2169)에 그룹 필드 없음.\n\n## 5) 기존 테스트 계약 (깨짐 여부)\n- `services/sidecar/tests/test_knowledge_wiki.py:526` `assert set(payload) == {\"topics\",\"works\",\"work_areas\",\"sources\",\"counts\"}` + :527 counts **엄격 동치** → 최상위 키 추가는 계약 파괴. 반면 topic item 단언은 `{\"slug\",\"title\",\"doc_count\",\"path\"} <= set(topic)` **부분집합**(:535) → per-item 필드 추가는 안전.\n- 프런트 기존 픽스처(knowledge-sources.test.tsx:1369 \"주제 (1)\", knowledge-taxonomy.test.tsx:356 등)는 group 필드 없음 → 그룹 필드 부재 시 평면 렌더 폴백이 있어야 기존 테스트가 무수정 그린.",
+  "design": "## 권고: **GO — 설계 A (vocab broader 루트 그룹핑)**\n\n### 대안 비교\n- **(A) vocab broader 기반 그룹 헤더** — 권고안. 효과: 실측 커버리지 88.2%(60/68), 15개 의미 그룹, 사용자 예시(안전 계열·AI 계열) 완벽 해결. 비용: 백엔드 ~30줄 + 프런트 ~40줄 + 테스트(반나절급). 유지보수: broader는 빌드타임에 고성능 모델이 정제한 canonical 자산(경량모델 보조자산 원칙 부합), 신규 주제는 어휘집 통제 태깅으로 자동 그룹 편입. 데이터·코드 인프라(broader 필드, topic_vocab 키 인덱스, subgroup CSS/렌더 패턴)가 전부 기성.\n- (B) 접두 유사도 휴리스틱 — 기각. '위험성평가'·'재난·비상대응'은 '안전' 접두를 공유하지 않아 사용자가 예시로 든 안전 계열조차 못 묶는다. AX 전략·디지털 전환도 동일. 임계 튜닝 유지보수 부담만 추가되고 정확도는 A보다 명백히 낮음.\n- (C) 현행 유지 — 68개 평면 목록의 스크롤·산재 문제 지속. 다만 A의 커버리지가 낮았다면 C가 답이었을 것 — 실측 88.2%로 no-go 근거 불성립.\n\n### 상세 설계 (A)\n**백엔드** — `wiki_tree()`(knowledge_wiki.py:4914)에서 per-item 필드 2개 추가(최상위 키 추가 금지 — 기존 엄격 동치 테스트 보존):\n```python\nvocab = self.topic_vocab\nkey_index = vocab.key_index()\nby_id = {e[\"id\"]: e for e in vocab.merged_topics()}  # enabled만\ndef _topic_group(topic: str) -> tuple[str | None, str | None]:\n    entry = key_index.get(normalize_topic_key(topic))\n    if entry is None:\n        return (None, None)          # vocab 외 잔존 자유주제 → 기타\n    seen: set[str] = set()\n    cur = entry\n    while cur.get(\"broader\") in by_id and cur[\"id\"] not in seen:  # 사이클·댕글링·비활성 가드\n        seen.add(cur[\"id\"])\n        cur = by_id[cur[\"broader\"]]\n    return (cur[\"id\"], cur[\"name\"])\n```\ntopics_payload 항목에 `\"group_id\": gid, \"group_label\": glabel` 추가. 루트 해석(transitive)이어야 L2의 2단 체인(AI활용 내재화 등)이 'AI 도입·활용'으로 수렴 — 1홉 해석이면 같은 이름이 헤더와 항목에 이중 등장하는 혼란 발생. 비용: key_index/merged_topics는 캐시(topic_vocab.py:203) — wiki_tree 추가 부하 무시 가능. index.md·topics/*.md 등 **마크다운 생성물은 불변**(G7 무접촉).\n\n**프런트** — api.ts `WikiTreeTopicItem`에 `group_id?: string | null; group_label?: string | null`(구버전 서버 호환 주석 관행 유지). KnowledgeScreen.tsx 주제 섹션(4764-4784):\n1. group_label로 버킷팅(백엔드 정렬 순서 유지 → 그룹 내 가나다 자동 보존), 그룹은 라벨 가나다 정렬.\n2. **≥2 규칙**: 2개 이상 묶이는 그룹만 `details.wiki-tree__subgroup open` 헤더(`{label} ({n})`, data-testid=\"wiki-tree-topic-group\") 렌더. 단독 그룹·미매칭(null)은 말미 '기타' 서브그룹으로 합침(공문 관행상 직관적). 헤더 기본 open — 주제가 사라졌다는 오해 방지, 효과는 시각적 군집화.\n3. **평면 폴백 가드**: ≥2 그룹이 하나도 없으면(구버전 서버 응답 포함: 전 항목 group_label 부재) 현행 평면 `<ul>` 그대로 — 기존 프런트 테스트 무수정 그린 + '기타' 단독 화면이라는 퇴행 방지.\n4. `주제 (68)` summary·counts 필은 불변.\n\n**한계(수용)**: L3 승인 주제는 broader=NULL이라 기타로 감(현 실DB 0건이라 영향 없음). 후속 선택 과제로 후보 승인 UI에 broader 선택 드롭다운 추가 가능 — 본 트랙 범위 밖.",
+  "files_to_change": [
+    {
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\services\\sidecar\\src\\gongmu_sidecar\\knowledge_wiki.py",
+      "change": "wiki_tree()(4914) topics_payload에 group_id/group_label per-item 필드 추가 — topic_vocab.key_index()로 매칭 후 broader 체인 루트 해석(사이클·댕글링·비활성 가드 포함 헬퍼). 최상위 응답 키·counts는 불변."
+    },
+    {
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\apps\\desktop\\src\\api.ts",
+      "change": "WikiTreeTopicItem(2164)에 group_id?: string|null, group_label?: string|null 옵셔널 필드 추가(구버전 서버 응답에는 없음 주석)."
+    },
+    {
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\apps\\desktop\\src\\screens\\KnowledgeScreen.tsx",
+      "change": "주제 섹션(4764-4784) 그룹 렌더: group_label 버킷팅 → ≥2 그룹은 details.wiki-tree__subgroup 헤더(data-testid=\"wiki-tree-topic-group\") + 말미 '기타', ≥2 그룹 0개면 현행 평면 렌더 폴백. 항목 버튼·onClick 로직 재사용."
+    },
+    {
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\services\\sidecar\\tests\\test_knowledge_wiki.py",
+      "change": "신규 테스트: group_label 루트 해석·vocab 외 주제 null·사이클 팩 무한루프 방지. 기존 test_wiki_tree_endpoint_returns_topics_works_sources(503)는 무수정 유지(계약 보존 증명)."
+    },
+    {
+      "path": "C:\\Users\\USER\\Agent_Gongmu\\Agent_Gongmu_Codex\\apps\\desktop\\src\\knowledge-wiki-topics.test.tsx",
+      "change": "신규 컴포넌트 테스트: 그룹 헤더·기타 렌더, 그룹 내 주제 클릭 내비게이션, group_label 부재 시 평면 폴백(네거티브)."
+    }
+  ],
+  "verification_criteria": [
+    "백엔드 계약 보존: 기존 test_wiki_tree_endpoint_returns_topics_works_sources(test_knowledge_wiki.py:503)가 한 글자도 수정 없이 PASS — 최상위 키 set 동치(:526)·counts 동치(:527) 유지 증명",
+    "백엔드 신규: pytest 신규 테스트 3건(루트 해석/null/사이클 가드) 전부 PASS, 사이클 팩 케이스는 5초 타임아웃 내 200 응답",
+    "프런트: vitest 신규 테스트에서 픽스처(안전 2·AI 2·단독 1·null 1) 렌더 시 wiki-tree-topic-group testid 정확히 3개('안전관리 (2)', 'AI 도입·활용 (2)', '기타 (2)'), 기존 knowledge-sources.test.tsx '주제 (1)' 테스트(1369, 1552) 무수정 PASS",
+    "실DB 스모크(읽기 전용 GET /api/knowledge/wiki/tree): 68/68 topic 항목에 group_label 비null(100%), distinct 루트 그룹 23개, ≥2 그룹 15개(주제 60개=88.2%) — 본 조사 실측치와 일치해야 함",
+    "G7 보존: 지식위키 생성 .md(index.md, topics/*.md, docs/*.md) 바이트 불변 — 재빌드 후 diff 0 (그룹핑은 API·화면 전용)",
+    "G8: services/sidecar pytest 전체 그린 + apps/desktop vitest 전체 그린 + tsc 통과"
+  ],
+  "scenarios": [
+    {
+      "id": "S1",
+      "scenario": "[백엔드/pytest] 문서에 topics [\"예산편성\"] 태깅 후 GET /api/knowledge/wiki/tree",
+      "expected": "해당 topic 항목에 group_id=\"finance\", group_label=\"재정\" — 1단 broader 루트 해석. slug/title/doc_count/path 기존 필드 불변"
+    },
+    {
+      "id": "S2",
+      "scenario": "[백엔드/pytest] 기관팩 임포트(a: broader=b, b: broader=ai-adoption 2단 체인)로 태깅된 주제 조회",
+      "expected": "group_id=\"ai-adoption\"(루트)로 transitive 해석 — 중간 노드 b가 아님"
+    },
+    {
+      "id": "S3-네거티브",
+      "scenario": "[백엔드/pytest] broader 사이클 팩(x→y, y→x) 임포트 후 wiki_tree 호출",
+      "expected": "무한루프 없이(테스트 타임아웃 5s 내) 200 응답, 해당 주제 group_id는 seen 가드가 멈춘 노드로 결정적 — 매 호출 동일값"
+    },
+    {
+      "id": "S4-네거티브",
+      "scenario": "[백엔드/pytest] vocab에 없는 잔존 자유주제가 topics_json에 있는 문서(레거시 시드)로 wiki_tree 호출 + 최상위 페이로드 검사",
+      "expected": "그 topic 항목 group_id=null, group_label=null. set(payload)=={topics,works,work_areas,sources,counts} 엄격 동치 그대로 성립(기존 :526 단언 무수정 PASS)"
+    },
+    {
+      "id": "S5",
+      "scenario": "[프런트/vitest] group_label 포함 픽스처(안전관리×2, AI 도입·활용×2, 법무·규정 단독, null 1개) 렌더 후 주제 그룹 내 항목 클릭",
+      "expected": "wiki-tree-topic-group 3개(안전관리(2)/AI 도입·활용(2)/기타(2)), 기타가 마지막, summary '주제 (6)' 불변, 그룹 내 주제 클릭 시 topics/<slug>.md 페이지 fetch 발생"
+    },
+    {
+      "id": "S6-네거티브",
+      "scenario": "[프런트/vitest] 구버전 서버 응답(모든 topic에 group_label 필드 자체 부재) 픽스처 렌더",
+      "expected": "wiki-tree-topic-group testid 0개, 현행과 동일한 평면 <ul> — 기존 '주제 (1)' 단언 테스트가 무수정 통과"
+    },
+    {
+      "id": "S7",
+      "scenario": "[프런트/vitest] 전 주제가 서로 다른 group_label 단독 그룹인 픽스처(≥2 그룹 0개) 렌더",
+      "expected": "'기타' 단독 헤더로 전체를 감싸는 퇴행 없이 평면 렌더 폴백 — 그룹 헤더 0개"
+    },
+    {
+      "id": "S8",
+      "scenario": "[프런트/vitest] 주제 상세에서 재분류(병합) 후 트리 재조회(mock 응답에서 group_label 변경)",
+      "expected": "병합된 주제가 새 그룹 헤더 아래로 이동 렌더 — 별도 캐시 없이 refreshKnowledgeWikiTree 경로만으로 반영"
+    }
+  ],
+  "risks": [
+    "broader 무결성 미검증: validate_pack(topic_vocab.py:89)은 broader의 대상 존재·비순환을 검증하지 않음 — 루트 해석 헬퍼에 seen 가드·by_id 존재 확인이 없으면 악성/실수 팩으로 무한루프 가능(S3로 봉쇄). 후속으로 validate_pack에 broader 경고 추가 검토 여지",
+    "최상위 응답 키 추가 금지 계약: test_knowledge_wiki.py:526이 set 엄격 동치라 topic_groups 같은 최상위 키를 추가하는 대안 설계는 기존 테스트를 깬다 — 본 설계는 per-item 필드로 회피했으나 구현 중 이탈 주의",
+    "L3 승인 주제는 broader=NULL(topic_vocab.py:1010)이라 전부 '기타'행 — 현 실DB 0건이나 후보 큐 승인이 늘면 기타 비대화 가능. 승인 UI broader 선택은 별도 후속 과제",
+    "'기타' 라벨이 실제 주제명/그룹명과 표기 충돌할 수 있음(현 68개 중 해당 없음) — 기능 영향 없고 testid로 구분되나 표시 혼동 가능성",
+    "업무(work_areas 25개, T-01 분류체계)와 주제 그룹(어휘집 계층)의 개념 이중화로 비개발자 사용자가 혼동할 수 있음 — 트리 섹션 라벨('업무'/'주제')은 현행 유지로 완화",
+    "기관팩 미보유 워크스페이스는 L1 broader만으로 그룹핑 — 커버리지는 본 실측(88.2%, L2 포함)보다 낮아질 수 있음. L1 단독 기준으로도 41/65 주제가 broader 보유라 구조적 하한은 확보되나 워크스페이스별 실측치는 상이",
+    "wiki_tree에 topic_vocab 접근 추가로 institution-pack.json 파일 I/O 경로가 트리 조회에 편입 — 캐시(_merged_cache)로 상시 부하는 없으나 팩 파손 시 빈 팩 폴백(topic_vocab.py:218)으로 전 주제가 기타行이 되는 조용한 퇴행 가능(로그로 관찰 필요)"
+  ]
+}

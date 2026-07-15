@@ -1,0 +1,97 @@
+{
+  "key": "knowledge-settings-ia",
+  "current_behavior": "## 설정 탭 구획 전수 (KnowledgeScreen.tsx, 총 5,260줄)\n\n화면 상위 탭은 3개 [대시보드][위키][설정] — `KNOWLEDGE_SCREEN_TABS` (apps/desktop/src/screens/KnowledgeScreen.tsx:102-111, role=\"tablist\" 렌더는 :3538-3557). store 키는 하위호환 유지: \"indexing\"=설정, \"search\"→\"wiki\" 리다이렉트 (:2645-2653, apps/desktop/src/store.tsx:222-230).\n\n설정 탭 본체(`activePanel === \"indexing\" && !knowledgeExtractionView`, :3917-4645)는 **한 화면 세로 나열**:\n\n1. **[← 대시보드로] 복귀 + 색인 잠금 배너** — :3919-3933\n2. **설정 ① 지식폴더 지정** (anchor `knowledge-settings-sources`) — :3936-4059. 지식 소스 등록 폼(details 접힘, :3941-3994) + 등록 폴더 카드의 [스캔 시작](:4040-4051), 스캔 보류(unstable) 배지(:4033-4039)\n3. **설정 ② 위키 구성 설정** (anchor `knowledge-settings-taxonomy`) — :4062-4121. [분류체계 설정] 마법사 진입(:4070-4082)·[분류 기준 보기](:4083-4090)·드리프트 배지(:4092-4105)·기관 어휘집 팩 `VocabPackBlock variant=\"full\"`(:4107-4112)·분류 대기 큐 `TaxonomyQueueSection`(:4114-4118, 컴포넌트 :1674-1741 마운트 시 quality/status 자동 조회)·주제 어휘 후보 `VocabCandidateSection`(:4120, :2301~)\n4. **설정 ③ 색인 설정·실행** (anchor `knowledge-settings-indexing`) — :4124-4620. 소스별 [변경 확인][색인 시작][강제 재색인](:4157-4193) + diff 견적 카드(:4199-4265, `knowledge-diff-estimate`는 store 상태 `knowledgeDiffBySource` 재사용) / 하위그룹 **LLM 요약 보강**(anchor enrich, :4273-4298) / **무결성 점검**(anchor verify, :4301-4401, quick 기본·deep 접힘) / **진행 상태**(:4404-4618: [색인완료 파일 N개]→extraction view 전환 버튼 :4410-4416, 스캔 활동 카드 :4421-4444, 색인 작업 10건 목록·단계 레일·색인 상세 로그·실패 재색인 :4446-4617)\n5. **TaxonomyWizard 모달** — :4622-4637에 마운트(그룹 ①②③ 조건 바깥, 설정 브랜치 안). 오버레이 모달이므로 스크롤 위치와 무관.\n6. **extraction view**(색인 완료 문서 목록) — `knowledgeExtractionView`가 true면 설정 탭 내용 전체를 대체(:3787-3915)\n\n## 상호 의존 (탭 분할 시 끊기면 안 되는 연쇄)\n\n- 대시보드 [설정으로] → `goToSettingsGroup(anchorId)` (:2729-2742): `setKnowledgePanel(\"indexing\")` 후 60ms 뒤 anchor로 scrollIntoView. 앵커 5종 `KNOWLEDGE_SETTINGS_ANCHORS`(:113-120): sources/taxonomy/indexing/enrich/verify\n- 대시보드 드리프트 배지 → `openTaxonomyWizardFromDrift`(:3094-3098): 설정 탭 전환 + 마법사 즉시 오픈\n- **마법사 자동 연쇄**: 1단계 인터뷰 → `analyzeFolders`에서 `needs_scan`이면 `scanThenReanalyze`로 스캔→재분석 자동 실행(:1093-1141); 3단계 [지금 적용]은 색인 미실행 시 서버가 색인→분류적용 순서로 연쇄(안내 `taxonomy-apply-index-notice` :1601-1606). **전부 모달 내부 로직이라 설정 탭 구획 분할과 독립적** — 단, 마법사 마운트 지점이 서브탭 조건 안으로 들어가면 서브탭 전환 시 마법사가 닫히는 회귀 발생\n- 외부 파일 의존: store.tsx:1185(설정 탭에서 색인 작업 중 자동 갱신), store.tsx:1961·ContextPane.tsx:749(색인 상세 로그 패널 탭은 `knowledgePanel === \"indexing\"`일 때 활성), FirstRunTutorial.tsx:240(`setKnowledgePanel(\"indexing\")`) — 모두 knowledgePanel 키 기준이라 **서브탭 상태는 신설 로컬 상태로 두면 영향 없음**\n\n## 항목 설명 현황\n\n각 구획에 helper-copy 1문장(:3939, :4064-4068, :4127)과 버튼 title 툴팁은 있으나, \"무엇을/언제/결과가 어디에\" 구조가 아니고(예: :4127 \"색인은 스캔된 문서를 검색용 인덱스와 위키 문서 카드로 만듭니다\"), 스캔↔색인 차이·변경 확인의 용도·무결성 점검을 언제 돌리는지가 설명되지 않음.\n\n## 기존 테스트 계약 (실측)\n\n- knowledge-sources.test.tsx:1097 `getAllByRole(\"tab\")).toHaveLength(3)` — **role=\"tab\" 요소는 화면 전체에 정확히 3개**여야 함\n- knowledge-sources.test.tsx:1105-1111 — 설정 클릭 직후 \"지식폴더 지정\"/\"위키 구성 설정\"/\"색인 설정·실행\" 3그룹 텍스트가 **동시에** 보인다고 단언\n- openSettingsTab 헬퍼 3곳: knowledge-taxonomy.test.tsx:425-428(8회 사용), knowledge-sources.test.tsx:39-41, knowledge-vocab.test.tsx:302-304 + knowledge-sync-p3.test.tsx:279-282\n- 설정 클릭 직후 그룹 ②/③ 요소를 바로 찾는 테스트: taxonomy 전 케이스(knowledge-taxonomy-entry·knowledge-taxonomy-queue), vocab 전 케이스(knowledge-vocab-pack·knowledge-vocab-candidates, :452-453 인라인 포함), sources :1143-1150(LLM 요약 보강 시작)·:1346-1359(taxonomy entry), sync-p3 :294-295(knowledge-verify-group)\n- 같은 화면 연속 동작 의존: sources :767-792(등록→스캔 한 화면), :794-829(색인 시작→작업 카드→색인완료 파일 2개), :868-909(변경 확인→견적→대시보드→설정 복귀 후 증분 실행)\n- goToSettingsGroup 경유(앵커 자동 이동이라 서브탭 자동 선택 시 무수정 통과 가능): sources :1047-1049(sources), :1069-1072(enrich), sync-p3 :382-386(verify), :389-419(드리프트 배지→마법사→settings 배지)",
+  "design": "## 권고안 (확정 1개): 설정 탭 내부 3분할 서브섹션 내비 — seg-control 재사용, 조건부 렌더\n\n**대안 비교**: (A) 서브탭 3분할(권고) vs (B) 아코디언 유지+앵커 내비. B는 테스트 무수정·연쇄 무영향이지만 이미 앵커+스크롤 구조(:113-120, :2729-2742)인데도 \"길다\" 불만이 나온 상태라 재발 확실, 접힘 그룹은 비개발자에게 발견성이 나쁨. A는 \"지금 무엇을 하는 화면인지\"가 한 번에 보이고 화면 길이가 1/3로 줄어 사용자 불만 ①을 직접 해소 → **A 확정**. 단, 상위 탭과의 혼동을 막기 위해 role=\"tab\"이 아닌 기존 `seg-control` 패턴(:4651-4673과 동일)을 사용한다(테스트 계약 `tab 3개` 보존).\n\n### 1) IA — 서브섹션 3개 (트랙 지시 예시에서 1곳 의도적 변경)\n\n- **[① 폴더·색인]** key=`folders` (기본 선택): 설정① 지식폴더 지정 + 설정③ 색인 설정·실행(변경 확인·색인·강제 재색인) + **진행 상태(작업 카드·색인 상세 로그) 포함**\n- **[② 분류·어휘]** key=`taxonomy`: 위키 구성 설정(마법사·SCHEMA·드리프트 배지) + 기관 어휘집 팩 + 분류 대기 큐 + 주제 어휘 후보\n- **[③ 유지관리]** key=`maintenance`: LLM 요약 보강 + 무결성 점검(+최근 점검 결과 카드)\n\n지시문 예시 IA는 \"로그\"를 ③에 뒀지만, **진행 상태·로그는 ①에 유지**한다. 근거: (a) 사용자는 [색인 시작]을 누른 그 자리에서 진행률을 봐야 함(멘탈모델), (b) sources :794-829 테스트가 \"색인 시작→작업 카드 #job1→색인완료 파일 N개\"를 한 화면 연속 동작으로 계약, (c) 색인 상세 로그는 작업 카드 내장 UI(:4526-4552)라 분리 시 컴포넌트 절단 필요.\n\n### 2) 구현 설계 (KnowledgeScreen.tsx)\n\n```tsx\ntype KnowledgeSettingsSection = \"folders\" | \"taxonomy\" | \"maintenance\";\nconst KNOWLEDGE_SETTINGS_SECTIONS = [\n  { key: \"folders\", label: \"① 폴더·색인\", hint: \"폴더 등록 → 스캔 → 색인\" },\n  { key: \"taxonomy\", label: \"② 분류·어휘\", hint: \"업무 분류체계와 용어\" },\n  { key: \"maintenance\", label: \"③ 유지관리\", hint: \"요약 보강 · 무결성 점검\" },\n] as const;\nconst ANCHOR_TO_SECTION: Record<string, KnowledgeSettingsSection> = {\n  [KNOWLEDGE_SETTINGS_ANCHORS.sources]: \"folders\",\n  [KNOWLEDGE_SETTINGS_ANCHORS.indexing]: \"folders\",\n  [KNOWLEDGE_SETTINGS_ANCHORS.taxonomy]: \"taxonomy\",\n  [KNOWLEDGE_SETTINGS_ANCHORS.enrich]: \"maintenance\",\n  [KNOWLEDGE_SETTINGS_ANCHORS.verify]: \"maintenance\",\n};\n```\n- 로컬 상태 `const [settingsSection, setSettingsSection] = useState<KnowledgeSettingsSection>(\"folders\")` — store에 올리지 않음(외부 파일은 knowledgePanel만 참조: store.tsx:1185·1961, ContextPane.tsx:749, FirstRunTutorial.tsx:240 → 전부 무영향)\n- 내비 렌더(잠금 배너 아래): `<div className=\"seg-control knowledge-settings-nav\" role=\"group\" aria-label=\"설정 구획 선택\" data-testid=\"knowledge-settings-nav\">` + 버튼별 `aria-pressed`·`data-testid=\"knowledge-settings-nav-folders|-taxonomy|-maintenance\"`. **role=\"tab\" 금지**(sources :1097 계약)\n- 본문: `{settingsSection === \"folders\" ? (설정① 그룹 + 설정③ 색인·진행상태 그룹) : null}` 식 조건부 렌더 3분기. 기존 anchor div(id)와 SectionCard 제목(\"지식폴더 지정\"/\"위키 구성 설정\"/\"색인 설정·실행\")은 그대로 유지, eyebrow만 \"설정 ①②③\" → \"폴더\"/\"색인 실행\"/\"분류체계\"/\"유지관리\"로 교체(①③이 같은 서브탭에 공존하므로 번호 유지 시 \"②가 없다\" 혼동)\n- LLM 요약 보강·무결성 점검 subgroup(:4273-4401)을 설정③ SectionCard에서 분리해 유지관리 서브섹션의 독립 SectionCard 2장으로 이동(`data-testid=\"knowledge-verify-group\"` 등 기존 testid 전부 보존)\n- `goToSettingsGroup`(:2730)에 `setSettingsSection(ANCHOR_TO_SECTION[anchorId] ?? \"folders\")` 1줄 추가 — 대시보드 [설정으로] 5종이 올바른 서브섹션에 착지\n- `openTaxonomyWizardFromDrift`(:3094)에 `setSettingsSection(\"taxonomy\")` 추가\n- **TaxonomyWizard 마운트(:4622-4637)는 서브섹션 조건 바깥(현 위치)에 유지** — 서브탭 전환에도 마법사 모달이 닫히지 않아 스캔→분석→확정→적용(색인 연쇄) 흐름 무손상. 마법사 품질 요약 문구(:1650)를 \"설정 탭 [② 분류·어휘]의 분류 대기 큐에서 직접 확정할 수 있습니다\"로 갱신\n- extraction view(:3787)는 기존대로 설정 탭 전체 대체(진입 버튼이 folders 섹션에 있으므로 복귀 시 folders 그대로)\n\n### 3) 항목별 설명 — SettingHelp 컴포넌트 + 구획별 문구 (구현자가 그대로 사용)\n\n```tsx\nfunction SettingHelp({ what, when, where, testId }: { what: string; when: string; where: string; testId?: string }) {\n  return (\n    <div className=\"knowledge-setting-help\" data-testid={testId}>\n      <p><strong>무엇:</strong> {what}</p>\n      <p><strong>언제:</strong> {when}</p>\n      <p><strong>결과:</strong> {where}</p>\n    </div>\n  );\n}\n```\nCSS(knowledge-screen.css): `.knowledge-setting-help { display:grid; gap:0.2rem; font-size:0.85rem; color:var(--text-subtle); padding:0.6rem 0.75rem; border-left:3px solid var(--line-soft); border-radius:0 8px 8px 0; background:rgba(255,255,255,0.5); }` + `.knowledge-settings-nav { margin-bottom:1rem; }`(기존 seg-control 스타일 상속).\n\n**구획별 문구 초안(공무원 눈높이, 그대로 반영)**:\n\n| 구획 (testId) | 무엇 | 언제 | 결과 |\n|---|---|---|---|\n| 지식폴더 지정 `settings-help-sources` | 내 컴퓨터의 업무 폴더를 이 앱이 읽을 '지식폴더'로 등록합니다. | 처음 설치했을 때 한 번, 새 업무 폴더가 생겼을 때. | 아래 '등록 폴더' 카드에 폴더와 파일 수가 표시됩니다. |\n| 스캔(등록 폴더 카드 title 보강) | 폴더 안 파일 목록과 문서 본문을 다시 읽어옵니다(색인 전 단계). | 폴더에 파일을 넣거나 지우거나 고친 뒤. | 카드의 '파일 수 · 최근 스캔' 시각이 갱신됩니다. |\n| 색인 설정·실행 `settings-help-indexing` | 스캔한 문서를 검색과 위키에서 쓸 수 있게 정리(색인)합니다. | 스캔 후, 또는 대시보드에 '미반영 변경'이 보일 때. | 위키 탭의 문서 목차와 검색 결과에 반영됩니다. 진행률은 아래 '진행 상태'에서 확인합니다. |\n| [변경 확인] title | 색인을 돌리기 전에 바뀐 파일이 몇 개인지 먼저 셉니다. 오래 걸릴지 미리 알 수 있습니다. | — | 카드 아래 '변경 견적'(추가·수정·이동·삭제)이 표시됩니다. |\n| [강제 재색인] title | 전체 문서를 처음부터 다시 색인합니다. 검색 결과가 이상할 때만 쓰는 복구용 버튼입니다(평소 불필요). | — | 문서가 많으면 수 분 걸릴 수 있습니다. |\n| 진행 상태 `settings-help-progress` | 스캔·색인 작업의 진행률과 실패 기록을 보여줍니다. | 색인을 시작하면 자동으로 갱신됩니다. | 완료되면 '색인완료 파일 N개'가 늘고 위키 탭에 반영됩니다. 실패한 파일은 여기서 다시 색인할 수 있습니다. |\n| 위키 구성 설정 `settings-help-taxonomy` | 4문항 인터뷰와 폴더 구조 분석으로 '업무 분류체계'(위키 목차 뼈대)를 만듭니다. | 지식폴더 등록 직후 한 번, 부서·업무가 바뀌었을 때 다시. | 위키 탭 목차가 업무 단위로 정리되고, 기준이 SCHEMA.md 문서에 기록됩니다. |\n| 기관 어휘집 팩 `settings-help-vocab-pack` | 기관 공식 용어·동의어 목록을 넣어 검색·분류가 우리 기관 말로 통하게 합니다. | 기관에서 배포한 어휘집 파일을 받았을 때. | 다음 색인·분류부터 적용되고, 현재 적용 중인 팩이 이 카드에 표시됩니다. |\n| 주제 어휘 후보 `settings-help-vocab-candidates` | 문서에서 자동으로 찾아낸 새 용어 후보를 검토해 승인하거나 거절합니다. | 대시보드에 '주제 후보 검토 N건' 배지가 보일 때. | 승인한 용어는 어휘집에 추가되어 다음 색인부터 검색·분류에 쓰입니다. |\n| 분류 대기 큐 `settings-help-queue` | 어느 업무인지 확신이 낮았던 문서를 사람이 직접 지정합니다. | 분류체계 적용 후 '분류 대기 N건'이 남았을 때. | 지정한 문서가 해당 업무 허브(위키 목차)로 이동합니다. |\n| LLM 요약 보강 `settings-help-enrich` | 색인된 문서 카드의 요약문을 AI가 다시 씁니다. | 색인 완료 후, 검색·근거 답변 품질을 높이고 싶을 때. | 위키 문서 카드의 요약이 좋아지고 '요약 보유 n/전체' 수치가 올라갑니다. |\n| 무결성 점검 `settings-help-verify` | 색인·문서 카드·검색 인덱스가 서로 어긋나지 않았는지 검사하고, 안전한 항목은 자동 수리합니다. | 한 달에 한 번쯤, 또는 검색 결과가 이상할 때. | 아래 '최근 점검 결과' 카드에 자동 수리·확인 필요 건수가 표시됩니다. |\n\n기존 helper-copy 문단은 SettingHelp로 대체(중복 서술 제거), 버튼 title 툴팁은 위 표의 title 열로 교체·보강한다.\n\n### 4) 깨지는 기존 테스트 계약 (명시) + 이관 방법\n\n서브탭 조건부 렌더로 다음이 깨지며, 전부 기계적 수정:\n1. `openSettingsTab` 헬퍼 확장 — knowledge-taxonomy.test.tsx:425(+`knowledge-settings-nav-taxonomy` 클릭 1줄, 8개 케이스 일괄 해결), knowledge-vocab.test.tsx:302(동일)+:452 인라인 1곳\n2. knowledge-sources.test.tsx:1346-1359(taxonomy entry)·:1143-1150(LLM 보강) — 해당 케이스에 nav 클릭 1줄씩\n3. knowledge-sources.test.tsx:1090-1119 3탭 레이아웃 테스트 — \"3그룹 동시 표시\" 단언을 \"서브내비 3버튼 존재 + folders 기본 표시 + nav 전환 시 각 그룹 표시\"로 재작성. `getAllByRole(\"tab\")===3`은 seg-control 채택으로 **무수정 유지**\n4. knowledge-sync-p3.test.tsx:294-295(무결성 점검) — nav `-maintenance` 클릭 1줄\n무수정 통과(자동 서브섹션 선택 덕분): sources :767-792, :794-829, :848-866, :868-909(변경확인→증분), :1020-1054, :1056-1073, sync-p3 :343-387(설정으로 verify), :389-419(드리프트), taxonomy :509-514(SCHEMA→위키 탭). G7(문서품질)은 프런트 IA 변경이라 무관, 사이드카·색인 파이프라인 무변경.",
+  "files_to_change": [
+    {
+      "path": "apps/desktop/src/screens/KnowledgeScreen.tsx",
+      "change": "설정 탭 3분할: KnowledgeSettingsSection 타입·KNOWLEDGE_SETTINGS_SECTIONS·ANCHOR_TO_SECTION 상수 추가(:113-120 인근), settingsSection 로컬 상태, seg-control 서브내비(role=group, data-testid=knowledge-settings-nav-*) 렌더, :3936-4620 그룹을 folders/taxonomy/maintenance 조건부 렌더로 재배치(LLM 보강·무결성 점검을 독립 SectionCard로 분리, 기존 testid·anchor id·SectionCard 제목 전부 보존), goToSettingsGroup(:2730)에 setSettingsSection 추가, openTaxonomyWizardFromDrift(:3094)에 setSettingsSection(\"taxonomy\") 추가, TaxonomyWizard 마운트(:4622)는 서브섹션 조건 밖 유지, SettingHelp 컴포넌트 신설 + 구획별 무엇/언제/결과 문구 12종 적용, 마법사 안내문(:1650)·버튼 title 문구 갱신"
+    },
+    {
+      "path": "apps/desktop/src/styles/knowledge-screen.css",
+      "change": ".knowledge-settings-nav(기존 seg-control 상속 + margin), .knowledge-setting-help(무엇/언제/결과 3줄 박스: grid·subtle 색·좌측 보더) 스타일 추가 — :387-411의 기존 설정 탭 스타일 블록에 이어서"
+    },
+    {
+      "path": "apps/desktop/src/knowledge-taxonomy.test.tsx",
+      "change": "openSettingsTab 헬퍼(:425-428)에 knowledge-settings-nav-taxonomy 클릭 1줄 추가 — 8개 케이스 일괄 통과"
+    },
+    {
+      "path": "apps/desktop/src/knowledge-vocab.test.tsx",
+      "change": "openSettingsTab 헬퍼(:302-304)에 nav-taxonomy 클릭 추가 + :452 인라인 경로 동일 수정"
+    },
+    {
+      "path": "apps/desktop/src/knowledge-sources.test.tsx",
+      "change": ":1090-1119 3탭 레이아웃 테스트를 서브내비 계약으로 재작성(tab 3개 단언은 유지), :1143-1150에 nav-maintenance 클릭, :1346-1359에 nav-taxonomy 클릭 추가. 신규 케이스 2개: 서브탭 전환 네거티브 컨트롤(POST 0건·role=tab 불변), SettingHelp 3요소 렌더 검증"
+    },
+    {
+      "path": "apps/desktop/src/knowledge-sync-p3.test.tsx",
+      "change": ":290-341 무결성 점검 케이스에 nav-maintenance 클릭 1줄 추가(:343-419 두 케이스는 goToSettingsGroup 자동 선택으로 무수정). 신규: 마법사 열린 채 서브탭 전환 시 wizard 유지 케이스"
+    }
+  ],
+  "verification_criteria": [
+    "vitest 전체 그린(G8): `npx vitest run` 에서 knowledge-sources/knowledge-taxonomy/knowledge-vocab/knowledge-sync-p3/knowledge-wiki-topics 포함 실패 0건",
+    "설정 탭 진입 직후 DOM 계약: getByText(\"지식폴더 지정\")·getByText(\"색인 설정·실행\") 존재 AND queryByTestId(\"knowledge-taxonomy-entry\")===null AND queryByTestId(\"knowledge-verify-group\")===null (기본 서브섹션=folders 결정적 판정)",
+    "role=\"tab\" 요소 수 불변: 설정 탭에서 screen.getAllByRole(\"tab\").length === 3 (서브내비가 tab 시맨틱을 오염시키지 않음)",
+    "대시보드 [설정으로] 5종 딥링크: enrich 카드 경유 시 findByRole(button, \"LLM 요약 보강 시작\") 성공, verify 카드 경유 시 findByTestId(\"knowledge-verify-group\") 성공, taxonomy 카드 경유 시 findByTestId(\"knowledge-taxonomy-entry\") 성공 — 각각 서브탭 클릭 없이",
+    "마법사 연쇄 무손상: knowledge-taxonomy.test.tsx 3단계 마법사 케이스(인터뷰→needs_scan 자동 스캔→확정→적용)가 서브내비 클릭 1줄 추가 외 무수정 통과, taxonomy-apply-index-notice 렌더 유지",
+    "SettingHelp 12개 testid(settings-help-sources/-indexing/-progress/-taxonomy/-vocab-pack/-vocab-candidates/-queue/-enrich/-verify 등)가 각 구획에서 '무엇:'·'언제:'·'결과:' 3개 텍스트를 모두 포함(toHaveTextContent 3회)",
+    "기존 data-testid 계약 보존: 본 조사에서 전수 나열한 설정 탭 testid(knowledge-taxonomy-entry, knowledge-taxonomy-queue, knowledge-vocab-pack, knowledge-vocab-candidates, knowledge-verify-group, knowledge-diff-estimate, knowledge-scan-activity, knowledge-ingestion-stage-rail 등)가 리네임 없이 해당 서브섹션 내 존재",
+    "사이드카(services/sidecar) 소스 diff 0줄 — 프런트 IA 변경만으로 G7(문서품질 게이트) 영향 없음을 diff로 판정"
+  ],
+  "scenarios": [
+    {
+      "id": "S1",
+      "scenario": "[vitest] 내 지식폴더 → 설정 탭 클릭 (기본 서브섹션)",
+      "expected": "knowledge-settings-nav에 버튼 3개(① 폴더·색인/② 분류·어휘/③ 유지관리), folders가 aria-pressed=true. '지식폴더 지정'과 '색인 설정·실행'이 보이고 knowledge-taxonomy-entry·knowledge-verify-group은 DOM에 없음"
+    },
+    {
+      "id": "S2",
+      "scenario": "[vitest] 설정 탭에서 nav-taxonomy 클릭 후 분류·어휘 작업",
+      "expected": "knowledge-taxonomy-entry·knowledge-vocab-pack·knowledge-vocab-candidates·(configured 시)knowledge-taxonomy-queue 렌더. 분류 대기 큐 항목 확정 등 기존 taxonomy 테스트 시나리오가 그대로 동작"
+    },
+    {
+      "id": "S3",
+      "scenario": "[vitest] 대시보드 LLM 보강 카드 [설정으로] / 정합성 카드 [무결성 점검] 클릭 (앵커 딥링크)",
+      "expected": "설정 탭 + maintenance 서브섹션 자동 선택. 'LLM 요약 보강 시작' 버튼(미설정 시 disabled+사유 title)과 knowledge-verify-group이 추가 클릭 없이 조회됨 — 기존 sources :1056-1073, sync-p3 :343-387 무수정 통과"
+    },
+    {
+      "id": "S4",
+      "scenario": "[vitest] 대시보드 드리프트 배지 클릭 → 마법사 열림 → 마법사 열린 채 nav-folders로 서브섹션 전환 → 마법사 닫기",
+      "expected": "배지 클릭 시 설정 탭+taxonomy 섹션+taxonomy-wizard 오픈. 서브섹션을 전환해도 taxonomy-wizard가 DOM에 유지(모달 마운트가 서브섹션 조건 밖). 닫으면 knowledge-drift-badge-settings가 taxonomy 섹션에 표시"
+    },
+    {
+      "id": "S5",
+      "scenario": "[vitest] folders 섹션에서 소스 등록 → 스캔 시작 → 색인 시작 → 진행 확인 (한 화면 연쇄)",
+      "expected": "등록 폼·스캔·[변경 확인]/[색인 시작]/[강제 재색인]·작업 카드(색인 작업 #job1)·단계 레일·색인 상세 로그·[색인완료 파일 N개]→extraction view가 모두 서브탭 이동 없이 완료 — 기존 sources :767-829, :868-909, :1121-1141 무수정 통과"
+    },
+    {
+      "id": "S6",
+      "scenario": "[vitest] 미스캔 신설치 상태에서 마법사 진입 → 인터뷰 완료 → 자동 스캔 연쇄 → 확정 → 지금 적용",
+      "expected": "taxonomy-auto-scan 표시 후 review-step 진입(스캔→재분석 자동), 적용 시 taxonomy-apply-index-notice(색인 선행 안내) 렌더 — 서브탭 도입 후에도 기존 knowledge-taxonomy :607-693 계약 유지"
+    },
+    {
+      "id": "S7-NEG",
+      "scenario": "[vitest 네거티브] 서브섹션 3개를 순회 클릭만 수행하고 fetch mock 호출 기록 검사",
+      "expected": "POST/PUT/DELETE 0건, /ask·/turn·/enrich·/authoring 등 LLM 엔드포인트 호출 0건 (섹션 전환은 조회성 GET 재조회만 허용). 색인·보강 작업이 의도치 않게 시작되지 않음"
+    },
+    {
+      "id": "S8-NEG",
+      "scenario": "[vitest 네거티브] 설정 탭에서 접근성 롤 검사: getAllByRole(\"tab\")과 서브내비",
+      "expected": "role=tab 요소는 정확히 3개(대시보드/위키/설정)로 불변 — 서브내비 버튼이 role=tab을 갖지 않음(sources :1097 계약 보존). knowledge-settings-nav는 role=group + aria-pressed로만 상태 표현"
+    },
+    {
+      "id": "S9",
+      "scenario": "[vitest] 각 구획 SettingHelp 문구 검증 — folders/taxonomy/maintenance 순회하며 settings-help-* 12종 조회",
+      "expected": "각 help 블록이 '무엇:'·'언제:'·'결과:' 3요소를 모두 포함하고, 결과 문구에 산출물 위치(위키 탭/카드/SCHEMA.md/진행 상태)가 명시됨"
+    }
+  ],
+  "risks": [
+    "테스트 이관 범위: 4개 테스트 파일에서 헬퍼 2곳+인라인 4곳+레이아웃 케이스 1개 재작성이 필요 — 기계적이지만 G8 게이트 대상이므로 구현 PR에 반드시 동반 커밋해야 함(설계서 §4에 전수 명시)",
+    "서브섹션 언마운트로 로컬 상태 소실: TaxonomyQueueSection의 펼침 상태·선택값(:1677-1684), VocabCandidateSection 검토 진행분이 섹션 전환 시 초기화됨. 마운트 시 자동 재조회(:1686-1710)라 데이터 정합은 유지되나 UX상 재펼침 필요 — 소스 등록 폼(knowledgeSourceForm)과 diff 견적(knowledgeDiffBySource)은 화면/스토어 상위 상태라 소실되지 않음",
+    "goToSettingsGroup의 60ms setTimeout 스크롤(:2736-2741)이 서브섹션 렌더 완료 전에 실행될 가능성 — 같은 프레임에 setState 후 anchor가 새로 마운트되므로 jsdom에서는 무해하나 실화면에서 스크롤 미동작 시 타이밍을 requestAnimationFrame 2회 또는 100ms로 조정 필요",
+    "eyebrow '설정 ①②③' 제거로 사용자 매뉴얼(HTML 매뉴얼·스크린샷 30장)과 튜토리얼 문구가 구화면 기준으로 낡음 — 매뉴얼 갱신은 본 트랙 범위 밖이므로 별도 후속 작업으로 표기 필요",
+    "마법사 내 안내문(:1650 '설정 탭의 위키 구성 설정에 있는 분류 대기 큐')·대시보드 카드 title 5곳(:3586 등 '설정 탭의 ...그룹으로 이동') 등 서브탭 이름을 참조해야 하는 하드코딩 문구가 산재 — 누락 시 안내와 실제 화면이 불일치, grep '설정 탭' 전수 치환 점검 필요",
+    "ContextPane '색인 상세 로그' 패널 탭은 knowledgePanel===indexing 조건(store.tsx:1961)이라 taxonomy/maintenance 서브섹션에서도 계속 노출됨 — 동작은 정상이나 '폴더·색인 섹션이 아닌데 색인 로그가 보인다'는 인지 부조화 가능(수용 가능, 조건을 settingsSection까지 좁히면 store로 상태 승격 필요해 과설계)",
+    "FirstRunTutorial(:240)은 설정 탭 기본 섹션(folders)에 착지 — 폴더 등록 유도 목적과 일치해 무영향이나, 향후 튜토리얼이 분류체계 단계를 추가하면 섹션 지정 수단(콜백 또는 store 승격)이 필요"
+  ]
+}

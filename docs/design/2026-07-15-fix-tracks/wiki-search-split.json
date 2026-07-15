@@ -1,0 +1,99 @@
+{
+  "key": "wiki-search-split",
+  "current_behavior": "■ 위키 탭 상단 검색 바 (apps/desktop/src/screens/KnowledgeScreen.tsx)\n- 4650: `knowledge-wiki-search` 컨테이너. 4651–4673: seg-control `knowledge-search-method` — [키워드 검색]/[근거 답변] 토글 버튼(aria-pressed), 상태는 2603 `knowledgeSearchMode`(타입 92 `type KnowledgeSearchMode = \"keyword\" | \"ask\"`).\n- 4674–4719: 단일 폼(라벨 \"지식 검색\" input, store의 `knowledgeQuery` 바인딩) + 제출 버튼 라벨이 모드에 따라 \"키워드 검색 실행\"/\"근거 답변 생성\"으로 전환(4711). 4713–4717: 검색엔진 모드 pill `knowledge-search-mode`(\"정확 일치(트라이그램)\"/\"부분 일치\").\n- 4721–4736: 최근 질의 칩 `knowledge-query-history`(모드 공유, 3004–3007 `rerunKnowledgeQueryFromHistory`는 현재 모드로 재실행).\n- 제출 경로: 2991–3002 `submitKnowledgeQuery(mode)` → keyword면 2957–2972 `runKnowledgeSearchQuery`(api.ts:1637–1641 GET /api/knowledge/search?query=), ask면 2974–2989 `runKnowledgeAskQuery`(api.ts:1724–1739 POST /api/knowledge/ask). 각각 상대 결과를 비움(2966, 2983).\n\n■ 우측 뷰어 (검색/위키 전환)\n- 2607: `wikiViewerMode: \"wiki\" | \"search\"`. 4924–5161: 검색 뷰 `knowledge-search-view` — [← 위키로] 버튼(4927–4935), 키워드 결과 리스트 `knowledge-search-results`(4992–5074: 문서 카드마다 원본 열기·경로 복사·위키 카드 보기·세션에 연결), 근거 답변 `knowledge-ask-result`(5078–5160: \"근거 답변\" pill(5081), `knowledge-answer-mode` pill(LLM 합성/발췌 요약), 답변 복사, \"업무대화로 이어가기\"(5109–5116, 3279–3285 `continueAnswerInChat`), 출처 문서 citations).\n\n■ 위키트리와 페이지 이동 함수(바로가기 카드가 재사용할 기존 자산)\n- 트리 렌더: 4740–4922 — 업무(work_areas) 그룹 4745–4763(클릭 → `openKnowledgeWikiTarget(area.path)`), 주제(topics) 4764–4784(클릭 → 동일), 업무 기록 4785–4807, 폴더별 문서 4808–4864, 원본 없는 카드 4866–4895.\n- 페이지 열기: 3139–3165 `openKnowledgeWikiTarget(target, base?, {fromHistory})` — `wikiViewerMode`를 \"wiki\"로 되돌리고 fetchWikiPage(api.ts:2251–2254 GET /api/knowledge/wiki/page?path=) 후 `wikiPageHistory`(2612, 상한 20 = 3137) push. '← 이전' 3168–3175, breadcrumb `knowledge-wiki-breadcrumb` 5185–5187.\n- J-09 관련 검색: 3294–3299 `searchRelatedToWikiPage` — `setKnowledgeSearchMode(\"keyword\")` 후 즉시 키워드 검색.\n- 트리 데이터는 프런트가 이미 보유: store.tsx:357 `knowledgeWikiTree`, store.tsx:1472–1502에서 activeMenu===\"knowledge\" 진입 시 GET /api/knowledge/wiki/tree 자동 로드. 타입 api.ts:2207–2220 `WikiTreeResult` — topics/work_areas 항목에 slug·title·doc_count·path 포함 → 이름 매칭에 추가 fetch 불필요.\n\n■ 백엔드\n- 키워드 검색: app.py:4114–4115 GET /api/knowledge/search → knowledge_wiki.py:2883–2995 `search()` (FTS AND∪OR∪제목가중 LIKE 하이브리드 재랭킹, mode 계약 \"fts5\"/\"like\"/\"empty\"). 반환 항목은 문서(doc) 단위뿐(3253 `_search_item`) — 주제/업무 매치는 없음.\n- 위키트리: knowledge_wiki.py:4914–5016 `wiki_tree()` — topics_payload title은 주제명 원문(4939–4947), work_areas는 `list_work_area_pages()`(4929–4937).\n- 어휘집: app.py:4328–4330 GET /api/knowledge/vocab → topic_vocab.py:483–512 `vocab_overview()` — 주제별 `synonyms_count`만 반환, **동의어 목록 자체는 미반환** → 현행 API로는 프런트 동의어 매칭 불가(추가 필드 필요). 정규화 키는 knowledge_wiki.py:317–325 `normalize_topic_key`(NFC→소문자→공백제거→조사제거).\n\n■ 라벨/카피 파급\n- tips.ts:153 \"…위키 탭의 근거 답변은 출처와 함께 답하고…\", FirstRunTutorial.tsx:217 \"…지식위키 색인과 근거 답변을 쓸 수 있습니다.\", KnowledgeScreen.tsx:3252/3255/3284 토스트, 4277 설정 탭 설명문. labels.ts:203/209 \"키워드 검색(FTS5)…\"은 대시보드 엔진 상태 카드 라벨(유지 대상).",
+  "design": "■ 권고안: 프런트 중심 재구성 + (선택) vocab 동의어 추가 필드. 백엔드 검색 API·근거답변 API는 무변경.\n\n1) 토글 제거·검색 분리 (KnowledgeScreen.tsx)\n- `knowledgeSearchMode` 상태(2603)·타입(92)·seg-control 블록(4651–4673) 삭제. `submitKnowledgeQuery`는 keyword 전용으로 단순화(내부에서 runKnowledgeSearchQuery만 호출).\n- 상단 바(`knowledge-wiki-search` testid 유지): \"지식 검색\" input(store `knowledgeQuery` 바인딩 유지 — J-09 관련 검색 3294–3299가 값 프리필에 의존) + 버튼 라벨 고정 \"키워드 검색 실행\". 최근 질의 칩은 이 섹션에 남기고 클릭 시 항상 키워드 검색 재실행(모드 개념 소멸 — 의도적 동작 단순화, 아래 risks 참조).\n- 그 아래 별도 섹션 `data-testid=\"knowledge-detail-search\"`: 제목 \"상세검색\"(구 근거 답변) + 자체 로컬 state input(라벨 \"상세검색 질문\") + 버튼 \"상세검색 실행\" → 기존 `runKnowledgeAskQuery` 그대로 호출. 결과 렌더(`knowledge-ask-result` 5078–5160)·\"업무대화로 이어가기\"·출처 문서·답변 복사 전부 현행 유지. 5081 pill \"근거 답변\" → \"상세검색\"으로, 토스트 3252/3255/3284·tips.ts:153·FirstRunTutorial.tsx:217 카피를 \"상세검색\"으로 통일. 상호 결과 클리어(2966/2983)는 유지(뷰어가 최신 1건만 표시하는 F-14 계약 보존).\n\n2) 키워드 = 바로가기 카드\n- 매칭 데이터: 이미 로드된 `knowledgeWikiTree`의 `work_areas[].{title,path}` + `topics[].{title,path}` (api.ts:2207–2220). 새 fetch 불필요.\n- 정규화: `normalize_topic_key`(knowledge_wiki.py:317–325)의 TS 포트 `normalizeTopicKey()` — NFC(`String.prototype.normalize(\"NFC\")`)→소문자→공백 제거(조사 제거는 단순 접미 조사 목록 \"의/은/는/이/가/을/를/에/에서/으로/로\"만 포트). 매칭 규칙: `normKey(query) === normKey(title)` 또는 상호 포함(containment, 2자 이상)일 때 히트. 결정적·LLM 무관.\n- 렌더: 검색 뷰(`knowledge-search-view`) 상단, 결과 리스트 위에 `data-testid=\"knowledge-search-shortcuts\"` 그룹 — \"바로가기\" 헤더 + \"업무 N · 주제 N\" pill + 카드 버튼(업무는 pill \"업무\", 주제는 pill \"주제\", title·doc_count 표시). 클릭 → 기존 `openKnowledgeWikiTarget(item.path)` 재사용(뷰어가 위키 모드로 자동 복귀·히스토리 push까지 기존 로직 그대로). 매치 0건이면 그룹 자체 미렌더. 문서 매치 리스트(4992–5074)는 그 아래 현행 유지.\n- 계산 시점: `runKnowledgeSearchQuery` 성공 시 화면 로컬 state `searchShortcuts`에 저장(질의와 함께) — 검색 결과와 동일 라이프사이클로 클리어.\n- (선택·2단계) 동의어 매칭: topic_vocab.py `vocab_overview()`(483–512)에 주제별 `\"synonyms\": entry[\"synonyms\"]` 필드 추가(additive — 기존 sidecar 테스트 test_topic_vocab.py:366은 subset 단언이라 통과). api.ts `KnowledgeVocabTopicItem`(2573–2579)에 `synonyms?: string[]` 추가. 위키 탭 최초 검색 시 `fetchVocabSummary()`를 1회 lazy 조회(실패/구버전이면 조용히 무시)해 synonym→topic name 맵을 만들고, name을 normKey로 위키트리 topic title에 연결. 대안(순수 프런트, 이름만 매칭)과 비교: 동의어 없이도 요구 ①의 핵심은 충족하므로 1단계는 이름 매칭만, 2단계로 synonyms 필드를 같은 PR에 additive로 넣는 것을 권고(구버전 서버 하위호환 유지).\n\n3) CSS (knowledge-screen.css)\n- `.knowledge-search-method`(18행) 제거 가능. 신규 `.knowledge-detail-search`, `.knowledge-search-shortcuts`(카드 그리드는 기존 `.wiki-template__grid`/`.wiki-template__card` 재사용 검토) 추가.\n\n■ 기존 테스트 계약 파괴(명시)\n- knowledge-sources.test.tsx:1163–1209 \"renders keyword search results…\" — `knowledge-search-method` aria-pressed 단언(1172–1174) 삭제 필요, 나머지(결과 카드·mode pill·세션 연결)는 유지 가능.\n- 1230–1269 \"generates a grounded answer…\" — 토글 클릭(1237–1239)·\"근거 답변 생성\" 버튼(1242)을 상세검색 입력/버튼으로 재작성. 결과 단언(LLM 합성·출처·업무대화로 이어가기)은 재사용.\n- 1271–1297 \"runs the selected method with Enter…\" — 모드 전환·상호 리셋 계약이 UI 재편으로 재정의됨: 키워드 Enter + 상세검색 실행 + 히스토리 칩=키워드 재실행으로 재작성.\n- 1519–1542 J-09 관련 검색 — setKnowledgeSearchMode 제거 후에도 통과해야 함(단언 변경 불필요, 회귀 확인용).\n- 그 외 wiki-tree/템플릿/taxonomy 테스트(1361, 1387, 1413, 1476, 1544, 1562, 1580; knowledge-taxonomy.test.tsx:579–592; knowledge-wiki-topics.test.tsx)는 무변경 통과가 요구사항.\n- G7(문서품질) 무관(문서 생성 경로 미접촉), G8(전체 그린)은 위 재작성 포함 전체 vitest + sidecar pytest 그린으로 충족.",
+  "files_to_change": [
+    {
+      "path": "apps/desktop/src/screens/KnowledgeScreen.tsx",
+      "change": "knowledgeSearchMode 상태·타입·seg-control 토글(4651–4673) 제거, submitKnowledgeQuery 키워드 전용화, 상세검색 별도 섹션(knowledge-detail-search: 자체 input+버튼→runKnowledgeAskQuery) 신설, normalizeTopicKey TS 포트+wiki tree(work_areas/topics) 이름·동의어 매칭으로 바로가기 카드(knowledge-search-shortcuts) 검색 뷰 상단 렌더(클릭→openKnowledgeWikiTarget 재사용), '근거 답변' 표기(5081 pill·3252/3255/3284 토스트·4277 설명)를 '상세검색'으로 변경"
+    },
+    {
+      "path": "apps/desktop/src/styles/knowledge-screen.css",
+      "change": ".knowledge-search-method(18행) 제거, .knowledge-detail-search·.knowledge-search-shortcuts 스타일 추가(카드류는 기존 .wiki-template__card 재사용 우선)"
+    },
+    {
+      "path": "apps/desktop/src/shared/tips.ts",
+      "change": "153행 knowledge-grounded-answer 팁 문구를 '상세검색' 명칭으로 갱신"
+    },
+    {
+      "path": "apps/desktop/src/components/FirstRunTutorial.tsx",
+      "change": "217행 '근거 답변' 카피를 '상세검색'으로 갱신"
+    },
+    {
+      "path": "apps/desktop/src/knowledge-sources.test.tsx",
+      "change": "1163–1297 구획 재작성(토글 단언 제거, 상세검색 섹션 기준으로), 바로가기 카드 시나리오(S1·S2·S5) 신규 추가, J-09(1519–1542) 회귀 유지 확인"
+    },
+    {
+      "path": "apps/desktop/src/api.ts",
+      "change": "(선택 2단계) KnowledgeVocabTopicItem(2573–2579)에 synonyms?: string[] 추가"
+    },
+    {
+      "path": "services/sidecar/src/gongmu_sidecar/topic_vocab.py",
+      "change": "(선택 2단계) vocab_overview(483–512) topics 항목에 synonyms 리스트 additive 추가"
+    },
+    {
+      "path": "services/sidecar/tests/test_topic_vocab.py",
+      "change": "(선택 2단계) 366행 인근에 synonyms 필드 존재·내용 단언 추가"
+    }
+  ],
+  "verification_criteria": [
+    "vitest: `apps/desktop`에서 knowledge-sources.test.tsx 전체 그린, 그리고 `screen.queryByTestId(\"knowledge-search-method\")`가 위키 탭 렌더 후 null (토글 완전 제거의 결정적 판정)",
+    "vitest: 위키 탭에서 `knowledge-wiki-search`(키워드)와 `knowledge-detail-search`(상세검색) testid가 동시에 존재하고, 상세검색 실행 시 `knowledge-ask-result` + '업무대화로 이어가기' 버튼이 렌더됨(기능 현행 유지)",
+    "vitest: 트리 주제/업무 이름과 일치하는 질의의 키워드 검색 후 `knowledge-search-shortcuts` 내 카드 클릭 → `knowledge-wiki-page` 렌더 + `knowledge-wiki-breadcrumb`가 해당 topics/… 또는 work-areas/… 경로를 포함(기존 openKnowledgeWikiTarget 경로 재사용 판정)",
+    "vitest 네거티브: 어떤 주제/업무 이름과도 매칭되지 않는 질의에서 `queryByTestId(\"knowledge-search-shortcuts\")` === null 이면서 `knowledge-search-results`는 정상 렌더",
+    "G8: `npx vitest run` 전체 그린 + `services/sidecar`에서 `python -m pytest` 전체 그린(2단계 synonyms 포함 시 test_topic_vocab.py:359 라운드트립 테스트 통과 유지)",
+    "grep 판정: apps/desktop/src 내 사용자 노출 문자열에서 '근거 답변' 0건(labels.ts의 '키워드 검색(FTS5)' 엔진 상태 라벨은 예외로 허용 목록에 명시), '상세검색' ≥ 1건",
+    "Playwright/preview DOM(설치본 http://127.0.0.1:8765 GET 허용 범위): GET /api/knowledge/wiki/tree 응답의 topics[0].title로 키워드 검색 실행 시 바로가기 카드 DOM(`[data-testid=knowledge-search-shortcuts]`) 존재 — LLM 엔드포인트 호출 없이 판정 가능"
+  ],
+  "scenarios": [
+    {
+      "id": "S1",
+      "scenario": "위키트리에 주제 '연말 정산'(topics/연말-정산.md)이 있는 상태에서 키워드 입력창에 '연말정산' 입력 후 Enter",
+      "expected": "knowledge-search-shortcuts 그룹에 '주제' pill의 '연말 정산' 카드가 표시되고, 클릭 시 knowledge-wiki-page가 열리며 breadcrumb에 topics/연말-정산.md 포함, knowledge-search-results는 사라짐(뷰어 위키 모드 복귀)"
+    },
+    {
+      "id": "S2",
+      "scenario": "확정 분류체계 적용으로 work_areas에 '예산 관리'(work-areas/예산-관리.md)가 있는 상태에서 '예산 관리' 키워드 검색",
+      "expected": "바로가기 그룹에 '업무' pill 카드 '예산 관리'가 문서 리스트보다 위에 렌더되고, 클릭 시 work-areas/예산-관리.md 페이지가 열림(knowledge-taxonomy.test.tsx:584–592 트리 클릭과 동일 결과)"
+    },
+    {
+      "id": "S3",
+      "scenario": "'개인정보보호법' 키워드 검색(기존 mock 데이터)",
+      "expected": "knowledge-search-results에 문서 카드(제목·경로·발췌·원본 열기·경로 복사·위키 카드 보기·세션에 연결)와 knowledge-search-mode pill '정확 일치(트라이그램)'이 현행 그대로 렌더(문서 리스트 회귀 없음)"
+    },
+    {
+      "id": "S4",
+      "scenario": "토글 없이 상세검색 섹션의 입력창에 질문 입력 후 '상세검색 실행' 클릭",
+      "expected": "knowledge-search-method testid가 DOM에 없고, knowledge-ask-result에 answer-mode pill·출처 문서·'답변 복사'·'업무대화로 이어가기'가 렌더되며, 이어가기 클릭 시 chat-composer-input 값에 '질문: …' 프리필(현행 기능 유지)"
+    },
+    {
+      "id": "S5",
+      "scenario": "[네거티브 컨트롤] 주제·업무 어느 이름과도 정규화 매칭되지 않는 질의 'zzz미존재주제어' 키워드 검색",
+      "expected": "knowledge-search-shortcuts가 렌더되지 않고(queryByTestId null), 문서 결과 또는 '검색 결과가 없습니다' EmptyState만 표시 — 바로가기 오탐 0"
+    },
+    {
+      "id": "S6",
+      "scenario": "[네거티브 컨트롤] 구버전 서버 시뮬레이션 — GET /api/knowledge/vocab이 404이거나 synonyms 필드가 없는 응답에서 주제 이름과 일치하는 키워드 검색",
+      "expected": "동의어 없이 이름 매칭만으로 바로가기 카드가 정상 표시되고, 오류 토스트·콘솔 예외 없이 검색 결과도 현행대로 렌더(graceful degradation)"
+    },
+    {
+      "id": "S7",
+      "scenario": "상세검색 실행으로 knowledge-ask-result가 표시된 뒤, 최근 질의 칩(키워드 이력) 클릭",
+      "expected": "키워드 검색이 재실행되어 knowledge-search-results가 표시되고 knowledge-ask-result는 클리어(F-14 최신 1건 계약 유지, 이력 칩은 키워드 전용)"
+    },
+    {
+      "id": "S8",
+      "scenario": "docs 템플릿 헤더의 J-09 '관련 검색' 클릭(문서 제목 '예산 검토')",
+      "expected": "위키 탭 유지 + 지식 검색 input 값 '예산 검토' + 검색 뷰 전환·결과 렌더, '← 위키로'로 보던 문서 복귀(knowledge-sources.test.tsx:1519–1542 계약 무손상)"
+    }
+  ],
+  "risks": [
+    "기존 vitest 계약 3건(knowledge-sources.test.tsx:1163–1209 토글 단언, 1230–1269 근거 답변 생성 흐름, 1271–1297 모드 전환·Enter·이력)이 확정적으로 깨짐 — 같은 변경에서 재작성하지 않으면 G8 게이트 위반",
+    "질의 이력 칩의 의미 변경(현행: 현재 모드로 재실행 → 개편: 항상 키워드 재실행) — 상세검색 질의는 이력에 남기지 않거나 별도 이력을 둘지 구현 시 결정 필요(미결정 시 사용자 혼란)",
+    "normalize_topic_key의 조사 제거(_strip_josa_suffix) TS 포트가 Python 원본과 완전 일치하지 않으면 일부 조사 오염 질의('예산편성의')의 바로가기 매칭이 어긋날 수 있음 — 포함(containment) 매칭이 완화하지만 백엔드와 프런트 정규화가 이원화되는 구조적 부채",
+    "바로가기는 '위키 페이지가 실제 존재하는 항목'(wiki_tree 응답)에만 걸어야 함 — vocab 주제 중 문서 0건이라 topics/ 페이지가 없는 항목에 카드를 만들면 클릭 시 400/404(read_page wiki_root 검증) 노출",
+    "지식 검색 input을 store knowledgeQuery로 유지하고 상세검색 input을 로컬 state로 분리하지 않으면 두 입력창이 값을 공유해 교차 오염 — J-09 프리필(3294–3299)이 keyword input에 의존하므로 바인딩 분리 방향을 지켜야 함",
+    "'근거 답변' 명칭 변경이 HTML 매뉴얼·시연영상·tips·튜토리얼 등 코드 밖 자산과 불일치하게 됨(매뉴얼 스크린샷 재캡처는 본 트랙 범위 외임을 명시 필요)",
+    "(2단계 채택 시) vocab_overview에 synonyms 원문 리스트가 실리면 응답 크기 증가 및 knowledge-vocab.test.tsx의 vocab mock과 신규 lazy fetch 타이밍 간섭 가능 — fetch 실패를 조용히 무시하는 catch가 없으면 무관 테스트에서 unhandled rejection 발생 위험"
+  ]
+}
