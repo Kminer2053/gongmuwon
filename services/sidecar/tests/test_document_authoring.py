@@ -453,7 +453,10 @@ def test_streaming_emits_stage_events_and_final_structure(tmp_path: Path) -> Non
     assert done["done"] is True
     assert done["format"] == "onePageReport"
     assert done["structure"]["title"] == ONEPAGE_JSON["title"]
-    assert "□ 요약" in done["preview"]
+    # T2(4호): 요약은 '요약' 제목 없이 글상자(룰 라인 프레임) 안에 요지로 표기된다
+    assert "□ 요약" not in done["preview"]
+    assert ONEPAGE_JSON["summary"] in done["preview"]
+    assert done["preview"].count("─" * 30) == 2
 
 
 def test_streaming_llm_failure_emits_error_event(tmp_path: Path) -> None:

@@ -26,6 +26,10 @@ BUILTIN_FORMAT_DIRS = {
 ROMAN_NUMERALS = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ"]
 GANADA = ["가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하"]
 
+# 1p 요약 글상자: 최종 HWPX 에서는 1×1 표(테두리 글상자)로, 평문 미리보기에서는
+# 상/하 룰 라인으로 표현한다. '요약' 제목 없이 문서 요지를 한눈에 보이게 하는 장치다.
+SUMMARY_BOX_RULE = "─" * 30
+
 
 # ---------------------------------------------------------------------------
 # 구조 마커: authoring /build 가 content-base 마크다운에 구조 JSON을 심어 두면
@@ -99,10 +103,13 @@ def structure_to_lines(format_key: str, structure: dict[str, Any]) -> list[str]:
         lines = [str(structure.get("title", ""))]
         if structure.get("subtitle"):
             lines.append(f"- {structure['subtitle']} -")
-        lines += ["", "□ 요약"]
-        # F-13a: 다문장 요약은 문장마다 별도 ◦ 줄로 렌더한다
-        summary_sentences = split_summary_sentences(str(structure.get("summary", ""))) or [""]
-        lines += [f" ◦ {sentence}" for sentence in summary_sentences]
+        # 요약은 '요약' 제목 없이 글상자(표)로 감싼다 — 평문 미리보기는 상/하 룰 라인으로 표현.
+        # F-13a: 다문장 요약은 문장마다 별도 ◦ 줄로 렌더한다. 빈 요약이면 상자 자체를 만들지 않는다.
+        summary_sentences = split_summary_sentences(str(structure.get("summary", "")))
+        if summary_sentences:
+            lines += ["", SUMMARY_BOX_RULE]
+            lines += [f" ◦ {sentence}" for sentence in summary_sentences]
+            lines.append(SUMMARY_BOX_RULE)
         for section in structure.get("sections", []) or []:
             lines += ["", f"□ {section.get('heading', '')}"]
             for item in section.get("items", []) or []:
@@ -527,6 +534,69 @@ def _harvest_level_templates(paragraphs: list[str], format_key: str) -> dict[str
     return templates
 
 
+# 요약 글상자 표·문단에 부여하는 고정 id — 스켈레톤 기존 id 대역(2·9·10자리)과 겹치지 않는
+# 높은 값으로 잡아 결정적 산출을 보장한다.
+_SUMMARY_BOX_TBL_ID = "9100000001"
+_SUMMARY_BOX_WRAP_ID = "9100000002"
+
+
+def _build_onepage_summary_box(item_template: str, sentences: list[str]) -> str:
+    """1p 요약을 1×1 표(테두리 글상자)로 감싼 최상위 문단 XML을 만든다.
+
+    셀 안 문단은 item 표본(text_005)의 글자·문단 서식(charPr/paraPr)을 물려받아 본문
+    ◦ 항목과 같은 모양을 유지한다. 표 테두리는 스켈레톤에 이미 정의된 실선 borderFill(id=4)을
+    쓴다. 한/글이 문서를 열 때 셀 높이·라인 세그먼트를 재계산하므로 높이는 최소 추정치만 넣는다.
+    """
+    para_match = re.search(r'paraPrIDRef="([^"]*)"', item_template)
+    style_match = re.search(r'styleIDRef="([^"]*)"', item_template)
+    char_match = re.search(r'charPrIDRef="([^"]*)"', item_template)
+    para_pr = para_match.group(1) if para_match else "0"
+    style_id = style_match.group(1) if style_match else "0"
+    char_pr = char_match.group(1) if char_match else "0"
+
+    cell_paragraphs: list[str] = []
+    for index, sentence in enumerate(sentences):
+        escaped = _xml_escape(f"◦ {sentence}")
+        vertpos = index * 1300
+        cell_paragraphs.append(
+            f'<hp:p id="0" paraPrIDRef="{para_pr}" styleIDRef="{style_id}" '
+            f'pageBreak="0" columnBreak="0" merged="0">'
+            f'<hp:run charPrIDRef="{char_pr}"><hp:t>{escaped}</hp:t></hp:run>'
+            f'<hp:linesegarray><hp:lineseg textpos="0" vertpos="{vertpos}" vertsize="1300" '
+            f'textheight="1300" baseline="1105" spacing="1040" horzpos="0" horzsize="45640" '
+            f'flags="393216"/></hp:linesegarray></hp:p>'
+        )
+    cell_body = "".join(cell_paragraphs)
+    cell_height = len(sentences) * 1500 + 400
+    tbl_height = cell_height + 566
+    return (
+        f'<hp:p id="{_SUMMARY_BOX_WRAP_ID}" paraPrIDRef="0" styleIDRef="0" '
+        f'pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="{char_pr}">'
+        f'<hp:tbl id="{_SUMMARY_BOX_TBL_ID}" zOrder="0" numberingType="TABLE" '
+        f'textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" '
+        f'pageBreak="CELL" repeatHeader="1" rowCnt="1" colCnt="1" cellSpacing="0" '
+        f'borderFillIDRef="4" noAdjust="0">'
+        f'<hp:sz width="47341" widthRelTo="ABSOLUTE" height="{tbl_height}" '
+        f'heightRelTo="ABSOLUTE" protect="0"/>'
+        f'<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" '
+        f'holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" '
+        f'horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+        f'<hp:outMargin left="283" right="283" top="141" bottom="283"/>'
+        f'<hp:inMargin left="141" right="141" top="141" bottom="141"/>'
+        f'<hp:tr><hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" '
+        f'borderFillIDRef="4"><hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" '
+        f'vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" '
+        f'textHeight="0" hasTextRef="0" hasNumRef="0">{cell_body}</hp:subList>'
+        f'<hp:cellAddr colAddr="0" rowAddr="0"/><hp:cellSpan colSpan="1" rowSpan="1"/>'
+        f'<hp:cellSz width="47341" height="{cell_height}"/>'
+        f'<hp:cellMargin left="424" right="424" top="141" bottom="141"/></hp:tc></hp:tr>'
+        f'</hp:tbl><hp:t/></hp:run>'
+        f'<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="{tbl_height}" '
+        f'textheight="{tbl_height}" baseline="{tbl_height - 200}" spacing="200" horzpos="0" '
+        f'horzsize="48188" flags="393216"/></hp:linesegarray></hp:p>'
+    )
+
+
 def _structured_body_plan(format_key: str, structure: dict[str, Any]) -> list[tuple[str, str]]:
     """structure_to_lines(미리보기)와 1:1 로 대응하는 (스타일, 본문 텍스트) 목록.
 
@@ -534,12 +604,8 @@ def _structured_body_plan(format_key: str, structure: dict[str, Any]) -> list[tu
     """
     plan: list[tuple[str, str]] = []
     if format_key == "onePageReport":
-        plan.append(("heading", "□ 요약"))
-        summary = str(structure.get("summary", "")).strip()
-        if summary:
-            # F-13a: structure_to_lines(미리보기)와 동일하게 문장 단위로 나눈다
-            for sentence in split_summary_sentences(summary):
-                plan.append(("item", f"◦ {sentence}"))
+        # 요약은 _render_structured_section_xml 에서 글상자(1×1 표)로 별도 주입한다 —
+        # 본문 계획에는 섹션만 담는다('요약' 헤딩·블릿 나열 폐지).
         for section in structure.get("sections", []) or []:
             plan.append(("gap", ""))
             plan.append(("heading", f"□ {section.get('heading', '')}"))
@@ -716,6 +782,20 @@ def _render_structured_section_xml(xml: str, format_key: str, structure: dict[st
         )
         plan = _structured_body_plan(format_key, structure)
         injected = _paragraphs_from_plan(plan, templates, gap_template)
+        if format_key == "onePageReport":
+            summary_sentences = split_summary_sentences(str(structure.get("summary", "")))
+            if summary_sentences:
+                item_template = templates.get("item")
+                if item_template:
+                    injected = [_build_onepage_summary_box(item_template, summary_sentences)] + injected
+                else:
+                    # 템플릿 부재 폴백: 상자 없이 ◦ 문장 문단으로 강등(내용 유실 금지)
+                    fallback = _paragraphs_from_plan(
+                        [("item", f"◦ {sentence}") for sentence in summary_sentences],
+                        templates,
+                        gap_template,
+                    )
+                    injected = fallback + injected
         new_paragraphs = paragraphs[:first] + injected + paragraphs[last + 1 :]
 
     return prefix + "".join(new_paragraphs) + suffix

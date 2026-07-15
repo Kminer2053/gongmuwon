@@ -730,8 +730,9 @@ describe("renderLocalAuthoringPreview (M-09 unit)", () => {
         "청사 에너지 절감 추진계획 보고",
         "- 2026년 하반기 -",
         "",
-        "□ 요약",
+        "─".repeat(30),
         " ◦ 전력 사용량 12% 절감",
+        "─".repeat(30),
         "",
         "□ 추진 배경",
         " ◦ 전력비 3.2억 원",
@@ -797,8 +798,9 @@ describe("renderLocalAuthoringPreview server parity (W5-1 전 필드 스냅샷)"
         { heading: "향후 조치", items: ["7월 시범 적용"], detail: null, note: null },
       ],
     };
+    const rule = "─".repeat(30);
     expect(renderLocalAuthoringPreview("onePageReport", validated)).toBe(
-      "청사 에너지 절감 추진계획 보고\n- 2026년 하반기 실행 중심 -\n\n□ 요약\n ◦ 전력 사용량 12% 절감을 위해 3개 과제를 하반기에 즉시 추진\n\n□ 추진 배경\n ◦ 전력비 3.2억 원\n ◦ 지침 시달\n   - 냉난방 전력 61%\n ※ 합리화 지침 근거\n\n□ 향후 조치\n ◦ 7월 시범 적용",
+      `청사 에너지 절감 추진계획 보고\n- 2026년 하반기 실행 중심 -\n\n${rule}\n ◦ 전력 사용량 12% 절감을 위해 3개 과제를 하반기에 즉시 추진\n${rule}\n\n□ 추진 배경\n ◦ 전력비 3.2억 원\n ◦ 지침 시달\n   - 냉난방 전력 61%\n ※ 합리화 지침 근거\n\n□ 향후 조치\n ◦ 7월 시범 적용`,
     );
   });
 

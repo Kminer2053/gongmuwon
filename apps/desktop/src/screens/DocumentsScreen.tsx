@@ -63,6 +63,8 @@ const DOCUMENT_AUTHORING_TABS: Array<{ key: AuthoringTabKey; label: string }> = 
 
 const LOCAL_ROMAN_NUMERALS = ["Ⅰ", "Ⅱ", "Ⅲ", "Ⅳ", "Ⅴ", "Ⅵ", "Ⅶ", "Ⅷ"];
 const LOCAL_GANADA = ["가", "나", "다", "라", "마", "바", "사", "아", "자", "차", "카", "타", "파", "하"];
+// 1p 요약 글상자: 서버 hwpx_writer.SUMMARY_BOX_RULE 와 동일 — 평문 미리보기의 상/하 룰 라인.
+const SUMMARY_BOX_RULE = "─".repeat(30);
 
 // W5-2: 임의형식 — 서버 4종 양식과 별개로 클라이언트에서 5번째 칩으로 노출한다
 const CUSTOM_FORMAT_KEY = "custom";
@@ -137,11 +139,15 @@ export function renderLocalAuthoringPreview(
     if (subtitle) {
       lines.push(`- ${subtitle} -`);
     }
-    lines.push("", "□ 요약");
-    // F-13a: 다문장 요약은 문장마다 별도 ◦ 줄로 렌더한다 (서버 structure_to_lines 와 동일)
+    // 요약은 '요약' 제목 없이 글상자(표)로 감싼다 — 평문 미리보기는 상/하 룰 라인으로 표현.
+    // F-13a: 다문장 요약은 문장마다 별도 ◦ 줄. 빈 요약이면 상자 자체를 만들지 않는다.
     const summarySentences = splitSummarySentences(readStructureText(structure, "summary"));
-    for (const sentence of summarySentences.length > 0 ? summarySentences : [""]) {
-      lines.push(` ◦ ${sentence}`);
+    if (summarySentences.length > 0) {
+      lines.push("", SUMMARY_BOX_RULE);
+      for (const sentence of summarySentences) {
+        lines.push(` ◦ ${sentence}`);
+      }
+      lines.push(SUMMARY_BOX_RULE);
     }
     for (const section of readStructureList(structure, "sections")) {
       const record = asRecord(section);
