@@ -1,6 +1,6 @@
 [package]
 name = "gongmu-desktop"
-version = "0.1.8"
+version = "0.1.9"
 description = "Gongmu local-first workspace desktop shell"
 authors = ["OpenAI Codex"]
 edition = "2021"
