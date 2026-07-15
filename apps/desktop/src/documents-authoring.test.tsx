@@ -40,6 +40,7 @@ vi.mock("./runtime", () => ({
   launchAnythingQuery: vi.fn(async () => undefined),
   openExternalTarget: vi.fn(async () => undefined),
   copyTextToClipboard: vi.fn(async () => undefined),
+  setDesktopZoom: vi.fn(async (scale: number) => scale),
 }));
 
 import { App } from "./app";

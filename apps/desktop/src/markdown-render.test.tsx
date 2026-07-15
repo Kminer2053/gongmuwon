@@ -10,6 +10,7 @@ vi.mock("./runtime", () => ({
   launchAnythingQuery: vi.fn(),
   openExternalTarget: vi.fn(async () => undefined),
   copyTextToClipboard: vi.fn(async () => undefined),
+  setDesktopZoom: vi.fn(async (scale: number) => scale),
 }));
 
 import { renderMarkdownContent } from "./app";
