@@ -325,6 +325,22 @@ def normalize_topic_key(topic: str) -> str:
     return _strip_josa_suffix(collapsed)
 
 
+def _resolve_topic_group_root(
+    entry: dict[str, Any], by_id: dict[str, dict[str, Any]]
+) -> dict[str, Any]:
+    """T4(4호): broader 상위어 체인을 루트까지 따라간다.
+
+    사이클(x→y→x)·댕글링(없는 id 참조)·비활성 참조는 seen 집합과 by_id 존재 검사로
+    멈춰 무한 루프를 막는다. 반환값은 결정적이라 매 호출 동일 결과를 준다.
+    """
+    seen: set[str] = set()
+    current = entry
+    while current.get("broader") in by_id and current["id"] not in seen:
+        seen.add(current["id"])
+        current = by_id[current["broader"]]
+    return current
+
+
 # F-02 저품질 본문유래 제목 판별: 날짜/숫자·구두점만, Part N 조각.
 _TITLE_DATE_ONLY_RE = re.compile(r"^[\d\s.\-/:~()\[\]년월일차호]+$")
 _TITLE_PART_FRAGMENT_RE = re.compile(r"^part[\s_.\-]*\d+$", re.IGNORECASE)
@@ -4936,15 +4952,32 @@ class KnowledgeWikiManager:
             for page in self.list_work_area_pages()
         ]
 
-        topics_payload = [
-            {
-                "slug": topic_slugify(topic),
-                "title": topic,
-                "doc_count": len(doc_rows),
-                "path": f"topics/{topic_slugify(topic)}.md",
-            }
-            for topic, doc_rows in sorted(topics.items())
-        ]
+        # T4(4호): 유사주제 그룹핑 — 어휘집 broader 상위어를 루트까지 해석해 per-item 필드로 싣는다.
+        # (최상위 응답 키·counts는 불변 — 기존 엄격 동치 테스트 계약 보존. 마크다운 생성물도 무접촉.)
+        vocab = self.topic_vocab
+        group_key_index = vocab.key_index()
+        group_by_id = {entry["id"]: entry for entry in vocab.merged_topics()}
+
+        def _topic_group(label: str) -> tuple[str | None, str | None]:
+            entry = group_key_index.get(normalize_topic_key(label))
+            if entry is None:
+                return (None, None)  # 어휘집 밖 잔존 자유주제 → 프론트에서 '기타'로 묶인다
+            root = _resolve_topic_group_root(entry, group_by_id)
+            return (root["id"], root["name"])
+
+        topics_payload = []
+        for topic, doc_rows in sorted(topics.items()):
+            group_id, group_label = _topic_group(topic)
+            topics_payload.append(
+                {
+                    "slug": topic_slugify(topic),
+                    "title": topic,
+                    "doc_count": len(doc_rows),
+                    "path": f"topics/{topic_slugify(topic)}.md",
+                    "group_id": group_id,
+                    "group_label": group_label,
+                }
+            )
         works_payload = [
             {
                 "slug": page["slug"],

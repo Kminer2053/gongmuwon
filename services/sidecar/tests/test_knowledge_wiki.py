@@ -546,6 +546,65 @@ def test_wiki_tree_endpoint_returns_topics_works_sources(tmp_path: Path) -> None
     assert doc["path"] == f"docs/{doc['slug']}.md"
 
 
+def test_wiki_tree_topics_carry_broader_group(tmp_path: Path) -> None:
+    """T4(4호): 주제 항목에 어휘집 broader 루트 그룹(group_id/group_label)이 실린다.
+
+    - '예산편성'(vocab)은 broader=finance 루트로 해석돼 group_id='finance'.
+    - 모든 주제 항목이 group_id/group_label 키를 갖는다(어휘집 통제 태깅이라 실제로는 전부 매칭).
+    - 최상위 응답 키·counts 계약은 불변(그룹은 per-item 필드로만 추가).
+    """
+    source = _make_source(tmp_path)
+    client = _client(tmp_path)
+    _register_scan_ingest(client, source)
+    wiki = client.app.state.services.wiki
+
+    def fake_llm(messages):
+        return json.dumps(
+            {"summary": "요약. 요약. 요약.", "topics": ["예산편성"]}, ensure_ascii=False
+        )
+
+    wiki.enrich(llm=fake_llm)
+
+    payload = client.get("/api/knowledge/wiki/tree").json()
+    assert set(payload) == {"topics", "works", "work_areas", "sources", "counts"}
+
+    # 모든 주제가 그룹 필드를 갖는다(구버전 프론트 호환용 per-item 필드)
+    for topic in payload["topics"]:
+        assert "group_id" in topic and "group_label" in topic
+        assert {"slug", "title", "doc_count", "path"} <= set(topic)
+
+    by_title = {topic["title"]: topic for topic in payload["topics"]}
+    assert "예산편성" in by_title, by_title
+    assert by_title["예산편성"]["group_id"] == "finance"
+    assert isinstance(by_title["예산편성"]["group_label"], str) and by_title["예산편성"]["group_label"]
+
+
+def test_resolve_topic_group_root_stops_on_cycle_and_dangling() -> None:
+    """T4(4호): broader 루트 해석이 사이클·댕글링에서 무한 루프 없이 결정적으로 멈춘다."""
+    from gongmu_sidecar.knowledge_wiki import _resolve_topic_group_root
+
+    # 정상 2단 체인 a→b→c
+    chain = {
+        "a": {"id": "a", "broader": "b", "name": "A"},
+        "b": {"id": "b", "broader": "c", "name": "B"},
+        "c": {"id": "c", "broader": None, "name": "C"},
+    }
+    assert _resolve_topic_group_root(chain["a"], chain)["id"] == "c"
+
+    # 댕글링: broader가 by_id에 없으면 현재 노드에서 멈춘다
+    dangling = {"x": {"id": "x", "broader": "missing", "name": "X"}}
+    assert _resolve_topic_group_root(dangling["x"], dangling)["id"] == "x"
+
+    # 사이클 x→y→x: seen 가드로 멈추고, 매 호출 동일값(결정성)
+    cycle = {
+        "x": {"id": "x", "broader": "y", "name": "X"},
+        "y": {"id": "y", "broader": "x", "name": "Y"},
+    }
+    first = _resolve_topic_group_root(cycle["x"], cycle)["id"]
+    assert first in {"x", "y"}
+    assert _resolve_topic_group_root(cycle["x"], cycle)["id"] == first
+
+
 def test_backend_status_reports_wiki_engine(tmp_path: Path) -> None:
     client = _client(tmp_path)
 

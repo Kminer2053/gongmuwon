@@ -1378,6 +1378,63 @@ describe("knowledge source folders", () => {
     expect(screen.queryByTestId("knowledge-search-shortcuts")).not.toBeInTheDocument();
   });
 
+  it("T4: groups similar topics under broader headers with an 기타 tail", async () => {
+    wikiTreePayload = {
+      ...wikiTreePayload,
+      topics: [
+        { slug: "s1", title: "안전점검", doc_count: 3, path: "topics/s1.md", group_id: "safety", group_label: "안전관리" },
+        { slug: "s2", title: "위험성평가", doc_count: 2, path: "topics/s2.md", group_id: "safety", group_label: "안전관리" },
+        { slug: "a1", title: "AI 정책", doc_count: 1, path: "topics/a1.md", group_id: "ai", group_label: "AI 도입" },
+        { slug: "a2", title: "AX 전략", doc_count: 1, path: "topics/a2.md", group_id: "ai", group_label: "AI 도입" },
+        { slug: "solo", title: "감사 지적", doc_count: 1, path: "topics/solo.md", group_id: "audit", group_label: "감사" },
+        { slug: "free", title: "자유주제", doc_count: 1, path: "topics/free.md", group_id: null, group_label: null },
+      ],
+      counts: { docs: 2, topics: 6, works: 1, work_areas: 0 },
+    };
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+    await screen.findByTestId("knowledge-wiki-browser");
+
+    // ≥2 그룹 2개(안전관리·AI 도입) + 말미 '기타' 1개 = 3
+    const groups = await screen.findAllByTestId("wiki-tree-topic-group");
+    expect(groups).toHaveLength(3);
+    const labels = groups.map((group) => group.querySelector("summary")?.textContent ?? "");
+    expect(labels.some((label) => label.includes("안전관리 (2)"))).toBe(true);
+    expect(labels.some((label) => label.includes("AI 도입 (2)"))).toBe(true);
+    // 단독(감사 지적)+미매칭(자유주제)이 '기타 (2)'로 합류
+    expect(labels.some((label) => label.includes("기타 (2)"))).toBe(true);
+    expect(labels.some((label) => label.includes("감사 ("))).toBe(false);
+
+    // 그룹 내 주제 클릭 → 기존 openKnowledgeWikiTarget 경로로 이동(위키 페이지 fetch)
+    await user.click(screen.getByRole("button", { name: /위험성평가/ }));
+    expect(await screen.findByTestId("knowledge-wiki-page")).toBeInTheDocument();
+  });
+
+  it("T4: falls back to a flat topic list when no group has 2+ topics (negative / 구버전 서버)", async () => {
+    wikiTreePayload = {
+      ...wikiTreePayload,
+      // group_label 부재(구버전 서버) → 평면 폴백
+      topics: [
+        { slug: "t1", title: "주제하나", doc_count: 1, path: "topics/t1.md" },
+        { slug: "t2", title: "주제둘", doc_count: 1, path: "topics/t2.md" },
+      ],
+      counts: { docs: 2, topics: 2, works: 1, work_areas: 0 },
+    };
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+    await screen.findByTestId("knowledge-wiki-browser");
+
+    expect(screen.queryByTestId("wiki-tree-topic-group")).not.toBeInTheDocument();
+    expect(screen.getByText("주제 (2)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /주제하나/ })).toBeInTheDocument();
+  });
+
   it("shows the empty-index guidance in the wiki tree and search view (J-07)", async () => {
     wikiTreeAvailable = false;
     wikiIndexAvailable = false;

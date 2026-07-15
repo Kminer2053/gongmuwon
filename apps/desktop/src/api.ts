@@ -2166,6 +2166,9 @@ export type WikiTreeTopicItem = {
   title: string;
   doc_count: number;
   path: string;
+  /** T4(4호): 어휘집 broader 루트 그룹 — 구버전 서버 응답에는 없다(그때는 평면 렌더 폴백). */
+  group_id?: string | null;
+  group_label?: string | null;
 };
 
 export type WikiTreeWorkItem = {

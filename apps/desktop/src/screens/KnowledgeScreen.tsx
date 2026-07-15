@@ -117,6 +117,47 @@ function normalizeTopicKey(topic: string): string {
   return stripJosaSuffix(collapsed);
 }
 
+/**
+ * T4(4호): 위키 주제 트리 유사주제 그룹핑. 어휘집 broader 루트(group_label)로 버킷팅해
+ * 2개 이상 묶이는 그룹만 헤더로 접고, 단독·미매칭 주제는 말미 '기타'로 합친다.
+ * ≥2 그룹이 하나도 없으면(구버전 서버 group_label 부재 포함) 평면 목록으로 폴백한다.
+ */
+type WikiTopicGroup = { label: string; topics: WikiTreeTopicItem[] };
+
+function groupWikiTopics(
+  topics: WikiTreeTopicItem[],
+): { mode: "flat" } | { mode: "grouped"; groups: WikiTopicGroup[]; other: WikiTreeTopicItem[] } {
+  const buckets = new Map<string, WikiTreeTopicItem[]>();
+  const ungrouped: WikiTreeTopicItem[] = [];
+  for (const topic of topics) {
+    const label = topic.group_label;
+    if (!label) {
+      ungrouped.push(topic);
+      continue;
+    }
+    const list = buckets.get(label);
+    if (list) {
+      list.push(topic);
+    } else {
+      buckets.set(label, [topic]);
+    }
+  }
+  const groups: WikiTopicGroup[] = [];
+  const other: WikiTreeTopicItem[] = [...ungrouped];
+  for (const [label, list] of buckets) {
+    if (list.length >= 2) {
+      groups.push({ label, topics: list });
+    } else {
+      other.push(...list); // 단독 그룹은 '기타'로
+    }
+  }
+  if (groups.length === 0) {
+    return { mode: "flat" };
+  }
+  groups.sort((a, b) => a.label.localeCompare(b.label, "ko"));
+  return { mode: "grouped", groups, other };
+}
+
 type WikiShortcut = { kind: "work" | "topic"; title: string; path: string; docCount: number };
 
 /** 키워드와 위키트리 업무/주제 이름을 정규화 매칭해 바로가기 카드를 만든다(문서 0건 항목 제외). */
@@ -4976,20 +5017,56 @@ export function KnowledgeScreen() {
                       {knowledgeWikiTree.topics.length === 0 ? (
                         <p className="subtle-text">아직 정리된 주제가 없습니다.</p>
                       ) : (
-                        <ul className="wiki-tree__list">
-                          {knowledgeWikiTree.topics.map((topic) => (
-                            <li key={topic.slug}>
-                              <button
-                                type="button"
-                                className="wiki-tree__item"
-                                onClick={() => void openKnowledgeWikiTarget(topic.path)}
-                              >
-                                <span>{topic.title}</span>
-                                <span className="wiki-tree__count">{topic.doc_count}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
+                        (() => {
+                          // T4(4호): 유사주제 broader 그룹핑(≥2 그룹만 헤더, 나머지는 '기타').
+                          const renderTopicList = (items: WikiTreeTopicItem[]) => (
+                            <ul className="wiki-tree__list">
+                              {items.map((topic) => (
+                                <li key={topic.slug}>
+                                  <button
+                                    type="button"
+                                    className="wiki-tree__item"
+                                    onClick={() => void openKnowledgeWikiTarget(topic.path)}
+                                  >
+                                    <span>{topic.title}</span>
+                                    <span className="wiki-tree__count">{topic.doc_count}</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                          const grouped = groupWikiTopics(knowledgeWikiTree.topics);
+                          if (grouped.mode === "flat") {
+                            return renderTopicList(knowledgeWikiTree.topics);
+                          }
+                          return (
+                            <>
+                              {grouped.groups.map((group) => (
+                                <details
+                                  key={group.label}
+                                  className="wiki-tree__subgroup"
+                                  open
+                                  data-testid="wiki-tree-topic-group"
+                                >
+                                  <summary>
+                                    {group.label} ({group.topics.length})
+                                  </summary>
+                                  {renderTopicList(group.topics)}
+                                </details>
+                              ))}
+                              {grouped.other.length > 0 ? (
+                                <details
+                                  className="wiki-tree__subgroup"
+                                  open
+                                  data-testid="wiki-tree-topic-group"
+                                >
+                                  <summary>기타 ({grouped.other.length})</summary>
+                                  {renderTopicList(grouped.other)}
+                                </details>
+                              ) : null}
+                            </>
+                          );
+                        })()
                       )}
                     </details>
                     <details className="wiki-tree__group" open>
