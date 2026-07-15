@@ -976,6 +976,127 @@ function readStreamMessage(value: unknown): string {
   return "업무대화 스트리밍 처리에 실패했습니다.";
 }
 
+// WebView2(설치 앱)는 fetch 스트리밍 응답 본문을 완료 시점까지 버퍼링해 토큰이 한꺼번에
+// 표출된다(백엔드는 정상 스트리밍). XHR onprogress 는 WebView2 에서도 증분 전달되므로,
+// Tauri 웹뷰에서는 XHR 로 스트리밍하고 그 외(테스트·일반 브라우저)는 기존 fetch 를 쓴다.
+function isTauriWebview(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+function pumpSseViaXhr(
+  url: string,
+  body: string,
+  onBlock: (block: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    let offset = 0; // 다음 파싱을 시작할 responseText 위치
+    const drain = (final: boolean) => {
+      const text = xhr.responseText;
+      while (true) {
+        const rest = text.slice(offset);
+        const match = rest.match(/\r?\n\r?\n/);
+        if (!match || match.index === undefined) {
+          break;
+        }
+        onBlock(rest.slice(0, match.index));
+        offset += match.index + match[0].length;
+      }
+      if (final) {
+        const tail = text.slice(offset);
+        if (tail.trim()) {
+          onBlock(tail);
+        }
+        offset = text.length;
+      }
+    };
+    xhr.onprogress = () => drain(false);
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState !== 4) {
+        return;
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        drain(true);
+        resolve();
+      } else if (xhr.status === 0) {
+        reject(new Error("스트리밍 요청이 중단되었습니다."));
+      } else {
+        reject(new Error(`${xhr.status} ${xhr.statusText}`));
+      }
+    };
+    xhr.onerror = () => reject(new Error("스트리밍 요청에 실패했습니다."));
+    if (signal) {
+      if (signal.aborted) {
+        try {
+          xhr.abort();
+        } catch {
+          /* noop */
+        }
+      }
+      signal.addEventListener("abort", () => {
+        try {
+          xhr.abort();
+        } catch {
+          /* noop */
+        }
+      });
+    }
+    xhr.send(body);
+  });
+}
+
+async function pumpSseViaFetch(
+  url: string,
+  body: string,
+  onBlock: (block: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body,
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`);
+  }
+  if (!response.body) {
+    throw new Error("스트리밍 응답 본문이 비어 있습니다.");
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() ?? "";
+    blocks.forEach(onBlock);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) {
+    onBlock(buffer);
+  }
+}
+
+// SSE POST 스트림을 완결 블록 단위로 onBlock 에 전달한다. 웹뷰(WebView2)면 XHR, 아니면 fetch.
+function pumpSseStream(
+  url: string,
+  body: string,
+  onBlock: (block: string) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return isTauriWebview()
+    ? pumpSseViaXhr(url, body, onBlock, signal)
+    : pumpSseViaFetch(url, body, onBlock, signal);
+}
+
 export async function runWorkSessionTurnStream(
   sessionId: string,
   payload: {
@@ -986,22 +1107,6 @@ export async function runWorkSessionTurnStream(
   },
   handlers: WorkSessionTurnStreamHandlers = {},
 ): Promise<WorkSessionTurnResult> {
-  const response = await fetch(`${API_BASE_URL}/api/work-sessions/${sessionId}/turn/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
-  }
-  if (!response.body) {
-    throw new Error("업무대화 스트리밍 응답 본문이 비어 있습니다.");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
   let doneResult: WorkSessionTurnResult | null = null;
 
   const dispatchBlock = (block: string) => {
@@ -1035,21 +1140,11 @@ export async function runWorkSessionTurnStream(
     }
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split(/\r?\n\r?\n/);
-    buffer = blocks.pop() ?? "";
-    blocks.forEach(dispatchBlock);
-  }
-
-  buffer += decoder.decode();
-  if (buffer.trim()) {
-    dispatchBlock(buffer);
-  }
+  await pumpSseStream(
+    `${API_BASE_URL}/api/work-sessions/${sessionId}/turn/stream`,
+    JSON.stringify(payload),
+    dispatchBlock,
+  );
 
   if (!doneResult) {
     throw new Error("업무대화 스트리밍 완료 이벤트를 받지 못했습니다.");
@@ -1752,25 +1847,6 @@ export async function runKnowledgeAskStream(
   payload: { session_id?: string | null; limit?: number },
   handlers: KnowledgeAskStreamHandlers = {},
 ): Promise<KnowledgeAskResult> {
-  const response = await fetch(`${API_BASE_URL}/api/knowledge/ask/stream`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      query,
-      session_id: payload.session_id ?? null,
-      limit: payload.limit ?? 5,
-    }),
-  });
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
-  }
-  if (!response.body) {
-    throw new Error("상세검색 스트리밍 응답 본문이 비어 있습니다.");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
   let doneResult: KnowledgeAskResult | null = null;
 
   const dispatchBlock = (block: string) => {
@@ -1802,20 +1878,15 @@ export async function runKnowledgeAskStream(
     }
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split(/\r?\n\r?\n/);
-    buffer = blocks.pop() ?? "";
-    blocks.forEach(dispatchBlock);
-  }
-  buffer += decoder.decode();
-  if (buffer.trim()) {
-    dispatchBlock(buffer);
-  }
+  await pumpSseStream(
+    `${API_BASE_URL}/api/knowledge/ask/stream`,
+    JSON.stringify({
+      query,
+      session_id: payload.session_id ?? null,
+      limit: payload.limit ?? 5,
+    }),
+    dispatchBlock,
+  );
 
   if (!doneResult) {
     throw new Error("상세검색 스트리밍 완료 이벤트를 받지 못했습니다.");
@@ -2016,23 +2087,6 @@ export async function runAuthoringStructure(
   handlers: AuthoringStreamHandlers = {},
   signal?: AbortSignal,
 ): Promise<AuthoringStructureResult> {
-  const response = await fetch(`${API_BASE_URL}/api/documents/authoring/structure`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...payload, stream: true }),
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(`${response.status} ${response.statusText}`);
-  }
-  if (!response.body) {
-    throw new Error("문서 구조 생성 스트리밍 응답 본문이 비어 있습니다.");
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
   let doneResult: AuthoringStructureResult | null = null;
   let streamError: { message: string } | null = null;
 
@@ -2068,21 +2122,12 @@ export async function runAuthoringStructure(
     }
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
-    buffer += decoder.decode(value, { stream: true });
-    const blocks = buffer.split(/\r?\n\r?\n/);
-    buffer = blocks.pop() ?? "";
-    blocks.forEach(dispatchBlock);
-  }
-
-  buffer += decoder.decode();
-  if (buffer.trim()) {
-    dispatchBlock(buffer);
-  }
+  await pumpSseStream(
+    `${API_BASE_URL}/api/documents/authoring/structure`,
+    JSON.stringify({ ...payload, stream: true }),
+    dispatchBlock,
+    signal,
+  );
 
   const finalStreamError = streamError as { message: string } | null;
   if (finalStreamError) {
