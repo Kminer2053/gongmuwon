@@ -56,6 +56,8 @@ import {
   type TaxonomyQualityResult,
   type TaxonomyQueueItem,
   type TaxonomyStatusResult,
+  type WikiTreeResult,
+  type WikiTreeTopicItem,
   type WorkJobItem,
 } from "../api";
 import { copyTextToClipboard, openExternalTarget, pickDirectory } from "../runtime";
