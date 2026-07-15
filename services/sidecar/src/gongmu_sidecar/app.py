@@ -1498,7 +1498,10 @@ class AppServices:
         session: dict[str, Any],
         user_message: dict[str, Any],
         text: str,
+        on_delta: Callable[[str], None] | None = None,
     ) -> dict[str, Any] | None:
+        # on_delta 는 멀티인텐트 플랜의 순차 스트리밍(S3)에만 쓰인다. 단일 결정형 스킬
+        # (일정/문서)은 즉시 완료라 스트리밍 대상이 아니며, 스트림 턴이 결과를 한 번에 방출한다.
         normalized = text.strip()
         if not normalized:
             return None
@@ -1516,6 +1519,7 @@ class AppServices:
                 session=session,
                 text=normalized,
                 intents=planned_intents,
+                on_delta=on_delta,
             )
         if self._looks_like_schedule_delete_request(normalized):
             return self._run_schedule_delete_skill(normalized)
@@ -1571,15 +1575,25 @@ class AppServices:
         session: dict[str, Any],
         text: str,
         intents: list[str],
+        on_delta: Callable[[str], None] | None = None,
     ) -> dict[str, Any] | None:
+        # S3: on_delta 가 있으면 순차 스트리밍한다 — 결정형 섹션(일정 등록 등)은 완료 즉시,
+        # 지식답변 섹션은 LLM 토큰을 그대로 흘린다. 방출 문자열은 반환 text 와 1:1(정리본 차이만).
+        def emit(chunk: str) -> None:
+            if on_delta is not None and chunk:
+                on_delta(chunk)
+
         actions: list[str] = ["intent.plan"]
         results: list[dict[str, Any]] = [{"intents": intents}]
-        sections = ["요청을 여러 작업으로 나누어 순서대로 처리했습니다."]
+        intro = "요청을 여러 작업으로 나누어 순서대로 처리했습니다."
+        sections = [intro]
+        emit(intro)
 
         # F-17: 앞 인텐트(일정 등록)의 결과를 뒤 문서작성 지시에 넘겨 일시·제목이 반영되게 한다.
         created_schedule: dict[str, Any] | None = None
         for intent in intents:
             skill_result: dict[str, Any] | None = None
+            stream_answer = on_delta is not None and intent == "knowledge.answer"
             if intent == "schedule.delete":
                 skill_result = self._run_schedule_delete_skill(text)
             elif intent == "schedule.create":
@@ -1591,7 +1605,14 @@ class AppServices:
             elif intent == "schedule.list":
                 skill_result = self._run_schedule_list_skill(text)
             elif intent == "knowledge.answer":
-                skill_result = self._run_knowledge_answer_skill(session_id=session_id, text=text)
+                # 헤더를 먼저 흘린 뒤 답변 토큰이 이어지도록 순서를 맞춘다.
+                if stream_answer:
+                    emit(f"\n\n## 질의 응답\n")
+                skill_result = self._run_knowledge_answer_skill(
+                    session_id=session_id,
+                    text=text,
+                    on_delta=on_delta if stream_answer else None,
+                )
             elif intent == "documents.generate":
                 document_text = text
                 if created_schedule is not None:
@@ -1622,7 +1643,11 @@ class AppServices:
                 "documents.generate": "문서작성",
                 "knowledge.answer": "질의 응답",
             }.get(intent, intent)
-            sections.extend(["", f"## {label}", str(skill_result.get("text") or "").strip()])
+            section_text = str(skill_result.get("text") or "").strip()
+            # 스트리밍: 지식답변은 헤더·토큰을 이미 흘렸으니 건너뛰고, 나머지는 헤더+본문을 방출한다.
+            if not stream_answer:
+                emit(f"\n\n## {label}\n{section_text}")
+            sections.extend(["", f"## {label}", section_text])
 
         if len(actions) == 1:
             return None
@@ -1691,8 +1716,17 @@ class AppServices:
             "text": "\n".join(lines),
         }
 
-    def _run_knowledge_answer_skill(self, *, session_id: str, text: str) -> dict[str, Any] | None:
-        """복합 지시 속 지식 질의 절을 지식폴더 근거로 답한다 (P1-1)."""
+    def _run_knowledge_answer_skill(
+        self,
+        *,
+        session_id: str,
+        text: str,
+        on_delta: Callable[[str], None] | None = None,
+    ) -> dict[str, Any] | None:
+        """복합 지시 속 지식 질의 절을 지식폴더 근거로 답한다 (P1-1).
+
+        on_delta 가 주어지면 답변 LLM 을 토큰 스트리밍한다(멀티인텐트 순차 스트리밍).
+        """
         query = self._extract_knowledge_query(text) or text
         prompt_block, citations = self._build_knowledge_context(session_id=session_id, query=query)
         system_text = (
@@ -1701,12 +1735,14 @@ class AppServices:
         )
         if prompt_block:
             system_text = f"{system_text}\n\n{prompt_block}"
-        answer = self._wiki_llm_generate(
-            [
-                {"role": "system", "text": system_text},
-                {"role": "user", "text": query},
-            ]
-        )
+        messages = [
+            {"role": "system", "text": system_text},
+            {"role": "user", "text": query},
+        ]
+        if on_delta is not None:
+            answer = self._wiki_llm_generate_streaming(messages, on_delta=on_delta)
+        else:
+            answer = self._wiki_llm_generate(messages)
         if not answer or not str(answer).strip():
             return None
         return {
@@ -2755,12 +2791,42 @@ class AppServices:
         yield {"event": "user_message", "data": user_message}
         yield {"event": "assistant_message", "data": assistant_message}
 
-        skill_result = self._try_run_work_session_skill(
-            session_id=session_id,
-            session=existing,
-            user_message=user_message,
-            text=payload.text,
-        )
+        # S3: 스킬을 스레드로 돌려 멀티인텐트 플랜의 순차 델타를 큐로 흘려받는다.
+        # DB는 check_same_thread=False + RLock 이라 스레드에서의 쓰기(일정 등록 등)가 안전하다.
+        skill_events: Queue[tuple[str, Any]] = Queue()
+        skill_streamed = {"any": False}
+
+        def _skill_on_delta(delta: str) -> None:
+            skill_streamed["any"] = True
+            skill_events.put(("delta", delta))
+
+        def _run_skill() -> None:
+            try:
+                result = self._try_run_work_session_skill(
+                    session_id=session_id,
+                    session=existing,
+                    user_message=user_message,
+                    text=payload.text,
+                    on_delta=_skill_on_delta,
+                )
+                skill_events.put(("result", result))
+            except BaseException as exc:  # noqa: BLE001 - 스레드 예외를 본 제너레이터로 재전파
+                skill_events.put(("skill_error", exc))
+
+        Thread(target=_run_skill, daemon=True).start()
+        skill_result: dict[str, Any] | None = None
+        while True:
+            skill_kind, skill_value = skill_events.get()
+            if skill_kind == "delta":
+                delta_text = self._redact_sensitive_text(str(skill_value))
+                if delta_text:
+                    yield {"event": "delta", "data": {"text": delta_text}}
+                continue
+            if skill_kind == "skill_error":
+                raise skill_value
+            skill_result = skill_value
+            break
+
         if skill_result is not None:
             duration_ms = int((perf_counter() - turn_started) * 1000)
             assistant_message = self.update_work_session_message(
@@ -2783,7 +2849,9 @@ class AppServices:
                 },
                 stage="업무대화 스킬 실행 완료",
             )
-            if skill_result["text"]:
+            # 이미 순차 스트리밍했으면 중복 방출하지 않는다(멀티인텐트). 단일 결정형 스킬은
+            # 스트리밍하지 않으므로 여기서 한 번에 방출한다.
+            if skill_result["text"] and not skill_streamed["any"]:
                 yield {"event": "delta", "data": {"text": skill_result["text"]}}
             yield {
                 "event": "done",

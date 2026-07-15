@@ -1080,6 +1080,55 @@ def test_plan_adds_knowledge_answer_for_question_clause(tmp_path: Path, monkeypa
     assert any("출장비 정산 회의" in s["title"] for s in schedules)
 
 
+def test_multi_intent_stream_streams_knowledge_answer_sequentially(tmp_path: Path, monkeypatch) -> None:
+    """S3: 멀티인텐트(일정+지식)를 스트림 턴에서 순차 방출하고 지식답변을 토큰 스트리밍한다."""
+
+    def fake_stream_reply(settings, messages, *, on_delta, **kwargs):
+        on_delta("출장여비는 ")
+        on_delta("교통비, 일비, 숙박비, 식비로 구성됩니다.")
+        return LLMGenerationResult(
+            text="출장여비는 교통비, 일비, 숙박비, 식비로 구성됩니다.",
+            provider="ollama",
+            model="gemma4:e2b",
+        )
+
+    monkeypatch.setattr("gongmu_sidecar.app.generate_session_reply_streaming", fake_stream_reply)
+    # 롤링 요약 갱신(비스트림)이 실제 LLM에 닿지 않게 차단 → 결정론 다이제스트
+    monkeypatch.setattr(
+        "gongmu_sidecar.app.generate_session_reply",
+        lambda settings, messages, **kwargs: (_ for _ in ()).throw(LLMGenerationError("stub")),
+    )
+
+    client = _client(tmp_path)
+    session_id = client.post("/api/work-sessions", json={"title": "지식+일정 스트림"}).json()["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/work-sessions/{session_id}/turn/stream",
+        json={"text": "출장비 지급 기준이 뭔지 알려주고, 내일 오전 10시에 출장비 정산 회의 일정도 등록해줘"},
+    ) as response:
+        assert response.status_code == 200
+        body = "".join(response.iter_text())
+
+    # 순차 델타(일정 등록 섹션 + 질의 응답 헤더 + 지식 토큰)가 done 이전에 흐른다
+    assert body.index("event: delta") < body.index("event: done")
+    assert "## 일정 등록" in body
+    assert "## 질의 응답" in body
+    assert '"text":"출장여비는 "' in body  # 지식답변 토큰 스트리밍
+    # 중복 방출 없음: '교통비'는 스트림 델타 1회 + done 최종본 1회 = 정확히 2회
+    assert body.count("교통비") == 2
+
+    messages = client.get(f"/api/work-sessions/{session_id}/messages").json()["items"]
+    assistant = [message for message in messages if message["role"] == "assistant"][-1]
+    assert assistant["status"] == "completed"
+    assert "## 일정 등록" in assistant["text"]
+    assert "## 질의 응답" in assistant["text"]
+    assert "교통비" in assistant["text"]
+
+    schedules = client.get("/api/schedules").json()["items"]
+    assert any("출장비 정산 회의" in s["title"] for s in schedules)
+
+
 def test_single_intents_do_not_regress(tmp_path: Path, monkeypatch) -> None:
     """단일 일정 등록/조회는 intent.plan 없이 기존 단일 스킬 체인을 유지한다."""
     monkeypatch.setattr(
