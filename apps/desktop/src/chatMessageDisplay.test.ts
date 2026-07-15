@@ -27,6 +27,39 @@ describe("getVisibleMessageText", () => {
     ).toBe("응답을 준비하는 중입니다.");
   });
 
+  it("shows accumulated tokens while streaming instead of the placeholder", () => {
+    expect(
+      getVisibleMessageText(
+        message({
+          status: "streaming",
+          text: "지금까지 도착한",
+        }),
+      ),
+    ).toBe("지금까지 도착한");
+  });
+
+  it("keeps the placeholder while streaming before the first token arrives", () => {
+    expect(
+      getVisibleMessageText(
+        message({
+          status: "streaming",
+          text: "",
+        }),
+      ),
+    ).toBe("응답을 준비하는 중입니다.");
+  });
+
+  it("strips stale waiting copy from streamed text", () => {
+    expect(
+      getVisibleMessageText(
+        message({
+          status: "streaming",
+          text: "응답을 준비하는 중입니다.\n\n첫 문장이 도착했습니다.",
+        }),
+      ),
+    ).toBe("첫 문장이 도착했습니다.");
+  });
+
   it("removes stale waiting copy from completed assistant messages", () => {
     expect(
       getVisibleMessageText(

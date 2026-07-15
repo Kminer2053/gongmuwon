@@ -6,7 +6,14 @@ const WAITING_COPY_PATTERNS = [
 ];
 
 export function getVisibleMessageText(message: WorkSessionMessageItem) {
-  if (message.status === "pending" || message.status === "streaming") {
+  if (message.status === "streaming") {
+    // 스트리밍 중에는 지금까지 도착한 토큰을 즉시 노출한다.
+    // 첫 토큰이 아직 없을 때만 안내 문구를 보여 준다.
+    const streamed = stripStaleWaitingCopy(message.text);
+    return streamed.length > 0 ? streamed : "응답을 준비하는 중입니다.";
+  }
+
+  if (message.status === "pending") {
     return "응답을 준비하는 중입니다.";
   }
 
