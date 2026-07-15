@@ -36,6 +36,29 @@ class StubLLM:
         return item
 
 
+class StreamingStubLLM:
+    """S2: organize 호출에서 on_delta 로 토큰을 흘리는 스트리밍 스텁."""
+
+    def __init__(self, responses, organize_deltas=None):
+        self.responses = list(responses)
+        self.organize_deltas = list(organize_deltas or [])
+        self.calls = []
+        self.delta_calls = 0
+
+    def __call__(self, messages, *, temperature=0.2, on_delta=None):
+        self.calls.append({"messages": messages, "temperature": temperature})
+        if on_delta is not None and self.organize_deltas:
+            self.delta_calls += 1
+            for delta in self.organize_deltas:
+                on_delta(delta)
+        if not self.responses:
+            raise AssertionError("스텁 응답이 더 이상 없습니다.")
+        item = self.responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
 def _client(tmp_path: Path, llm):
     app = create_app(tmp_path)
     register_authoring_routes(app, app.state.services, llm_complete=llm)
@@ -457,6 +480,36 @@ def test_streaming_emits_stage_events_and_final_structure(tmp_path: Path) -> Non
     assert "□ 요약" not in done["preview"]
     assert ONEPAGE_JSON["summary"] in done["preview"]
     assert done["preview"].count("─" * 30) == 2
+
+
+def test_authoring_structure_stream_emits_organize_content_deltas(tmp_path: Path) -> None:
+    """S2: 정리(organize) 단계 토큰이 content 이벤트로 흐르고, 최종 미리보기는 done에서 확정."""
+    llm = StreamingStubLLM(
+        [ORGANIZED_MD, json.dumps(ONEPAGE_JSON, ensure_ascii=False)],
+        organize_deltas=["청사 에너지 ", "절감 추진계획 초안을 작성합니다."],
+    )
+    client = _client(tmp_path, llm)
+
+    response = client.post(
+        "/api/documents/authoring/structure",
+        json={"format": "onepage", "instruction": "보고서 작성", "stream": True},
+    )
+    assert response.status_code == 200
+
+    events = _parse_sse(response.text)
+    names = [name for name, _ in events]
+    # content 이벤트가 done 이전에 흐른다
+    assert "content" in names
+    assert names.index("content") < names.index("done")
+    assert llm.delta_calls == 1  # 정리 단계 1회만 델타 방출
+
+    content_events = [data for name, data in events if name == "content"]
+    assert all(item["stage"] == "organize" for item in content_events)
+    assert "청사 에너지 " in [item["text"] for item in content_events]
+
+    done = events[-1][1]
+    assert done["done"] is True
+    assert done["structure"]["title"] == ONEPAGE_JSON["title"]
 
 
 def test_streaming_llm_failure_emits_error_event(tmp_path: Path) -> None:

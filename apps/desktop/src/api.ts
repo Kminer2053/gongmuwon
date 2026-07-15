@@ -1965,8 +1965,15 @@ export type AuthoringStructurePayload = {
   transcript?: Array<{ role: string; text: string }>;
 };
 
+// S2: 정리 단계 토큰 이벤트 — 문서 내용이 작성되는 과정을 미리보기에 실시간 반영한다.
+export type AuthoringContentEvent = {
+  stage: string;
+  text: string;
+};
+
 export type AuthoringStreamHandlers = {
   onStage?: (event: AuthoringStageEvent) => void;
+  onContent?: (event: AuthoringContentEvent) => void;
   onDone?: (result: AuthoringStructureResult) => void;
   onError?: (error: { message: string }) => void;
 };
@@ -2036,6 +2043,14 @@ export async function runAuthoringStructure(
     }
     if (parsed.event === "stage" && isRecord(parsed.data)) {
       handlers.onStage?.(parsed.data as AuthoringStageEvent);
+      return;
+    }
+    if (parsed.event === "content" && isRecord(parsed.data)) {
+      const text = typeof parsed.data.text === "string" ? parsed.data.text : "";
+      const stage = typeof parsed.data.stage === "string" ? parsed.data.stage : "organize";
+      if (text) {
+        handlers.onContent?.({ stage, text });
+      }
       return;
     }
     if (parsed.event === "error") {

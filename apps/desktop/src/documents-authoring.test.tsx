@@ -102,6 +102,9 @@ const STRUCTURE_DONE_EVENT =
 
 const STRUCTURE_STREAM_BLOCKS = [
   'event: stage\ndata: {"stage":"organize","status":"start"}\n\n',
+  // S2: 정리 단계 토큰 스트리밍(작성 중 실시간 미리보기)
+  'event: content\ndata: {"stage":"organize","text":"청사 에너지 절감 "}\n\n',
+  'event: content\ndata: {"stage":"organize","text":"추진계획 초안입니다."}\n\n',
   'event: stage\ndata: {"stage":"organize","status":"done","elapsed_ms":1200}\n\n',
   'event: stage\ndata: {"stage":"format","status":"start"}\n\n',
   'event: stage\ndata: {"stage":"format","status":"done","elapsed_ms":300,"attempts":1,"repaired":false}\n\n',

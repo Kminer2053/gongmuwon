@@ -24,6 +24,8 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
+from queue import Queue
+from threading import Thread
 from time import perf_counter
 from typing import Any, Callable, Iterator, cast
 
@@ -39,7 +41,7 @@ from .hwpx_writer import (
     structure_to_lines,
     write_public_hwpx_document,
 )
-from .llm import LLMGenerationError, generate_session_reply
+from .llm import LLMGenerationError, generate_session_reply, generate_session_reply_streaming
 
 # LLM 클라이언트 시그니처: (messages, *, temperature) -> str
 # messages 는 llm.generate_session_reply 와 동일한 [{"role": ..., "text": ...}] 형식.
@@ -595,6 +597,7 @@ def organize_content(
     instruction: str = "",
     reference_texts: list[str] | None = None,
     transcript: list[dict[str, Any]] | None = None,
+    on_delta: Callable[[str], None] | None = None,
 ) -> str:
     user_parts: list[str] = []
     instruction_text = (instruction or "").strip()
@@ -626,7 +629,14 @@ def organize_content(
         {"role": "system", "text": ORGANIZE_SYSTEM_PROMPT},
         {"role": "user", "text": "\n\n".join(user_parts)},
     ]
-    raw = llm(messages, temperature=0.3)
+    if on_delta is not None:
+        try:
+            raw = llm(messages, temperature=0.3, on_delta=on_delta)
+        except TypeError:
+            # 스트리밍 미지원 LLM(구 스텁 등)은 델타 없이 비스트리밍 결과만 돌려준다.
+            raw = llm(messages, temperature=0.3)
+    else:
+        raw = llm(messages, temperature=0.3)
     organized = _strip_code_fences(str(raw))
     if not organized.strip():
         raise LLMGenerationError("내용 정리 단계에서 빈 응답이 반환되었습니다.")
@@ -1394,15 +1404,46 @@ def run_authoring_stages(
     instruction: str = "",
     reference_texts: list[str] | None = None,
     transcript: list[dict[str, Any]] | None = None,
+    stream_content: bool = False,
 ) -> Iterator[dict[str, Any]]:
     organize_started = perf_counter()
     yield {"stage": "organize", "status": "start"}
-    organized_markdown = organize_content(
-        llm,
-        instruction=instruction,
-        reference_texts=reference_texts,
-        transcript=transcript,
-    )
+    if stream_content:
+        # 정리(organize) 단계 LLM 을 스레드로 돌리며 토큰을 content 이벤트로 흘린다.
+        # 사용자는 문서 내용이 작성되는 과정을 실시간으로 본다(최종 미리보기는 done에서 확정).
+        events: Queue = Queue()
+        box: dict[str, str] = {}
+
+        def _run_organize() -> None:
+            try:
+                box["text"] = organize_content(
+                    llm,
+                    instruction=instruction,
+                    reference_texts=reference_texts,
+                    transcript=transcript,
+                    on_delta=lambda delta: events.put(("delta", delta)),
+                )
+                events.put(("done", None))
+            except BaseException as exc:  # noqa: BLE001 - 스레드 예외를 본 제너레이터로 재전파
+                events.put(("error", exc))
+
+        Thread(target=_run_organize, daemon=True).start()
+        while True:
+            kind, value = events.get()
+            if kind == "delta":
+                yield {"content": {"stage": "organize", "text": str(value)}}
+                continue
+            if kind == "error":
+                raise value
+            break
+        organized_markdown = box["text"]
+    else:
+        organized_markdown = organize_content(
+            llm,
+            instruction=instruction,
+            reference_texts=reference_texts,
+            transcript=transcript,
+        )
     yield {
         "stage": "organize",
         "status": "done",
@@ -1594,7 +1635,16 @@ def register_authoring_routes(
         if llm_complete is not None:
             return llm_complete
 
-        def _default(messages: list[dict[str, Any]], *, temperature: float = 0.2) -> str:
+        def _default(
+            messages: list[dict[str, Any]],
+            *,
+            temperature: float = 0.2,
+            on_delta: Callable[[str], None] | None = None,
+        ) -> str:
+            if on_delta is not None:
+                return generate_session_reply_streaming(
+                    deps.settings, messages, on_delta=on_delta
+                ).text
             return generate_session_reply(deps.settings, messages).text
 
         return _default
@@ -1670,9 +1720,13 @@ def register_authoring_routes(
                         instruction=payload.instruction,
                         reference_texts=payload.reference_texts,
                         transcript=transcript,
+                        stream_content=True,
                     ):
                         if item.get("done"):
                             yield _sse_event("done", item)
+                        elif "content" in item:
+                            # 정리 단계 토큰 — 프런트가 미리보기에 실시간 반영한다.
+                            yield _sse_event("content", item["content"])
                         else:
                             yield _sse_event("stage", item)
                 except LLMGenerationError as exc:

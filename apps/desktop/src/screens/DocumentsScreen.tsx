@@ -565,6 +565,8 @@ export function DocumentsScreen() {
   const [reviseInstruction, setReviseInstruction] = useState("");
   const [reviseBusy, setReviseBusy] = useState(false);
   const [reviseError, setReviseError] = useState<string | null>(null);
+  // S2: 정리 단계 스트리밍 텍스트(작성 중 실시간 미리보기). done 시 최종 미리보기로 대체.
+  const [authoringStreamingContent, setAuthoringStreamingContent] = useState("");
   const [reviseSummary, setReviseSummary] = useState<AuthoringStructureMeta | null>(null);
   // D-02: 양식(종이) 미리보기 토글 — 미리보기 탭 / 최종 탭 각각
   const [paperPreviewEnabled, setPaperPreviewEnabled] = useState(false);
@@ -675,6 +677,7 @@ export function DocumentsScreen() {
     setAuthoringStreaming(true);
     setAuthoringError(null);
     setAuthoringStageEvents([]);
+    setAuthoringStreamingContent("");
     setAuthoringStructure(null);
     setAuthoringStructureFormat("");
     setAuthoringPreview("");
@@ -697,9 +700,14 @@ export function DocumentsScreen() {
               return [...next, event];
             });
           },
+          onContent: (event) => {
+            // S2: 정리 단계 토큰을 실시간 미리보기에 누적한다(작성되는 과정을 보여준다).
+            setAuthoringStreamingContent((current) => current + event.text);
+          },
         },
         controller.signal,
       );
+      setAuthoringStreamingContent("");
       applyAuthoringStructureResult(result);
       setNotice("문서 구조 초안을 생성했습니다. 작성 콘텐츠에서 검토하세요.");
     } catch (structureError) {
@@ -2125,6 +2133,14 @@ export function DocumentsScreen() {
                       </p>
                     ))}
                     {authoringStreaming ? <p className="subtle-text">구조 생성 중…</p> : null}
+                    {authoringStreamingContent ? (
+                      <pre
+                        className="authoring-stream-content"
+                        data-testid="authoring-stream-content"
+                      >
+                        {authoringStreamingContent}
+                      </pre>
+                    ) : null}
                   </div>
                 ) : null}
 
