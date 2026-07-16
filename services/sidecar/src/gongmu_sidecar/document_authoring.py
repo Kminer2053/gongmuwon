@@ -137,7 +137,8 @@ def _coerce_str_list(value: Any) -> Any:
 
 class OnePageSection(BaseModel):
     heading: str
-    items: list[str] = Field(min_length=1)
+    # #4b(2026-07): 1페이지 보고서는 섹션당 항목을 3개로 제한해 한 장에 담기게 한다.
+    items: list[str] = Field(min_length=1, max_length=3)
     detail: str | None = None
     note: str | None = None
 
@@ -149,7 +150,8 @@ class OnePageSection(BaseModel):
     @field_validator("items", mode="before")
     @classmethod
     def _items_list(cls, value: Any) -> Any:
-        return _coerce_str_list(value)
+        # 항목이 많이 넘어와도 앞 3개만 취해 1페이지 분량을 지킨다.
+        return _coerce_str_list(value)[:3]
 
     @field_validator("detail", "note", mode="before")
     @classmethod
@@ -161,7 +163,8 @@ class SchemaOnePage(BaseModel):
     title: str
     subtitle: str | None = None
     summary: str = Field(max_length=200)
-    sections: list[OnePageSection] = Field(min_length=2, max_length=5)
+    # #4b(2026-07): 섹션 2~4개(구 5개) — 항목 3개 캡과 함께 1페이지 분량을 지킨다.
+    sections: list[OnePageSection] = Field(min_length=2, max_length=4)
 
     @field_validator("title", mode="before")
     @classmethod
@@ -180,6 +183,31 @@ class SchemaOnePage(BaseModel):
         if isinstance(value, str):
             return value.strip()[:200]
         return value
+
+    @model_validator(mode="after")
+    def _fit_one_page(self) -> "SchemaOnePage":
+        # #4b: 실제 A4 1페이지(공문 서식 본문 ~26행)에 담기도록 결정적으로 다듬는다.
+        # 이 트림은 미리보기·HWPX가 공유하는 구조에 적용돼 둘의 정합성도 함께 지킨다.
+        def est_lines(sections: list[OnePageSection]) -> int:
+            n = 2 + 3  # 제목/부제 + 요약 글상자(상·하 룰 + 요약)
+            for s in sections:
+                n += 1 + len(s.items) + (1 if s.detail else 0) + (1 if s.note else 0)
+            return n
+
+        budget = 26
+        if est_lines(self.sections) > budget:
+            for s in self.sections:  # 1) note 제거
+                s.note = None
+        if est_lines(self.sections) > budget:
+            for s in self.sections:  # 2) detail 제거
+                s.detail = None
+        if est_lines(self.sections) > budget and len(self.sections) > 3:
+            self.sections = self.sections[:3]  # 3) 섹션 3개로
+        if est_lines(self.sections) > budget:
+            for s in self.sections:  # 4) 섹션당 항목 2개로
+                if len(s.items) > 2:
+                    s.items = s.items[:2]
+        return self
 
 
 class FullSection(BaseModel):
@@ -415,7 +443,9 @@ FORMAT_SYSTEM_PROMPTS: dict[str, str] = {
     "onePageReport": (
         "정리된 마크다운을 '1페이지 보고서' JSON으로 변환하세요.\n"
         "스키마: title(문자열), subtitle(선택), summary(200자 이내 두괄식 요약), "
-        "sections(2~5개, 각각 {heading, items[1개 이상], detail?, note?}).\n"
+        "sections(2~4개, 각각 {heading, items[1~3개], detail?, note?}).\n"
+        "분량 원칙: 실제 A4 한 장에 담기도록 간결하게 — 섹션 3개 내외, 섹션당 핵심 항목 2~3개, "
+        "detail/note는 꼭 필요할 때만. 장황하면 안 된다.\n"
         "완성 예시:\n"
         + json.dumps(
             {

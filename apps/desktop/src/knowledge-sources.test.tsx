@@ -1297,6 +1297,20 @@ describe("knowledge source folders", () => {
     expect(screen.queryByTestId("knowledge-search-results")).not.toBeInTheDocument();
   });
 
+  it("#3: typing a keyword auto-loads the matching topic content in the right viewer (no click)", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: /내 지식폴더/ }));
+    await user.click(screen.getByRole("tab", { name: "위키" }));
+    await screen.findByTestId("knowledge-wiki-browser");
+
+    // 클릭 없이 키워드 입력만으로 우측 뷰어에 해당 위키 페이지가 로딩된다.
+    await user.type(screen.getByLabelText("지식 검색"), "예산");
+    expect(await screen.findByTestId("knowledge-wiki-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("knowledge-search-results")).not.toBeInTheDocument();
+  });
+
   it("generates a grounded answer with citations and follow-up actions", async () => {
     const user = userEvent.setup();
     render(<App />);

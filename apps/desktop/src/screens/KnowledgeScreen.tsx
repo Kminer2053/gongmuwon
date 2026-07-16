@@ -208,7 +208,9 @@ function computeWikiShortcuts(query: string, tree: WikiTreeResult | null): WikiS
  * 점수: 완전일치(4) > 접두(3) > 부분포함(2) > 역포함(1). 동점이면 더 짧은(정확한)
  * 제목을 우선한다. LLM 무관 결정적 매칭.
  */
-function findWikiFocusKey(query: string, tree: WikiTreeResult | null): string | null {
+type WikiFocusTarget = { key: string; path: string };
+
+function findWikiFocusTarget(query: string, tree: WikiTreeResult | null): WikiFocusTarget | null {
   if (!tree) {
     return null;
   }
@@ -216,27 +218,28 @@ function findWikiFocusKey(query: string, tree: WikiTreeResult | null): string | 
   if (qKey.length < 2) {
     return null;
   }
-  const candidates: string[] = [];
-  const pushTitle = (title: string, docCount?: number) => {
+  const candidates: WikiFocusTarget[] = [];
+  const pushTitle = (title: string, path: string, docCount?: number) => {
     if (typeof docCount === "number" && docCount <= 0) {
       return; // 문서 0건 노드는 포커스 대상에서 제외
     }
     const key = normalizeTopicKey(title);
     if (key.length >= 2) {
-      candidates.push(key);
+      candidates.push({ key, path });
     }
   };
   for (const area of tree.work_areas ?? []) {
-    pushTitle(area.title, area.doc_count);
+    pushTitle(area.title, area.path, area.doc_count);
   }
   for (const topic of tree.topics ?? []) {
-    pushTitle(topic.title, topic.doc_count);
+    pushTitle(topic.title, topic.path, topic.doc_count);
   }
   for (const work of tree.works ?? []) {
-    pushTitle(work.title);
+    pushTitle(work.title, work.path);
   }
-  let best: { key: string; score: number } | null = null;
-  for (const key of candidates) {
+  let best: { target: WikiFocusTarget; score: number } | null = null;
+  for (const candidate of candidates) {
+    const key = candidate.key;
     let score = 0;
     if (key === qKey) {
       score = 4;
@@ -250,11 +253,11 @@ function findWikiFocusKey(query: string, tree: WikiTreeResult | null): string | 
     if (score === 0) {
       continue;
     }
-    if (!best || score > best.score || (score === best.score && key.length < best.key.length)) {
-      best = { key, score };
+    if (!best || score > best.score || (score === best.score && key.length < best.target.key.length)) {
+      best = { target: candidate, score };
     }
   }
-  return best?.key ?? null;
+  return best?.target ?? null;
 }
 
 /** P2: 위키트리 항목 버튼 className — 라이브 키워드 포커스 대상이면 하이라이트 클래스를 붙인다. */
@@ -2836,12 +2839,24 @@ export function KnowledgeScreen() {
   // 노드로 포커스(스크롤+하이라이트)를 옮긴다. focusedWikiKey는 data-wiki-key와 매칭.
   const [focusedWikiKey, setFocusedWikiKey] = useState<string | null>(null);
   const wikiTreeRef = useRef<HTMLElement | null>(null);
+  // #3(2026-07): 키워드 포커스가 이동하면 우측 뷰어에 해당 노드 내용을 자동 로딩한다.
+  // 같은 경로를 반복 로딩하지 않도록 마지막 자동 로딩 경로를 기억한다.
+  const lastAutoLoadedWikiPath = useRef<string | null>(null);
 
-  // 디바운스(200ms): 입력이 멈춘 뒤 매칭 노드 키를 계산한다(연속 타이핑 중 과도한 스크롤 방지).
+  // 디바운스(220ms): 입력이 멈춘 뒤 매칭 노드로 포커스 + 우측 뷰어에 관련 내용을 로딩한다.
   useEffect(() => {
     const handle = window.setTimeout(() => {
-      setFocusedWikiKey(findWikiFocusKey(knowledgeQuery, knowledgeWikiTree));
-    }, 200);
+      const target = findWikiFocusTarget(knowledgeQuery, knowledgeWikiTree);
+      setFocusedWikiKey(target?.key ?? null);
+      if (target?.path && target.path !== lastAutoLoadedWikiPath.current) {
+        lastAutoLoadedWikiPath.current = target.path;
+        // fromHistory: 자동 로딩은 '← 이전' 히스토리를 오염시키지 않는다.
+        void openKnowledgeWikiTarget(target.path, undefined, { fromHistory: true });
+      }
+      if (!target) {
+        lastAutoLoadedWikiPath.current = null;
+      }
+    }, 220);
     return () => window.clearTimeout(handle);
   }, [knowledgeQuery, knowledgeWikiTree]);
 
