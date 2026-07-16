@@ -1216,13 +1216,18 @@ label {
   cursor: zoom-in;
 }
 
-.chat-composer__preview-card img {
+.chat-composer__preview-open img {
   width: 104px;
   height: 78px;
   object-fit: cover;
   border-radius: 14px;
   border: 1px solid rgba(15, 16, 18, 0.08);
   background: rgba(255, 255, 255, 0.88);
+}
+
+.chat-composer__preview-remove .asset-icon {
+  width: 15px;
+  height: 15px;
 }
 
 .chat-composer__preview-remove {
