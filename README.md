@@ -13,15 +13,25 @@ _대화 · 지식 · 문서가 한 몸으로 — 로컬 경량모델 하나로_
 ![Offline AI](https://img.shields.io/badge/AI-Ollama%20·%20gemma--4%20E2B-5E35B1)
 ![License](https://img.shields.io/badge/앱%20코드-MIT-blue)
 
-### [⬇️ 설치 패키지 받기](https://github.com/Kminer2053/gongmuwon/releases/latest) · [📖 사용 설명서](docs/manual/gongmu-user-manual.html) · [🎬 시연 영상](#-1분-26초-시연-영상)
+### [⬇️ 설치 패키지 받기](https://github.com/Kminer2053/gongmuwon/releases/latest) · [📖 사용 설명서](docs/manual/gongmu-user-manual.html) · [🎬 시연 보기](#-시연)
 
 </div>
 
 ---
 
-## 🎬 1분 26초, 시연 영상
+## 🎬 시연
 
-실제 앱을 **끊지 않고 한 번에** 담았습니다. 일정 등록 → 내 지식폴더 근거 검색 → 1페이지 보고서 생성과 한글 파일 열기 → 지식위키 → 일정 알림 → 로컬 LLM 설정까지.
+**대화 한 줄 → 일정 등록 → 내 지식폴더에서 근거 찾기 → 한글 보고서 완성**, 13초로 먼저 보세요.
+
+<div align="center">
+
+![공무원 시연 하이라이트 — 일정 등록, 지식폴더 근거 검색, 1페이지 보고서 생성](docs/assets/demo-highlight.gif)
+
+</div>
+
+<br>
+
+전체 흐름은 **1분 26초 영상**에 끊김 없이 담았습니다 — 위 3장면에 더해 지식위키 구성, 일정 알림, 로컬 LLM 설정까지. ▶ 눌러 재생하세요.
 
 https://github.com/user-attachments/assets/e9f8339c-1b5a-49db-ba5f-2060dff35411
 
