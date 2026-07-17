@@ -13,7 +13,7 @@ _대화 · 지식 · 문서가 한 몸으로 — 로컬 경량모델 하나로_
 ![Offline AI](https://img.shields.io/badge/AI-Ollama%20·%20gemma--4%20E2B-5E35B1)
 ![License](https://img.shields.io/badge/앱%20코드-MIT-blue)
 
-### [⬇️ 설치 패키지 받기](https://github.com/Kminer2053/gongmuwon/releases/latest) · [📖 사용 설명서](docs/manual/gongmu-user-manual.html) · [🎬 시연 보기](#-시연)
+### [⬇️ 설치 패키지 받기](https://github.com/Kminer2053/gongmuwon/releases/latest) · [📖 사용 설명서](https://kminer2053.github.io/gongmuwon/manual/gongmu-user-manual.html) · [🎬 시연 보기](#-시연)
 
 </div>
 
