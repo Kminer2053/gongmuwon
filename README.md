@@ -23,11 +23,11 @@ _대화 · 지식 · 문서가 한 몸으로 — 로컬 경량모델 하나로_
 
 실제 앱을 **끊지 않고 한 번에** 담았습니다. 일정 등록 → 내 지식폴더 근거 검색 → 1페이지 보고서 생성과 한글 파일 열기 → 지식위키 → 일정 알림 → 로컬 LLM 설정까지.
 
+https://github.com/user-attachments/assets/e9f8339c-1b5a-49db-ba5f-2060dff35411
+
 <div align="center">
 
-[![시연 영상 — 클릭하면 재생됩니다](docs/assets/demo-thumb.png)](https://github.com/Kminer2053/gongmuwon/blob/main/docs/assets/demo.mp4)
-
-**▶ [클릭해서 재생](https://github.com/Kminer2053/gongmuwon/blob/main/docs/assets/demo.mp4)** · 편집·자막 외 화면은 모두 실제 동작입니다
+편집·자막 외 화면은 모두 실제 동작입니다 · [영상 파일 내려받기](https://github.com/Kminer2053/gongmuwon/blob/main/docs/assets/demo.mp4)
 
 </div>
 
