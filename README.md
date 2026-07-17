@@ -13,7 +13,9 @@ _대화 · 지식 · 문서가 한 몸으로 — 로컬 경량모델 하나로_
 ![Offline AI](https://img.shields.io/badge/AI-Ollama%20·%20gemma--4%20E2B-5E35B1)
 ![License](https://img.shields.io/badge/앱%20코드-MIT-blue)
 
-### [⬇️ 설치 패키지 받기](https://github.com/Kminer2053/gongmuwon/releases/latest) · [📖 사용 설명서](https://kminer2053.github.io/gongmuwon/manual/gongmu-user-manual.html) · [🎬 시연 보기](#-시연)
+### [⬇️ 설치 패키지 받기](https://github.com/Kminer2053/gongmuwon/releases/latest) · [📖 사용 설명서 보기](https://kminer2053.github.io/gongmuwon/manual/gongmu-user-manual.html) · [🎬 시연 보기](#-시연)
+
+<sub>설명서는 [파일로 내려받을 수도 있습니다](https://github.com/Kminer2053/gongmuwon/releases/download/v0.1.12/Gongmu_User_Manual_KO_v0.1.12.html) — 인터넷이 안 되는 PC에서 열어볼 때 (HTML 한 파일, 그림 포함)</sub>
 
 </div>
 
