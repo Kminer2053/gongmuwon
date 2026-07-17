@@ -853,6 +853,46 @@ def _drop_unfilled_token_paragraphs(xml: str, values: dict[str, str]) -> str:
     return "".join(pieces)
 
 
+def _strip_layout_cache(xml: str) -> str:
+    """스켈레톤에서 복제된 <hp:linesegarray>(줄 배치 캐시)를 걷어낸다.
+
+    캐시의 vertpos 는 '템플릿 원본에서 그 문단이 있던 위치'다. 문단을 복제·재조립하면
+    값이 그대로 따라와 순서가 뒤엉킨다(다음 문단이 앞 문단보다 위, 같은 값 반복, 0 으로 리셋).
+    한컴은 파일을 열 때 배치를 다시 계산해서 영향이 없지만, 캐시를 그대로 믿는 뷰어는
+    vertpos 가 되돌아가는 지점마다 새 쪽을 시작한다 — 1페이지 보고서가 제목쪽·본문쪽·빈쪽으로
+    쪼개지던 원인. 캐시를 지우면 두 엔진 모두 같은 배치를 새로 계산한다.
+    """
+    return re.sub(r"<hp:linesegarray>.*?</hp:linesegarray>", "", xml, flags=re.DOTALL)
+
+
+def _drop_forced_empty_page(xml: str) -> str:
+    """채울 내용이 없어 빈 껍데기만 남은 강제 쪽나눔 블록을 통째로 지운다.
+
+    1페이지 보고서 스켈레톤은 뒤에 '붙임/근거' 쪽을 쪽나눔으로 매달고 있다. 근거가 없으면
+    글자는 비지만 쪽나눔과 빈 표는 남아 빈 쪽이 생긴다(쪽나눔만 풀면 빈 표가 본문에 노출된다).
+    """
+    spans = _split_top_level_paragraph_spans(xml)
+    start = next(
+        (index for index, (a, b) in enumerate(spans) if re.match(r'<hp:p[^>]*pageBreak="1"', xml[a:b])),
+        None,
+    )
+    if start is None:
+        return xml
+    tail = xml[spans[start][0] :]
+    if "<hp:pic" in tail or any(text.strip() for text in re.findall(r"<hp:t>(.*?)</hp:t>", tail, re.DOTALL)):
+        return xml  # 실제 내용이 있으면 그대로 둔다
+    return xml[: spans[start][0]] + xml[spans[-1][1] :]
+
+
+def _finalize_section_xml(workdir: Path) -> None:
+    """토큰 치환이 끝나 내용이 확정된 뒤 실행하는 구역 XML 마무리."""
+    for section_path in sorted(workdir.glob("Contents/section*.xml")):
+        xml = section_path.read_text(encoding="utf-8", errors="ignore")
+        xml = _drop_forced_empty_page(xml)
+        xml = _strip_layout_cache(xml)
+        section_path.write_text(xml, encoding="utf-8")
+
+
 def _fill_structured_skeleton(
     skeleton_path: Path,
     output_path: Path,
@@ -878,6 +918,8 @@ def _fill_structured_skeleton(
             text = xml_path.read_text(encoding="utf-8", errors="ignore")
             text = _replace_skeleton_tokens(text, values)
             xml_path.write_text(text, encoding="utf-8")
+
+        _finalize_section_xml(workdir)
 
         hpf_path = workdir / "Contents" / "content.hpf"
         if hpf_path.exists() and values.get("표지_제목"):
@@ -968,6 +1010,8 @@ def _fill_skeleton_template(skeleton_path: Path, values: dict[str, str], output_
             text = xml_path.read_text(encoding="utf-8", errors="ignore")
             text = _replace_skeleton_tokens(text, values)
             xml_path.write_text(text, encoding="utf-8")
+
+        _finalize_section_xml(workdir)
 
         hpf_path = workdir / "Contents" / "content.hpf"
         if hpf_path.exists() and values.get("표지_제목"):

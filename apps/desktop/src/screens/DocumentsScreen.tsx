@@ -350,6 +350,26 @@ function loadRhwpModule(): Promise<RhwpModule> {
   return rhwpModulePromise;
 }
 
+/**
+ * 셀 clip 의 세로 잘라내기를 푼다(가로는 그대로).
+ *
+ * 표 칸의 높이는 템플릿에 고정값으로 박혀 있고, 한컴은 파일을 열 때 내용에 맞춰 칸을
+ * 늘려 준다. rhwp 는 고정값을 그대로 믿고 칸마다 clip 을 걸어서, 칸보다 글이 많으면
+ * (제목 글상자에 제목+부제 두 줄) 아랫줄이 중간에서 싹둑 잘린다. 대체 글꼴의 윗공간이
+ * 더 큰 탓에 윗부분도 몇 px 씩 깎인다.
+ *
+ * 세로 clip 만 풀면 잘림 없이 다 보인다. 가로는 칸 경계를 지켜야 옆 칸으로 글이
+ * 번지지 않으므로 그대로 둔다.
+ */
+function relaxCellClips(svg: string): string {
+  const pageHeight = Number(/<svg[^>]*\bheight="([\d.]+)"/.exec(svg)?.[1] ?? 0);
+  if (!pageHeight) return svg;
+  return svg.replace(
+    /(<clipPath id="cell-clip-[^"]*">\s*<rect\b[^>]*?)y="[\d.]+"([^>]*?)height="[\d.]+"/g,
+    (_match, head: string, middle: string) => `${head}y="0"${middle}height="${pageHeight}"`,
+  );
+}
+
 async function renderHwpxBytesToSvgPages(bytes: Uint8Array): Promise<string[]> {
   const rhwp = await loadRhwpModule();
   const doc = new rhwp.HwpDocument(bytes);
@@ -357,7 +377,7 @@ async function renderHwpxBytesToSvgPages(bytes: Uint8Array): Promise<string[]> {
     const total = doc.pageCount();
     const pages: string[] = [];
     for (let page = 0; page < total; page += 1) {
-      pages.push(doc.renderPageSvg(page));
+      pages.push(relaxCellClips(doc.renderPageSvg(page)));
     }
     return pages;
   } finally {

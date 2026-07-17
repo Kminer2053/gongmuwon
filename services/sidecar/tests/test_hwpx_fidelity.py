@@ -299,6 +299,39 @@ def _tables_containing(section_xml: str, sentences: list[str]) -> list[str]:
     return [tbl for tbl in tables if all(s in _strip_tags(tbl) for s in sentences)]
 
 
+def test_generated_hwpx_carries_no_stale_layout_cache(tmp_path: Path) -> None:
+    """스켈레톤에서 복제된 <hp:linesegarray>(줄 배치 캐시)가 남지 않는다.
+
+    캐시의 vertpos 는 템플릿 원본 문단의 위치라, 문단을 복제·재조립하면 값이 뒤엉킨다
+    (뒷 문단이 앞 문단보다 위로 가거나 같은 값이 반복되거나 0 으로 되돌아간다).
+    한컴은 열 때 다시 계산해서 멀쩡하지만, 캐시를 그대로 믿는 뷰어는 vertpos 가 되돌아가는
+    자리마다 새 쪽을 시작해 1페이지 보고서가 제목쪽·본문쪽·빈쪽으로 쪼개졌다.
+    """
+    for format_key, structure in FIDELITY_CASES:
+        target = tmp_path / format_key
+        target.mkdir()
+        section_xml = _read_section0(_build_final_hwpx(target, format_key, structure))
+        assert "<hp:linesegarray>" not in section_xml, f"{format_key}: 줄 배치 캐시가 남아 있다"
+        ET.fromstring(section_xml)
+
+
+def test_onepage_without_evidence_has_no_forced_empty_page(tmp_path: Path) -> None:
+    """근거가 없으면 '붙임' 쪽나눔 블록이 통째로 빠져 빈 쪽이 생기지 않는다."""
+    section_xml = _read_section0(_build_final_hwpx(tmp_path, "onePageReport", ONEPAGE_STRUCTURE))
+
+    forced = re.findall(r'<hp:p[^>]*pageBreak="1"', section_xml)
+    assert not forced, "채울 내용이 없는 강제 쪽나눔이 남아 빈 쪽이 생긴다"
+
+    # 쪽나눔만 풀고 빈 표를 남기면 본문에 빈 상자가 노출된다 — 표는 제목·요약 2개뿐이어야 한다
+    assert len(re.findall(r"<hp:tbl\b", section_xml)) == 2, "빈 붙임 표 껍데기가 남아 있다"
+
+
+def test_forced_page_with_content_is_kept(tmp_path: Path) -> None:
+    """반대로 쪽나눔 뒤에 실제 내용이 있으면(풀버전 보고서) 그 블록을 지우지 않는다."""
+    section_xml = _read_section0(_build_final_hwpx(tmp_path, "fullReport", FULL_STRUCTURE))
+    assert re.findall(r'<hp:p[^>]*pageBreak="1"', section_xml), "내용이 있는 쪽나눔 블록까지 지우면 안 된다"
+
+
 def test_onepage_summary_rendered_as_textbox(tmp_path: Path) -> None:
     """요약 문장 전부가 단일 hp:tbl/hp:tc 안에 있고 '□ 요약' 제목·표 밖 중복이 없다."""
     from gongmu_sidecar.hwpx_writer import split_summary_sentences
