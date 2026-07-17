@@ -22,6 +22,9 @@ class LlmConnectionProfile(BaseModel):
     base_url: str | None = None
     site_url: str | None = None
     application_name: str | None = None
+    # 응답 전용 파생 플래그: 키의 존재 여부만 노출하고 실제 키 값은 응답에서 제거한다.
+    # 저장(persist)과 업데이트(apply_update)에서는 무시한다.
+    api_key_set: bool = False
 
 
 def _default_external_provider_profiles() -> dict[str, LlmConnectionProfile]:
@@ -93,6 +96,58 @@ def _copy_profiles(profiles: WorkspaceLlmProfiles) -> WorkspaceLlmProfiles:
     return WorkspaceLlmProfiles.model_validate(profiles.model_dump())
 
 
+def redact_profiles(profiles: WorkspaceLlmProfiles) -> WorkspaceLlmProfiles:
+    """응답용: 모든 슬롯의 api_key 를 지우고 존재 여부만 api_key_set 으로 남긴다.
+
+    로컬 API 는 인증이 없고 CORS 도 넓어, 응답에 원문 키가 실리면 임의 웹페이지나
+    로컬 프로세스가 키를 훔칠 수 있다. 응답에서 키를 통째로 제거하는 것이 1차 방어다.
+    """
+    copy = _copy_profiles(profiles)
+    for slot in (copy.local_first, copy.internal_server):
+        slot.api_key_set = bool(slot.api_key)
+        slot.api_key = None
+    for prof in copy.external_model.providers.values():
+        prof.api_key_set = bool(prof.api_key)
+        prof.api_key = None
+    return copy
+
+
+def merge_profile_keys(
+    incoming: WorkspaceLlmProfiles, existing: WorkspaceLlmProfiles
+) -> WorkspaceLlmProfiles:
+    """저장 시: 들어온 프로필의 api_key 가 비어 있으면 기존 키를 보존한다.
+
+    응답에서 키를 지웠으므로(redact_profiles) 프론트가 같은 프로필을 그대로 되돌려
+    저장하면 빈 키가 넘어온다. 여기서 기존 키를 복원하지 않으면 저장 한 번에 모든
+    프로필 키가 지워진다(마스킹 왕복 사고). 새 키를 실제로 입력한 슬롯만 값이 바뀐다.
+    """
+    merged = _copy_profiles(incoming)
+    for name in ("local_first", "internal_server"):
+        inc = getattr(merged, name)
+        if not inc.api_key:
+            inc.api_key = getattr(existing, name).api_key
+    for provider_key, prof in merged.external_model.providers.items():
+        if not prof.api_key:
+            prev = existing.external_model.providers.get(provider_key)
+            if prev is not None:
+                prof.api_key = prev.api_key
+    return merged
+
+
+def _profiles_persist_dump(profiles: WorkspaceLlmProfiles) -> dict:
+    """저장 파일에는 응답 전용 파생 플래그(api_key_set)를 남기지 않는다."""
+    data = profiles.model_dump()
+    for name in ("local_first", "internal_server"):
+        slot = data.get(name)
+        if isinstance(slot, dict):
+            slot.pop("api_key_set", None)
+    providers = data.get("external_model", {}).get("providers", {})
+    for prof in providers.values():
+        if isinstance(prof, dict):
+            prof.pop("api_key_set", None)
+    return data
+
+
 def _profiles_with_active_overrides(base: "SidecarSettings") -> WorkspaceLlmProfiles:
     profiles = _copy_profiles(base.llm_profiles)
     profile = _resolve_profile_slot(profiles, base.llm_mode, base.llm_provider)
@@ -154,6 +209,8 @@ class WorkspaceSettingsDefaults(BaseModel):
     llm_provider: str
     llm_model: str
     llm_api_key: str | None
+    # 응답에서 실제 키는 제거하고(항상 None) 존재 여부만 이 플래그로 전달한다.
+    llm_api_key_set: bool = False
     llm_site_url: str | None
     llm_application_name: str | None
     default_template_key: Literal["report", "meeting", "review"]
@@ -323,7 +380,7 @@ class SidecarSettings(BaseSettings):
                     "llm_api_key": self.llm_api_key,
                     "llm_site_url": self.llm_site_url,
                     "llm_application_name": self.llm_application_name,
-                    "llm_profiles": self.llm_profiles.model_dump(),
+                    "llm_profiles": _profiles_persist_dump(self.llm_profiles),
                     "default_template_key": self.default_template_key,
                     "internal_api_base_url": self.internal_api_base_url,
                     "personalization_apply_mode": self.personalization_apply_mode,
@@ -343,7 +400,13 @@ class SidecarSettings(BaseSettings):
         )
 
     def apply_update(self, payload: WorkspaceSettingsUpdate) -> "SidecarSettings":
-        next_profiles = _copy_profiles(payload.llm_profiles or self.llm_profiles)
+        # 응답에서 키를 지웠으므로(redact_profiles) 되돌아온 프로필의 빈 키는 기존값으로
+        # 복원한다. 이 병합이 없으면 설정 저장 한 번에 모든 프로필 키가 지워진다.
+        next_profiles = (
+            merge_profile_keys(payload.llm_profiles, self.llm_profiles)
+            if payload.llm_profiles is not None
+            else _copy_profiles(self.llm_profiles)
+        )
         next_mode = payload.llm_mode or self.llm_mode
         next_provider = payload.llm_provider
 

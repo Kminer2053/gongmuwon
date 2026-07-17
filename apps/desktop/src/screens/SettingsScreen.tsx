@@ -252,9 +252,19 @@ export function SettingsScreen() {
               type="password"
               value={settingsForm.llm_api_key}
               onChange={(event) => applySettingsFormPatch({ llm_api_key: event.target.value })}
-              placeholder={selectedProviderPreset.apiKeyPlaceholder}
+              placeholder={
+                settingsForm.llm_api_key_set && !settingsForm.llm_api_key
+                  ? "저장된 키 있음 — 바꾸려면 새 키 입력"
+                  : selectedProviderPreset.apiKeyPlaceholder
+              }
             />
           </label>
+          {/* 안내문은 label 바깥에 둔다 — label 안에 있으면 접근성 라벨 텍스트가 오염된다. */}
+          {settingsForm.llm_api_key_set && !settingsForm.llm_api_key ? (
+            <p className="helper-copy helper-copy--compact">
+              보안을 위해 저장된 키는 화면에 표시하지 않습니다. 비워 두면 기존 키가 유지됩니다.
+            </p>
+          ) : null}
         </div>
         <div className="detail-panel">
           <p className="detail-panel__title">연결 preset 요약</p>

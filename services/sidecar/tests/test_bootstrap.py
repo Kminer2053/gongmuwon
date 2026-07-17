@@ -129,5 +129,13 @@ def test_cors_preflight_allows_desktop_origin(tmp_path: Path) -> None:
         },
     )
 
+    # SEC-2: 와일드카드(*) 대신 Tauri 웹뷰 origin 을 명시적으로 허용한다.
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "*"
+    assert response.headers["access-control-allow-origin"] == "tauri://localhost"
+
+    # 임의 웹 origin 은 허용되지 않아야 한다.
+    evil = client.options(
+        "/api/settings",
+        headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "GET"},
+    )
+    assert evil.headers.get("access-control-allow-origin") != "https://evil.example"

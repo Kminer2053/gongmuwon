@@ -9,6 +9,8 @@ export type LlmConnectionProfile = {
   provider: string;
   model: string;
   api_key?: string | null;
+  // 서버는 응답에서 실제 키를 지우고(SEC-1) 존재 여부만 이 플래그로 알린다.
+  api_key_set?: boolean;
   base_url?: string | null;
   site_url?: string | null;
   application_name?: string | null;
@@ -1279,6 +1281,7 @@ function parseLlmConnectionProfile(
     provider: readNonEmptyString(value.provider) ?? fallback.provider,
     model: readNonEmptyString(value.model) ?? fallback.model,
     api_key: typeof value.api_key === "string" || value.api_key === null ? value.api_key : fallback.api_key ?? null,
+    api_key_set: value.api_key_set === true || (typeof value.api_key === "string" && value.api_key.length > 0),
     base_url:
       typeof value.base_url === "string" || value.base_url === null ? value.base_url : fallback.base_url ?? null,
     site_url:

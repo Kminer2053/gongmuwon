@@ -357,6 +357,8 @@ export function useAppStoreValue() {
     llm_provider: "ollama",
     llm_model: "qwen3.6:27b",
     llm_api_key: "",
+    // SEC-1: 서버가 응답에서 키를 지우므로 입력칸은 비지만, 저장된 키가 있는지는 이 값으로 안다.
+    llm_api_key_set: false,
     llm_site_url: "",
     llm_application_name: "",
     default_template_key: "report" as "report" | "meeting" | "review",
@@ -611,6 +613,7 @@ export function useAppStoreValue() {
       llm_provider: profile.provider,
       llm_model: profile.model,
       llm_api_key: profile.api_key ?? "",
+      llm_api_key_set: profile.api_key_set === true || Boolean(profile.api_key),
       llm_site_url: profile.site_url ?? "",
       llm_application_name: profile.application_name ?? "",
       default_template_key: defaultTemplateKey,

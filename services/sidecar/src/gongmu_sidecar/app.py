@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -51,7 +52,12 @@ from .local_file_search import (
 )
 from .llm import LLMGenerationError, generate_session_reply, generate_session_reply_streaming
 from .personalization import PersonalizationManager
-from .settings import SidecarSettings, WorkspaceSettingsResponse, WorkspaceSettingsUpdate
+from .settings import (
+    SidecarSettings,
+    WorkspaceSettingsResponse,
+    WorkspaceSettingsUpdate,
+    redact_profiles,
+)
 from .tools import TOOLS
 from .topic_vocab import TopicVocabManager, VocabValidationError
 from .work_taxonomy import InvalidTagError, WorkTaxonomyManager
@@ -785,11 +791,19 @@ class AppServices:
         self.settings = self.settings.apply_update(payload)
         self._ensure_personalization_root()
         self.settings.persist(self.paths.config_file)
+        # 감사 로그에는 원문 키를 남기지 않는다 — 입력 payload 와 프로필 모두 마스킹한다.
+        masked_inputs = payload.model_dump()
+        if masked_inputs.get("llm_api_key"):
+            masked_inputs["llm_api_key"] = "***"
+        if masked_inputs.get("llm_profiles") is not None:
+            masked_inputs["llm_profiles"] = redact_profiles(
+                self.settings.llm_profiles
+            ).model_dump()
         self.db.log(
             feature="settings",
             action="settings.updated",
             status="success",
-            inputs=payload.model_dump(),
+            inputs=masked_inputs,
             outputs={
                 "llm_mode": self.settings.llm_mode,
                 "llm_provider": self.settings.llm_provider,
@@ -797,7 +811,7 @@ class AppServices:
                 "llm_api_key": "***" if self.settings.llm_api_key else None,
                 "llm_site_url": self.settings.llm_site_url,
                 "llm_application_name": self.settings.llm_application_name,
-                "llm_profiles": self.settings.llm_profiles.model_dump(),
+                "llm_profiles": redact_profiles(self.settings.llm_profiles).model_dump(),
                 "default_template_key": self.settings.default_template_key,
                 "internal_api_base_url": self.settings.internal_api_base_url,
                 "personalization_apply_mode": self.settings.personalization_apply_mode,
@@ -815,10 +829,12 @@ class AppServices:
                 "llm_mode": self.settings.llm_mode,
                 "llm_provider": self.settings.llm_provider,
                 "llm_model": self.settings.llm_model,
-                "llm_api_key": self.settings.llm_api_key,
+                # 응답에는 원문 키를 싣지 않는다 — 존재 여부만 전달한다.
+                "llm_api_key": None,
+                "llm_api_key_set": bool(self.settings.llm_api_key),
                 "llm_site_url": self.settings.llm_site_url,
                 "llm_application_name": self.settings.llm_application_name,
-                "profiles": self.settings.llm_profiles,
+                "profiles": redact_profiles(self.settings.llm_profiles),
                 "default_template_key": self.settings.default_template_key,
                 "internal_api_base_url": self.settings.internal_api_base_url,
                 "personalization_apply_mode": self.settings.personalization_apply_mode,
@@ -3571,9 +3587,29 @@ class AppServices:
 def create_app(workspace_root: Path | str | None = None) -> FastAPI:
     services = AppServices(workspace_root)
     app = FastAPI(title="gongmu-sidecar", version="0.1.0")
+    # 로컬 사이드카는 인증이 없다. 와일드카드 CORS(*)는 임의 웹페이지가 브라우저에서
+    # 이 API 응답을 읽게 허용하므로, 웹뷰가 쓰는 origin 만 허용한다.
+    # (Windows 프로덕션 웹뷰 = http://tauri.localhost, dev = vite 5173)
+    # 특수 배포는 GONGMU_ALLOWED_ORIGINS(쉼표구분)로 재정의할 수 있다.
+    default_origins = [
+        # Tauri 웹뷰 origin — 플랫폼/버전에 따라 형태가 달라 모두 허용한다.
+        # (Windows v2 = http://tauri.localhost, 커스텀 프로토콜 = tauri://localhost)
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+        "tauri://localhost",
+        # vite dev 서버
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+    env_origins = os.environ.get("GONGMU_ALLOWED_ORIGINS", "").strip()
+    allowed_origins = (
+        [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+        if env_origins
+        else default_origins
+    )
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=allowed_origins,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -3701,10 +3737,12 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
                 "llm_mode": services.settings.llm_mode,
                 "llm_provider": services.settings.llm_provider,
                 "llm_model": services.settings.llm_model,
-                "llm_api_key": services.settings.llm_api_key,
+                # 응답에는 원문 키를 싣지 않는다 — 존재 여부만 전달한다.
+                "llm_api_key": None,
+                "llm_api_key_set": bool(services.settings.llm_api_key),
                 "llm_site_url": services.settings.llm_site_url,
                 "llm_application_name": services.settings.llm_application_name,
-                "profiles": services.settings.llm_profiles,
+                "profiles": redact_profiles(services.settings.llm_profiles),
                 "default_template_key": services.settings.default_template_key,
                 "internal_api_base_url": services.settings.internal_api_base_url,
                 "personalization_apply_mode": services.settings.personalization_apply_mode,
