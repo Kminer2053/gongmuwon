@@ -15,7 +15,7 @@ _대화 · 지식 · 문서가 한 몸으로 — 로컬 경량모델 하나로_
 
 ### [⬇️ 설치 패키지 받기](https://github.com/Kminer2053/gongmuwon/releases/latest) · [📖 사용 설명서 보기](https://kminer2053.github.io/gongmuwon/manual/gongmu-user-manual.html) · [🎬 시연 보기](#-시연)
 
-<sub>설명서는 [파일로 내려받을 수도 있습니다](https://github.com/Kminer2053/gongmuwon/releases/download/v0.1.12/Gongmu_User_Manual_KO_v0.1.12.html) — 인터넷이 안 되는 PC에서 열어볼 때 (HTML 한 파일, 그림 포함)</sub>
+<sub>설명서는 **설치 패키지 안에도 들어 있습니다**(압축을 풀면 `사용설명서.html`) · [따로 받기](https://github.com/Kminer2053/gongmuwon/releases/download/v0.1.12/Gongmu_User_Manual_KO_v0.1.12.html) — HTML 한 파일에 그림까지 들어 있어 인터넷 없이 열립니다</sub>
 
 </div>
 
@@ -160,6 +160,8 @@ JOIN_AI_PACK.bat      ← 합치는 도구
 3. 관리자 승인(UAC) 창이 뜨면 **"예"**. 나머지는 자동입니다.
 4. 끝나면 **앱이 자동 실행되고 튜토리얼이 안내**합니다.
 5. (선택) `VALIDATE_INSTALL.bat` — 설치가 제대로 됐는지 자동 점검.
+
+> 📖 같은 폴더의 **`사용설명서.html`**을 더블클릭하면 사용법을 볼 수 있습니다. 인터넷이 없어도 그림까지 다 보입니다.
 
 </details>
 

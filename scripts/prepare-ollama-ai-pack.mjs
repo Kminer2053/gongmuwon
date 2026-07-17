@@ -12,6 +12,7 @@ import {
 } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { copyUserManual } from "./prepare-offline-release.mjs";
 import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 
@@ -190,6 +191,8 @@ async function writePackageReadme(path, { hasModelStore, hasOllamaInstaller, has
     "- `COLLECT_EVIDENCE.bat` : 설치 결과 증거를 모아 `evidence` 폴더에 저장합니다.",
     "- `RUN_FULL_VALIDATION.bat` : 설치·검증·증거수집을 한 번에 실행합니다.",
     "- `INSTALL_GUIDE_KO.md` : 처음 설치하는 분을 위한 자세한 한글 안내입니다.",
+    "- `사용설명서.html` : 설치 후 앱 사용법입니다. 더블클릭하면 브라우저에서 열립니다.",
+    "  인터넷 연결이 필요 없습니다 — 화면 그림까지 이 파일 하나에 들어 있습니다.",
     "- `THIRD_PARTY_NOTICES.md` : 동봉된 구성요소(Ollama·Gemma·Python)의 라이선스 고지입니다.",
     "",
     "## 문제가 생기면 확인할 파일",
@@ -1820,6 +1823,9 @@ export async function prepareOllamaAiPack(options = {}) {
   });
   await writeThirdPartyNotices(join(packageDir, "THIRD_PARTY_NOTICES.md"));
   await writeLicenseFiles(packageDir);
+  // 폐쇄망 PC 는 설명서를 받으러 갈 인터넷이 없다 — 패키지에 같이 넣어야 한다.
+  // HTML 한 파일에 그림까지 들어 있어 이 파일만 있으면 열린다.
+  copyUserManual(packageDir);
 
   const manifest = {
     package: {

@@ -14,7 +14,7 @@ title Gongmu AI Pack - Join Files
 cd /d "%~dp0"
 
 set "OUT=Gongmu_AI_Pack.zip"
-set "EXPECT=5F7E3CF9D25AFA5A0081948EF5452DB416022459905D5572D529D018B599FB5C"
+set "EXPECT=9A2759AB5BD87FE45766842E369623A56B24758B03465D1F1296E0631CB13434"
 
 echo.
 echo ============================================================

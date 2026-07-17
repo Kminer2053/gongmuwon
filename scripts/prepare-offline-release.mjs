@@ -111,6 +111,11 @@ function buildReadme({ createdAt, installerName, installerSizeMb, installerSha, 
 4. 우측 상단 업무엔진 신호등이 정상 상태인지 확인합니다.
 5. 업무대화, 일정, 파일찾기, 지식폴더, 문서작성 기능을 순서대로 점검합니다.
 
+## 사용 설명서
+
+- \`사용설명서.html\` 을 더블클릭하면 브라우저에서 열립니다.
+- 인터넷 연결이 필요 없습니다 — 화면 그림까지 이 파일 하나에 들어 있습니다.
+
 ## 검증 명령
 
 빌드 PC에서 아래 명령으로 NSIS 설치 smoke를 재확인할 수 있습니다.
@@ -127,6 +132,19 @@ ${smokeCommand}
 `;
 }
 
+export const USER_MANUAL_SOURCE = path.join(repoRoot, "docs", "manual", "gongmu-user-manual.html");
+export const USER_MANUAL_DEST_NAME = "사용설명서.html";
+
+/** 사용 설명서(HTML 한 파일, 그림 내장)를 패키지에 복사한다. 없으면 빌드를 멈춘다. */
+export function copyUserManual(targetDir) {
+  if (!fs.existsSync(USER_MANUAL_SOURCE)) {
+    throw new Error(`사용 설명서를 찾지 못했습니다: ${USER_MANUAL_SOURCE}`);
+  }
+  const dest = path.join(targetDir, USER_MANUAL_DEST_NAME);
+  fs.copyFileSync(USER_MANUAL_SOURCE, dest);
+  return dest;
+}
+
 export function prepareOfflineRelease({ now = new Date(), skipZip = false } = {}) {
   const installer = findLatestNsisInstaller();
   const stamp = process.env.GONGMU_RELEASE_STAMP || buildStamp(now);
@@ -139,6 +157,10 @@ export function prepareOfflineRelease({ now = new Date(), skipZip = false } = {}
 
   const installerDestination = path.join(packageDir, installer.fileName);
   fs.copyFileSync(installer.fullPath, installerDestination);
+
+  // 폐쇄망 PC 는 설명서를 받으러 갈 인터넷이 없다 — 패키지에 같이 넣어야 한다.
+  // HTML 한 파일에 그림까지 들어 있어 이 파일만 있으면 열린다.
+  copyUserManual(packageDir);
 
   const installerSha = sha256File(installerDestination);
   const installerSizeMb = (fs.statSync(installerDestination).size / 1024 / 1024).toFixed(2);
