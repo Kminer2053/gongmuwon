@@ -1,0 +1,6 @@
+# 윈도우 배치/스크립트는 반드시 CRLF 로 체크아웃되어야 한다.
+# cmd.exe 는 LF 만 있는 .bat 를 제대로 파싱하지 못해 rem 주석까지 명령으로
+# 실행하려 들고 스크립트가 통째로 깨진다(합치기 배치가 실제로 이렇게 실패했다).
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
