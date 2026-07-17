@@ -370,6 +370,45 @@ function relaxCellClips(svg: string): string {
   );
 }
 
+/**
+ * rhwp 가 만든 SVG 를 dangerouslySetInnerHTML 로 넣기 전에 능동 콘텐츠를 제거한다.
+ *
+ * rhwp 는 사용자의 HWPX 를 렌더할 뿐이지만, 문서가 신뢰 경계를 넘어온 경우(외부에서
+ * 받은 .hwpx)를 대비한 심층 방어다. <script>·<foreignObject> 를 지우고, on* 이벤트
+ * 핸들러와 data:/#조각 이 아닌 외부 참조(href/xlink:href)를 제거한다. 파싱 실패 시엔
+ * 안전을 위해 능동 요소를 정규식으로라도 걷어낸 문자열을 돌려준다.
+ */
+export function sanitizeSvg(svg: string): string {
+  try {
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    if (doc.querySelector("parsererror")) throw new Error("parsererror");
+    doc.querySelectorAll("script, foreignObject").forEach((el) => el.remove());
+    doc.querySelectorAll("*").forEach((el) => {
+      for (const attr of [...el.attributes]) {
+        const name = attr.name.toLowerCase();
+        const value = attr.value.trim().toLowerCase();
+        if (name.startsWith("on")) {
+          el.removeAttribute(attr.name);
+        } else if (name === "href" || name === "xlink:href" || name === "src") {
+          // data: 이미지와 #조각 참조만 허용, 나머지 외부/스크립트 참조는 제거
+          if (!value.startsWith("data:image/") && !value.startsWith("#")) {
+            el.removeAttribute(attr.name);
+          }
+        } else if (value.includes("javascript:")) {
+          el.removeAttribute(attr.name);
+        }
+      }
+    });
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  } catch {
+    return svg
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<foreignObject[\s\S]*?<\/foreignObject>/gi, "")
+      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+      .replace(/javascript:/gi, "");
+  }
+}
+
 async function renderHwpxBytesToSvgPages(bytes: Uint8Array): Promise<string[]> {
   const rhwp = await loadRhwpModule();
   const doc = new rhwp.HwpDocument(bytes);
@@ -377,7 +416,7 @@ async function renderHwpxBytesToSvgPages(bytes: Uint8Array): Promise<string[]> {
     const total = doc.pageCount();
     const pages: string[] = [];
     for (let page = 0; page < total; page += 1) {
-      pages.push(relaxCellClips(doc.renderPageSvg(page)));
+      pages.push(sanitizeSvg(relaxCellClips(doc.renderPageSvg(page))));
     }
     return pages;
   } finally {
