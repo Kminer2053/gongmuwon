@@ -2,7 +2,12 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import (
+    collect_data_files,
+    collect_dynamic_libs,
+    collect_submodules,
+    copy_metadata,
+)
 
 
 REPO_ROOT = Path.cwd().resolve()
@@ -16,7 +21,15 @@ KORDOC_ROOT = REPO_ROOT / "services" / "sidecar" / "packaging" / "kordoc"
 # 제거됨 — 강제 수집하지 않는다 (번들 비대 + numpy DLL 취약성의 원인이었음).
 hiddenimports = sorted(set(collect_submodules("uvicorn")))
 
+# SEC-4b: keyring 은 백엔드를 importlib.metadata entry-point 로 동적 로드해서
+# PyInstaller 가 놓친다. 백엔드 모듈·pywin32-ctypes·dist 메타데이터를 명시 수집하지
+# 않으면 "dev 는 되는데 번들에서만 크래시"가 난다. 번들 후 smoke test 로 반드시 확인.
+hiddenimports += collect_submodules("keyring")
+hiddenimports += collect_submodules("win32ctypes")
+hiddenimports = sorted(set(hiddenimports))
+
 datas = []
+datas += copy_metadata("keyring")
 
 binaries = []
 # kordoc은 반드시 '자립 번들 스테이징'을 수집한다. 소스 러너(KORDOC_ROOT)는

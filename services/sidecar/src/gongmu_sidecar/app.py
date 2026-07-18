@@ -52,6 +52,7 @@ from .local_file_search import (
 )
 from .llm import LLMGenerationError, generate_session_reply, generate_session_reply_streaming
 from .personalization import PersonalizationManager
+from . import secrets_vault
 from .settings import (
     SidecarSettings,
     WorkspaceSettingsResponse,
@@ -3649,6 +3650,9 @@ def create_app(workspace_root: Path | str | None = None) -> FastAPI:
             "status": "ok",
             "workspace_root": str(services.paths.root),
             "database": str(services.paths.db_file),
+            # SEC-4b: 번들 exe 에서 keyring 백엔드가 실제로 살아 있는지 진단용으로 노출.
+            # false 면 API 키가 평문으로 폴백 저장된다는 신호(비밀값 자체는 노출 아님).
+            "vault_available": secrets_vault.vault_available(),
         }
 
     @app.get("/ready")

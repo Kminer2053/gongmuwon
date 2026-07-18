@@ -7,6 +7,8 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .secrets_vault import devaultize_settings, vaultize_settings
+
 
 ModeKey = Literal["local_first", "internal_server", "external_model"]
 PersonalizationApplyMode = Literal["approval_required", "auto_apply"]
@@ -297,6 +299,10 @@ class SidecarSettings(BaseSettings):
 
         try:
             payload = json.loads(config_file.read_text(encoding="utf-8-sig"))
+            if isinstance(payload, dict):
+                # SEC-4b: vault 표식이면 OS 자격증명 저장소에서 실제 키를 복원한다.
+                # 평문 키는 그대로 두어(다음 저장 때 vault 로 이동) 키 손실을 막는다.
+                payload = devaultize_settings(payload)
         except (OSError, json.JSONDecodeError):
             return _sync_active_fields(
                 base,
@@ -371,31 +377,31 @@ class SidecarSettings(BaseSettings):
         )
 
     def persist(self, config_file: Path) -> None:
+        data = {
+            "llm_mode": self.llm_mode,
+            "llm_provider": self.llm_provider,
+            "llm_model": self.llm_model,
+            "llm_api_key": self.llm_api_key,
+            "llm_site_url": self.llm_site_url,
+            "llm_application_name": self.llm_application_name,
+            "llm_profiles": _profiles_persist_dump(self.llm_profiles),
+            "default_template_key": self.default_template_key,
+            "internal_api_base_url": self.internal_api_base_url,
+            "personalization_apply_mode": self.personalization_apply_mode,
+            "personalization_root": self.personalization_root,
+            "embedding_provider": self.embedding_provider,
+            "embedding_model": self.embedding_model,
+            "embedding_base_url": self.embedding_base_url,
+            "embedding_fallback_enabled": self.embedding_fallback_enabled,
+            "graphrag_vector_backend": self.graphrag_vector_backend,
+            "knowledge_engine": self.knowledge_engine,
+            "context_budget_tokens": self.context_budget_tokens,
+        }
+        # SEC-4b: 실제 API 키는 OS 자격증명 저장소로 옮기고 파일에는 표식만 남긴다.
+        # vault 를 못 쓰면 data 를 그대로 저장한다(평문 폴백 — 앱은 안 깨진다).
+        data = vaultize_settings(data)
         config_file.write_text(
-            json.dumps(
-                {
-                    "llm_mode": self.llm_mode,
-                    "llm_provider": self.llm_provider,
-                    "llm_model": self.llm_model,
-                    "llm_api_key": self.llm_api_key,
-                    "llm_site_url": self.llm_site_url,
-                    "llm_application_name": self.llm_application_name,
-                    "llm_profiles": _profiles_persist_dump(self.llm_profiles),
-                    "default_template_key": self.default_template_key,
-                    "internal_api_base_url": self.internal_api_base_url,
-                    "personalization_apply_mode": self.personalization_apply_mode,
-                    "personalization_root": self.personalization_root,
-                    "embedding_provider": self.embedding_provider,
-                    "embedding_model": self.embedding_model,
-                    "embedding_base_url": self.embedding_base_url,
-                    "embedding_fallback_enabled": self.embedding_fallback_enabled,
-                    "graphrag_vector_backend": self.graphrag_vector_backend,
-                    "knowledge_engine": self.knowledge_engine,
-                    "context_budget_tokens": self.context_budget_tokens,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
+            json.dumps(data, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 

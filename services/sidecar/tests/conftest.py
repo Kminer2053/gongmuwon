@@ -14,3 +14,10 @@ from gongmu_sidecar.knowledge import KnowledgeManager
 @pytest.fixture(autouse=True)
 def zero_unstable_mtime_window(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(KnowledgeManager, "UNSTABLE_MTIME_WINDOW_SECONDS", 0.0)
+
+
+@pytest.fixture(autouse=True)
+def disable_secrets_vault(monkeypatch: pytest.MonkeyPatch) -> None:
+    """SEC-4b: 테스트는 실제 Windows 자격증명 저장소를 건드리지 않는다(평문 경로 사용).
+    vault 동작을 검증하는 테스트는 _keyring 을 직접 가짜로 monkeypatch 해 이를 우회한다."""
+    monkeypatch.setenv("GONGMU_DISABLE_VAULT", "1")
